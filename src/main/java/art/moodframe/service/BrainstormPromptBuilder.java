@@ -55,14 +55,15 @@ public final class BrainstormPromptBuilder {
     }
 
     /** One line per style with its group, which tells the layout styles (no light) apart. */
-    private static String styles(BrainstormContext context) {
+    static String styles(BrainstormContext context) {
         return context.styles().stream()
                 .map((PromptBlock style) -> "- " + style.getName()
                         + (style.getGroup() != null ? " (" + style.getGroup() + ")" : "") + ": " + style.getText())
                 .collect(Collectors.joining("\n"));
     }
 
-    private static String blocks(List<PromptBlock> blocks) {
+    /** One line per block with its name and text. */
+    static String blocks(List<PromptBlock> blocks) {
         return blocks.stream()
                 .map((PromptBlock block) -> "- " + block.getName() + ": " + block.getText())
                 .collect(Collectors.joining("\n"));

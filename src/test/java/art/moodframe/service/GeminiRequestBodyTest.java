@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ImageGenerationRequest;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,22 @@ class GeminiRequestBodyTest {
         assertTrue(body("gemini-3.1-flash-lite-image", null, false, url).toString().contains("jNQXAC9IVRw"));
         assertTrue(body("gemini-3.1-flash-image", null, false, url).toString().contains("jNQXAC9IVRw"));
         assertFalse(body("gemini-3-pro-image", null, false, url).toString().contains("jNQXAC9IVRw"));
+    }
+
+    @Test
+    void chatBodyPassesTheImagePartOnAndAsksForJson() {
+        JSONObject imagePart = new JSONObject().put("inlineData",
+                new JSONObject().put("mimeType", "image/jpeg").put("data", "QUJD"));
+        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
+                .put("parts", new JSONArray().put(imagePart).put(new JSONObject().put("text", "Find the blocks."))));
+
+        JSONObject body = GeminiApiServiceImpl.buildChatBody("sys", contents, false, false);
+
+        JSONObject sent = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts").getJSONObject(0);
+        assertEquals("image/jpeg", sent.getJSONObject("inlineData").getString("mimeType"));
+        assertEquals("QUJD", sent.getJSONObject("inlineData").getString("data"));
+        assertEquals("application/json", body.getJSONObject("generationConfig").getString("responseMimeType"));
+        assertFalse(body.has("tools"));
     }
 
     @Test

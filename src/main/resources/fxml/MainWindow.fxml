@@ -233,6 +233,13 @@
                                 <!-- Only with a reference image: whether the building blocks go into the prompt -->
                                 <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
 
+                                <!-- Finds atmosphere, style, light and colors in an image -->
+                                <Button fx:id="moodFromImageButton" styleClass="button-icon, flat" onAction="#onMoodFromImageClicked">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2i-image-search-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+
                                 <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
                                 <Button fx:id="saveMoodButton" styleClass="button-icon, flat" onAction="#onSaveMoodClicked">
                                     <graphic>

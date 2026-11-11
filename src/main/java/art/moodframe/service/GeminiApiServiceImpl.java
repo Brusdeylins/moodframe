@@ -1257,19 +1257,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         return CompletableFuture.supplyAsync(() -> {
             requireApiKey();
 
-            JSONObject requestBody = new JSONObject()
-                    .put("systemInstruction", new JSONObject()
-                            .put("parts", new JSONArray().put(new JSONObject().put("text", systemPrompt))))
-                    .put("contents", contents)
-                    .put("generationConfig", new JSONObject().put("responseMimeType", "application/json"));
-            if (withTools) {
-                requestBody.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", BRAINSTORM_TOOLS)));
-                if (noMoreCalls) {
-                    requestBody.put("toolConfig", new JSONObject()
-                            .put("functionCallingConfig", new JSONObject().put("mode", "NONE")));
-                }
-            }
-
+            JSONObject requestBody = buildChatBody(systemPrompt, contents, withTools, noMoreCalls);
             JSONObject candidate = postBrainstorm(BRAINSTORM_MODEL, requestBody, TIMEOUT_SECONDS);
             JSONArray parts = candidate.optJSONObject("content") != null
                     ? candidate.getJSONObject("content").optJSONArray("parts") : null;
@@ -1293,6 +1281,32 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             }
             return new BrainstormTurn(text.toString(), parts, calls);
         });
+    }
+
+    /**
+     * Builds the body of a generateContent request of the brainstorm chat. The contents go as they are, so an image
+     * reaches the model as an {@code inlineData} part ({@code mimeType}, Base64 {@code data}) of a user turn.
+     *
+     * @param systemPrompt the system instruction
+     * @param contents     the conversation in the Gemini format
+     * @param withTools    offer the brainstorm tools
+     * @param noMoreCalls  forbid further tool calls (only with tools)
+     * @return the JSON body
+     */
+    static JSONObject buildChatBody(String systemPrompt, JSONArray contents, boolean withTools, boolean noMoreCalls) {
+        JSONObject requestBody = new JSONObject()
+                .put("systemInstruction", new JSONObject()
+                        .put("parts", new JSONArray().put(new JSONObject().put("text", systemPrompt))))
+                .put("contents", contents)
+                .put("generationConfig", new JSONObject().put("responseMimeType", "application/json"));
+        if (withTools) {
+            requestBody.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", BRAINSTORM_TOOLS)));
+            if (noMoreCalls) {
+                requestBody.put("toolConfig", new JSONObject()
+                        .put("functionCallingConfig", new JSONObject().put("mode", "NONE")));
+            }
+        }
+        return requestBody;
     }
 
     @Override

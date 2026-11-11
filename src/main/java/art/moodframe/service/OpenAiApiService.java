@@ -44,7 +44,8 @@ public interface OpenAiApiService {
     /**
      * Asks the language model one question of a tool-calling conversation ({@code POST /chat/completions}). The
      * conversation is given in the Gemini format of the brainstorm, with the tool calls and results of the current
-     * turn as {@code functionCall} and {@code functionResponse} parts.
+     * turn as {@code functionCall} and {@code functionResponse} parts, and images as {@code inlineData} parts of a
+     * user turn.
      *
      * @param model        the model id
      * @param systemPrompt the system prompt

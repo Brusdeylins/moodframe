@@ -140,6 +140,8 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private CheckBox moodApplyCheckBox;
     @FXML
+    private Button moodFromImageButton;
+    @FXML
     private Button saveMoodButton;
     @FXML
     private javafx.scene.control.ComboBox<MoodChoice> moodComboBox;
@@ -523,6 +525,7 @@ public class MainWindowController implements I18nChangeListener {
             multiImagePanel = new art.moodframe.ui.component.MultiImageAttachmentPanel();
             multiImagePanel.setAttachmentService(imageAttachmentService);
             multiImagePanel.setOnError(this::showErrorMessage);
+            multiImagePanel.setOnMoodFromImage(this::openMoodFromImage);
 
             // Configure callbacks
             multiImagePanel.setOnFirstImageAttached(() -> {
@@ -2395,6 +2398,47 @@ public class MainWindowController implements I18nChangeListener {
             saveMood(false);
     }
 
+    @FXML
+    private void onMoodFromImageClicked() {
+        openMoodFromImage(null);
+    }
+
+    /**
+     * Opens the dialog "Mood from image", which finds the building blocks of an image for the fields of the panel.
+     *
+     * @param imageFile the image to analyze at once, null to let the user give one
+     */
+    private void openMoodFromImage(File imageFile) {
+        art.moodframe.service.PromptBlockService blockService = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
+        art.moodframe.service.ColorStyleService colorService = colorStyleService();
+        if (blockService == null || colorService == null)
+            return;
+
+        art.moodframe.service.BrainstormContext context = new art.moodframe.service.BrainstormContext(
+                blockService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
+                blockService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
+                blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT), colorService.getAllStyles(),
+                List.of(), List.of(), "", List.of(), lockedMoodFields());
+        new art.moodframe.ui.dialog.MoodImageDialog(mainBorderPane.getScene().getWindow(),
+                art.moodframe.service.MoodAnalysisService.create(config), context, imageFile,
+                this::applyMoodFromImage).show();
+    }
+
+    /**
+     * Sets the building blocks adopted in the dialog "Mood from image" into the fields that are not locked, a new block
+     * into the list of the user first, and saves the fields as a new mood if asked to.
+     */
+    private void applyMoodFromImage(art.moodframe.ui.dialog.MoodImageDialog.Result result) {
+        Set<Mood.Field> locked = lockedMoodFields();
+        result.blocks().forEach((field, block) -> {
+            if (!locked.contains(field))
+                adoptBlock(field, block);
+        });
+        if (result.saveMood() && moodService != null)
+            saveMood(true);
+    }
+
     /** Shows the first block of the chosen mood that lies in the trash. */
     @FXML
     private void onMoodIncompleteClicked() {
@@ -3292,6 +3336,7 @@ public class MainWindowController implements I18nChangeListener {
                     });
 
                     currentCard.setOnMoodTakeOver((takenEntry, save) -> takeOverEntryMood(takenEntry, save));
+                    currentCard.setOnMoodFromImage((imageFile) -> openMoodFromImage(imageFile));
 
                     setGraphic(currentCard);
                     setText(null);
@@ -4019,8 +4064,8 @@ public class MainWindowController implements I18nChangeListener {
         moodApplyCheckBox.setVisible(hasAttachment);
         moodApplyCheckBox.setManaged(hasAttachment);
         moodApplyCheckBox.setDisable(!enableInput);
-        for (Node field : List.of(moodComboBox, saveMoodButton, atmosphereLabel, atmosphereComboBox, styleLabel,
-                stylePresetsComboBox, colorStyleLabel, colorStyleComboBox))
+        for (Node field : List.of(moodComboBox, moodFromImageButton, saveMoodButton, atmosphereLabel,
+                atmosphereComboBox, styleLabel, stylePresetsComboBox, colorStyleLabel, colorStyleComboBox))
             field.setDisable(!moodApplies);
         lightLabel.setDisable(!moodApplies || layoutStyle);
         lightComboBox.setDisable(!moodApplies || layoutStyle);
@@ -6269,6 +6314,8 @@ public class MainWindowController implements I18nChangeListener {
             moodApplyCheckBox.setText(I18nManager.getText("params.mood.apply"));
             moodApplyCheckBox.setTooltip(new Tooltip(I18nManager.getText("params.mood.apply.tooltip")));
         }
+        if (moodFromImageButton != null)
+            moodFromImageButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.from.image.tooltip")));
         if (saveMoodButton != null)
             saveMoodButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.save.tooltip")));
         refreshMoods();

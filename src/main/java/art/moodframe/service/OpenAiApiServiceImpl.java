@@ -318,7 +318,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     /**
      * Builds the body of {@code POST /chat/completions} from a conversation in the Gemini format: a model turn with
      * {@code functionCall} parts becomes an assistant message with tool calls, the following user turn with
-     * {@code functionResponse} parts becomes one tool message per call, in the order of the calls.
+     * {@code functionResponse} parts becomes one tool message per call, in the order of the calls. A user turn with
+     * {@code inlineData} image parts becomes a message with a text part and one {@code image_url} data URL per image.
      *
      * @param model        the model id
      * @param systemPrompt the system prompt
@@ -340,9 +341,14 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             StringBuilder text = new StringBuilder();
             JSONArray toolCalls = new JSONArray();
             List<JSONObject> responses = new ArrayList<>();
+            JSONArray images = new JSONArray();
             for (int k = 0; k < parts.length(); k++) {
                 JSONObject part = parts.getJSONObject(k);
                 text.append(part.optString("text", ""));
+                JSONObject image = part.optJSONObject("inlineData");
+                if (image != null)
+                    images.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url",
+                            "data:" + image.optString("mimeType") + ";base64," + image.optString("data"))));
                 JSONObject call = part.optJSONObject("functionCall");
                 if (call != null) {
                     String id = "call_" + i + "_" + k;
@@ -368,6 +374,11 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                             .put("content", responses.get(k).optJSONObject("response") != null
                                     ? responses.get(k).getJSONObject("response").toString() : "{}"));
                 pendingIds.clear();
+            } else if (!images.isEmpty()) {
+                JSONArray multimodal = text.length() > 0
+                        ? new JSONArray().put(new JSONObject().put("type", "text").put("text", text.toString()))
+                        : new JSONArray();
+                messages.put(new JSONObject().put("role", "user").put("content", multimodal.putAll(images)));
             } else
                 messages.put(new JSONObject().put("role", "user").put("content", text.toString()));
         }

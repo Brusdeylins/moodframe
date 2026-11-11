@@ -95,7 +95,7 @@ public interface GeminiApiService {
      *
      * @param systemPrompt the system instruction
      * @param contents the conversation so far as Gemini contents, including the function calls and responses of
-     *                 the current turn
+     *                 the current turn; a user turn may carry an image as {@code inlineData} part
      * @param withTools whether the functions are offered to the model
      * @param noMoreCalls whether the model must answer now and may not call a function (only with tools)
      * @return a CompletableFuture containing the answer

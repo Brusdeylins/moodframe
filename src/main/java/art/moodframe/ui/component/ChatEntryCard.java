@@ -21,6 +21,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.ContextMenuEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
@@ -110,6 +111,7 @@ public class ChatEntryCard extends ManagedComponent {
     private Consumer<ChatEntry> onEntryDelete; // Callback for deleting entire entry
     private Consumer<GeneratedImage> onImageDelete; // Callback for deleting single image
     private java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver;
+    private Consumer<File> onMoodFromImage;
     private java.util.function.Supplier<Boolean> isFluxModelSelected; // Check if FLUX model is currently selected
 
     /**
@@ -267,7 +269,7 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.setVisible(false);
         imagesContainer.managedProperty().bind(imagesContainer.visibleProperty());
 
-        /*  The context menu takes over the mood of the entry; a right click on an image opens its preview  */
+        /*  The context menu takes over the mood of the entry; on an image it offers "Mood from image"  */
         promptContainer.setOnContextMenuRequested(this::showMoodMenu);
         statusIcon.setOnContextMenuRequested(this::showMoodMenu);
 
@@ -750,6 +752,10 @@ public class ChatEntryCard extends ManagedComponent {
             });
         }
 
+        /*  The menu checks for the file itself, as the image may still be loading  */
+        if (!generatedImage.isVideo())
+            imageView.setOnContextMenuRequested((event) -> showImageMenu(generatedImage, event));
+
         // Create action buttons area (left side)
         HBox actionButtonsArea = new HBox(4);
         actionButtonsArea.setAlignment(Pos.CENTER_LEFT);
@@ -1122,9 +1128,9 @@ public class ChatEntryCard extends ManagedComponent {
             totalLoadedImages.incrementAndGet();
         }
 
-        // Enable click handler and cursor for successfully loaded images
+        // Enable click handler and cursor for successfully loaded images; a right click opens the context menu
         imageView.setOnMouseClicked(event -> {
-            if (onImageClick != null && imageIndex >= 0) {
+            if (event.getButton() == MouseButton.PRIMARY && onImageClick != null && imageIndex >= 0) {
                 onImageClick.accept(chatEntry, imageIndex);
             }
         });
@@ -1824,6 +1830,26 @@ public class ChatEntryCard extends ManagedComponent {
         save.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, true));
         save.setDisable(!available);
         new ContextMenu(takeOver, save).show(this, event.getScreenX(), event.getScreenY());
+        event.consume();
+    }
+
+    /**
+     * Sets the callback of the context menu of an image, which opens the dialog "Mood from image" with it.
+     *
+     * @param onMoodFromImage the callback that receives the image file in full resolution
+     */
+    public void setOnMoodFromImage(Consumer<File> onMoodFromImage) {
+        this.onMoodFromImage = onMoodFromImage;
+    }
+
+    /** Shows the context menu of an image with "Mood from image...". */
+    private void showImageMenu(GeneratedImage generatedImage, ContextMenuEvent event) {
+        String path = getActualImagePath(generatedImage, false);
+        if (onMoodFromImage == null || path == null || !new File(path).exists())
+            return;
+        MenuItem fromImage = new MenuItem(I18nManager.getText("mood.image.menu"));
+        fromImage.setOnAction((action) -> onMoodFromImage.accept(new File(path)));
+        new ContextMenu(fromImage).show(this, event.getScreenX(), event.getScreenY());
         event.consume();
     }
 

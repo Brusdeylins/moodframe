@@ -138,6 +138,22 @@ class OpenAiApiServiceTest {
     }
 
     @Test
+    void chatBodyTurnsAnImagePartIntoAnImageUrl() {
+        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user").put("parts", new JSONArray()
+                .put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg").put("data", "QUJD")))
+                .put(new JSONObject().put("text", "Find the blocks."))));
+
+        JSONArray content = OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, false, false, false)
+                .getJSONArray("messages").getJSONObject(1).getJSONArray("content");
+
+        assertEquals(2, content.length());
+        assertEquals("text", content.getJSONObject(0).getString("type"));
+        assertEquals("Find the blocks.", content.getJSONObject(0).getString("text"));
+        assertEquals("image_url", content.getJSONObject(1).getString("type"));
+        assertEquals("data:image/jpeg;base64,QUJD", content.getJSONObject(1).getJSONObject("image_url").getString("url"));
+    }
+
+    @Test
     void chatBodyWithoutToolsOffersNone() {
         JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
                 .put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))));

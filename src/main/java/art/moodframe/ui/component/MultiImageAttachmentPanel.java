@@ -16,7 +16,9 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -87,6 +89,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     private Runnable onFirstImageAttached;
     private Runnable onAllImagesRemoved;
     private Consumer<String> onError;
+    private Consumer<File> onMoodFromImage;
 
     // Service
     private ImageAttachmentService attachmentService;
@@ -590,6 +593,13 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     }
 
     /**
+     * Sets the callback of the context menu of an attached image, which opens the dialog "Mood from image" with it.
+     */
+    public void setOnMoodFromImage(Consumer<File> onMoodFromImage) {
+        this.onMoodFromImage = onMoodFromImage;
+    }
+
+    /**
      * Gets the current max file size based on the selected model's provider.
      */
     private long getCurrentMaxFileSize() {
@@ -715,6 +725,17 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
                 if (!hasImage()) {
                     openFileChooser();
                 }
+            });
+
+            /*  An attached image offers "Mood from image" in its context menu  */
+            previewContainer.setOnContextMenuRequested((event) -> {
+                File imageFile = hasImage() ? attachment.getImageFile() : null;
+                if (imageFile == null || onMoodFromImage == null)
+                    return;
+                MenuItem fromImage = new MenuItem(I18nManager.getText("mood.image.menu"));
+                fromImage.setOnAction((action) -> onMoodFromImage.accept(imageFile));
+                new ContextMenu(fromImage).show(previewContainer, event.getScreenX(), event.getScreenY());
+                event.consume();
             });
 
             // Placeholder content (shown when no image)

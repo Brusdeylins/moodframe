@@ -505,7 +505,8 @@ public class BrainstormService {
         return lower.startsWith("www.") ? lower.substring(4) : lower;
     }
 
-    private static String language() {
+    /** The name of the language of the user interface, for example "German". */
+    static String language() {
         return "de".equals(I18nManager.getCurrentLocale().getLanguage()) ? "German" : "English";
     }
 }
