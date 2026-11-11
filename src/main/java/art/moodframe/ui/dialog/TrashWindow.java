@@ -69,8 +69,9 @@ public class TrashWindow extends Stage {
             list.setPlaceholder(new Label(I18nManager.getText("trash.placeholder")));
             list.setCellFactory((view) -> new TrashEntryCell(
                     (entry) -> trashCleanup.getDaysUntilAutoDeletion(entry.deletedAt()),
-                    (entry) -> restore(kind, entry),
-                    (entry) -> deletePermanently(kind, List.of(entry))));
+                    (entry) -> restore(kind, entry, null),
+                    (entry) -> deletePermanently(kind, List.of(entry)),
+                    (entry, part) -> restore(kind, entry, part)));
             VBox.setVgrow(list, Priority.ALWAYS);
             lists.put(kind, list);
 
@@ -133,9 +134,9 @@ public class TrashWindow extends Stage {
                 I18nManager.getText("trash.tab." + kind.name().toLowerCase(), list.getItems().size()));
     }
 
-    /** Takes an item out of the trash, back into use. */
-    void restore(TrashGroup.Kind kind, TrashEntry entry) {
-        if (!trashCenter.restore(kind, entry.id()))
+    /** Takes an item out of the trash, back into use, or only a part of it if one is given. */
+    void restore(TrashGroup.Kind kind, TrashEntry entry, TrashEntry.Part part) {
+        if (!trashCenter.restore(kind, part != null ? part.id() : entry.id()))
             showError(I18nManager.getText("trash.error.restore", entry.name()));
         refresh(kind);
     }

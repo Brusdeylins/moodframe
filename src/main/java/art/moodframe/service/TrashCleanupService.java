@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
@@ -108,10 +109,16 @@ public class TrashCleanupService implements TrashCleanup {
         try {
             LocalDateTime cutoffDate = LocalDateTime.now().minus(retentionDays, ChronoUnit.DAYS);
             for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
-                List<String> expiredIds = trashCenter.list(kind).stream()
-                        .filter((entry) -> entry.deletedAt() != null && entry.deletedAt().isBefore(cutoffDate))
-                        .map(TrashEntry::id)
-                        .toList();
+
+                /*  An item with parts expires part by part, as its parts went to the trash one by one  */
+                List<String> expiredIds = new ArrayList<>();
+                for (TrashEntry entry : trashCenter.list(kind)) {
+                    if (entry.parts().isEmpty() && entry.deletedAt() != null && entry.deletedAt().isBefore(cutoffDate))
+                        expiredIds.add(entry.id());
+                    for (TrashEntry.Part part : entry.parts())
+                        if (part.deletedAt() != null && part.deletedAt().isBefore(cutoffDate))
+                            expiredIds.add(part.id());
+                }
                 if (expiredIds.isEmpty())
                     continue;
 

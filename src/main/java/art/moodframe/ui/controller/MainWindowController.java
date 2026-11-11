@@ -1356,6 +1356,8 @@ public class MainWindowController implements I18nChangeListener {
                     public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
                         if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
                             javafx.application.Platform.runLater(() -> showRestoredChat(id));
+                        else if (kind == art.moodframe.service.TrashGroup.Kind.IMAGES)
+                            javafx.application.Platform.runLater(() -> showRestoredImages(id));
                         else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
                             javafx.application.Platform.runLater(() -> {
                                 refreshBlockChoices();
@@ -1483,6 +1485,55 @@ public class MainWindowController implements I18nChangeListener {
         updateUIState();
 
         setStatus(I18nManager.getText("status.chat.restored"));
+    }
+
+    /**
+     * Shows an entry or an image again that came back from the trash, at its place in its chat. An entry in use
+     * keeps its object, as running requests may hold it; a deleted entry is inserted again.
+     *
+     * @param id the ID of the entry or of the image
+     */
+    private void showRestoredImages(String id) {
+        try {
+            ChatEntry restored = chatHistory.findRestoredEntry(id).orElse(null);
+            Chat chat = restored == null ? null : chatList.stream()
+                    .filter((listed) -> listed.getId().equals(restored.getChatId())).findFirst().orElse(null);
+            if (chat == null)
+                return;
+
+            java.util.Comparator<ChatEntry> order = java.util.Comparator.comparingInt(ChatEntry::getSortOrder)
+                    .thenComparing(ChatEntry::getCreatedAt);
+            ChatEntry entry = chat.getEntries().stream().filter((shown) -> shown.getId().equals(restored.getId()))
+                    .findFirst().orElse(null);
+            if (entry != null) {
+                entry.getImages().setAll(restored.getImages());
+                entry.setDeletedCost(restored.getDeletedCost());
+            }
+            else {
+                entry = restored;
+                chat.getEntries().add((int) chat.getEntries().stream()
+                        .filter((other) -> order.compare(other, restored) <= 0).count(), entry);
+            }
+            chat.setDeletedCost(chatHistory.findChat(chat.getId()).map(Chat::getDeletedCost)
+                    .orElse(chat.getDeletedCost()));
+
+            /*  Setting the item again renders its card anew, also for an entry that got back a single image  */
+            if (chat == currentChat && chatEntriesListView.getItems() != null) {
+                ObservableList<ChatEntry> items = chatEntriesListView.getItems();
+                int index = items.indexOf(entry);
+                if (index >= 0)
+                    items.set(index, entry);
+                else
+                    items.add((int) items.stream().filter((other) -> order.compare(other, restored) <= 0).count(),
+                            entry);
+                lastChatEntriesCount = chat.getEntries().size();
+                updateChatHeader();
+            }
+            setStatus(I18nManager.getText(restored.getId().equals(id) ? "status.entry.restored"
+                    : "status.image.restored"));
+        } catch (Exception e) {
+            logger.error("Failed to show restored images: {}", id, e);
+        }
     }
 
     /** Removes chats that are gone from the database from the list; the open one is closed. */

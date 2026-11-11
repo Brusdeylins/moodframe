@@ -83,6 +83,7 @@ public class GeneratedImage {
     
     // Soft delete tracking
     private final BooleanProperty isInTrash = new SimpleBooleanProperty(false);
+    private final ObjectProperty<LocalDateTime> deletedAt = new SimpleObjectProperty<>();
 
     // Gemini Phase 2 Advanced Features - Cost tracking and metadata
     private final ObjectProperty<Double> baseCost = new SimpleObjectProperty<>(0.0); // Base model generation cost
@@ -157,6 +158,7 @@ public class GeneratedImage {
         private int width = 0;
         private int height = 0;
         private boolean isInTrash = false;
+        private LocalDateTime deletedAt;
 
         // Gemini Phase 2 cost tracking fields
         private Double baseCost = 0.0;
@@ -243,6 +245,11 @@ public class GeneratedImage {
         
         public Builder isInTrash(boolean isInTrash) {
             this.isInTrash = isInTrash;
+            return this;
+        }
+
+        public Builder deletedAt(LocalDateTime deletedAt) {
+            this.deletedAt = deletedAt;
             return this;
         }
         
@@ -408,6 +415,7 @@ public class GeneratedImage {
             if (width > 0) image.setWidth(width);
             if (height > 0) image.setHeight(height);
             image.setIsInTrash(isInTrash);
+            image.setDeletedAt(deletedAt);
 
             // Set Gemini Phase 2 cost tracking fields
             image.setBaseCost(baseCost);
@@ -783,6 +791,11 @@ public class GeneratedImage {
     public boolean isInTrash() { return isInTrash.get(); }
     public void setIsInTrash(boolean isInTrash) { this.isInTrash.set(isInTrash); }
     public BooleanProperty isInTrashProperty() { return isInTrash; }
+
+    /*  when the image went to the trash on its own or with its entry, null as long as it is in use  */
+    public LocalDateTime getDeletedAt() { return deletedAt.get(); }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt.set(deletedAt); }
+    public ObjectProperty<LocalDateTime> deletedAtProperty() { return deletedAt; }
 
     // Gemini Phase 2 Advanced Features - Cost tracking getters/setters
     public Double getBaseCost() { return baseCost.get(); }

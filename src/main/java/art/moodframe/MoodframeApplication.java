@@ -212,8 +212,14 @@ public class MoodframeApplication extends Application {
                         art.moodframe.service.TrashCenter trashCenter = new art.moodframe.service.TrashCenter();
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
-                        if (chatRepo != null)
+                        if (chatRepo != null) {
                             trashCenter.register(new art.moodframe.service.ChatTrashGroup(chatRepo));
+                            ServiceFactory services = ServiceFactory.getInstance();
+                            trashCenter.register(new art.moodframe.service.ImageTrashGroup(chatRepo,
+                                    services.getService(art.moodframe.service.ChatFileService.class),
+                                    services.getService(art.moodframe.service.TrashManager.class),
+                                    services.getService(art.moodframe.service.ThumbnailManager.class)));
+                        }
                         trashCenter.register(new art.moodframe.service.BlockTrashGroup(
                                 ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
                                 ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),

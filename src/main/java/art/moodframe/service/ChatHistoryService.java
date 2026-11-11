@@ -401,4 +401,20 @@ public class ChatHistoryService {
     public double getDeletedCostForEntry(String entryId) throws SQLException {
         return chatRepository.getDeletedCostForEntry(entryId);
     }
+
+    /**
+     * Loads an entry that got images back from the trash, with the images it shows now.
+     *
+     * @param id the ID of the entry or of one of its images, as the trash of the images reports it
+     * @return the entry, empty if it is gone
+     * @throws SQLException if the entry cannot be read
+     */
+    public Optional<ChatEntry> findRestoredEntry(String id) throws SQLException {
+        Optional<GeneratedImage> image = chatRepository.findGeneratedImageById(id);
+        Optional<ChatEntry> entry = chatRepository.findChatEntryById(
+                image.map(GeneratedImage::getChatEntryId).orElse(id));
+        if (entry.isPresent())
+            entry.get().getImages().setAll(chatRepository.findGeneratedImagesByEntry(entry.get().getId()));
+        return entry;
+    }
 }

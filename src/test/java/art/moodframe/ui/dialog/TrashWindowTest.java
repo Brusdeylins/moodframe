@@ -60,8 +60,9 @@ class TrashWindowTest {
                 TrashWindow window = new TrashWindow(null, center, cleanup);
                 TabPane tabs = (TabPane) window.getScene().getRoot();
                 assertEquals(List.of(
-                        I18nManager.getText("trash.tab.chats", 2), I18nManager.getText("trash.tab.blocks", 1),
-                        I18nManager.getText("trash.tab.moods", 0), I18nManager.getText("trash.tab.frames", 0)),
+                        I18nManager.getText("trash.tab.chats", 2), I18nManager.getText("trash.tab.images", 0),
+                        I18nManager.getText("trash.tab.blocks", 1), I18nManager.getText("trash.tab.moods", 0),
+                        I18nManager.getText("trash.tab.frames", 0)),
                         tabs.getTabs().stream().map((tab) -> tab.getText()).toList());
 
                 /*  The jump from an incomplete mood: the tab of the building blocks with the block marked  */
@@ -72,7 +73,7 @@ class TrashWindowTest {
                         .getContent().lookup(".list-view");
                 assertEquals("b1", blocks.getSelectionModel().getSelectedItem().id());
 
-                window.restore(TrashGroup.Kind.CHATS, center.list(TrashGroup.Kind.CHATS).get(0));
+                window.restore(TrashGroup.Kind.CHATS, center.list(TrashGroup.Kind.CHATS).get(0), null);
                 assertEquals(I18nManager.getText("trash.tab.chats", 1), tabs.getTabs().get(0).getText());
                 assertEquals(List.of("CHATS c1"), restored);
             } catch (Throwable t) {

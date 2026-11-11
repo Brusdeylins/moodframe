@@ -12,7 +12,7 @@ public interface TrashGroup {
 
     /** The groups of the trash, in the order of their tabs. */
     enum Kind {
-        CHATS, BLOCKS, MOODS, FRAMES
+        CHATS, IMAGES, BLOCKS, MOODS, FRAMES
     }
 
     /**
@@ -32,7 +32,7 @@ public interface TrashGroup {
     /**
      * Takes an item out of the trash, back into use.
      *
-     * @param id the ID of the item
+     * @param id the ID of the item, or of one of its parts
      * @return true if the item is restored
      */
     boolean restore(String id);
@@ -40,7 +40,7 @@ public interface TrashGroup {
     /**
      * Removes an item for good.
      *
-     * @param id the ID of the item
+     * @param id the ID of the item, or of one of its parts
      * @return true if the item is gone
      */
     boolean deletePermanently(String id);
