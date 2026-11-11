@@ -2046,11 +2046,15 @@ public class MainWindowController implements I18nChangeListener {
         String paletteName = palette != null ? palette.getName() : "None";
 
         updatingMood = true;
-        selectBlock(atmosphereComboBox, fields.get(Mood.Field.ATMOSPHERE));
-        selectBlock(stylePresetsComboBox, fields.get(Mood.Field.STYLE));
-        selectBlock(lightComboBox, fields.get(Mood.Field.LIGHT));
-        colorStyleComboBox.getItems().stream().filter((item) -> item.getName().equals(paletteName)).findFirst()
-                .or(() -> colorStyleComboBox.getItems().stream().findFirst()).ifPresent(colorStyleComboBox::setValue);
+        selectBlock(art.moodframe.model.PromptBlock.Type.ATMOSPHERE, fields.get(Mood.Field.ATMOSPHERE));
+        selectBlock(art.moodframe.model.PromptBlock.Type.STYLE, fields.get(Mood.Field.STYLE));
+        selectBlock(art.moodframe.model.PromptBlock.Type.LIGHT, fields.get(Mood.Field.LIGHT));
+
+        /*  only entries: the actions on top of the list ("Edit…", "New…", "Manage…") would open their dialogs  */
+        colorStyleComboBox.getItems().stream().filter((item) -> colorChoice.isEntry(item)
+                && item.getName().equals(paletteName)).findFirst()
+                .or(() -> colorStyleComboBox.getItems().stream().filter(colorChoice::isEntry).findFirst())
+                .ifPresent(colorStyleComboBox::setValue);
         moodComboBox.getItems().stream().filter((item) -> mood == null ? item.kind() == MoodChoice.Kind.NONE
                 : item.mood() != null && item.mood().getId().equals(mood.getId()))
                 .findFirst().ifPresent(moodComboBox::setValue);
@@ -2061,11 +2065,17 @@ public class MainWindowController implements I18nChangeListener {
         updateMoodState();
     }
 
-    /** Selects the item of a block in a field, "None" (the first item) if the block is not listed. */
-    private void selectBlock(javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox,
-            String blockId) {
-        comboBox.getItems().stream().filter((item) -> item.getBlock() != null && item.getBlock().getId().equals(blockId))
-                .findFirst().or(() -> comboBox.getItems().stream().findFirst()).ifPresent(comboBox::setValue);
+    /**
+     * Selects the item of a block in a field, "None" (the first entry) if the block is not listed. Only entries are
+     * chosen: the actions on top of the list would open their dialogs.
+     */
+    private void selectBlock(art.moodframe.model.PromptBlock.Type type, String blockId) {
+        javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
+        art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice = blockChoices.get(type);
+        comboBox.getItems().stream().filter((item) -> choice.isEntry(item) && item.getBlock() != null
+                && item.getBlock().getId().equals(blockId)).findFirst()
+                .or(() -> comboBox.getItems().stream().filter(choice::isEntry).findFirst())
+                .ifPresent(comboBox::setValue);
     }
 
     /** The block ids of the fields; an empty field is missing. */
