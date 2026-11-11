@@ -18,6 +18,10 @@ import java.util.Map;
  * by visible features; no quality phrases ("8K", "professional"), no negative lists
  * ("no text"), no names of living artists, studios, magazines or brands, no camera brands.</p>
  *
+ * <p>Rules for the standard atmosphere texts: they describe mood, weather and sense of space in concrete
+ * words; no persons or facial expressions except as a condition ("people, where present, ..."), no technique,
+ * no light, no colors. "Open Business" keeps the wording of the former style "Business Photography".</p>
+ *
  * @since 2.0.0
  */
 public class PromptBlockService {
@@ -37,6 +41,7 @@ public class PromptBlockService {
 
     private final PromptBlockRepository repository;
     private final List<PromptBlock> defaultStyles;
+    private final List<PromptBlock> defaultAtmospheres;
 
     /**
      * Creates the service.
@@ -44,6 +49,7 @@ public class PromptBlockService {
     public PromptBlockService() {
         this.repository = new PromptBlockRepository();
         this.defaultStyles = defaultStyles();
+        this.defaultAtmospheres = defaultAtmospheres();
         renameCustomBlocksNamedLikeDefaults();
     }
 
@@ -52,14 +58,16 @@ public class PromptBlockService {
      * next free name with a counter (see {@link #freeName}), so every name stays selectable.
      */
     private void renameCustomBlocksNamedLikeDefaults() {
-        for (PromptBlock custom : repository.findAll(PromptBlock.Type.STYLE)) {
-            if (!isDefault(PromptBlock.Type.STYLE, custom.getName()))
-                continue;
-            String original = custom.getName();
-            custom.setName(freeName(PromptBlock.Type.STYLE, original));
-            if (repository.update(custom))
-                logger.info("Renamed style '{}' of the user to '{}', a standard style has its name", original,
-                        custom.getName());
+        for (PromptBlock.Type type : PromptBlock.Type.values()) {
+            for (PromptBlock custom : repository.findAll(type)) {
+                if (!isDefault(type, custom.getName()))
+                    continue;
+                String original = custom.getName();
+                custom.setName(freeName(type, original));
+                if (repository.update(custom))
+                    logger.info("Renamed {} '{}' of the user to '{}', a standard block has its name",
+                            type.name().toLowerCase(Locale.ROOT), original, custom.getName());
+            }
         }
     }
 
@@ -189,6 +197,61 @@ public class PromptBlockService {
                 photographic);
     }
 
+    private static List<PromptBlock> defaultAtmospheres() {
+        List<PromptBlock> atmospheres = new ArrayList<>();
+        atmospheres.add(atmosphere("Melancholic",
+                "quiet, melancholic mood, a sense of stillness and gentle sadness, subdued and unhurried"));
+        atmospheres.add(atmosphere("Euphoric",
+                "euphoric, energetic mood, full of movement and celebration, vibrant and alive"));
+        atmospheres.add(atmosphere("Longing",
+                "wistful mood of longing, a feeling of distance and waiting, wide open space around the subject"));
+        atmospheres.add(atmosphere("Menacing",
+                "tense, menacing mood, a sense of threat just outside the frame, oppressive and close"));
+        atmospheres.add(atmosphere("Calm",
+                "calm, serene mood, peaceful and balanced, plenty of breathing room"));
+        atmospheres.add(atmosphere("Playful",
+                "playful, lighthearted mood, cheerful and a little cheeky"));
+        atmospheres.add(atmosphere("Epic",
+                "epic, awe-inspiring mood, monumental scale, grand and dramatic"));
+        atmospheres.add(atmosphere("Intimate",
+                "intimate, tender mood, close and private, quiet warmth"));
+        atmospheres.add(atmosphere("Nostalgic",
+                "nostalgic mood, like a fond memory from decades ago, gentle and sentimental"));
+        atmospheres.add(atmosphere("Clean and Factual",
+                "clear, matter-of-fact mood, tidy and precise, neutral and uncluttered"));
+        atmospheres.add(atmosphere("Dreamlike",
+                "dreamlike, ethereal mood, soft and slightly unreal, floating between reality and imagination"));
+        atmospheres.add(atmosphere("Raw",
+                "raw, gritty mood, unpolished and honest, rough textures and imperfection"));
+        atmospheres.add(atmosphere("Mysterious",
+                "mysterious mood, secretive and quiet, much left hidden"));
+        atmospheres.add(atmosphere("Glamorous",
+                "glamorous, elegant mood, confident and luxurious"));
+        atmospheres.add(atmosphere("Futuristic",
+                "futuristic, high-tech mood, a dense advanced world, sleek and artificial"));
+
+        /*  The person and mood parts of the former style "Business Photography", word for word  */
+        atmospheres.add(atmosphere("Open Business",
+                "open, future-oriented, modern atmosphere, authentic business situation in a modern and dynamic "
+                + "setting, people are authentic and natural-looking with friendly and approachable expressions, "
+                + "wearing business casual attire, diverse ethnicities and body types"));
+
+        /*  Weather  */
+        atmospheres.add(atmosphere("Fog",
+                "dense fog drifting through the scene, distant shapes fading into haze, muffled and quiet"));
+        atmospheres.add(atmosphere("Rain",
+                "steady rain, wet glistening surfaces, puddles and reflections"));
+
+        for (int i = 0; i < atmospheres.size(); i++)
+            atmospheres.get(i).setSortOrder(i);
+        return atmospheres;
+    }
+
+    private static PromptBlock atmosphere(String name, String text) {
+        return new PromptBlock(standardId(PromptBlock.Type.ATMOSPHERE, name), PromptBlock.Type.ATMOSPHERE, name, text,
+                null, false);
+    }
+
     /**
      * The fixed id of a standard block, for example {@code std:style:watercolor}.
      *
@@ -229,7 +292,11 @@ public class PromptBlockService {
      * @return the blocks
      */
     public List<PromptBlock> getDefaults(PromptBlock.Type type) {
-        return type == PromptBlock.Type.STYLE ? new ArrayList<>(defaultStyles) : new ArrayList<>();
+        return switch (type) {
+            case STYLE -> new ArrayList<>(defaultStyles);
+            case ATMOSPHERE -> new ArrayList<>(defaultAtmospheres);
+            default -> new ArrayList<>();
+        };
     }
 
     /**

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -81,6 +82,93 @@ class PromptBlockServiceTest {
         assertEquals(14, styles.stream().filter(PromptBlock::isLayout).count());
         assertTrue(styles.stream().allMatch((PromptBlock s) -> s.isPhotographic() == PromptBlock.GROUP_PHOTO.equals(s.getGroup())));
         assertTrue(styles.stream().allMatch(PromptBlock::isDefault));
+    }
+
+    @Test
+    void givesTheStandardAtmospheresFixedIdsInTheListedOrder() {
+        List<PromptBlock> atmospheres = new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE);
+        List<String> ids = atmospheres.stream().map(PromptBlock::getId).toList();
+
+        assertEquals(List.of("Melancholic", "Euphoric", "Longing", "Menacing", "Calm", "Playful", "Epic", "Intimate",
+                "Nostalgic", "Clean and Factual", "Dreamlike", "Raw", "Mysterious", "Glamorous", "Futuristic",
+                "Open Business", "Fog", "Rain"), atmospheres.stream().map(PromptBlock::getName).toList());
+        assertEquals(ids, new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE).stream()
+                .map(PromptBlock::getId).toList());
+        assertTrue(ids.contains("std:atmosphere:clean-and-factual"));
+        assertTrue(ids.contains("std:atmosphere:open-business"));
+        assertEquals(ids.size(), ids.stream().distinct().count());
+        for (PromptBlock atmosphere : atmospheres) {
+            assertEquals("std:atmosphere:" + PromptBlockService.slug(atmosphere.getName()), atmosphere.getId());
+            assertEquals(PromptBlock.Type.ATMOSPHERE, atmosphere.getType());
+            assertTrue(atmosphere.isDefault());
+        }
+    }
+
+    @Test
+    void writesTheStandardAtmospheresWithoutPersonsTechniqueLightOrColors() {
+        Pattern persons = Pattern.compile("\\b(people|persons?|m[ae]n|wom[ae]n|child(ren)?|faces?|expressions?|smil\\w*|"
+                + "eyes)\\b");
+        Pattern technique = Pattern.compile("\\b(camera|lens|shot|photo\\w*|film|painting|illustration|render\\w*|"
+                + "bokeh|focus|exposure)\\b");
+        Pattern light = Pattern.compile("\\b(light|lights|lighting|lit|sun\\w*|shadows?|glow\\w*|backlit)\\b");
+        Pattern colors = Pattern.compile("\\b(colou?rs?|red|orange|yellow|green|blue|purple|violet|pink|brown|black|"
+                + "white|gr[ae]y|gold\\w*|silver|teal|pastel)\\b");
+
+        for (PromptBlock atmosphere : new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE)) {
+            String text = atmosphere.getText().toLowerCase(Locale.ROOT);
+
+            /*  "Open Business" keeps the persons of the former style "Business Photography"  */
+            if (!"Open Business".equals(atmosphere.getName()))
+                assertFalse(persons.matcher(text).find(), atmosphere.getName() + " names persons");
+            assertFalse(technique.matcher(text).find(), atmosphere.getName() + " names technique");
+            assertFalse(light.matcher(text).find(), atmosphere.getName() + " names light");
+            assertFalse(colors.matcher(text).find(), atmosphere.getName() + " names colors");
+        }
+    }
+
+    @Test
+    void takesOverThePersonAndMoodPartsOfTheFormerBusinessPhotographyWordForWord() {
+        List<String> former = List.of(("realistic, detailed photography, people are authentic and natural-looking with "
+                + "friendly and approachable expressions, wearing business casual attire, diverse ethnicities and body "
+                + "types, authentic business situation in a modern and dynamic setting, clean composition, soft natural "
+                + "lighting, open, future-oriented, modern atmosphere").split(", "));
+        List<String> openBusiness = List.of(new PromptBlockService().find(PromptBlock.Type.ATMOSPHERE, "Open Business")
+                .getText().split(", "));
+
+        assertTrue(former.containsAll(openBusiness), "no new or smoothed wording");
+        List<String> rest = new ArrayList<>(former);
+        rest.removeAll(openBusiness);
+        assertEquals(List.of("realistic", "detailed photography", "clean composition", "soft natural lighting"), rest,
+                "only the style and light parts stay out");
+    }
+
+    @Test
+    void composesEveryStandardAtmosphereAsOneLabeledLineBehindTheSubject() {
+        PromptBlockService service = new PromptBlockService();
+        PromptComposer composer = new PromptComposer(2000);
+        PromptBlock photo = service.find(PromptBlock.Type.STYLE, "Photography");
+
+        for (PromptBlock atmosphere : service.getDefaults(PromptBlock.Type.ATMOSPHERE))
+            assertEquals("Image style: " + photo.getText() + ".\na lighthouse on a cliff\nAtmosphere: "
+                    + atmosphere.getText() + ".", composer.compose("a lighthouse on a cliff", null,
+                    new PromptComposer.Selection(photo, atmosphere, null, null, null)), atmosphere.getName());
+        assertEquals("a lighthouse\nAtmosphere: dense fog drifting through the scene, distant shapes fading into haze, "
+                + "muffled and quiet.", composer.compose("a lighthouse", null, new PromptComposer.Selection(null,
+                service.find(PromptBlock.Type.ATMOSPHERE, "std:atmosphere:fog"), null, null, null)));
+    }
+
+    @Test
+    void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() {
+        PromptBlockRepository repository = new PromptBlockRepository();
+        PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
+        repository.save(clash);
+
+        new PromptBlockService();
+
+        PromptBlock renamed = repository.findById(clash.getId());
+        assertEquals("Fog (1)", renamed.getName());
+        assertEquals("my own fog", renamed.getText());
+        assertEquals("std:atmosphere:fog", new PromptBlockService().find(PromptBlock.Type.ATMOSPHERE, "Fog").getId());
     }
 
     @Test
