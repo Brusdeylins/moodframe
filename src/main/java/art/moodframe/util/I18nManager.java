@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Central internationalization manager for Moodframe application.
+ * Central internationalization manager for MoodFrame application.
  * 
  * <p>
  * This manager provides thread-safe access to localized strings using

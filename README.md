@@ -1,6 +1,15 @@
-# Moodframe
+<p align="center">
+  <a href="https://moodframe.art">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/moodframe-logo-on-dark.svg">
+      <img src="assets/moodframe-logo-on-light.svg" alt="MoodFrame" width="420">
+    </picture>
+  </a>
+</p>
 
-Moodframe is a desktop studio for AI image generation. The mood decides how an image feels; the frame decides how
+<p align="center"><a href="https://moodframe.art">moodframe.art</a> · <a href="https://moodframe.art/download">Download</a></p>
+
+MoodFrame is a desktop studio for AI image generation. The mood decides how an image feels; the frame decides how
 it is rendered. One app for several image models, with prompt building blocks and a brainstorm assistant that turns
 a rough idea into a finished prompt.
 
@@ -43,4 +52,4 @@ Installers for macOS and Windows are built with [Conveyor](https://conveyor.hydr
 
 ## License
 
-[MIT](LICENSE) © Matthias Brusdeylins
+[MIT](LICENSE) © Matthias Brusdeylins. The logo is set in Space Grotesk (SIL Open Font License).

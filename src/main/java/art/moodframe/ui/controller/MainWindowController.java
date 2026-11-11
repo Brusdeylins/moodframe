@@ -1300,7 +1300,7 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void createWelcomeChat() {
         Chat welcomeChat = new Chat.Builder()
-                .name("Welcome to Moodframe")
+                .name("Welcome to MoodFrame")
                 .createdAt(LocalDateTime.now())
                 .build();
 

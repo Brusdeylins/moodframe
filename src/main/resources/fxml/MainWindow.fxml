@@ -6,7 +6,7 @@
 <?import javafx.scene.layout.*?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
-<!-- Main Window Layout for Moodframe Application -->
+<!-- Main Window Layout for MoodFrame Application -->
 <!-- This FXML defines the primary application window structure with:
      - Header with title and settings button
      - SplitPane with sidebar (chat list) and content area
@@ -27,7 +27,7 @@
             </padding>
             
             <!-- Application Title -->
-            <Label text="Moodframe" styleClass="title-1" />
+            <Label text="MoodFrame" styleClass="title-1" />
             <Label fx:id="appVersionLabel" styleClass="text-muted" style="-fx-font-size: 11px;" translateY="7" />
             
             <!-- Spacer to push settings button to the right -->
@@ -121,7 +121,7 @@
                                 <HBox fx:id="welcomeContainer"
                                       alignment="CENTER" spacing="10.0" visible="true">
                                     <FontIcon iconLiteral="mdi2r-robot" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
-                                    <Label fx:id="welcomeLabel" text="Welcome to Moodframe"
+                                    <Label fx:id="welcomeLabel" text="Welcome to MoodFrame"
                                            styleClass="title-2" />
                                 </HBox>
 

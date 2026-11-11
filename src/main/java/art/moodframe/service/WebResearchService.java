@@ -36,7 +36,7 @@ public class WebResearchService {
     private static final Logger logger = LoggerFactory.getLogger(WebResearchService.class);
 
     private static final String SEARCH_URL = "https://html.duckduckgo.com/html/?q=";
-    private static final String USER_AGENT = "Mozilla/5.0 (compatible; Moodframe research)";
+    private static final String USER_AGENT = "Mozilla/5.0 (compatible; MoodFrame research)";
     private static final int MAX_RESULTS = 4;
     private static final int MAX_PAGE_BYTES = 1_500_000;
     private static final int MAX_EXCERPT_LENGTH = 3000;

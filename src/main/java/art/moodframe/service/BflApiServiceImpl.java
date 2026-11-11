@@ -48,7 +48,7 @@ public class BflApiServiceImpl implements BflApiService {
     private static final Logger logger = LoggerFactory.getLogger(BflApiServiceImpl.class);
     
     private static final String DEFAULT_BASE_URL = "https://api.bfl.ai";
-    private static final String USER_AGENT = "Moodframe/2.0";
+    private static final String USER_AGENT = "MoodFrame/2.0";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(600); // 10 minutes default for image generation
     
     // API Endpoints

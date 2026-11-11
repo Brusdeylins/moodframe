@@ -75,7 +75,7 @@ public class SplashScreen {
 
             // Create version overlay
             String version = VersionManager.getVersion();
-            Label versionLabel = new Label("Moodframe - Version " + version + " - © Matthias Brusdeylins 2025-2026");
+            Label versionLabel = new Label("MoodFrame - Version " + version + " - © Matthias Brusdeylins 2025-2026");
             versionLabel.setStyle(
                     "-fx-text-fill: #FFFFFF;" +
                             "-fx-font-size: 12px;" +

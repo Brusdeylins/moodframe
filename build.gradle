@@ -31,7 +31,7 @@ def getConveyorCommand() {
 
 group = 'art.moodframe'
 version = '2.0.0'
-description = 'Moodframe - desktop studio for AI image generation'
+description = 'MoodFrame - desktop studio for AI image generation'
 
 java {
     toolchain {
@@ -500,7 +500,7 @@ task printVersion {
     description = 'Print version information'
     
     doLast {
-        println "Moodframe Version: $version"
+        println "MoodFrame Version: $version"
         println "Java Version: ${System.getProperty('java.version')}"
         println "JavaFX Version: ${javafx.version}"
     }

@@ -18,7 +18,7 @@ import java.util.List;
  * 
  * <p>
  * This class handles database initialization, connection management,
- * and migration execution for the Moodframe application.
+ * and migration execution for the MoodFrame application.
  * </p>
  * 
  * @since 1.0.0

@@ -183,7 +183,7 @@ public class ApplicationConfig {
         /*  Write beside the file and move it over, so a crash never leaves a truncated configuration  */
         Path temp = configPath.resolveSibling(CONFIG_FILE + ".tmp");
         try (FileOutputStream fos = new FileOutputStream(temp.toFile())) {
-            properties.store(fos, "Moodframe Configuration");
+            properties.store(fos, "MoodFrame Configuration");
             fos.getFD().sync();
             Files.move(temp, configPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

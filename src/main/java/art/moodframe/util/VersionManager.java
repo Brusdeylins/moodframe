@@ -111,7 +111,7 @@ public class VersionManager {
      * @return formatted application name and version
      */
     public static String getApplicationNameWithVersion() {
-        return "Moodframe v" + getVersion();
+        return "MoodFrame v" + getVersion();
     }
     
     
@@ -231,7 +231,7 @@ public class VersionManager {
      */
     private static String buildVersionInfo() {
         StringBuilder info = new StringBuilder();
-        info.append("Moodframe v").append(getVersion());
+        info.append("MoodFrame v").append(getVersion());
         
         // Add build type information
         if (isProductionBuild()) {

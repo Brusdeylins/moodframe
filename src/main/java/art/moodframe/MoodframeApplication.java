@@ -19,7 +19,7 @@ import art.moodframe.ui.SplashScreen;
 import art.moodframe.util.ThemeManager;
 
 /**
- * Main JavaFX Application class for Moodframe.
+ * Main JavaFX Application class for MoodFrame.
  * 
  * <p>
  * This class initializes the application, loads the main FXML layout,
@@ -92,7 +92,7 @@ public class MoodframeApplication extends Application {
             primaryStage.show();
 
         } catch (Exception e) {
-            logger.error("Failed to start Moodframe Application", e);
+            logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
             showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
         }
@@ -418,7 +418,7 @@ public class MoodframeApplication extends Application {
      * @param scene the scene to display
      */
     private void configureStage(Stage stage, Scene scene) {
-        stage.setTitle("Moodframe");
+        stage.setTitle("MoodFrame");
         stage.setScene(scene);
 
         // Set minimum size constraints
@@ -524,7 +524,7 @@ public class MoodframeApplication extends Application {
     public void stop() {
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         if (config != null && config.getLoggingEnabled()) {
-            logger.info("Shutting down Moodframe Application...");
+            logger.info("Shutting down MoodFrame Application...");
         }
 
         try {
