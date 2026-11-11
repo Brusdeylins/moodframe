@@ -17,13 +17,17 @@ a rough idea into a finished prompt.
 
 - **Image models:** FLUX 3 and FLUX.2 (Black Forest Labs), Nano Banana (Google Gemini), and any OpenAI-compatible
   image API (OpenAI or your own gateway), with model families and resolutions
-- **Building blocks:** styles and color palettes, built in and your own
+- **Mood:** how an image feels, combined from building blocks: style, atmosphere, light, color palette and camera
+  (a visual settings dialog for camera type, focal length, aperture, perspective and shot size); built in and your
+  own, each field lockable, saved as named moods; "from image" derives a mood from any picture
+- **Frame:** how an image is rendered: model, resolution, aspect ratio and count, saved as named frames
 - **Brainstorm:** a guided chat with Gemini or an OpenAI-compatible model, with web research and fact checks, that
-  hands over prompt, style, colors, model and resolution
+  builds the setting and hands over prompt, mood, model and resolution; several images per chat in rounds
 - **Reference images:** up to 10 per request (depending on the model), from file, drag and drop or clipboard,
   scaled down automatically when too large
 - **Video:** Gemini Omni
-- **Library:** chats with all images, costs per image, trash with restore
+- **Library:** chats with all images, or all images of a mood across chats; each image remembers its mood, costs per
+  image; one trash for chats, images, building blocks, moods and frames
 - **Corporate networks:** proxy settings and custom root certificates
 
 ## Requirements
