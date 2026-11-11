@@ -23,6 +23,8 @@ public class BrainstormReply {
     private final BrainstormDraft draft;
     private List<ResearchNote> research = List.of();
     private List<Integer> skippedSteps = List.of();
+    private List<Integer> doneSteps = List.of();
+    private int round = 1;
 
     private BrainstormReply(int step, String message, List<String> quickReplies, BrainstormDraft draft) {
         this.step = step;
@@ -82,6 +84,23 @@ public class BrainstormReply {
                 }
             }
             reply.skippedSteps = skipped;
+            List<Integer> done = new ArrayList<>();
+            JSONArray doneArray = json.optJSONArray("done_steps");
+            for (int i = 0; doneArray != null && i < doneArray.length(); i++) {
+                int doneStep = doneArray.optInt(i, 0);
+                if (doneStep >= 1 && doneStep <= MAX_STEP && !done.contains(doneStep)) {
+                    done.add(doneStep);
+                }
+            }
+
+            /*  An older reply names no done steps: every step before the current one that was not skipped is done  */
+            for (int doneStep = 1; doneArray == null && doneStep < reply.step; doneStep++) {
+                if (!skipped.contains(doneStep)) {
+                    done.add(doneStep);
+                }
+            }
+            reply.doneSteps = done;
+            reply.round = Math.max(1, json.optInt("round", 1));
             return reply;
         } catch (JSONException e) {
             throw new IllegalArgumentException("reply is not valid JSON", e);
@@ -107,6 +126,19 @@ public class BrainstormReply {
     /** The steps before the current one that the AI skipped (they are shown struck through). */
     public List<Integer> getSkippedSteps() {
         return skippedSteps;
+    }
+
+    /**
+     * The finished steps, also those after the current one when a round went back to an earlier step. An older reply
+     * without them counts every step before the current one that was not skipped.
+     */
+    public List<Integer> getDoneSteps() {
+        return doneSteps;
+    }
+
+    /** The image of the chat this reply works on, counted from 1; an older reply without it is in round 1. */
+    public int getRound() {
+        return round;
     }
 
     /** The research the AI did for this reply, in the order of the calls. */

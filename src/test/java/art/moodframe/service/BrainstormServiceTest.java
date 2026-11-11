@@ -153,6 +153,15 @@ class BrainstormServiceTest {
     }
 
     @Test
+    void notesAnAdoptedDraftAsEventWithoutAskingTheAi() {
+        service.noteAdopted(session);
+
+        assertEquals(BrainstormMessage.ROLE_EVENT, stored.get(0).getRole());
+        assertEquals("[APP EVENT] {\"event\":\"draft_adopted\"}", stored.get(0).getContent());
+        verify(gemini, never()).chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean());
+    }
+
+    @Test
     void failsWithoutStoringAnAssistantMessageOnUnusableReply() {
         answers(text("not json"));
 

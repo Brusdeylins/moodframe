@@ -58,6 +58,27 @@ class BrainstormReplyTest {
     }
 
     @Test
+    void readsTheDoneStepsAlsoAfterTheCurrentOneAndTheRound() {
+        BrainstormReply reply = BrainstormReply.parse("""
+            {"step": 6, "message": "m", "skipped_steps": [3, 4, 5], "done_steps": [1, 2, 7, 7, 0, 9], "round": 2}
+            """);
+
+        assertEquals(List.of(1, 2, 7), reply.getDoneSteps(), "invalid and doubled steps are dropped");
+        assertEquals(2, reply.getRound());
+        assertTrue(BrainstormReply.parse("{\"step\": 3, \"message\": \"m\", \"done_steps\": []}").getDoneSteps()
+                .isEmpty(), "an empty list means nothing is done");
+    }
+
+    @Test
+    void countsEveryStepBeforeTheCurrentOneAsDoneInRoundOneForAnOlderReply() {
+        BrainstormReply reply = BrainstormReply.parse("{\"step\": 6, \"message\": \"m\", \"skipped_steps\": [3, 4]}");
+
+        assertEquals(List.of(1, 2, 5), reply.getDoneSteps(), "the skipped steps are not done");
+        assertEquals(1, reply.getRound());
+        assertEquals(1, BrainstormReply.parse("{\"step\": 1, \"message\": \"m\", \"round\": 0}").getRound());
+    }
+
+    @Test
     void keepsStepEightOfTheEightStepProcess() {
         assertEquals(8, BrainstormReply.parse("{\"step\": 8, \"message\": \"m\"}").getStep());
     }

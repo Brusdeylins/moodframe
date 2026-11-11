@@ -23,6 +23,7 @@ import art.moodframe.model.ModelFamilies;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -56,13 +57,11 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -366,6 +365,8 @@ public class BrainstormDialog extends Stage {
         stepper.setPadding(new Insets(12.0));
         for (int i = 1; i <= BrainstormReply.MAX_STEP; i++) {
             Text text = new Text(i + "  " + I18nManager.getText("brainstorm.step." + i));
+            int step = i;
+            text.setOnMouseClicked((event) -> reopenStep(step));
             stepTexts.add(text);
             stepper.getChildren().add(text);
         }
@@ -444,7 +445,6 @@ public class BrainstormDialog extends Stage {
     private void loadSession(BrainstormSession selected) {
         BrainstormChat target = chatOf(selected);
         if (!target.loaded) {
-            int step = 1;
             for (BrainstormMessage message : service.loadMessages(selected.getId())) {
                 switch (message.getRole()) {
                     case BrainstormMessage.ROLE_USER -> addBubble(target, message.getContent(), true);
@@ -452,16 +452,15 @@ public class BrainstormDialog extends Stage {
                     default -> {
                         try {
                             BrainstormReply reply = BrainstormReply.parse(message.getContent());
+                            if (target.progress(reply))
+                                addEvent(target, I18nManager.getText("brainstorm.round", reply.getRound()));
                             addBubble(target, reply.getMessage(), false);
-                            step = reply.getStep();
-                            target.skippedSteps = new HashSet<>(reply.getSkippedSteps());
                         } catch (IllegalArgumentException e) {
                             logger.warn("Skipping unreadable stored brainstorm reply", e);
                         }
                     }
                 }
             }
-            target.currentStep = step;
             target.draft = service.latestDraft(selected.getId()).orElseGet(BrainstormDraft::new);
             target.scrollPosition = 1.0;
             target.loaded = true;
@@ -478,7 +477,7 @@ public class BrainstormDialog extends Stage {
 
         messageScroll.setContent(target.messageBox);
         setQuickReplies(target.quickReplies);
-        updateStepper(target.currentStep);
+        updateStepper();
         updatingUi = true;
         promptArea.clear();
         updatingUi = false;
@@ -570,14 +569,14 @@ public class BrainstormDialog extends Stage {
 
     private void showReply(BrainstormChat target, BrainstormReply reply) {
         reply.getResearch().forEach((ResearchNote note) -> addResearch(target, note));
+        if (target.progress(reply))
+            addEvent(target, I18nManager.getText("brainstorm.round", reply.getRound()));
         addBubble(target, reply.getMessage(), false);
-        target.skippedSteps = new HashSet<>(reply.getSkippedSteps());
         target.quickReplies = reply.getQuickReplies();
-        target.currentStep = reply.getStep();
         target.draft = reply.getDraft();
         if (target == chat) {
             setQuickReplies(target.quickReplies);
-            updateStepper(target.currentStep);
+            updateStepper();
             applyDraft(target.draft);
         }
     }
@@ -594,21 +593,36 @@ public class BrainstormDialog extends Stage {
     }
 
     /**
-     * Shows the progress: finished steps get a check mark, the current one is highlighted, skipped steps are grey
-     * and struck through. Skipped are the steps the AI reported as skipped.
+     * Shows the progress of the shown chat: finished steps get a check mark (also after the current one, when a round
+     * went back), the current one is highlighted, open ones are neutral, skipped ones grey and struck through. A
+     * finished or skipped step can be clicked to open it again.
      */
-    private void updateStepper(int step) {
-        Set<Integer> skippedSteps = chat.skippedSteps;
+    private void updateStepper() {
         for (int i = 1; i <= stepTexts.size(); i++) {
             Text text = stepTexts.get(i - 1);
-            boolean skipped = i != step && skippedSteps.contains(i);
-            boolean done = !skipped && i < step;
+            BrainstormChat.StepState state = chat.stateOf(i);
+            boolean done = state == BrainstormChat.StepState.DONE;
+            boolean skipped = state == BrainstormChat.StepState.SKIPPED;
             text.setText((done ? "✓" : String.valueOf(i)) + "  " + I18nManager.getText("brainstorm.step." + i));
             text.setStrikethrough(skipped);
-            text.setStyle("-fx-font-size: 13px; " + (i == step ? "-fx-fill: -color-accent-fg; -fx-font-weight: bold;"
-                    : skipped ? "-fx-fill: -color-fg-subtle;"
-                    : done ? "-fx-fill: -color-success-fg;" : "-fx-fill: -color-fg-muted;"));
+            text.setStyle("-fx-font-size: 13px; " + switch (state) {
+                case CURRENT -> "-fx-fill: -color-accent-fg; -fx-font-weight: bold;";
+                case SKIPPED -> "-fx-fill: -color-fg-subtle;";
+                case DONE    -> "-fx-fill: -color-success-fg;";
+                case OPEN    -> "-fx-fill: -color-fg-muted;";
+            });
+            text.setCursor(done || skipped ? Cursor.HAND : Cursor.DEFAULT);
         }
+    }
+
+    /** Asks the AI to open a finished or skipped step again; the later steps that build on it become open. */
+    private void reopenStep(int step) {
+        BrainstormChat.StepState state = chat.stateOf(step);
+        if (chat.session == null || chat.busy
+                || state != BrainstormChat.StepState.DONE && state != BrainstormChat.StepState.SKIPPED)
+            return;
+
+        send(I18nManager.getText("brainstorm.step.reopen", I18nManager.getText("brainstorm.step." + step)));
     }
 
     private void addBubble(BrainstormChat target, String text, boolean fromUser) {
@@ -726,6 +740,7 @@ public class BrainstormDialog extends Stage {
                 case "target_model_changed" -> I18nManager.getText("brainstorm.event.model",
                         event.optString("from"), event.optString("to"));
                 case "prompt_edited" -> I18nManager.getText("brainstorm.event.prompt");
+                case "draft_adopted" -> I18nManager.getText("brainstorm.event.adopted");
                 case "fact_changed" -> I18nManager.getText(event.optBoolean("confirmed")
                         ? "brainstorm.event.fact.kept" : "brainstorm.event.fact.dropped",
                         shorten(event.optString("text"), 80));
@@ -1152,6 +1167,10 @@ public class BrainstormDialog extends Stage {
                 video && durationCheck.isSelected() ? parseSeconds(durationBox.getValue()) : null,
                 ModelFamilies.freeResolutions(modelBox.getValue()) != null ? resolutionBox.getValue() : null,
                 saveMoodCheck.isSelected());
+
+        /*  The AI reads it with the next message: another image asked for then starts a new round  */
+        if (chat.session != null)
+            service.noteAdopted(chat.session);
         onAdopt.accept(result);
         close();
     }

@@ -52,6 +52,21 @@ class BrainstormPromptBuilderTest {
     }
 
     @Test
+    void shipsTheRoundsWithTheirProgressFieldsAndTheAdoptionEvent() throws Exception {
+        String template = new String(getClass().getResourceAsStream("/brainstorm/system-prompt.txt").readAllBytes());
+
+        String prompt = BrainstormPromptBuilder.build(template, "German", context, "");
+
+        assertTrue(prompt.contains("\n# Rounds\n"), "the section \"Rounds\" is part of the system prompt");
+        assertFalse(prompt.contains("do not restart the 8 steps"), "the section replaces the old rule");
+        assertTrue(prompt.contains("\"done_steps\": ["), "the output format asks for the done steps");
+        assertTrue(prompt.contains("\"round\": number of the image"), "the output format asks for the round");
+        assertTrue(prompt.contains("{\"event\":\"draft_adopted\"}"), "the adoption event is explained");
+        assertTrue(prompt.contains("\n6. Setting: ") && prompt.contains("\n7. Mood & camera: "),
+                "the steps carry the names of the stepper");
+    }
+
+    @Test
     void listsStylesColorStylesModelsAndRatios() {
         String prompt = BrainstormPromptBuilder.build(
                 "{{STYLES}}|{{COLOR_STYLES}}|{{MODELS}}|{{ASPECT_RATIOS}}|{{CURRENT_STATE}}|{{CURRENT_DRAFT}}",

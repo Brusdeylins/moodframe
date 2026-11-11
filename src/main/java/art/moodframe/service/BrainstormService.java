@@ -255,6 +255,17 @@ public class BrainstormService {
         return send(session, new BrainstormMessage(BrainstormMessage.ROLE_EVENT, EVENT_PREFIX + eventJson), context);
     }
 
+    /**
+     * Notes in the session that the user adopted the draft, without asking the AI: it reads the event with the next
+     * message, so another image asked for afterwards starts a new round.
+     *
+     * @param session the session
+     */
+    public void noteAdopted(BrainstormSession session) {
+        repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
+                EVENT_PREFIX + new JSONObject().put("event", "draft_adopted")));
+    }
+
     private CompletableFuture<BrainstormReply> send(
             BrainstormSession session, BrainstormMessage message, BrainstormContext context) {
         String sessionId = session.getId();

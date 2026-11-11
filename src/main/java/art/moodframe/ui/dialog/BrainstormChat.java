@@ -1,6 +1,7 @@
 package art.moodframe.ui.dialog;
 
 import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.ui.cell.BrainstormMarker;
 import javafx.beans.property.ObjectProperty;
@@ -21,11 +22,17 @@ import java.util.Set;
  */
 public class BrainstormChat {
 
+    /** The state of a step in the stepper of the chat. */
+    enum StepState { DONE, CURRENT, OPEN, SKIPPED }
+
     /** The session, null for a new chat that is stored with its first message. */
     BrainstormSession session;
     BrainstormDraft draft = new BrainstormDraft();
     Set<Integer> skippedSteps = new HashSet<>();
+    Set<Integer> doneSteps = new HashSet<>();
     int currentStep = 1;
+    /** The image of the chat the AI works on, counted from 1: a chat defines one image per round. */
+    int round = 1;
     List<String> quickReplies = List.of();
     boolean busy;
     String statusText = "";
@@ -75,5 +82,28 @@ public class BrainstormChat {
         if (marker.get() == BrainstormMarker.UNREAD || marker.get() == BrainstormMarker.FAILED) {
             marker.set(BrainstormMarker.IDLE);
         }
+    }
+
+    /**
+     * Takes over the progress of an AI reply: the current, skipped and done steps and the round. The round only counts
+     * up, so a reply that names no round stays in the current one.
+     *
+     * @param reply the reply
+     * @return whether the reply starts a new round, that is another image of the chat
+     */
+    boolean progress(BrainstormReply reply) {
+        boolean newRound = reply.getRound() > round;
+        currentStep = reply.getStep();
+        skippedSteps = new HashSet<>(reply.getSkippedSteps());
+        doneSteps = new HashSet<>(reply.getDoneSteps());
+        round = Math.max(round, reply.getRound());
+        return newRound;
+    }
+
+    /** The state of a step: the current one wins over skipped, skipped over done; a later step may be done, too. */
+    StepState stateOf(int step) {
+        return step == currentStep ? StepState.CURRENT
+                : skippedSteps.contains(step) ? StepState.SKIPPED
+                : doneSteps.contains(step) ? StepState.DONE : StepState.OPEN;
     }
 }
