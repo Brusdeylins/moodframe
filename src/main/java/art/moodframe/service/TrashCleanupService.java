@@ -3,25 +3,22 @@ package art.moodframe.service;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Chat;
-import art.moodframe.repository.ChatRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * Service for managing trash retention and automatic cleanup.
  * 
- * <p>This service handles the automatic deletion of chats that have been
- * in the trash for more than the retention period (60 days by default).
+ * <p>This service handles the automatic deletion of the items of all groups
+ * of the {@link TrashCenter} that have been in the trash for more than the
+ * retention period (60 days by default).
  * Images are only deleted when chats are permanently removed from trash.</p>
  * 
  * <p><strong>Deletion Lifecycle:</strong></p>
@@ -35,8 +32,8 @@ import java.util.function.Consumer;
  * <p><strong>Background Cleanup:</strong></p>
  * <ul>
  * <li>Automatic cleanup runs every 6 hours during application runtime</li>
- * <li>UI is automatically refreshed when expired chats are deleted</li>
- * <li>Cleanup callback notifies UI components to reload chat lists</li>
+ * <li>UI is automatically refreshed when expired items are deleted</li>
+ * <li>The listeners of the {@link TrashCenter} learn which items are gone</li>
  * </ul>
  * 
  * @since 1.0.0
@@ -55,30 +52,29 @@ public class TrashCleanupService implements TrashCleanup {
      */
     public static final int DEFAULT_CLEANUP_INTERVAL_HOURS = 6;
     
-    private final ChatRepository chatRepository;
+    private final TrashCenter trashCenter;
     private final int retentionDays;
     private final ScheduledExecutorService scheduler;
-    private Consumer<List<String>> cleanupCallback;
     private boolean backgroundCleanupEnabled = true;
     private final ApplicationConfig config;
     
     /**
      * Creates a new trash cleanup service with default retention period.
      * 
-     * @param chatRepository the chat repository
+     * @param trashCenter the central trash with its groups
      */
-    public TrashCleanupService(ChatRepository chatRepository) {
-        this(chatRepository, DEFAULT_RETENTION_DAYS);
+    public TrashCleanupService(TrashCenter trashCenter) {
+        this(trashCenter, DEFAULT_RETENTION_DAYS);
     }
     
     /**
      * Creates a new trash cleanup service with custom retention period.
      * 
-     * @param chatRepository the chat repository
+     * @param trashCenter the central trash with its groups
      * @param retentionDays the number of days to retain deleted items
      */
-    public TrashCleanupService(ChatRepository chatRepository, int retentionDays) {
-        this.chatRepository = chatRepository;
+    public TrashCleanupService(TrashCenter trashCenter, int retentionDays) {
+        this.trashCenter = trashCenter;
         this.retentionDays = retentionDays;
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.scheduler = Executors.newScheduledThreadPool(1, r -> {
@@ -91,108 +87,66 @@ public class TrashCleanupService implements TrashCleanup {
     }
     
     /**
-     * Performs automatic cleanup of old deleted chats.
+     * Performs automatic cleanup of old deleted items.
      * This should be called on application startup.
      * 
-     * @return the number of chats permanently deleted
+     * @return the number of items permanently deleted
      */
     @Override
     public int performAutoCleanup() {
-        return cleanupExpired().size();
+        return cleanupExpired();
     }
 
     /**
-     * Deletes the chats whose time in the trash is over.
+     * Deletes the items of all groups whose time in the trash is over.
      *
-     * @return the IDs of the chats that are gone
+     * @return the number of items that are gone
      */
-    private List<String> cleanupExpired() {
-        List<String> deletedIds = new java.util.ArrayList<>();
+    private int cleanupExpired() {
+        int successCount = 0;
+        int failCount = 0;
         try {
             LocalDateTime cutoffDate = LocalDateTime.now().minus(retentionDays, ChronoUnit.DAYS);
-            List<Chat> expiredChats = findExpiredDeletedChats(cutoffDate);
-            
-            if (expiredChats.isEmpty()) {
-                return deletedIds;
+            for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
+                List<String> expiredIds = trashCenter.list(kind).stream()
+                        .filter((entry) -> entry.deletedAt() != null && entry.deletedAt().isBefore(cutoffDate))
+                        .map(TrashEntry::id)
+                        .toList();
+                if (expiredIds.isEmpty())
+                    continue;
+
+                logger.info("Auto-deleting {} expired items of the trash group {}", expiredIds.size(), kind);
+                int deleted = trashCenter.deletePermanently(kind, expiredIds).size();
+                successCount += deleted;
+                failCount += expiredIds.size() - deleted;
             }
-            
-            
-            int successCount = 0;
-            int failCount = 0;
-            
-            for (Chat chat : expiredChats) {
-                try {
-                    logger.info("Auto-deleting expired chat '{}' (deleted {} days ago)", 
-                        chat.getName(), 
-                        java.time.temporal.ChronoUnit.DAYS.between(chat.getDeletedAt(), LocalDateTime.now()));
-                    
-                    boolean success = chatRepository.deleteChatPermanently(chat.getId());
-                    
-                    if (success) {
-                        successCount++;
-                        deletedIds.add(chat.getId());
-                        logger.info("Successfully auto-deleted expired chat: {} and all its images", chat.getName());
-                    } else {
-                        failCount++;
-                        logger.warn("Failed to fully delete expired chat: {} (some files may remain)", 
-                            chat.getName());
-                    }
-                    
-                } catch (Exception e) {
-                    failCount++;
-                    logger.error("Error deleting expired chat: {}", chat.getName(), e);
-                }
-            }
-            
-            if (config != null && config.getLoggingEnabled()) {
+
+            if (successCount + failCount > 0 && config != null && config.getLoggingEnabled()) {
                 logger.info("Trash cleanup completed: {} deleted, {} failed", successCount, failCount);
             }
-            
+
             if (failCount > 0) {
-                logger.warn("Some chats could not be fully deleted. Manual cleanup may be required.");
+                logger.warn("Some items could not be fully deleted. Manual cleanup may be required.");
             }
-            
-            return deletedIds;
-            
         } catch (Exception e) {
             logger.error("Failed to perform automatic trash cleanup", e);
-            return deletedIds;
         }
+        return successCount;
     }
     
     /**
-     * Finds all deleted chats that have exceeded the retention period.
+     * Gets the number of days remaining before a deleted item is auto-deleted.
      * 
-     * @param cutoffDate the cutoff date for retention
-     * @return list of expired deleted chats
-     * @throws SQLException if database query fails
-     */
-    private List<Chat> findExpiredDeletedChats(LocalDateTime cutoffDate) throws SQLException {
-        List<Chat> allDeletedChats = chatRepository.findDeletedChats();
-        List<Chat> expiredChats = new ArrayList<>();
-        
-        for (Chat chat : allDeletedChats) {
-            if (chat.getDeletedAt() != null && chat.getDeletedAt().isBefore(cutoffDate)) {
-                expiredChats.add(chat);
-            }
-        }
-        
-        return expiredChats;
-    }
-    
-    /**
-     * Gets the number of days remaining before a deleted chat is auto-deleted.
-     * 
-     * @param chat the deleted chat
-     * @return days remaining, or -1 if chat is not deleted
+     * @param deletedAt when the item was moved to the trash
+     * @return days remaining, or -1 if the item is not deleted
      */
     @Override
-    public int getDaysUntilAutoDeletion(Chat chat) {
-        if (chat.getDeletedAt() == null) {
+    public int getDaysUntilAutoDeletion(LocalDateTime deletedAt) {
+        if (deletedAt == null) {
             return -1; // Not in trash
         }
         
-        long daysSinceDeletion = ChronoUnit.DAYS.between(chat.getDeletedAt(), LocalDateTime.now());
+        long daysSinceDeletion = ChronoUnit.DAYS.between(deletedAt, LocalDateTime.now());
         int daysRemaining = retentionDays - (int) daysSinceDeletion;
         
         return Math.max(0, daysRemaining);
@@ -206,7 +160,7 @@ public class TrashCleanupService implements TrashCleanup {
      */
     @Override
     public String getRetentionMessage(Chat chat) {
-        int daysRemaining = getDaysUntilAutoDeletion(chat);
+        int daysRemaining = getDaysUntilAutoDeletion(chat.getDeletedAt());
         
         if (daysRemaining < 0) {
             return "Not in trash";
@@ -248,22 +202,6 @@ public class TrashCleanupService implements TrashCleanup {
     }
     
     /**
-     * Performs a dry run of the cleanup to see what would be deleted.
-     * 
-     * @return list of chats that would be deleted
-     */
-    @Override
-    public List<Chat> previewAutoCleanup() {
-        try {
-            LocalDateTime cutoffDate = LocalDateTime.now().minus(retentionDays, ChronoUnit.DAYS);
-            return findExpiredDeletedChats(cutoffDate);
-        } catch (SQLException e) {
-            logger.error("Failed to preview auto-cleanup", e);
-            return new ArrayList<>();
-        }
-    }
-    
-    /**
      * Starts the background cleanup timer.
      * Cleanup runs every 6 hours automatically.
      */
@@ -282,29 +220,13 @@ public class TrashCleanupService implements TrashCleanup {
         // Schedule cleanup to run every 6 hours
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                List<String> deletedIds = cleanupExpired();
-
-                // Notify UI components to refresh if callback is set
-                if (!deletedIds.isEmpty() && cleanupCallback != null) {
-                    cleanupCallback.accept(deletedIds);
-                }
-                
+                cleanupExpired();
             } catch (Exception e) {
                 logger.error("Error during scheduled trash cleanup", e);
             }
         }, DEFAULT_CLEANUP_INTERVAL_HOURS, DEFAULT_CLEANUP_INTERVAL_HOURS, TimeUnit.HOURS);
     }
     
-    /**
-     * Sets a callback to be notified when automatic cleanup deletes chats.
-     * This allows UI components to refresh their display.
-     * 
-     * @param callback callback that receives the IDs of the deleted chats
-     */
-    @Override
-    public void setCleanupCallback(Consumer<List<String>> callback) {
-        this.cleanupCallback = callback;
-    }
     /**
      * Enables or disables background cleanup.
      * 
@@ -345,14 +267,10 @@ public class TrashCleanupService implements TrashCleanup {
     /**
      * Forces an immediate cleanup run outside of the scheduled interval.
      * 
-     * @return the number of chats permanently deleted
+     * @return the number of items permanently deleted
      */
     @Override
     public int forceCleanup() {
-        List<String> deletedIds = cleanupExpired();
-        if (!deletedIds.isEmpty() && cleanupCallback != null) {
-            cleanupCallback.accept(deletedIds);
-        }
-        return deletedIds.size();
+        return cleanupExpired();
     }
 }

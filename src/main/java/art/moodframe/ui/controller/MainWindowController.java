@@ -99,7 +99,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Button newChatButton;
     @FXML
-    private ToggleButton trashVisibilityToggle;
+    private Button trashButton;
     @FXML
     private ListView<Chat> chatListView;
 
@@ -267,7 +267,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Tooltip newChatTooltip;
     @FXML
-    private Tooltip trashToggleTooltip;
+    private Tooltip trashTooltip;
     @FXML
     private Tooltip sendTooltip;
     @FXML
@@ -307,14 +307,12 @@ public class MainWindowController implements I18nChangeListener {
     private ObservableList<Chat> chatList;
     private FilteredList<Chat> filteredChatList;
     private Chat currentChat;
-    private boolean suppressChatSelectionEvents = false; // Flag to prevent chat reload during filter updates
     private boolean wasScrolledToBottom = true; // Track if user was at bottom before update
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
 
     // Services
     private art.moodframe.service.RequestResponseManager requestResponseManager;
     private ChatHistoryService chatHistory;
-    private art.moodframe.service.TrashCleanupService trashCleanupService;
     private art.moodframe.config.ApplicationConfig config;
 
     // Image attachment for image-to-image generation
@@ -1206,17 +1204,28 @@ public class MainWindowController implements I18nChangeListener {
                 logger.warn("RequestResponseManager not available - using mock mode");
             }
 
-            // Set up TrashCleanupService callback for automatic UI refresh
-            trashCleanupService = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.TrashCleanupService.class);
+            // Listen to the central trash for automatic UI refresh
+            art.moodframe.service.TrashCenter trashCenter = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.TrashCenter.class);
 
-            if (trashCleanupService != null) {
-                /*  Only the deleted chats leave the list: a full reload would replace the chat objects that running
-                    requests still update  */
-                trashCleanupService.setCleanupCallback(deletedIds -> javafx.application.Platform.runLater(
-                        () -> removeChats(deletedIds)));
+            if (trashCenter != null) {
+                /*  Only the chats that left the trash are touched: a full reload would replace the chat objects
+                    that running requests still update  */
+                trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
+                    @Override
+                    public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
+                        if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
+                            javafx.application.Platform.runLater(() -> showRestoredChat(id));
+                    }
+
+                    @Override
+                    public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
+                        if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
+                            javafx.application.Platform.runLater(() -> removeChats(ids));
+                    }
+                });
             } else {
-                logger.warn("TrashCleanupService not available - no automatic UI refresh");
+                logger.warn("TrashCenter not available - no automatic UI refresh");
             }
 
             // NOTE: ViewportTracker removed - all images now load immediately for better performance
@@ -1250,8 +1259,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Loads the chats from the database once at the start; what a restart left behind is repaired there.
-     * Later changes (trash cleanup) update the list instead of reloading it, so running requests keep their
-     * chat objects.
+     * Later changes (what leaves the trash) update the list instead of reloading it, so running requests keep
+     * their chat objects.
      */
     private void loadRealChatData() {
         try {
@@ -1286,6 +1295,38 @@ public class MainWindowController implements I18nChangeListener {
             chatList.clear();
             createWelcomeChat();
         }
+    }
+
+    /** Shows a chat again that was restored from the trash. */
+    private void showRestoredChat(String chatId) {
+        Chat chat = chatList.stream().filter((listed) -> listed.getId().equals(chatId)).findFirst().orElse(null);
+        if (chat != null) {
+            chat.restore();
+        } else {
+            /*  A chat without entries left the list when it was deleted, it comes back from the database  */
+            try {
+                chat = chatHistory.findChat(chatId).orElse(null);
+            } catch (Exception e) {
+                logger.error("Failed to load restored chat: {}", chatId, e);
+            }
+            if (chat == null)
+                return;
+
+            chatList.add(chat);
+        }
+
+        // Refresh filter to show the restored chat in active list
+        filteredChatList.setPredicate(this::shouldShowChat);
+
+        // If this was the current chat, reload it to show images from active directory
+        if (currentChat == chat) {
+            updateChatView(chat);
+        }
+
+        // Update UI state as input area should be enabled for restored chats
+        updateUIState();
+
+        setStatus(I18nManager.getText("status.chat.restored"));
     }
 
     /** Removes chats that are gone from the database from the list; the open one is closed. */
@@ -2069,17 +2110,14 @@ public class MainWindowController implements I18nChangeListener {
         // Initialize chat list
         chatList = FXCollections.observableArrayList();
 
-        // Create filtered list to hide/show trashed chats
+        // Create filtered list to hide trashed chats
         filteredChatList = new FilteredList<>(chatList, this::shouldShowChat);
 
-        // Setup trash toggle button text and style
-        if (trashVisibilityToggle != null) {
-            trashVisibilityToggle.setText(I18nManager.getText("chat.trash.toggle"));
-            trashVisibilityToggle.setStyle(
+        // Remove borders from all main buttons
+        if (trashButton != null) {
+            trashButton.setStyle(
                     "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
         }
-
-        // Remove borders from all main buttons
         if (newChatButton != null) {
             newChatButton.setStyle(
                     "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
@@ -2100,12 +2138,7 @@ public class MainWindowController implements I18nChangeListener {
 
             // Set up chat action callbacks
             cell.setOnDeleteRequested(this::onChatDeleteRequested);
-            cell.setOnRestoreRequested(this::onChatRestoreRequested);
-            cell.setOnPermanentDeleteRequested(this::onChatPermanentDeleteRequested);
             cell.setOnChatRenamed(this::onChatRenamed);
-
-            // Inject TrashCleanupService for accurate retention calculations
-            cell.setTrashCleanupService(trashCleanupService);
 
             return cell;
         });
@@ -2221,19 +2254,13 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Determines if a chat should be shown based on current filter settings.
+     * Determines if a chat should be shown: trashed chats are only listed in the central trash.
      * 
      * @param chat the chat to check
      * @return true if the chat should be visible
      */
     private boolean shouldShowChat(Chat chat) {
-        // Show active chats always
-        if (!chat.isDeleted()) {
-            return true;
-        }
-
-        // Show trashed chats only when toggle is selected
-        return trashVisibilityToggle != null && trashVisibilityToggle.isSelected();
+        return !chat.isDeleted();
     }
 
     /**
@@ -2242,12 +2269,6 @@ public class MainWindowController implements I18nChangeListener {
      * @param chat the newly selected chat, or null if none selected
      */
     private void onChatSelected(Chat chat) {
-        // Skip processing if selection events are suppressed (e.g., during filter
-        // updates)
-        if (suppressChatSelectionEvents) {
-            return;
-        }
-
         // Don't reload if it's the same chat
         if (currentChat == chat) {
             return;
@@ -2624,7 +2645,7 @@ public class MainWindowController implements I18nChangeListener {
                 if (chat.getEntries().isEmpty()) {
                     chatList.remove(chat);
                 } else {
-                    // Refresh filter to hide the trashed chat if toggle is off
+                    // Refresh filter to hide the trashed chat
                     filteredChatList.setPredicate(this::shouldShowChat);
                 }
 
@@ -2645,102 +2666,6 @@ public class MainWindowController implements I18nChangeListener {
         } catch (Exception e) {
             logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
             setStatus(I18nManager.getText("status.error.chat.deletion"));
-        }
-    }
-
-    /**
-     * Handles chat restore requests (restore from trash).
-     * 
-     * @param chat the chat to restore
-     */
-    private void onChatRestoreRequested(Chat chat) {
-        // CRITICAL: Use restoreChat to restore files from trash
-        try {
-            boolean success = chatHistory.restoreChat(chat.getId());
-            if (success) {
-                // Update local model
-                chat.restore();
-
-                // If this was an empty chat that was removed from the list, add it back
-                if (!chatList.contains(chat)) {
-                    chatList.add(chat);
-                }
-
-                // Refresh filter to show the restored chat in active list
-                filteredChatList.setPredicate(this::shouldShowChat);
-
-                // If this was the current chat, reload it to show images from active directory
-                if (currentChat == chat) {
-                    // Force reload of chat content to update image paths
-                    updateChatView(chat);
-                }
-
-                // Update UI state as input area should be enabled for restored chats
-                updateUIState();
-
-                setStatus(I18nManager.getText("status.chat.restored"));
-            } else {
-                logger.error("Failed to restore chat: {}", chat.getName());
-                setStatus(I18nManager.getText("status.error.chat.restoration"));
-            }
-        } catch (Exception e) {
-            logger.error("Failed to restore chat from database: {}", chat.getName(), e);
-            setStatus(I18nManager.getText("status.error.chat.restoration"));
-        }
-    }
-
-    /**
-     * Handles permanent chat delete requests.
-     * 
-     * @param chat the chat to delete permanently
-     */
-    private void onChatPermanentDeleteRequested(Chat chat) {
-        // Calculate how long the chat has been in trash
-        long daysInTrash = java.time.temporal.ChronoUnit.DAYS.between(
-                chat.getDeletedAt(), java.time.LocalDateTime.now());
-
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle(I18nManager.getText("dialog.confirm.chat.delete.permanent.title"));
-        alert.setHeaderText(I18nManager.getText("dialog.confirm.chat.delete.permanent.header"));
-        alert.setContentText(I18nManager.getText("dialog.confirm.chat.delete.permanent.message",
-                chat.getName(), String.valueOf(daysInTrash)));
-        alert.initOwner(chatListView.getScene().getWindow());
-
-        ButtonType deleteButton = new ButtonType(I18nManager.getText("dialog.confirm.chat.delete.permanent.button"),
-                ButtonBar.ButtonData.YES);
-        alert.getButtonTypes().setAll(deleteButton, ButtonType.CANCEL);
-
-        Optional<ButtonType> result = alert.showAndWait();
-        if (result.isPresent() && result.get() == deleteButton) {
-            // CRITICAL: Permanently delete from database and disk
-            try {
-                boolean success = chatHistory.deleteChatPermanently(chat.getId());
-
-                if (success) {
-                    // Remove from UI list only after successful database deletion
-                    chatList.remove(chat);
-
-                    // If this was the current chat, deselect it
-                    if (currentChat == chat) {
-                        chatListView.getSelectionModel().clearSelection();
-                        currentChat = null;
-                        // Clear the chat view and update totals
-                        chatEntriesListView.setItems(null);
-                        welcomeContainer.setVisible(true);
-                        updateChatTotalCost(null);
-                    }
-
-                    setStatus(I18nManager.getText("status.chat.deleted"));
-                } else {
-                    logger.warn("Permanent deletion failed for chat: {}", chat.getName());
-                    setStatus(I18nManager.getText("status.error.chat.delete.partial"));
-                }
-
-            } catch (Exception e) {
-                logger.error("Failed to permanently delete chat: {}", chat.getName(), e);
-                setStatus(java.text.MessageFormat.format(
-                        I18nManager.getText("status.error.chat.delete.failed"), e.getMessage()));
-            }
         }
     }
 
@@ -4250,58 +4175,15 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Handles the trash visibility toggle button click event.
+     * Handles the trash button click event: opens the central trash.
      */
     @FXML
-    private void onTrashVisibilityToggled() {
-        boolean showTrashed = trashVisibilityToggle.isSelected();
-
-        // Save the current selection before updating the filter
-        Chat selectedChat = chatListView.getSelectionModel().getSelectedItem();
-
-        // Suppress chat selection events during filter update
-        suppressChatSelectionEvents = true;
-
+    private void onTrashClicked() {
         try {
-            // Update filter predicate to refresh the view
-            filteredChatList.setPredicate(this::shouldShowChat);
-
-            // Restore the selection if the chat is still visible
-            if (selectedChat != null && shouldShowChat(selectedChat)) {
-                // Select the chat without triggering onChatSelected
-                Platform.runLater(() -> {
-                    chatListView.getSelectionModel().select(selectedChat);
-                });
-            }
-        } finally {
-            // Re-enable chat selection events after a short delay
-            Platform.runLater(() -> {
-                suppressChatSelectionEvents = false;
-            });
-        }
-
-        // Update status message
-        if (showTrashed) {
-            long trashedCount = chatList.stream().filter(Chat::isDeleted).count();
-            String itemsText = trashedCount == 1 ? I18nManager.getText("status.trash.items.singular")
-                    : I18nManager.getText("status.trash.items.plural");
-            setStatus(java.text.MessageFormat.format(
-                    I18nManager.getText("status.trash.showing"), trashedCount, itemsText));
-        } else {
-            setStatus(I18nManager.getText("status.trash.hiding"));
-        }
-
-        // Update button icon based on state (eye open = showing trash, eye closed =
-        // hiding trash)
-        FontIcon icon = (FontIcon) trashVisibilityToggle.getGraphic();
-        if (showTrashed) {
-            icon.setIconLiteral("mdi2e-eye"); // Open eye when showing trash
-            trashVisibilityToggle.setText(I18nManager.getText("chat.trash.toggle"));
-            trashVisibilityToggle.getTooltip().setText(I18nManager.getText("chat.trash.tooltip"));
-        } else {
-            icon.setIconLiteral("mdi2e-eye-off"); // Closed eye when hiding trash
-            trashVisibilityToggle.setText(I18nManager.getText("chat.trash.toggle"));
-            trashVisibilityToggle.getTooltip().setText(I18nManager.getText("chat.trash.tooltip"));
+            art.moodframe.ui.dialog.TrashWindow.open(mainBorderPane.getScene().getWindow(),
+                    art.moodframe.service.TrashGroup.Kind.CHATS, null);
+        } catch (Exception e) {
+            logger.error("Failed to open trash window", e);
         }
     }
 
@@ -4841,10 +4723,6 @@ public class MainWindowController implements I18nChangeListener {
 
             // Header and sidebar buttons are now handled by updateTooltipTexts()
 
-            if (trashVisibilityToggle != null) {
-                updateTrashButtonText();
-            }
-
             // Update welcome label
             if (welcomeLabel != null) {
                 welcomeLabel.setText(I18nManager.getText("app.welcome"));
@@ -5059,20 +4937,6 @@ public class MainWindowController implements I18nChangeListener {
         if (emptyHintLabel != null) {
             emptyHintLabel.setText(I18nManager.getText("chat.empty.hint"));
         }
-    }
-
-    /**
-     * Updates trash button text based on current state.
-     */
-    private void updateTrashButtonText() {
-        if (trashVisibilityToggle == null)
-            return;
-
-        boolean showingTrash = trashVisibilityToggle.isSelected();
-        trashVisibilityToggle.setText(I18nManager.getText("chat.trash.toggle"));
-
-        String tooltipKey = showingTrash ? "chat.trash.tooltip" : "chat.trash.tooltip";
-        trashVisibilityToggle.setTooltip(new Tooltip(I18nManager.getText(tooltipKey)));
     }
 
     /**
@@ -5370,11 +5234,6 @@ public class MainWindowController implements I18nChangeListener {
             parametersTitle.setText(I18nManager.getText("params.title"));
         }
 
-        // Update trash toggle button text
-        if (trashVisibilityToggle != null) {
-            trashVisibilityToggle.setText(I18nManager.getText("chat.trash.toggle"));
-        }
-
         // Update parameter labels that are hardcoded in FXML
         updateParameterLabels();
     }
@@ -5452,8 +5311,8 @@ public class MainWindowController implements I18nChangeListener {
             newChatTooltip.setText(I18nManager.getText("chat.new.tooltip"));
         }
 
-        if (trashToggleTooltip != null) {
-            trashToggleTooltip.setText(I18nManager.getText("chat.trash.tooltip"));
+        if (trashTooltip != null) {
+            trashTooltip.setText(I18nManager.getText("chat.trash.tooltip"));
         }
 
         if (sendTooltip != null) {

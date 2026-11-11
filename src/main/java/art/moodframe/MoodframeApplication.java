@@ -175,7 +175,7 @@ public class MoodframeApplication extends Application {
                             ServiceFactory.getInstance().getService(art.moodframe.service.ThumbnailManager.class),
                             new art.moodframe.service.FileManagerService()));
 
-            // The one ChatRepository: the request manager, the trash cleanup and the main window share it
+            // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.repository.ChatRepository.class,
                     () -> {
@@ -186,6 +186,18 @@ public class MoodframeApplication extends Application {
 
                         return new art.moodframe.repository.ChatRepository(dbManager,
                                 ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class));
+                    });
+
+            // The central trash: chats first, the other kinds of items dock in with their own group
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.TrashCenter.class,
+                    () -> {
+                        art.moodframe.service.TrashCenter trashCenter = new art.moodframe.service.TrashCenter();
+                        art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
+                                .getService(art.moodframe.repository.ChatRepository.class);
+                        if (chatRepo != null)
+                            trashCenter.register(new art.moodframe.service.ChatTrashGroup(chatRepo));
+                        return trashCenter;
                     });
 
             // Loads the chats and settles what a restart left behind
@@ -240,21 +252,12 @@ public class MoodframeApplication extends Application {
     private void performTrashCleanup() {
         try {
 
-            // Initialize TrashCleanupService with real repository
-            art.moodframe.repository.ChatRepository chatRepository = ServiceFactory.getInstance()
-                    .getService(art.moodframe.repository.ChatRepository.class);
-
             // Create and register TrashCleanupService in ServiceFactory
             art.moodframe.service.TrashCleanupService cleanupService = new art.moodframe.service.TrashCleanupService(
-                    chatRepository);
+                    ServiceFactory.getInstance().getService(art.moodframe.service.TrashCenter.class));
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.TrashCleanupService.class,
                     () -> cleanupService);
-
-            // Set up callback for UI refresh when chats are auto-deleted
-            cleanupService.setCleanupCallback(deletedIds -> {
-                // The UI will be refreshed through the MainWindowController callback
-            });
 
             // Perform initial cleanup
             cleanupService.performAutoCleanup();

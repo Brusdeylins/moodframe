@@ -84,16 +84,16 @@
                         </tooltip>
                     </Button>
                     
-                    <!-- Trash Visibility Toggle Button -->
-                    <ToggleButton fx:id="trashVisibilityToggle" styleClass="button-outlined"
-                                  onAction="#onTrashVisibilityToggled">
+                    <!-- Trash Button: opens the central trash -->
+                    <Button fx:id="trashButton" styleClass="button-icon"
+                            onAction="#onTrashClicked">
                         <graphic>
-                            <FontIcon iconLiteral="mdi2e-eye-off" iconSize="14" styleClass="ikonli-font-icon" />
+                            <FontIcon iconLiteral="mdi2t-trash-can-outline" iconSize="20" styleClass="ikonli-font-icon" />
                         </graphic>
                         <tooltip>
-                            <Tooltip fx:id="trashToggleTooltip" text="Show/Hide Trashed Chats" />
+                            <Tooltip fx:id="trashTooltip" text="Trash" />
                         </tooltip>
-                    </ToggleButton>
+                    </Button>
                 </HBox>
                 
                 <!-- Chat List -->

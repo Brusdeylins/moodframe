@@ -31,7 +31,7 @@ public class ChatHistoryService {
     /**
      * The loaded chats.
      *
-     * @param chats         the chats to show: all active ones and the deleted ones that still hold entries
+     * @param chats         all active chats and the deleted ones that still hold entries (hidden until restored)
      * @param nothingStored true if the database held no chat at all
      */
     public record History(List<Chat> chats, boolean nothingStored) {
@@ -362,14 +362,9 @@ public class ChatHistoryService {
         return chatRepository.softDeleteChat(chatId);
     }
 
-    /** Takes a chat and its files out of the trash. */
-    public boolean restoreChat(String chatId) throws SQLException {
-        return chatRepository.restoreChat(chatId);
-    }
-
-    /** Removes a chat, its entries, images and files for good. */
-    public boolean deleteChatPermanently(String chatId) throws SQLException {
-        return chatRepository.deleteChatPermanently(chatId);
+    /** Finds a chat without its entries, like an empty one that comes back from the trash. */
+    public Optional<Chat> findChat(String chatId) throws SQLException {
+        return chatRepository.findChatById(chatId);
     }
 
     public Optional<ChatEntry> findChatEntryById(String entryId) throws SQLException {

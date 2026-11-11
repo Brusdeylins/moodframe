@@ -1,8 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.Chat;
-import java.util.List;
-import java.util.function.Consumer;
+import java.time.LocalDateTime;
 
 /**
  * Interface for trash cleanup operations.
@@ -19,12 +18,12 @@ public interface TrashCleanup {
     int performAutoCleanup();
     
     /**
-     * Gets days until auto deletion for a chat.
+     * Gets days until auto deletion for an item in the trash.
      * 
-     * @param chat the chat to check
+     * @param deletedAt when the item was moved to the trash
      * @return days until deletion
      */
-    int getDaysUntilAutoDeletion(Chat chat);
+    int getDaysUntilAutoDeletion(LocalDateTime deletedAt);
     
     /**
      * Gets retention message for a chat.
@@ -48,20 +47,6 @@ public interface TrashCleanup {
      * @return retention days
      */
     int getRetentionDays();
-    
-    /**
-     * Previews items that would be cleaned up.
-     * 
-     * @return list of chats to be cleaned
-     */
-    List<Chat> previewAutoCleanup();
-    
-    /**
-     * Sets callback for cleanup operations.
-     * 
-     * @param callback the callback to invoke with the IDs of the deleted chats
-     */
-    void setCleanupCallback(Consumer<List<String>> callback);
     
     /**
      * Enables or disables background cleanup.

@@ -24,12 +24,51 @@ class TrashCleanupServiceTest {
         when(repository.deleteChatPermanently("old")).thenReturn(true);
         when(repository.deleteChatPermanently("stuck")).thenReturn(false);
 
-        TrashCleanupService service = new TrashCleanupService(repository, 60);
+        TrashCenter center = new TrashCenter();
+        center.register(new ChatTrashGroup(repository));
+        TrashCleanupService service = new TrashCleanupService(center, 60);
         List<String> reported = new ArrayList<>();
-        service.setCleanupCallback(reported::addAll);
+        center.addListener(new TrashCenter.Listener() {
+            @Override
+            public void restored(TrashGroup.Kind kind, String id) {
+            }
+
+            @Override
+            public void deleted(TrashGroup.Kind kind, List<String> ids) {
+                reported.addAll(ids);
+            }
+        });
 
         assertEquals(1, service.forceCleanup());
         assertEquals(List.of("old"), reported);
+        service.shutdown();
+    }
+
+    @Test
+    void deletesTheItemsOfEveryGroupAfterSixtyDaysAndKeepsTheYoungerOnes() {
+        TrashCenter center = new TrashCenter();
+        for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
+            center.register(new MemoryTrashGroup(kind).put("expired", 61).put("kept", 59));
+        }
+        TrashCleanupService service = new TrashCleanupService(center);
+
+        assertEquals(TrashGroup.Kind.values().length, service.performAutoCleanup());
+
+        for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
+            assertEquals(List.of("kept"), center.list(kind).stream().map(TrashEntry::id).toList());
+        }
+        assertEquals(0, service.performAutoCleanup());
+        service.shutdown();
+    }
+
+    @Test
+    void tellsTheDaysAnItemHasLeftInTheTrash() {
+        TrashCleanupService service = new TrashCleanupService(new TrashCenter());
+
+        assertEquals(60, service.getDaysUntilAutoDeletion(LocalDateTime.now()));
+        assertEquals(50, service.getDaysUntilAutoDeletion(LocalDateTime.now().minusDays(10)));
+        assertEquals(0, service.getDaysUntilAutoDeletion(LocalDateTime.now().minusDays(60)));
+        assertEquals(0, service.getDaysUntilAutoDeletion(LocalDateTime.now().minusDays(90)));
         service.shutdown();
     }
 }
