@@ -885,14 +885,20 @@ public class MainWindowController implements I18nChangeListener {
 
     /** Selects the entry with this id in the field of a building block, "None" if the field does not list it. */
     private void selectField(Mood.Field field, String id) {
+
+        /*  the camera has no field yet (task 18)  */
+        if (field == Mood.Field.CAMERA)
+            return;
         if (field != Mood.Field.COLOR) {
-            selectBlock(blockComboBox(art.moodframe.model.PromptBlock.Type.valueOf(field.name())), id);
+            selectBlock(art.moodframe.model.PromptBlock.Type.valueOf(field.name()), id);
             return;
         }
         art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(id);
         String paletteName = palette != null ? palette.getName() : "None";
-        colorStyleComboBox.getItems().stream().filter((item) -> item.getName().equals(paletteName)).findFirst()
-                .or(() -> colorStyleComboBox.getItems().stream().findFirst()).ifPresent(colorStyleComboBox::setValue);
+        colorStyleComboBox.getItems().stream().filter((item) -> colorChoice.isEntry(item)
+                && item.getName().equals(paletteName)).findFirst()
+                .or(() -> colorStyleComboBox.getItems().stream().filter(colorChoice::isEntry).findFirst())
+                .ifPresent(colorStyleComboBox::setValue);
     }
 
     /**
