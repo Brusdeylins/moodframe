@@ -17,8 +17,6 @@ import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
-import art.moodframe.model.StylePresetItem;
-import art.moodframe.ui.component.StyleEditDialog;
 import art.moodframe.service.BflApiService;
 
 import javafx.collections.FXCollections;
@@ -93,10 +91,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private VBox appearancePane;
     @FXML
     private VBox languagePane;
-    @FXML
-    private VBox stylePresetsPane;
-    @FXML
-    private VBox colorStylesPane;
     @FXML
     private VBox advancedPane;
 
@@ -217,50 +211,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private Label languageDescLabel;
     @FXML
     private Label languageChangesLabel;
-
-    // Style Presets Tab Controls
-    @FXML
-    private ListView<StylePresetItem> stylePresetsListView;
-    @FXML
-    private Button addStyleButton;
-    @FXML
-    private Button editStyleButton;
-    @FXML
-    private Button deleteStyleButton;
-    @FXML
-    private Button resetStylesButton;
-    @FXML
-    private Label stylePreviewLabel;
-    @FXML
-    private TextArea stylePreviewPromptLabel;
-    @FXML
-    private Label stylesTitleLabel;
-    @FXML
-    private Label stylesDescLabel;
-    @FXML
-    private Label stylesPreviewTitleLabel;
-
-    // Color Styles Tab Controls
-    @FXML
-    private ListView<art.moodframe.model.ColorStyleItem> colorStylesListView;
-    @FXML
-    private Button addColorStyleButton;
-    @FXML
-    private Button editColorStyleButton;
-    @FXML
-    private Button deleteColorStyleButton;
-    @FXML
-    private Button resetColorStylesButton;
-    @FXML
-    private javafx.scene.layout.HBox colorStylePreviewBox;
-    @FXML
-    private Label colorStylePreviewLabel;
-    @FXML
-    private Label colorStylesTitleLabel;
-    @FXML
-    private Label colorStylesDescLabel;
-
-    private ObservableList<art.moodframe.model.ColorStyleItem> colorStylesList;
 
     // Corporate Proxy Tab Controls
     @FXML
@@ -387,7 +337,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private boolean geminiApiKeyValidated = false;
     private String validatedGeminiApiKey = null;
     // Removed animation variables - now using ProgressIndicators instead
-    private ObservableList<StylePresetItem> stylePresetsList;
     private ObservableList<String> certificatesList;
     private ObservableList<String> categories;
 
@@ -411,8 +360,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             initializeApiConfigTab();
             initializeAppearanceTab();
             initializeLanguageTab();
-            initializeStylePresetsTab();
-            initializeColorStylesTab();
             initializeCorporateProxyTab();
             initializeAdvancedTab();
 
@@ -481,8 +428,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 I18nManager.getText("settings.category.proxy"),
                 I18nManager.getText("settings.category.appearance"),
                 I18nManager.getText("settings.category.language"),
-                I18nManager.getText("settings.category.styles"),
-                I18nManager.getText("settings.category.colorstyles"),
                 I18nManager.getText("settings.category.advanced"));
 
         // Restore selection after updating
@@ -504,12 +449,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
         appearancePane.setManaged(false);
         languagePane.setVisible(false);
         languagePane.setManaged(false);
-        stylePresetsPane.setVisible(false);
-        stylePresetsPane.setManaged(false);
-        if (colorStylesPane != null) {
-            colorStylesPane.setVisible(false);
-            colorStylesPane.setManaged(false);
-        }
         advancedPane.setVisible(false);
         advancedPane.setManaged(false);
 
@@ -531,17 +470,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 languagePane.setVisible(true);
                 languagePane.setManaged(true);
                 break;
-            case 4: // Style Presets
-                stylePresetsPane.setVisible(true);
-                stylePresetsPane.setManaged(true);
-                break;
-            case 5: // Color Styles
-                if (colorStylesPane != null) {
-                    colorStylesPane.setVisible(true);
-                    colorStylesPane.setManaged(true);
-                }
-                break;
-            case 6: // Advanced
+            case 4: // Advanced
                 advancedPane.setVisible(true);
                 advancedPane.setManaged(true);
                 break;
@@ -697,327 +626,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             if (newToggle != null) {
                 String language = newToggle == germanRadio ? "de" : "en";
                 handleLanguageChange(language);
-            }
-        });
-    }
-
-    /**
-     * Initializes the Style Presets tab with real backend data.
-     */
-    private void initializeStylePresetsTab() {
-        // Create observable list for style presets
-        stylePresetsList = FXCollections.observableArrayList();
-
-        // Load styles from PromptBlockService (SQLite-based backend)
-        art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
-
-        if (styleService != null) {
-            // Convert style blocks to StylePresetItem for UI
-            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                stylePresetsList.add(new StylePresetItem(block));
-            }
-        } else {
-            logger.warn("PromptBlockService not available, using empty list");
-        }
-
-        // Set up ListView with custom cell factory for icons
-        stylePresetsListView.setItems(stylePresetsList);
-        stylePresetsListView.setCellFactory(listView -> new art.moodframe.ui.component.StylePresetListCell());
-
-        // Add selection listener for preview
-        stylePresetsListView.getSelectionModel().selectedItemProperty().addListener(
-                (obs, oldSelection, newSelection) -> {
-                    updateStylePreview(newSelection);
-                    updateStyleButtons(newSelection);
-                });
-
-        // Select first item by default
-        if (!stylePresetsList.isEmpty()) {
-            stylePresetsListView.getSelectionModel().selectFirst();
-        }
-    }
-
-    /**
-     * Updates the style preview area when a style is selected.
-     */
-    private void updateStylePreview(StylePresetItem selectedStyle) {
-        if (selectedStyle != null) {
-            // Show whether it's a default or custom style
-            String styleType = selectedStyle.isDefault() ? "Default Style" : "Custom Style";
-            stylePreviewLabel.setText(styleType + ": " + selectedStyle.getName());
-
-            // Display the prompt text in a clean, readable format
-            if (selectedStyle.getPromptText() != null && !selectedStyle.getPromptText().isEmpty()) {
-                stylePreviewPromptLabel.setText(selectedStyle.getPromptText());
-                stylePreviewPromptLabel.getStyleClass().removeAll("text-muted");
-            } else {
-                stylePreviewPromptLabel.setText("No prompt text available for this style.");
-                if (!stylePreviewPromptLabel.getStyleClass().contains("text-muted")) {
-                    stylePreviewPromptLabel.getStyleClass().add("text-muted");
-                }
-            }
-
-            // Style the preview area differently for defaults vs custom
-            if (selectedStyle.isDefault()) {
-                stylePreviewLabel.setStyle("-fx-text-fill: -color-accent-emphasis;");
-            } else {
-                stylePreviewLabel.setStyle("-fx-text-fill: -color-success-emphasis;");
-            }
-        } else {
-            stylePreviewLabel.setText("No style selected");
-            stylePreviewLabel.setStyle("");
-            stylePreviewPromptLabel.setText("Select a style to see its prompt text.");
-            if (!stylePreviewPromptLabel.getStyleClass().contains("text-muted")) {
-                stylePreviewPromptLabel.getStyleClass().add("text-muted");
-            }
-        }
-    }
-
-    /**
-     * Updates the enabled state of style management buttons.
-     * Default styles cannot be edited or deleted.
-     */
-    private void updateStyleButtons(StylePresetItem selectedStyle) {
-        if (selectedStyle == null) {
-            editStyleButton.setDisable(true);
-            deleteStyleButton.setDisable(true);
-            return;
-        }
-
-        boolean isCustomStyle = !selectedStyle.isDefault();
-
-        // Edit button: disabled for default styles
-        editStyleButton.setDisable(!isCustomStyle);
-
-        // Delete button: only enabled for custom styles
-        deleteStyleButton.setDisable(!isCustomStyle);
-
-        // Update button tooltips to explain why they're disabled
-        if (selectedStyle.isDefault()) {
-            editStyleButton.setTooltip(new Tooltip("Default styles cannot be edited"));
-            deleteStyleButton.setTooltip(new Tooltip("Default styles cannot be deleted"));
-        } else {
-            editStyleButton.setTooltip(new Tooltip("Edit this custom style"));
-            deleteStyleButton.setTooltip(new Tooltip("Delete this custom style"));
-        }
-    }
-
-    /**
-     * Initializes the Color Styles tab with backend data.
-     */
-    private void initializeColorStylesTab() {
-        if (colorStylesListView == null) {
-            logger.debug("Color styles tab not available in FXML, skipping initialization");
-            return;
-        }
-
-        // Create observable list for color styles
-        colorStylesList = FXCollections.observableArrayList();
-
-        // Load styles from ColorStyleService
-        art.moodframe.service.ColorStyleService colorService = ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
-
-        if (colorService != null) {
-            for (art.moodframe.model.ColorStyle style : colorService.getAllStyles()) {
-                colorStylesList.add(style.toColorStyleItem());
-            }
-        } else {
-            logger.warn("ColorStyleService not available, using empty list");
-        }
-
-        // Set up ListView with custom cell factory
-        colorStylesListView.setItems(colorStylesList);
-        colorStylesListView.setCellFactory(listView -> new art.moodframe.ui.component.ColorStyleListCell());
-
-        // Add selection listener for preview
-        colorStylesListView.getSelectionModel().selectedItemProperty().addListener(
-                (obs, oldSelection, newSelection) -> {
-                    updateColorStylePreview(newSelection);
-                    updateColorStyleButtons(newSelection);
-                });
-
-        // Select first item by default
-        if (!colorStylesList.isEmpty()) {
-            colorStylesListView.getSelectionModel().selectFirst();
-        }
-    }
-
-    /**
-     * Updates the color style preview area when a style is selected.
-     */
-    private void updateColorStylePreview(art.moodframe.model.ColorStyleItem selectedStyle) {
-        if (colorStylePreviewBox == null || colorStylePreviewLabel == null) {
-            return;
-        }
-
-        colorStylePreviewBox.getChildren().clear();
-
-        if (selectedStyle != null) {
-            // Add color boxes to preview
-            for (int i = 0; i < 5; i++) {
-                art.moodframe.ui.component.ColorBox box = new art.moodframe.ui.component.ColorBox(
-                        selectedStyle.getColor(i), 20);
-                colorStylePreviewBox.getChildren().add(box);
-            }
-
-            String styleType = selectedStyle.isDefault() ? "Default" : "Custom";
-            colorStylePreviewLabel.setText(styleType + ": " + selectedStyle.getName());
-
-            if (selectedStyle.isDefault()) {
-                colorStylePreviewLabel.setStyle("-fx-text-fill: -color-accent-emphasis;");
-            } else {
-                colorStylePreviewLabel.setStyle("-fx-text-fill: -color-success-emphasis;");
-            }
-        } else {
-            colorStylePreviewLabel.setText(I18nManager.getText("settings.colorstyles.preview.none"));
-            colorStylePreviewLabel.setStyle("");
-        }
-    }
-
-    /**
-     * Updates the enabled state of color style management buttons.
-     */
-    private void updateColorStyleButtons(art.moodframe.model.ColorStyleItem selectedStyle) {
-        if (editColorStyleButton == null || deleteColorStyleButton == null) {
-            return;
-        }
-
-        if (selectedStyle == null) {
-            editColorStyleButton.setDisable(true);
-            deleteColorStyleButton.setDisable(true);
-            return;
-        }
-
-        boolean isCustomStyle = !selectedStyle.isDefault();
-        editColorStyleButton.setDisable(!isCustomStyle);
-        deleteColorStyleButton.setDisable(!isCustomStyle);
-
-        if (selectedStyle.isDefault()) {
-            editColorStyleButton.setTooltip(new Tooltip(I18nManager.getText("settings.colorstyles.default.noedit")));
-            deleteColorStyleButton.setTooltip(new Tooltip(I18nManager.getText("settings.colorstyles.default.nodelete")));
-        } else {
-            editColorStyleButton.setTooltip(new Tooltip(I18nManager.getText("settings.colorstyles.edit.tooltip")));
-            deleteColorStyleButton.setTooltip(new Tooltip(I18nManager.getText("settings.colorstyles.delete.tooltip")));
-        }
-    }
-
-    /**
-     * Handler for adding a new color style.
-     */
-    @FXML
-    private void onAddColorStyle() {
-        art.moodframe.ui.component.ColorStyleEditDialog dialog = new art.moodframe.ui.component.ColorStyleEditDialog("", null);
-        dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.model.ColorStyle newStyle = new art.moodframe.model.ColorStyle(
-                    result.name(), result.colors(), false);
-
-            art.moodframe.service.ColorStyleService colorService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ColorStyleService.class);
-
-            if (colorService != null && colorService.addCustomStyle(newStyle)) {
-                art.moodframe.model.ColorStyleItem newItem = newStyle.toColorStyleItem();
-                colorStylesList.add(newItem);
-                colorStylesListView.getSelectionModel().select(newItem);
-            } else {
-                showError(I18nManager.getText("error.colorstyle.add.title"),
-                        I18nManager.getText("error.colorstyle.add.message", result.name()));
-            }
-        });
-    }
-
-    /**
-     * Handler for editing an existing color style.
-     */
-    @FXML
-    private void onEditColorStyle() {
-        art.moodframe.model.ColorStyleItem selected = colorStylesListView.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.isDefault()) {
-            return;
-        }
-
-        art.moodframe.ui.component.ColorStyleEditDialog dialog = new art.moodframe.ui.component.ColorStyleEditDialog(
-                selected.getName(), new java.util.ArrayList<>(selected.getColors()));
-
-        dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.model.ColorStyle updatedStyle = new art.moodframe.model.ColorStyle(
-                    result.name(), result.colors(), false);
-
-            art.moodframe.service.ColorStyleService colorService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ColorStyleService.class);
-
-            if (colorService != null && colorService.updateCustomStyle(selected.getName(), updatedStyle)) {
-                selected.setName(result.name());
-                selected.getColors().clear();
-                selected.getColors().addAll(result.colors());
-                colorStylesListView.refresh();
-                updateColorStylePreview(selected);
-            } else {
-                showError(I18nManager.getText("error.colorstyle.update.title"),
-                        I18nManager.getText("error.colorstyle.update.message", result.name()));
-            }
-        });
-    }
-
-    /**
-     * Handler for deleting a color style.
-     */
-    @FXML
-    private void onDeleteColorStyle() {
-        art.moodframe.model.ColorStyleItem selected = colorStylesListView.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.isDefault()) {
-            return;
-        }
-
-        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmDialog.setTitle(I18nManager.getText("settings.colorstyles.delete.confirm.title"));
-        confirmDialog.setHeaderText(I18nManager.getText("settings.colorstyles.delete.confirm.header"));
-        confirmDialog.setContentText(I18nManager.getText("settings.colorstyles.delete.confirm.content", selected.getName()));
-
-        confirmDialog.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                art.moodframe.service.ColorStyleService colorService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.ColorStyleService.class);
-
-                if (colorService != null && colorService.deleteCustomStyle(selected.getName())) {
-                    colorStylesList.remove(selected);
-                    if (!colorStylesList.isEmpty()) {
-                        colorStylesListView.getSelectionModel().selectFirst();
-                    }
-                }
-            }
-        });
-    }
-
-    /**
-     * Handler for resetting color styles to defaults.
-     */
-    @FXML
-    private void onResetColorStyles() {
-        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmDialog.setTitle(I18nManager.getText("settings.colorstyles.reset.confirm.title"));
-        confirmDialog.setHeaderText(I18nManager.getText("settings.colorstyles.reset.confirm.header"));
-        confirmDialog.setContentText(I18nManager.getText("settings.colorstyles.reset.confirm.content"));
-
-        confirmDialog.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                art.moodframe.service.ColorStyleService colorService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.ColorStyleService.class);
-
-                if (colorService != null) {
-                    colorService.resetToDefaults();
-
-                    // Reload the list
-                    colorStylesList.clear();
-                    for (art.moodframe.model.ColorStyle style : colorService.getAllStyles()) {
-                        colorStylesList.add(style.toColorStyleItem());
-                    }
-
-                    if (!colorStylesList.isEmpty()) {
-                        colorStylesListView.getSelectionModel().selectFirst();
-                    }
-                }
             }
         });
     }
@@ -2056,9 +1664,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
                             // Refresh UI to reflect changes
                             loadCurrentSettings();
 
-                            // Refresh custom styles to show imported styles immediately
-                            refreshCustomStylesList();
-
                             showInfo("Import Successful",
                                     String.format(
                                             "Configuration imported successfully!\n\n%d settings were updated.\n\nRestart the application to ensure all changes take effect.",
@@ -2066,9 +1671,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         } else {
                             // User cancelled, reload original settings
                             loadCurrentSettings();
-
-                            // Refresh custom styles in case they were changed during import
-                            refreshCustomStylesList();
                         }
                     } else {
                         showInfo("Import Complete",
@@ -2481,142 +2083,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
         showStatus(certificateConnectionStatusContainer, certificateConnectionStatusLabel, certificateConnectionStatusIcon, certificateConnectionStatusProgress, status, message);
     }
 
-    // Style Presets Event Handlers
-
-    /**
-     * Handles the add new style button click.
-     */
-    @FXML
-    private void onAddStyle() {
-
-        StyleEditDialog dialog = new StyleEditDialog("Add New Style", "", "", true);
-        dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.PromptBlockService.class);
-
-            if (styleService != null) {
-                art.moodframe.model.PromptBlock newBlock = new art.moodframe.model.PromptBlock(null,
-                        art.moodframe.model.PromptBlock.Type.STYLE, result.name(), result.promptText(), null,
-                        result.photographic());
-
-                if (styleService.addCustom(newBlock)) {
-                    StylePresetItem newItem = new StylePresetItem(newBlock);
-                    stylePresetsList.add(newItem);
-                    stylePresetsListView.getSelectionModel().select(newItem);
-                } else {
-                    showError("Add Failed", "A style with this name already exists.");
-                }
-            }
-        });
-    }
-
-    /**
-     * Handles the edit selected style button click.
-     */
-    @FXML
-    private void onEditStyle() {
-        StylePresetItem selected = stylePresetsListView.getSelectionModel().getSelectedItem();
-        if (selected == null)
-            return;
-
-        art.moodframe.model.PromptBlock block = selected.getBlock();
-        StyleEditDialog dialog = new StyleEditDialog("Edit Style", selected.getName(), selected.getPromptText(),
-                block == null || block.isPhotographic());
-
-        dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.PromptBlockService.class);
-
-            if (styleService != null && block != null && !selected.isDefault()) {
-                art.moodframe.model.PromptBlock updatedBlock = new art.moodframe.model.PromptBlock(block.getId(),
-                        block.getType(), result.name(), result.promptText(), block.getGroup(), result.photographic());
-                updatedBlock.setParams(block.getParams());
-                updatedBlock.setSortOrder(block.getSortOrder());
-
-                if (styleService.updateCustom(updatedBlock)) {
-                    block.setName(result.name());
-                    block.setText(result.promptText());
-                    block.setPhotographic(result.photographic());
-                    selected.setName(result.name());
-                    selected.setPromptText(result.promptText());
-                    updateStylePreview(selected);
-                    stylePresetsListView.refresh();
-                } else {
-                    showError("Edit Failed", "Cannot edit this style.");
-                }
-            } else if (selected.isDefault()) {
-                showInfo("Cannot Edit", "Default styles cannot be modified.");
-            }
-        });
-    }
-
-    /**
-     * Handles the delete selected style button click.
-     */
-    @FXML
-    private void onDeleteStyle() {
-        StylePresetItem selected = stylePresetsListView.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.isDefault())
-            return;
-
-        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmation.setTitle("Delete Style");
-        confirmation.setHeaderText("Delete Style Preset");
-        confirmation.setContentText("Are you sure you want to delete the style '" + selected.getName() + "'?");
-
-        confirmation.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.PromptBlockService.class);
-
-                if (styleService != null && selected.getBlock() != null
-                        && styleService.deleteCustom(selected.getBlock().getId())) {
-                    stylePresetsList.remove(selected);
-                    if (!stylePresetsList.isEmpty()) {
-                        stylePresetsListView.getSelectionModel().selectFirst();
-                    }
-                } else {
-                    showError("Delete Failed", "Could not delete the style.");
-                }
-            }
-        });
-    }
-
-    /**
-     * Handles the reset styles to defaults button click.
-     */
-    @FXML
-    private void onResetStyles() {
-
-        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmation.setTitle("Reset Styles");
-        confirmation.setHeaderText("Reset to Default Styles");
-        confirmation.setContentText("This will remove all custom styles and restore defaults. Continue?");
-
-        confirmation.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.PromptBlockService.class);
-
-                if (styleService != null) {
-                    styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
-
-                    // Reload the list from backend
-                    stylePresetsList.clear();
-                    for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                        stylePresetsList.add(new StylePresetItem(block));
-                    }
-
-                    if (!stylePresetsList.isEmpty()) {
-                        stylePresetsListView.getSelectionModel().selectFirst();
-                    }
-
-                    showInfo("Styles Reset", "All custom styles have been removed and defaults restored.");
-                }
-            }
-        });
-    }
-
     /**
      * Handles reset settings button click.
      */
@@ -2640,25 +2106,10 @@ public class SettingsController implements Initializable, I18nChangeListener {
                             .getService(art.moodframe.service.PromptBlockService.class);
                     if (styleService != null) {
                         styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
-
-                        // Refresh style presets list in UI
-                        stylePresetsList.clear();
-                        for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                            stylePresetsList.add(new StylePresetItem(block));
-                        }
-
-                        // Select first style if available
-                        if (!stylePresetsList.isEmpty()) {
-                            stylePresetsListView.getSelectionModel().selectFirst();
-                        }
-
                     }
 
                     // Refresh all UI elements to show reset values
                     refreshSettingsFromConfig();
-
-                    // Refresh custom styles list after reset
-                    refreshCustomStylesList();
 
                     showInfo("Settings Reset",
                             "All settings have been reset to defaults. API key and proxy password were preserved.");
@@ -2669,32 +2120,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 }
             }
         });
-    }
-
-    /**
-     * Refreshes the custom styles list from the database.
-     * Used after import or database changes to show current styles immediately.
-     */
-    private void refreshCustomStylesList() {
-        try {
-            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.PromptBlockService.class);
-
-            if (styleService != null) {
-                // Reload the list from backend
-                stylePresetsList.clear();
-                for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                    stylePresetsList.add(new StylePresetItem(block));
-                }
-
-                if (!stylePresetsList.isEmpty()) {
-                    stylePresetsListView.getSelectionModel().selectFirst();
-                }
-
-            }
-        } catch (Exception e) {
-            logger.error("Failed to refresh custom styles list", e);
-        }
     }
 
     /**
@@ -3048,9 +2473,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             // Update Language tab
             updateLanguageTexts();
 
-            // Update Style Presets tab
-            updateStylePresetsTexts();
-
             // Update Corporate Proxy tab
             updateCorporateProxyTexts();
 
@@ -3230,41 +2652,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
         }
         if (languageChangesLabel != null) {
             languageChangesLabel.setText(I18nManager.getText("settings.language.changes"));
-        }
-    }
-
-    /**
-     * Updates Style Presets tab texts.
-     */
-    private void updateStylePresetsTexts() {
-        if (addStyleButton != null) {
-            addStyleButton.setText(I18nManager.getText("settings.styles.add"));
-        }
-        if (editStyleButton != null) {
-            editStyleButton.setText(I18nManager.getText("settings.styles.edit"));
-        }
-        if (deleteStyleButton != null) {
-            deleteStyleButton.setText(I18nManager.getText("settings.styles.delete"));
-        }
-        if (resetStylesButton != null) {
-            resetStylesButton.setText(I18nManager.getText("settings.styles.reset"));
-        }
-
-        // Update style section labels
-        if (stylesTitleLabel != null) {
-            stylesTitleLabel.setText(I18nManager.getText("settings.styles.title"));
-        }
-        if (stylesDescLabel != null) {
-            stylesDescLabel.setText(I18nManager.getText("settings.styles.description"));
-        }
-        if (stylesPreviewTitleLabel != null) {
-            stylesPreviewTitleLabel.setText(I18nManager.getText("settings.styles.preview.title"));
-        }
-        if (stylePreviewLabel != null) {
-            stylePreviewLabel.setText(I18nManager.getText("settings.styles.preview.none"));
-        }
-        if (stylePreviewPromptLabel != null) {
-            stylePreviewPromptLabel.setText(I18nManager.getText("settings.styles.preview.prompt"));
         }
     }
 

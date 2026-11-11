@@ -315,6 +315,69 @@ public class ColorStyleRepository {
     }
 
     /**
+     * Moves a color style to the trash or takes it out again.
+     *
+     * @param id the ID of the color style
+     * @param deletedAt when it was moved to the trash, null to take it out
+     * @return true if the color style was changed
+     */
+    public boolean setDeletedAt(String id, java.time.LocalDateTime deletedAt) {
+        String sql = "UPDATE color_styles SET deleted_at = ? WHERE id = ?";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
+            stmt.setString(2, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            logger.error("Failed to change the trash state of color style with ID: " + id, e);
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a color style with this ID is stored, in use or in the trash.
+     *
+     * @param id the ID to check
+     * @return true if the ID is taken
+     */
+    public boolean existsById(String id) {
+        String sql = "SELECT COUNT(*) FROM color_styles WHERE id = ?";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            logger.error("Failed to check if color style ID exists: " + id, e);
+            return false;
+        }
+    }
+
+    /**
+     * Retrieves the color styles in the trash, the latest deletion first.
+     *
+     * @return list of the color styles in the trash
+     */
+    public List<ColorStyle> findDeleted() {
+        String sql = "SELECT * FROM color_styles WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC";
+        List<ColorStyle> styles = new ArrayList<>();
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next())
+                styles.add(mapResultSetToColorStyle(rs));
+        } catch (SQLException e) {
+            logger.error("Failed to retrieve the color styles in the trash", e);
+        }
+
+        return styles;
+    }
+
+    /**
      * Deletes all custom (non-default) color styles.
      *
      * @return number of deleted styles
@@ -364,6 +427,8 @@ public class ColorStyleRepository {
 
         style.setId(rs.getString("id"));
         style.setSortOrder(rs.getInt("sort_order"));
+        Timestamp deletedAt = rs.getTimestamp("deleted_at");
+        style.setDeletedAt(deletedAt != null ? deletedAt.toLocalDateTime() : null);
 
         return style;
     }

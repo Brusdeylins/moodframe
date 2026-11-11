@@ -1,10 +1,12 @@
 package art.moodframe.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +57,7 @@ public class ConfigurationExporter {
         UI_PREFERENCES("UI Preferences", "Theme, language, window settings"),
         PROXY_SETTINGS("Proxy Settings", "Proxy configuration and authentication"),
         ADVANCED_SETTINGS("Advanced Settings", "Logging, development mode, SSL bypass"),
-        CUSTOM_STYLES("Custom Styles", "User-created style presets with prompts"),
+        CUSTOM_STYLES("Custom Building Blocks", "User-created styles, atmospheres, lights and palettes"),
         ALL("All Settings", "Complete configuration export");
         
         private final String displayName;
@@ -94,6 +96,7 @@ public class ConfigurationExporter {
     }
     
     private final PromptBlockService promptBlockService;
+    private final ColorStyleService colorStyleService;
     private final ApplicationConfig config;
     
     /**
@@ -105,6 +108,7 @@ public class ConfigurationExporter {
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.promptBlockService = new PromptBlockService();
+        this.colorStyleService = new ColorStyleService();
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
     
@@ -190,19 +194,13 @@ public class ConfigurationExporter {
         }
         
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.CUSTOM_STYLES)) {
-            List<Map<String, Object>> customStylesList = new ArrayList<>();
-            List<PromptBlock> customStyles = promptBlockService.getCustom(PromptBlock.Type.STYLE);
-            
-            for (PromptBlock style : customStyles) {
-                Map<String, Object> styleData = new HashMap<>();
-                styleData.put("name", style.getName());
-                styleData.put("promptText", style.getText());
-                styleData.put("photographic", style.isPhotographic());
-                // SortOrder is not exported - will be assigned automatically during import
-                customStylesList.add(styleData);
-            }
-            
-            configData.put("customStyles", customStylesList);
+
+            /*  The building blocks and palettes of the user with their IDs, in their order  */
+            List<Map<String, Object>> customBlocks = new ArrayList<>();
+            for (PromptBlock.Type type : PromptBlock.Type.values())
+                customBlocks.addAll(promptBlockService.exportCustom(type));
+            configData.put("customBlocks", customBlocks);
+            configData.put("customPalettes", colorStyleService.getCustomStyles());
         }
         
         exportData.put("configuration", configData);
@@ -404,41 +402,29 @@ public class ConfigurationExporter {
                 // Removed certificate path import logic as it's now auto-determined
             }
             
-            // Import custom styles
+            // Import the building blocks and palettes of the user next to the existing ones
+            int importedBlocks = 0;
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> customStylesList = (List<Map<String, Object>>) configData.get("customStyles");
-            if (customStylesList != null && !customStylesList.isEmpty()) {
-                // Delete all existing custom styles before import to avoid duplicates
-                int deletedCount = promptBlockService.resetToDefaults(PromptBlock.Type.STYLE);
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Deleted {} existing custom styles before import", deletedCount);
-                }
-                
-                int importedStyles = 0;
-                for (Map<String, Object> styleData : customStylesList) {
-                    String name = (String) styleData.get("name");
-                    String promptText = (String) styleData.get("promptText");
+            List<Map<String, Object>> customBlocks = (List<Map<String, Object>>) configData.get("customBlocks");
+            if (customBlocks != null) {
+                for (PromptBlock.Type type : PromptBlock.Type.values())
+                    importedBlocks += promptBlockService.importCustom(type, customBlocks);
+            }
 
-                    /*  Older exports have no flag: styles of the user count as photographic  */
-                    boolean photographic = !Boolean.FALSE.equals(styleData.get("photographic"));
-                    
-                    if (name != null && promptText != null) {
+            /*  Older exports carry the styles of the user only, without type and ID  */
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> customStyles = (List<Map<String, Object>>) configData.get("customStyles");
+            if (customStyles != null)
+                importedBlocks += promptBlockService.importCustom(PromptBlock.Type.STYLE, customStyles);
+            if (importedBlocks > 0)
+                changes.put("Building Blocks", String.format("%d building blocks imported", importedBlocks));
 
-                        /*  a style named like a (possibly new) standard style is kept under the next free name  */
-                        PromptBlock newStyle = new PromptBlock(null, PromptBlock.Type.STYLE,
-                                promptBlockService.freeName(PromptBlock.Type.STYLE, name), promptText, null,
-                                photographic);
-                        // SortOrder is automatically assigned by addCustom()
-                        
-                        if (promptBlockService.addCustom(newStyle)) {
-                            importedStyles++;
-                        }
-                    }
-                }
-                
-                if (importedStyles > 0) {
-                    changes.put("Custom Styles", String.format("%d styles imported (replaced all existing custom styles)", importedStyles));
-                }
+            Object customPalettes = configData.get("customPalettes");
+            if (customPalettes != null) {
+                int importedPalettes = colorStyleService.importStyles(objectMapper.convertValue(customPalettes,
+                        new TypeReference<List<ColorStyle>>() { }));
+                if (importedPalettes > 0)
+                    changes.put("Palettes", String.format("%d palettes imported", importedPalettes));
             }
             
             if (config != null && config.getLoggingEnabled()) {

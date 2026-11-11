@@ -98,6 +98,15 @@
     -fx-icon-color: -color-accent-fg;
 }
 
+/*  The header of a group in a building block list: not selectable, but readable  */
+.list-cell.block-row-header:disabled {
+    -fx-opacity: 1;
+}
+.list-cell.block-row-header .label {
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-muted;
+}
+
 /*  The fold of the final prompt below the input field: a muted line of text with a chevron  */
 .prompt-preview-toggle,
 .prompt-preview-toggle:selected {

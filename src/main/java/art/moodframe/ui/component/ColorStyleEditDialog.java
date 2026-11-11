@@ -11,6 +11,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.model.ColorStyle;
 import art.moodframe.service.ColorStyleService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
@@ -23,7 +24,8 @@ import java.util.List;
  *
  * <p>This dialog provides a user interface for creating new color styles or
  * editing existing ones. It includes a name field and 5 clickable color boxes
- * that open color pickers.</p>
+ * that open color pickers. A palette of the user is saved in place or as a new one;
+ * a default palette stays unchanged, the changes become a new palette.</p>
  *
  * <p>Each color box shows the selected color or a crossed-out state if no color
  * is defined. Colors can be cleared individually.</p>
@@ -38,6 +40,8 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
     private final boolean isEdit;
     private final String originalName;
     private final ColorStyleService colorStyleService;
+    private final ButtonType saveButtonType;
+    private final ButtonType saveAsNewButtonType;
 
     // UI Elements for localization
     private Label nameLabel;
@@ -48,30 +52,38 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
     /**
      * Result record for color style edit operations.
      *
+     * @param save   how the palette is stored
      * @param name   the style name
      * @param colors the list of hex color codes (1-5 colors)
      */
-    public record ColorStyleEditResult(String name, List<String> colors) {
+    public record ColorStyleEditResult(BlockEditDialog.Save save, String name, List<String> colors) {
     }
 
     /**
-     * Creates a new ColorStyleEditDialog with the specified initial values.
+     * Creates a new ColorStyleEditDialog for a palette.
      *
-     * @param initialName   the initial name value (empty for new styles)
-     * @param initialColors the initial colors list (can be null or empty)
+     * @param style the palette to edit, null for a new one
      */
-    public ColorStyleEditDialog(String initialName, List<String> initialColors) {
-        this.isEdit = initialName != null && !initialName.isEmpty();
-        this.originalName = initialName != null ? initialName : "";
+    public ColorStyleEditDialog(ColorStyle style) {
+        String initialName = style != null ? style.getName() : "";
+        List<String> initialColors = style != null ? style.getColors() : null;
+        this.isEdit = style != null;
+        this.originalName = initialName;
         this.colorPickers = new ColorPickerBox[5];
         this.colorStyleService = ServiceFactory.getInstance().getService(ColorStyleService.class);
 
         // Register for i18n updates
         I18nManager.addChangeListener(this);
 
-        // Create the dialog pane
+        /*  A new palette and a palette of the user are saved, a default palette only as a new one  */
         DialogPane dialogPane = getDialogPane();
-        dialogPane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        saveButtonType = style == null || !style.isDefault() ? new ButtonType("", ButtonBar.ButtonData.OK_DONE) : null;
+        saveAsNewButtonType = style != null ? new ButtonType("", ButtonBar.ButtonData.OTHER) : null;
+        if (saveAsNewButtonType != null)
+            dialogPane.getButtonTypes().add(saveAsNewButtonType);
+        if (saveButtonType != null)
+            dialogPane.getButtonTypes().add(saveButtonType);
+        dialogPane.getButtonTypes().add(ButtonType.CANCEL);
 
         // Create the content grid
         GridPane grid = new GridPane();
@@ -85,7 +97,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
         nameLabel.setMinWidth(80);
 
         nameField = new TextField();
-        nameField.setText(initialName != null ? initialName : "");
+        nameField.setText(initialName);
         nameField.setPrefWidth(300);
         GridPane.setHgrow(nameField, Priority.ALWAYS);
 
@@ -131,77 +143,52 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
 
         dialogPane.setContent(grid);
 
-        // Validation: Enable/disable OK button based on name field
-        Button okButton = (Button) dialogPane.lookupButton(ButtonType.OK);
-        okButton.setDisable(initialName == null || initialName.trim().isEmpty());
+        // Set localized text for all labels and buttons
+        updateTexts();
 
-        nameField.textProperty().addListener((obs, oldText, newText) -> {
-            validateName(newText.trim(), okButton);
-        });
+        validateName(initialName.trim());
+        nameField.textProperty().addListener((obs, oldText, newText) -> validateName(newText.trim()));
 
         // Focus on name field
         Platform.runLater(() -> nameField.requestFocus());
 
         // Set result converter
         setResultConverter(buttonType -> {
-            if (buttonType == ButtonType.OK) {
-                String name = nameField.getText().trim();
-                if (name.isEmpty()) {
-                    return null;
-                }
-
-                List<String> colors = new ArrayList<>();
-                for (ColorPickerBox picker : colorPickers) {
-                    if (picker.hasColor()) {
-                        colors.add(picker.getHexColor());
-                    }
-                }
-                return new ColorStyleEditResult(name, colors);
+            if (buttonType == null || buttonType == ButtonType.CANCEL) {
+                return null;
             }
-            return null;
-        });
 
-        // Set localized text for all labels
-        updateTexts();
+            List<String> colors = new ArrayList<>();
+            for (ColorPickerBox picker : colorPickers) {
+                if (picker.hasColor()) {
+                    colors.add(picker.getHexColor());
+                }
+            }
+            return new ColorStyleEditResult(buttonType == saveButtonType ? BlockEditDialog.Save.SAVE
+                    : BlockEditDialog.Save.SAVE_AS_NEW, nameField.getText().trim(), colors);
+        });
     }
 
     /**
-     * Validates the name field and updates the OK button and validation message.
+     * Validates the name: it must not be empty, and saving in place needs a name no other palette has
+     * (a palette in the trash keeps its name). Saving as a new palette takes the next free name instead.
      *
-     * @param name     the name to validate
-     * @param okButton the OK button to enable/disable
+     * @param name the name to validate
      */
-    private void validateName(String name, Button okButton) {
-        if (name.isEmpty()) {
-            okButton.setDisable(true);
+    private void validateName(String name) {
+        boolean taken = !name.isEmpty() && !name.equals(originalName) && colorStyleService != null
+                && colorStyleService.styleExists(name);
+
+        if (saveButtonType != null)
+            getDialogPane().lookupButton(saveButtonType).setDisable(name.isEmpty() || taken);
+        if (saveAsNewButtonType != null)
+            getDialogPane().lookupButton(saveAsNewButtonType).setDisable(name.isEmpty());
+
+        if (taken)
+            showValidationMessage(I18nManager.getText(saveAsNewButtonType != null
+                    ? "block.dialog.validation.taken.copy" : "block.dialog.validation.taken"));
+        else
             hideValidationMessage();
-            return;
-        }
-
-        // Check if name conflicts with existing styles (only for new styles or name changes)
-        if (colorStyleService != null) {
-            boolean isNameChanged = !name.equals(originalName);
-
-            if (isNameChanged && colorStyleService.isDefaultStyle(name)) {
-                // Name conflicts with a default style
-                okButton.setDisable(true);
-                showValidationMessage(I18nManager.getText("colorstyle.dialog.validation.default_exists",
-                        "This name is already used by a default color style."));
-                return;
-            }
-
-            if (isNameChanged && colorStyleService.styleExists(name)) {
-                // Name conflicts with another custom style
-                okButton.setDisable(true);
-                showValidationMessage(I18nManager.getText("colorstyle.dialog.validation.name_exists",
-                        "A color style with this name already exists."));
-                return;
-            }
-        }
-
-        // Name is valid
-        okButton.setDisable(false);
-        hideValidationMessage();
     }
 
     /**
@@ -226,7 +213,14 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
      */
     private void updateTexts() {
         setTitle(I18nManager.getText(isEdit ? "colorstyle.dialog.edit.title" : "colorstyle.dialog.add.title"));
-        setHeaderText(I18nManager.getText("colorstyle.dialog.header"));
+        setHeaderText(isEdit && saveButtonType == null
+                ? I18nManager.getText("block.dialog.header.default", originalName)
+                : I18nManager.getText("colorstyle.dialog.header"));
+        if (saveButtonType != null)
+            ((Button) getDialogPane().lookupButton(saveButtonType)).setText(I18nManager.getText("block.dialog.save"));
+        if (saveAsNewButtonType != null)
+            ((Button) getDialogPane().lookupButton(saveAsNewButtonType)).setText(
+                    I18nManager.getText("block.dialog.save.new"));
 
         if (nameLabel != null) {
             nameLabel.setText(I18nManager.getText("colorstyle.dialog.name"));

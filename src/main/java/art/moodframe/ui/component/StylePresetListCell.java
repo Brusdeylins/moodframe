@@ -10,15 +10,16 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import art.moodframe.model.StylePresetItem;
 
 /**
- * Custom ListCell for displaying style presets with icon.
+ * Custom ListCell for displaying text building blocks (style, atmosphere, light).
  *
  * <p>This cell renderer displays:</p>
  * <ul>
- *   <li>Icon: lock for defaults, brush for custom</li>
- *   <li>Style name</li>
+ *   <li>Icon: a brush for the blocks of the user, none for the standard blocks</li>
+ *   <li>Block name</li>
  * </ul>
  *
- * <p>Used in the main window style dropdown.</p>
+ * <p>Used in the building block lists of the main window, which also show their actions through
+ * {@link BlockChoice}, and in the "Manage…" dialog.</p>
  *
  * @since 1.3.0
  */
@@ -27,17 +28,28 @@ public class StylePresetListCell extends ListCell<StylePresetItem> {
     private final HBox content;
     private final FontIcon icon;
     private final Label nameLabel;
+    private final BlockChoice<StylePresetItem> choice;
 
     /**
      * Creates a new StylePresetListCell.
      */
     public StylePresetListCell() {
-        super();
+        this(null);
+    }
 
-        // Icon for default/custom distinction
-        icon = new FontIcon();
-        icon.getStyleClass().add("ikonli-font-icon");
-        icon.setIconSize(14);
+    /**
+     * Creates a cell of a building block list that also draws its actions, line and group headers.
+     *
+     * @param choice the list, null for a cell that shows entries only
+     */
+    public StylePresetListCell(BlockChoice<StylePresetItem> choice) {
+        super();
+        this.choice = choice;
+
+        // Icon marking the blocks of the user
+        icon = new FontIcon("mdi2b-brush");
+        icon.getStyleClass().addAll("ikonli-font-icon", "success");
+        icon.setIconSize(12);
 
         // Name label
         nameLabel = new Label();
@@ -53,24 +65,15 @@ public class StylePresetListCell extends ListCell<StylePresetItem> {
     protected void updateItem(StylePresetItem item, boolean empty) {
         super.updateItem(item, empty);
 
+        if (choice != null && choice.render(this, item))
+            return;
+
         if (empty || item == null) {
             setText(null);
             setGraphic(null);
         } else {
-            // Set icon based on whether it's a default style
-            if (item.isDefault()) {
-                icon.setIconLiteral("mdi2l-lock");
-                icon.getStyleClass().removeAll("accent", "success");
-                icon.getStyleClass().add("accent");
-                nameLabel.setStyle("-fx-font-weight: normal;");
-            } else {
-                icon.setIconLiteral("mdi2b-brush");
-                icon.getStyleClass().removeAll("accent", "success");
-                icon.getStyleClass().add("success");
-                nameLabel.setStyle("-fx-font-weight: bold;");
-            }
-
-            // Set name
+            /*  Only the blocks of the user carry the icon, the others keep its space; "None" is no block  */
+            icon.setVisible(item.getBlock() != null && !item.getBlock().isDefault());
             nameLabel.setText(item.getName());
 
             setText(null);

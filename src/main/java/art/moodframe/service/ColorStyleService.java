@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -365,7 +366,35 @@ public class ColorStyleService implements ColorStyles {
     }
 
     /**
-     * Deletes a custom color style.
+     * Adds a palette as a new custom color style, e.g. a copy of a default one; a taken name gets the next free
+     * counter.
+     */
+    @Override
+    public boolean addCopy(ColorStyle style) {
+        style.setId(null);
+        style.setSortOrder(999);
+        style.setName(freeName(style.getName()));
+        return addCustomStyle(style);
+    }
+
+    /**
+     * Puts the custom color styles into the given order.
+     */
+    @Override
+    public boolean reorderCustomStyles(List<String> ids) {
+        boolean updated = true;
+        for (ColorStyle style : repository.findAllCustom()) {
+            int index = ids.indexOf(style.getId());
+            if (index < 0 || style.getSortOrder() == 100 + index)
+                continue;
+            style.setSortOrder(100 + index);
+            updated &= repository.update(style);
+        }
+        return updated;
+    }
+
+    /**
+     * Moves a custom color style to the trash.
      */
     @Override
     public boolean deleteCustomStyle(String name) {
@@ -381,13 +410,38 @@ public class ColorStyleService implements ColorStyles {
             return false;
         }
 
-        boolean success = repository.delete(existing.getId());
+        boolean success = repository.setDeletedAt(existing.getId(), LocalDateTime.now());
 
         if (success && config != null && config.getLoggingEnabled()) {
-            logger.info("Deleted custom color style: {}", name);
+            logger.info("Moved custom color style to the trash: {}", name);
         }
 
         return success;
+    }
+
+    /**
+     * Gets the custom color styles in the trash, the latest deletion first.
+     */
+    @Override
+    public List<ColorStyle> getDeletedStyles() {
+        return repository.findDeleted();
+    }
+
+    /**
+     * Takes a custom color style out of the trash; its name stayed taken meanwhile.
+     */
+    @Override
+    public boolean restoreStyle(String id) {
+        return getDeletedStyles().stream().anyMatch((ColorStyle style) -> style.getId().equals(id))
+                && repository.setDeletedAt(id, null);
+    }
+
+    /**
+     * Removes a custom color style for good.
+     */
+    @Override
+    public boolean deleteStylePermanently(String id) {
+        return id != null && !id.startsWith("std:") && repository.delete(id);
     }
 
     /**
@@ -469,21 +523,7 @@ public class ColorStyleService implements ColorStyles {
                 repository.deleteAllCustom();
             }
 
-            int imported = 0;
-            for (ColorStyle style : importedStyles) {
-                style.setDefault(false);
-
-                /*  a palette named like a (possibly new) standard palette is kept under the next free name  */
-                if (isDefaultStyle(style.getName()))
-                    style.setName(freeName(style.getName()));
-                if (!styleExists(style.getName())) {
-                    style.setId(UUID.randomUUID().toString());
-                    style.setSortOrder(getNextCustomSortOrder());
-                    if (repository.save(style)) {
-                        imported++;
-                    }
-                }
-            }
+            int imported = importStyles(importedStyles);
 
             if (config != null && config.getLoggingEnabled()) {
                 logger.info("Imported {} color styles from {}", imported, file.getAbsolutePath());
@@ -495,6 +535,29 @@ public class ColorStyleService implements ColorStyles {
             logger.error("Failed to import color styles from " + file.getAbsolutePath(), e);
             return 0;
         }
+    }
+
+    /**
+     * Adds palettes behind the custom styles: an ID that is taken gets a new one, a taken name the next free
+     * counter.
+     */
+    @Override
+    public int importStyles(List<ColorStyle> styles) {
+        int imported = 0;
+        for (ColorStyle style : styles) {
+            if (style.getName() == null || style.getName().isBlank())
+                continue;
+            style.setDefault(false);
+            style.setName(freeName(style.getName()));
+            String id = style.getId();
+            if (id == null || id.isEmpty() || id.startsWith("std:") || repository.existsById(id))
+                style.setId(UUID.randomUUID().toString());
+            style.setSortOrder(getNextCustomSortOrder());
+            if (repository.save(style)) {
+                imported++;
+            }
+        }
+        return imported;
     }
 
     /**

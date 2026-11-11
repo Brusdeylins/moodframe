@@ -2,10 +2,16 @@ package art.moodframe.service;
 
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.PromptBlockRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +37,8 @@ import java.util.Map;
 public class PromptBlockService {
 
     private static final Logger logger = LoggerFactory.getLogger(PromptBlockService.class);
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     /** Former infographic styles that were merged into the remaining ones, by name. */
     private static final Map<String, String> MERGED_STYLES = Map.of(
@@ -472,13 +480,162 @@ public class PromptBlockService {
     }
 
     /**
-     * Deletes a block of the user; standard blocks cannot be deleted.
+     * Stores a block as a new block of the user, e.g. a copy of a standard block; a taken name gets the next free
+     * counter (see {@link #freeName}).
+     *
+     * @param block the block; its id is replaced by a new one
+     * @return true if it was stored
+     */
+    public boolean addCopy(PromptBlock block) {
+        block.setId(null);
+        block.setName(freeName(block.getType(), block.getName()));
+        return addCustom(block);
+    }
+
+    /**
+     * Puts the blocks of the user of a type into the given order.
+     *
+     * @param type the block type
+     * @param ids the ids of the blocks of the user in their new order
+     * @return true if all of them were updated
+     */
+    public boolean reorderCustom(PromptBlock.Type type, List<String> ids) {
+        boolean updated = true;
+        for (PromptBlock block : repository.findAll(type)) {
+            int index = ids.indexOf(block.getId());
+            if (index < 0 || block.getSortOrder() == 1000 + index)
+                continue;
+            block.setSortOrder(1000 + index);
+            updated &= repository.update(block);
+        }
+        return updated;
+    }
+
+    /**
+     * Moves a block of the user to the trash; standard blocks cannot be deleted.
      *
      * @param id the block id
-     * @return true if it was deleted
+     * @return true if it was moved to the trash
      */
     public boolean deleteCustom(String id) {
+        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.findById(id) != null
+                && repository.setDeletedAt(id, LocalDateTime.now());
+    }
+
+    /**
+     * Returns the blocks of the user in the trash, all types, the latest deletion first.
+     *
+     * @return the blocks
+     */
+    public List<PromptBlock> getDeleted() {
+        return repository.findDeleted();
+    }
+
+    /**
+     * Takes a block out of the trash. As the name of a block in the trash is free, a block that took it meanwhile
+     * keeps it and the restored one gets the next free counter.
+     *
+     * @param id the block id
+     * @return true if it is back in use
+     */
+    public boolean restore(String id) {
+        PromptBlock block = repository.findDeletedById(id);
+        if (block == null)
+            return false;
+
+        String name = freeName(block.getType(), block.getName());
+        if (!name.equals(block.getName())) {
+            block.setName(name);
+            repository.update(block);
+        }
+        return repository.setDeletedAt(id, null);
+    }
+
+    /**
+     * Removes a block of the user for good.
+     *
+     * @param id the block id
+     * @return true if it is gone
+     */
+    public boolean deletePermanently(String id) {
         return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id);
+    }
+
+    /**
+     * Returns the blocks of the user of a type as plain data for a JSON file: id, type, name, text, group,
+     * photographic and parameters.
+     *
+     * @param type the block type
+     * @return one map per block, in their order
+     */
+    public List<Map<String, Object>> exportCustom(PromptBlock.Type type) {
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (PromptBlock block : repository.findAll(type)) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("id", block.getId());
+            entry.put("type", block.getType().name());
+            entry.put("name", block.getName());
+            entry.put("text", block.getText());
+            entry.put("group", block.getGroup());
+            entry.put("photographic", block.isPhotographic());
+            entry.put("params", block.getParams());
+            entries.add(entry);
+        }
+        return entries;
+    }
+
+    /**
+     * Adds the blocks of a type from plain data (see {@link #exportCustom(PromptBlock.Type)}) behind the existing
+     * ones. An entry of another type is skipped, an id that is taken gets a new one, a taken name the next free
+     * counter.
+     *
+     * @param type the block type
+     * @param entries the blocks as maps; {@code "promptText"} stands for the text in older exports
+     * @return the number of added blocks
+     */
+    public int importCustom(PromptBlock.Type type, List<Map<String, Object>> entries) {
+        int imported = 0;
+        for (Map<String, Object> entry : entries) {
+            Object entryType = entry.get("type");
+            Object entryText = entry.containsKey("text") ? entry.get("text") : entry.get("promptText");
+            if ((entryType != null && !type.name().equals(entryType)) || !(entry.get("name") instanceof String name)
+                    || !(entryText instanceof String text))
+                continue;
+
+            /*  Older exports have no flag: styles of the user count as photographic  */
+            PromptBlock block = new PromptBlock(null, type, freeName(type, name), text, (String) entry.get("group"),
+                    !Boolean.FALSE.equals(entry.get("photographic")));
+            block.setParams((String) entry.get("params"));
+            if (entry.get("id") instanceof String id && !id.startsWith(PromptBlock.STANDARD_PREFIX)
+                    && !repository.existsById(id))
+                block.setId(id);
+            if (addCustom(block))
+                imported++;
+        }
+        return imported;
+    }
+
+    /**
+     * Writes the blocks of the user of a type into a JSON file.
+     *
+     * @param type the block type
+     * @param file the target file
+     * @throws IOException if the file cannot be written
+     */
+    public void exportCustom(PromptBlock.Type type, File file) throws IOException {
+        JSON.writerWithDefaultPrettyPrinter().writeValue(file, exportCustom(type));
+    }
+
+    /**
+     * Adds the blocks of a type from a JSON file written by {@link #exportCustom(PromptBlock.Type, File)}.
+     *
+     * @param type the block type
+     * @param file the source file
+     * @return the number of added blocks
+     * @throws IOException if the file cannot be read or is no list of blocks
+     */
+    public int importCustom(PromptBlock.Type type, File file) throws IOException {
+        return importCustom(type, JSON.readValue(file, new TypeReference<List<Map<String, Object>>>() { }));
     }
 
     /**

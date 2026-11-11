@@ -15,11 +15,12 @@ import art.moodframe.model.ColorStyleItem;
  *
  * <p>This cell renderer displays:</p>
  * <ul>
- *   <li>Line 1: Style name with icon (lock for defaults, palette for custom)</li>
+ *   <li>Line 1: Style name, with a palette icon for the palettes of the user</li>
  *   <li>Line 2: 5 color boxes showing the defined colors (or crossed out if empty)</li>
  * </ul>
  *
- * <p>Used in both the main window dropdown and settings list view.</p>
+ * <p>Used in the color list of the main window, which also shows its actions through {@link BlockChoice},
+ * and in the "Manage…" dialog.</p>
  *
  * @since 1.3.0
  */
@@ -31,17 +32,28 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
     private final FontIcon icon;
     private final Label nameLabel;
     private final ColorBox[] colorBoxes;
+    private final BlockChoice<ColorStyleItem> choice;
 
     /**
      * Creates a new ColorStyleListCell.
      */
     public ColorStyleListCell() {
-        super();
+        this(null);
+    }
 
-        // Icon for default/custom distinction
-        icon = new FontIcon();
-        icon.getStyleClass().add("ikonli-font-icon");
-        icon.setIconSize(14);
+    /**
+     * Creates a cell of the color list that also draws its actions and line.
+     *
+     * @param choice the list, null for a cell that shows palettes only
+     */
+    public ColorStyleListCell(BlockChoice<ColorStyleItem> choice) {
+        super();
+        this.choice = choice;
+
+        // Icon marking the palettes of the user
+        icon = new FontIcon("mdi2p-palette");
+        icon.getStyleClass().addAll("ikonli-font-icon", "success");
+        icon.setIconSize(12);
 
         // Name label
         nameLabel = new Label();
@@ -55,7 +67,7 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
         colorBoxes = new ColorBox[5];
         colorBoxesRow = new HBox(3);
         colorBoxesRow.setAlignment(Pos.CENTER_LEFT);
-        colorBoxesRow.setPadding(new Insets(0, 0, 0, 20)); // Indent to align with name
+        colorBoxesRow.setPadding(new Insets(0, 0, 0, 18)); // Indent to align with name
 
         for (int i = 0; i < 5; i++) {
             colorBoxes[i] = new ColorBox(null, 14);
@@ -72,22 +84,15 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
     protected void updateItem(ColorStyleItem item, boolean empty) {
         super.updateItem(item, empty);
 
+        if (choice != null && choice.render(this, item))
+            return;
+
         if (empty || item == null) {
             setText(null);
             setGraphic(null);
         } else {
-            // Set icon based on whether it's a default style
-            if (item.isDefault()) {
-                icon.setIconLiteral("mdi2l-lock");
-                icon.getStyleClass().removeAll("accent", "success");
-                icon.getStyleClass().add("accent");
-                nameLabel.setStyle("-fx-font-weight: normal;");
-            } else {
-                icon.setIconLiteral("mdi2p-palette");
-                icon.getStyleClass().removeAll("accent", "success");
-                icon.getStyleClass().add("success");
-                nameLabel.setStyle("-fx-font-weight: bold;");
-            }
+            /*  Only the palettes of the user carry the icon, the others keep its space  */
+            icon.setVisible(!item.isDefault());
 
             // Set name
             nameLabel.setText(item.getName());

@@ -201,6 +201,12 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ToggleButton lightLockButton;
 
+    /*  The building block lists with their actions on top: style, atmosphere and light, and the color  */
+    private final java.util.Map<art.moodframe.model.PromptBlock.Type,
+            art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem>> blockChoices =
+            new java.util.EnumMap<>(art.moodframe.model.PromptBlock.Type.class);
+    private art.moodframe.ui.component.BlockChoice<art.moodframe.model.ColorStyleItem> colorChoice;
+
     // Parameter Labels for i18n
     @FXML
     private Label modelLabel;
@@ -1147,15 +1153,8 @@ public class MainWindowController implements I18nChangeListener {
             geminiThinkingLevelChoiceBox.setValue("Minimal"); // API default
         }
 
-        // Setup style presets selection first
-        setupStylePresets();
-
-        // Setup color styles selection
-        setupColorStyles();
-
-        // Setup atmosphere and light selection
-        setupBlockChoice(atmosphereComboBox, art.moodframe.model.PromptBlock.Type.ATMOSPHERE);
-        setupBlockChoice(lightComboBox, art.moodframe.model.PromptBlock.Type.LIGHT);
+        // Setup the building block lists: atmosphere, style, color and light
+        setupBlockChoices();
 
         // Setup the locks of the building block fields and the "Apply mood" switch
         setupBlockLocks();
@@ -1221,6 +1220,8 @@ public class MainWindowController implements I18nChangeListener {
                     public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
                         if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
                             javafx.application.Platform.runLater(() -> showRestoredChat(id));
+                        else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                            javafx.application.Platform.runLater(() -> refreshBlockChoices());
                     }
 
                     @Override
@@ -1527,117 +1528,307 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the style presets selection from backend with single selection.
+     * Sets up the building block lists: style, atmosphere and light from the text blocks, the color from the
+     * palettes. Each list starts with its actions "Edit…", "New…" and "Manage…" (see
+     * {@link art.moodframe.ui.component.BlockChoice}), followed by "None" (the default) and the entries; the styles
+     * are grouped into photo, art and layout.
      */
-    private void setupStylePresets() {
-        if (stylePresetsComboBox == null) {
-            logger.warn("stylePresetsComboBox is null, skipping style presets setup");
-            return;
-        }
+    private void setupBlockChoices() {
+        java.util.Map<art.moodframe.model.PromptBlock.Type, ComboBox<art.moodframe.model.StylePresetItem>> fields =
+                java.util.Map.of(art.moodframe.model.PromptBlock.Type.STYLE, stylePresetsComboBox,
+                        art.moodframe.model.PromptBlock.Type.ATMOSPHERE, atmosphereComboBox,
+                        art.moodframe.model.PromptBlock.Type.LIGHT, lightComboBox);
+        fields.forEach((type, comboBox) -> {
+            art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice =
+                    new art.moodframe.ui.component.BlockChoice<>(comboBox,
+                            (name) -> new art.moodframe.model.StylePresetItem(name, "", false),
+                            (item) -> item.getBlock() != null,
+                            new art.moodframe.ui.component.BlockChoice.Actions<>() {
+                                @Override
+                                public void edit(art.moodframe.model.StylePresetItem entry) {
+                                    editBlock(type, entry.getBlock());
+                                }
 
-        // Clear any existing items first
-        stylePresetsComboBox.getItems().clear();
+                                @Override
+                                public void create() {
+                                    editBlock(type, null);
+                                }
 
-        // Set custom cell factory for dropdown rendering with icons
-        stylePresetsComboBox.setCellFactory(listView -> new art.moodframe.ui.component.StylePresetListCell());
-        stylePresetsComboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+                                @Override
+                                public void manage() {
+                                    manageBlocks(type);
+                                }
+                            });
+            comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell(choice));
+            comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+            blockChoices.put(type, choice);
+            fillBlockChoice(type, null);
+        });
 
-        // Load style blocks from backend
-        art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
+        colorChoice = new art.moodframe.ui.component.BlockChoice<>(colorStyleComboBox,
+                (name) -> new art.moodframe.model.ColorStyleItem(name, java.util.Collections.emptyList(), true),
+                (item) -> !"None".equals(item.getName()),
+                new art.moodframe.ui.component.BlockChoice.Actions<>() {
+                    @Override
+                    public void edit(art.moodframe.model.ColorStyleItem entry) {
+                        editPalette(entry);
+                    }
 
-        if (styleService != null) {
-            // Add "None" option first (not default, since it's a special option)
-            stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem("None", "", false));
+                    @Override
+                    public void create() {
+                        editPalette(null);
+                    }
 
-            // Add all styles from service
-            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                if (block.getName() != null && !block.getName().trim().isEmpty()) {
-                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
-                }
-            }
-
-            // Select "None" by default
-            if (!stylePresetsComboBox.getItems().isEmpty()) {
-                stylePresetsComboBox.setValue(stylePresetsComboBox.getItems().get(0));
-            }
-
-        } else {
-            logger.warn("PromptBlockService not available, style combo box will be empty");
-            art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
-            stylePresetsComboBox.getItems().add(noneItem);
-            stylePresetsComboBox.setValue(noneItem);
-        }
+                    @Override
+                    public void manage() {
+                        managePalettes();
+                    }
+                });
+        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell(colorChoice));
+        colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
+        fillColorChoice(null);
     }
 
     /**
-     * Sets up the color styles selection from backend.
+     * Fills the list of a text block type with "None" and the blocks, the styles ordered by their groups.
      *
-     * <p>Color styles are palettes of 1-5 hex colors that get appended to the prompt
-     * as its "Color palette" line (see {@link art.moodframe.service.PromptComposer}).</p>
-     */
-    private void setupColorStyles() {
-        if (colorStyleComboBox == null) {
-            logger.warn("colorStyleComboBox is null, skipping color styles setup");
-            return;
-        }
-
-        // Clear any existing items first
-        colorStyleComboBox.getItems().clear();
-
-        // Load color styles from backend
-        art.moodframe.service.ColorStyleService colorStyleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
-
-        if (colorStyleService != null) {
-            // Add "None" option first
-            art.moodframe.model.ColorStyleItem noneItem = new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true);
-            colorStyleComboBox.getItems().add(noneItem);
-
-            // Add all color style items from service
-            for (art.moodframe.model.ColorStyle colorStyle : colorStyleService.getAllStyles()) {
-                colorStyleComboBox.getItems().add(colorStyle.toColorStyleItem());
-            }
-
-            // Default to no color style
-            colorStyleComboBox.setValue(noneItem);
-
-            // Set up custom cell factory to show color boxes
-            colorStyleComboBox.setCellFactory(listView -> new art.moodframe.ui.component.ColorStyleListCell());
-            colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
-
-        } else {
-            logger.warn("ColorStyleService not available, color style combo box will be empty");
-            art.moodframe.model.ColorStyleItem noneItem = new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true);
-            colorStyleComboBox.getItems().add(noneItem);
-            colorStyleComboBox.setValue(noneItem);
-        }
-    }
-
-    /**
-     * Sets up the selection of a building block type: "None" (the default) followed by its blocks, which go into
-     * the prompt as their own line (see {@link art.moodframe.service.PromptComposer}).
-     *
-     * @param comboBox the field of the type
      * @param type the type of the blocks
+     * @param name the name of the block to select, null for "None"
      */
-    private void setupBlockChoice(javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox,
-            art.moodframe.model.PromptBlock.Type type) {
-        if (comboBox == null)
-            return;
+    private void fillBlockChoice(art.moodframe.model.PromptBlock.Type type, String name) {
+        List<art.moodframe.model.StylePresetItem> entries = new java.util.ArrayList<>();
+        entries.add(new art.moodframe.model.StylePresetItem("None", "", false));
+        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
+        boolean grouped = type == art.moodframe.model.PromptBlock.Type.STYLE;
+        if (service == null)
+            logger.warn("PromptBlockService not available, {} list only offers None", type);
+        else
+            service.getAll(type).stream()
+                    .map(art.moodframe.model.StylePresetItem::new)
+                    .sorted(java.util.Comparator.comparingInt((art.moodframe.model.StylePresetItem item) ->
+                            grouped ? STYLE_GROUPS.indexOf(styleGroupKey(item)) : 0))
+                    .forEach(entries::add);
+        blockChoices.get(type).setEntries(entries, grouped ? MainWindowController::styleGroupKey : null, name);
+    }
 
-        art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
-        comboBox.getItems().setAll(noneItem);
+    /*  The headers of the style groups: the two media photo and art, then layout  */
+    private static final List<String> STYLE_GROUPS = List.of("block.group.photo", "block.group.art",
+            "block.group.layout");
+
+    /** The header of the group of a style; a style of the user without group goes by its photographic flag. */
+    private static String styleGroupKey(art.moodframe.model.StylePresetItem item) {
+        art.moodframe.model.PromptBlock block = item.getBlock();
+        if (block == null)
+            return null;
+        return block.isLayout() ? "block.group.layout" : block.isPhotographic() ? "block.group.photo" : "block.group.art";
+    }
+
+    /**
+     * Fills the color list with "None" and the palettes.
+     *
+     * @param name the name of the palette to select, null for "None"
+     */
+    private void fillColorChoice(String name) {
+        List<art.moodframe.model.ColorStyleItem> entries = new java.util.ArrayList<>();
+        entries.add(new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true));
+        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.ColorStyleService.class);
+        if (service == null)
+            logger.warn("ColorStyleService not available, color list only offers None");
+        else
+            service.getAllStyles().forEach((palette) -> entries.add(palette.toColorStyleItem()));
+        colorChoice.setEntries(entries, null, name);
+    }
+
+    /**
+     * Loads all building block lists again, e.g. after an import or a restore from the trash; each keeps its
+     * selection while its entry exists.
+     */
+    private void refreshBlockChoices() {
+        blockChoices.forEach((type, choice) -> {
+            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
+            fillBlockChoice(type, comboBox.getValue() != null ? comboBox.getValue().getName() : null);
+        });
+        if (colorChoice != null)
+            fillColorChoice(colorStyleComboBox.getValue() != null ? colorStyleComboBox.getValue().getName() : null);
+    }
+
+    private ComboBox<art.moodframe.model.StylePresetItem> blockComboBox(art.moodframe.model.PromptBlock.Type type) {
+        return switch (type) {
+            case STYLE -> stylePresetsComboBox;
+            case ATMOSPHERE -> atmosphereComboBox;
+            case LIGHT -> lightComboBox;
+        };
+    }
+
+    /**
+     * Creates or edits a text building block in its dialog and selects the stored block. A block of the user is
+     * saved in place or as a new block, a standard block only as a new one, which keeps the group of its origin.
+     *
+     * @param type  the type of the block
+     * @param block the block to edit, null for a new one
+     */
+    private void editBlock(art.moodframe.model.PromptBlock.Type type, art.moodframe.model.PromptBlock block) {
         art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.service.PromptBlockService.class);
         if (service == null)
-            logger.warn("PromptBlockService not available, {} combo box only offers None", type);
-        else
-            for (art.moodframe.model.PromptBlock block : service.getAll(type))
-                comboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
-        comboBox.setValue(noneItem);
-        comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell());
-        comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+            return;
+
+        art.moodframe.ui.component.BlockEditDialog dialog = new art.moodframe.ui.component.BlockEditDialog(type, block);
+        dialog.initOwner(mainBorderPane.getScene().getWindow());
+        dialog.showAndWait().ifPresent((result) -> {
+            boolean inPlace = block != null && result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            art.moodframe.model.PromptBlock stored = new art.moodframe.model.PromptBlock(
+                    inPlace ? block.getId() : null, type, result.name(), result.text(),
+                    block != null ? block.getGroup() : null, result.photographic());
+            if (block != null) {
+                stored.setParams(block.getParams());
+                stored.setSortOrder(block.getSortOrder());
+            }
+            boolean saved = inPlace ? service.updateCustom(stored)
+                    : result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
+                    : service.addCopy(stored);
+            if (saved)
+                fillBlockChoice(type, stored.getName());
+            else
+                setStatus(I18nManager.getText("block.error.save", result.name()));
+        });
+    }
+
+    /**
+     * Creates or edits a palette in its dialog and selects the stored palette. A palette of the user is saved in
+     * place or as a new one, a default palette only as a new one.
+     *
+     * @param item the palette to edit, null for a new one
+     */
+    private void editPalette(art.moodframe.model.ColorStyleItem item) {
+        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.ColorStyleService.class);
+        if (service == null)
+            return;
+
+        art.moodframe.model.ColorStyle palette = item != null ? service.getStyleByName(item.getName()) : null;
+        art.moodframe.ui.component.ColorStyleEditDialog dialog =
+                new art.moodframe.ui.component.ColorStyleEditDialog(palette);
+        dialog.initOwner(mainBorderPane.getScene().getWindow());
+        dialog.showAndWait().ifPresent((result) -> {
+            art.moodframe.model.ColorStyle stored = new art.moodframe.model.ColorStyle(result.name(), result.colors(),
+                    false);
+            boolean save = result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            boolean saved = palette != null && save ? service.updateCustomStyle(palette.getName(), stored)
+                    : save ? service.addCustomStyle(stored) : service.addCopy(stored);
+            if (saved)
+                fillColorChoice(stored.getName());
+            else
+                setStatus(I18nManager.getText("block.error.save", result.name()));
+        });
+    }
+
+    /**
+     * Opens the "Manage…" dialog for the text blocks of the user of a type and loads the lists again afterwards.
+     *
+     * @param type the type of the blocks
+     */
+    private void manageBlocks(art.moodframe.model.PromptBlock.Type type) {
+        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
+        if (service == null)
+            return;
+
+        String typeKey = type.name().toLowerCase(java.util.Locale.ROOT);
+        new art.moodframe.ui.dialog.BlockManageDialog<>(mainBorderPane.getScene().getWindow(),
+                I18nManager.getText("block.manage.title." + typeKey), "moodframe-" + typeKey + ".json",
+                new art.moodframe.ui.dialog.BlockManageDialog.Library<art.moodframe.model.StylePresetItem>() {
+                    @Override
+                    public List<art.moodframe.model.StylePresetItem> list() {
+                        return service.getCustom(type).stream().map(art.moodframe.model.StylePresetItem::new).toList();
+                    }
+
+                    @Override
+                    public String id(art.moodframe.model.StylePresetItem entry) {
+                        return entry.getBlock().getId();
+                    }
+
+                    @Override
+                    public String name(art.moodframe.model.StylePresetItem entry) {
+                        return entry.getName();
+                    }
+
+                    @Override
+                    public boolean delete(art.moodframe.model.StylePresetItem entry) {
+                        return service.deleteCustom(id(entry));
+                    }
+
+                    @Override
+                    public boolean reorder(List<art.moodframe.model.StylePresetItem> entries) {
+                        return service.reorderCustom(type, entries.stream().map(this::id).toList());
+                    }
+
+                    @Override
+                    public void exportTo(File file) throws IOException {
+                        service.exportCustom(type, file);
+                    }
+
+                    @Override
+                    public int importFrom(File file) throws IOException {
+                        return service.importCustom(type, file);
+                    }
+                }, (listView) -> new art.moodframe.ui.component.StylePresetListCell()).showAndWait();
+        refreshBlockChoices();
+    }
+
+    /**
+     * Opens the "Manage…" dialog for the palettes of the user and loads the lists again afterwards.
+     */
+    private void managePalettes() {
+        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.ColorStyleService.class);
+        if (service == null)
+            return;
+
+        new art.moodframe.ui.dialog.BlockManageDialog<>(mainBorderPane.getScene().getWindow(),
+                I18nManager.getText("block.manage.title.palette"), "moodframe-palettes.json",
+                new art.moodframe.ui.dialog.BlockManageDialog.Library<art.moodframe.model.ColorStyleItem>() {
+                    @Override
+                    public List<art.moodframe.model.ColorStyleItem> list() {
+                        return service.getCustomStyles().stream()
+                                .map(art.moodframe.model.ColorStyle::toColorStyleItem).toList();
+                    }
+
+                    @Override
+                    public String id(art.moodframe.model.ColorStyleItem entry) {
+                        art.moodframe.model.ColorStyle palette = service.getStyleByName(entry.getName());
+                        return palette != null ? palette.getId() : "";
+                    }
+
+                    @Override
+                    public String name(art.moodframe.model.ColorStyleItem entry) {
+                        return entry.getName();
+                    }
+
+                    @Override
+                    public boolean delete(art.moodframe.model.ColorStyleItem entry) {
+                        return service.deleteCustomStyle(entry.getName());
+                    }
+
+                    @Override
+                    public boolean reorder(List<art.moodframe.model.ColorStyleItem> entries) {
+                        return service.reorderCustomStyles(entries.stream().map(this::id).toList());
+                    }
+
+                    @Override
+                    public void exportTo(File file) throws IOException {
+                        if (!service.exportStyles(file))
+                            throw new IOException("Failed to write " + file);
+                    }
+
+                    @Override
+                    public int importFrom(File file) {
+                        return service.importStyles(file, true);
+                    }
+                }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell()).showAndWait();
+        refreshBlockChoices();
     }
 
     /**
@@ -1662,54 +1853,6 @@ public class MainWindowController implements I18nChangeListener {
             if (config != null)
                 config.setMoodAppliedToReference(newVal);
         });
-    }
-
-    /**
-     * Refreshes the color styles dropdown after changes in settings.
-     */
-    public void refreshColorStyles() {
-        if (colorStyleComboBox == null) {
-            return;
-        }
-
-        // Save current selection name
-        art.moodframe.model.ColorStyleItem currentSelection = colorStyleComboBox.getValue();
-        String currentName = currentSelection != null ? currentSelection.getName() : "None";
-
-        // Clear and reload all color styles
-        colorStyleComboBox.getItems().clear();
-
-        // Load color styles from backend
-        art.moodframe.service.ColorStyleService colorStyleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
-
-        if (colorStyleService != null) {
-            // Add "None" option first
-            art.moodframe.model.ColorStyleItem noneItem = new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true);
-            colorStyleComboBox.getItems().add(noneItem);
-
-            art.moodframe.model.ColorStyleItem selectedItem = noneItem;
-
-            for (art.moodframe.model.ColorStyle colorStyle : colorStyleService.getAllStyles()) {
-                art.moodframe.model.ColorStyleItem item = colorStyle.toColorStyleItem();
-                colorStyleComboBox.getItems().add(item);
-                if (item.getName().equals(currentName)) {
-                    selectedItem = item;
-                }
-            }
-
-            colorStyleComboBox.setValue(selectedItem);
-
-            // Re-apply cell factory
-            colorStyleComboBox.setCellFactory(listView -> new art.moodframe.ui.component.ColorStyleListCell());
-            colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
-
-        } else {
-            logger.warn("ColorStyleService not available during refresh");
-            art.moodframe.model.ColorStyleItem noneItem = new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true);
-            colorStyleComboBox.getItems().add(noneItem);
-            colorStyleComboBox.setValue(noneItem);
-        }
     }
 
     /**
@@ -1939,14 +2082,11 @@ public class MainWindowController implements I18nChangeListener {
                         ? styleService.find(art.moodframe.model.PromptBlock.Type.STYLE, config.getDefaultStyle()) : null;
                 String savedStyle = savedBlock != null ? savedBlock.getName() : config.getDefaultStyle();
                 if (savedStyle != null && stylePresetsComboBox != null) {
-                    // Find StylePresetItem by name
-                    art.moodframe.model.StylePresetItem matchingItem = stylePresetsComboBox.getItems().stream()
+                    // Find StylePresetItem by name, else keep "None"
+                    stylePresetsComboBox.getItems().stream()
                             .filter(item -> savedStyle.equals(item.getName()))
                             .findFirst()
-                            .orElse(stylePresetsComboBox.getItems().isEmpty() ? null : stylePresetsComboBox.getItems().get(0));
-                    if (matchingItem != null) {
-                        stylePresetsComboBox.setValue(matchingItem);
-                    }
+                            .ifPresent(stylePresetsComboBox::setValue);
                 }
 
                 // Load color style selection; a renamed default palette resolves to its new name
@@ -2027,9 +2167,8 @@ public class MainWindowController implements I18nChangeListener {
             modelComboBox.setValue(currentSelectedModel.getLocalizedDisplayName());
             aspectRatioComboBox.setValue("16:9");
             imageCountSlider.setValue(1);
-            if (stylePresetsComboBox != null && !stylePresetsComboBox.getItems().isEmpty()) {
-                stylePresetsComboBox.setValue(stylePresetsComboBox.getItems().get(0));
-            }
+            if (blockChoices.containsKey(art.moodframe.model.PromptBlock.Type.STYLE))
+                fillBlockChoice(art.moodframe.model.PromptBlock.Type.STYLE, null);
 
             // Update cost display with default values
             updateCostDisplay();
@@ -2135,9 +2274,9 @@ public class MainWindowController implements I18nChangeListener {
                     updateCostDisplay();
                 });
 
-                // Save style selection changes
+                // Save style selection changes; an action of the list is no selection
                 stylePresetsComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-                    if (newVal != null) {
+                    if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.STYLE).isEntry(newVal)) {
                         config.setDefaultStyle(newVal.getName());
                     }
                 });
@@ -2145,7 +2284,7 @@ public class MainWindowController implements I18nChangeListener {
                 // Save color style selection changes
                 if (colorStyleComboBox != null) {
                     colorStyleComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (newVal != null) {
+                        if (newVal != null && colorChoice.isEntry(newVal)) {
                             config.setDefaultColorStyle(newVal.getName());
                         }
                     });
@@ -2154,14 +2293,15 @@ public class MainWindowController implements I18nChangeListener {
                 // Save light selection changes
                 if (lightComboBox != null)
                     lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (newVal != null)
+                        if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.LIGHT).isEntry(newVal))
                             config.setDefaultLight(newVal.getName());
                     });
 
                 // Save atmosphere selection changes
                 if (atmosphereComboBox != null)
                     atmosphereComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-                        if (newVal != null)
+                        if (newVal != null
+                                && blockChoices.get(art.moodframe.model.PromptBlock.Type.ATMOSPHERE).isEntry(newVal))
                             config.setDefaultAtmosphere(newVal.getName());
                     });
 
@@ -3181,58 +3321,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Refreshes the style presets dropdown with updated list from backend.
-     * This method should be called after new styles are added in settings.
-     */
-    private void refreshStylePresets() {
-        if (stylePresetsComboBox == null) {
-            return;
-        }
-
-        // Save current selection name
-        art.moodframe.model.StylePresetItem currentItem = stylePresetsComboBox.getValue();
-        String currentSelectionName = currentItem != null ? currentItem.getName() : null;
-
-        // Clear and reload all styles
-        stylePresetsComboBox.getItems().clear();
-
-        // Load style blocks from backend
-        art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
-
-        if (styleService != null) {
-            // Add "None" option first
-            stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem("None", "", false));
-
-            // Add all styles from service
-            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
-                if (block.getName() != null && !block.getName().trim().isEmpty()) {
-                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
-                }
-            }
-
-            // Restore previous selection if it still exists
-            if (currentSelectionName != null) {
-                art.moodframe.model.StylePresetItem matchingItem = stylePresetsComboBox.getItems().stream()
-                        .filter(item -> currentSelectionName.equals(item.getName()))
-                        .findFirst()
-                        .orElse(stylePresetsComboBox.getItems().isEmpty() ? null : stylePresetsComboBox.getItems().get(0));
-                if (matchingItem != null) {
-                    stylePresetsComboBox.setValue(matchingItem);
-                }
-            } else if (!stylePresetsComboBox.getItems().isEmpty()) {
-                stylePresetsComboBox.setValue(stylePresetsComboBox.getItems().get(0));
-            }
-
-        } else {
-            logger.warn("PromptBlockService not available during refresh");
-            art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
-            stylePresetsComboBox.getItems().add(noneItem);
-            stylePresetsComboBox.setValue(noneItem);
-        }
-    }
-
-    /**
      * Updates the API key status indicator with theme-aware colors.
      * 
      * @param hasValidKey true if a valid API key is configured
@@ -3481,11 +3569,8 @@ public class MainWindowController implements I18nChangeListener {
             // Refresh API key status in case it changed
             refreshApiKeyStatus();
 
-            // Refresh style presets in case new ones were added
-            refreshStylePresets();
-
-            // Refresh color styles in case new ones were added
-            refreshColorStyles();
+            // Refresh the building block lists in case a configuration import added blocks or palettes
+            refreshBlockChoices();
 
             // Refresh available models based on enabled providers
             populateAvailableModels();

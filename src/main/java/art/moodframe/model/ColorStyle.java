@@ -1,8 +1,10 @@
 package art.moodframe.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +36,9 @@ public class ColorStyle {
 
     @JsonProperty("sortOrder")
     private int sortOrder;
+
+    @JsonIgnore
+    private LocalDateTime deletedAt;
 
     /**
      * Default constructor for JSON deserialization.
@@ -137,6 +142,16 @@ public class ColorStyle {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    /** When the palette was moved to the trash, null while it is in use. */
+    @JsonIgnore
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     /**
