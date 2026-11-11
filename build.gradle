@@ -1,0 +1,680 @@
+plugins {
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'org.owasp.dependencycheck' version '10.0.4'
+    id 'dev.hydraulic.conveyor' version '1.12'
+}
+
+// Helper function to find the conveyor executable
+def getConveyorCommand() {
+    def os = System.getProperty('os.name').toLowerCase()
+    if (os.contains('mac')) {
+        return '/Applications/Conveyor.app/Contents/MacOS/conveyor'
+    } else if (os.contains('win')) {
+        // On Windows, conveyor is typically installed to PATH or specific locations
+        def windowsPaths = [
+            'conveyor.exe',
+            'C:\\Program Files\\Conveyor\\conveyor.exe',
+            'C:\\Program Files (x86)\\Conveyor\\conveyor.exe'
+        ]
+        for (path in windowsPaths) {
+            if (new File(path).exists() || path == 'conveyor.exe') {
+                return path
+            }
+        }
+        return 'conveyor.exe'  // fallback to PATH lookup
+    } else {
+        // Linux and other Unix-like systems
+        return 'conveyor'
+    }
+}
+
+group = 'tools.moodframe'
+version = '2.0.0'
+description = 'Moodframe - desktop studio for AI image generation'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+// Force JavaFX version consistency across all dependencies
+configurations.all {
+    resolutionStrategy {
+        force 'org.openjfx:javafx-base:21.0.5'
+        force 'org.openjfx:javafx-controls:21.0.5'
+        force 'org.openjfx:javafx-fxml:21.0.5'
+        force 'org.openjfx:javafx-graphics:21.0.5'
+        force 'org.openjfx:javafx-media:21.0.5'
+        force 'org.openjfx:javafx-web:21.0.5'
+    }
+}
+
+javafx {
+    version = '21.0.5'
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.web', 'javafx.media']
+}
+
+dependencies {
+    // JavaFX handled by javafx plugin above
+    
+    // Platform-specific JavaFX runtime libraries for cross-platform packaging
+    runtimeOnly "org.openjfx:javafx-base:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-base:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-controls:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-controls:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-media:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-media:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-web:21.0.5:mac"
+    runtimeOnly "org.openjfx:javafx-web:21.0.5:mac-aarch64"
+
+    // Windows platform dependencies for cross-platform packaging
+    runtimeOnly "org.openjfx:javafx-base:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-controls:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-media:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-web:21.0.5:win"
+    
+    // JSON handling
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.1'
+
+    // JSON library for Gemini API request building
+    implementation 'org.json:json:20240303'
+
+    // HTTP client
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // Kotlin standard library (required by OkHttp 4.x)
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+
+    // Database
+    implementation 'org.xerial:sqlite-jdbc:3.44.1.0'
+    
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+    
+    // Icons (Material Design)
+    implementation 'org.kordamp.ikonli:ikonli-javafx:12.3.1'
+    implementation 'org.kordamp.ikonli:ikonli-materialdesign2-pack:12.3.1'
+    
+    // AtlantaFX Modern Theme Framework
+    implementation 'io.github.mkpaz:atlantafx-base:2.1.0'
+
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
+    testImplementation 'org.junit.platform:junit-platform-launcher:1.10.1'
+    testImplementation 'org.mockito:mockito-core:5.8.0'
+    testImplementation 'org.testfx:testfx-core:4.0.18'
+    testImplementation 'org.testfx:testfx-junit5:4.0.18'
+    testImplementation 'org.hamcrest:hamcrest:2.2'
+}
+
+application {
+    mainModule = 'tools.moodframe'
+    mainClass = 'tools.moodframe.MoodframeApplication'
+    
+    // JVM arguments for better performance
+    // NOTE: Prism GPU acceleration settings are configured in MoodframeApplication.java main()
+    // to ensure they are set BEFORE JavaFX Application.launch()
+    applicationDefaultJvmArgs = [
+        '--add-opens=javafx.controls/com.sun.javafx.scene.control.inputmap=ALL-UNNAMED',
+        '--add-opens=javafx.graphics/com.sun.javafx.util=ALL-UNNAMED',
+        '--add-opens=javafx.base/com.sun.javafx.reflect=ALL-UNNAMED',
+        '--add-opens=javafx.base/com.sun.javafx.beans=ALL-UNNAMED',
+        '--add-opens=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED',
+        '--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED'
+    ]
+}
+
+test {
+    useJUnitPlatform()
+    
+    // Enable headless mode for UI tests in CI
+    systemProperty 'testfx.headless', System.getProperty('testfx.headless', 'false')
+    systemProperty 'prism.order', 'sw'
+    systemProperty 'prism.text', 't2k'
+    systemProperty 'java.awt.headless', 'true'
+}
+
+// Custom tasks
+task runDev(type: JavaExec) {
+    group = 'application'
+    description = 'Run the application in development mode with debug logging'
+    
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'tools.moodframe.MoodframeApplication'
+    
+    jvmArgs = application.applicationDefaultJvmArgs + [
+        '-Dlogback.configurationFile=src/main/resources/logback-dev.xml',
+        '-Dmoodframe.dev=true'
+    ]
+}
+
+// Convenient build-and-run task for VSCode Gradle panel
+task buildAndRun {
+    group = 'application'
+    description = 'Build and run the application (auto-builds then starts)'
+    dependsOn 'build'
+    finalizedBy 'run'
+    
+    doLast {
+        println "✅ Build completed successfully - starting application..."
+    }
+}
+
+// Task to extract dependencies for Conveyor
+task extractDependencies(type: Copy) {
+    from configurations.runtimeClasspath
+    into "$buildDir/extracted-dependencies"
+    
+    // Exclude generic JavaFX stub JARs that cause toolkit issues
+    exclude { file ->
+        def name = file.name
+        // Exclude small generic JavaFX JARs that are just stubs (< 1000 bytes)
+        if (name.matches('javafx-.*-21\\.0\\.5\\.jar') && !name.contains('-mac') && !name.contains('-win')) {
+            def fileSize = file.file.length()
+            if (fileSize < 1000) {
+                println "⚠️  Excluding generic JavaFX stub: ${name} (${fileSize} bytes)"
+                return true
+            }
+        }
+        return false
+    }
+    
+    doFirst {
+        println "📦 Extracting dependencies for Conveyor packaging..."
+        println "   Total dependencies: ${configurations.runtimeClasspath.files.size()}"
+    }
+    
+    doLast {
+        // List JavaFX dependencies that were extracted
+        def javafxFiles = fileTree("$buildDir/extracted-dependencies").matching {
+            include "javafx-*.jar"
+        }
+        println "✅ JavaFX dependencies extracted:"
+        javafxFiles.files.sort().each { file ->
+            def size = String.format("%,d", file.size())
+            println "   • ${file.name} (${size} bytes)"
+        }
+        
+        // Verify no stub JARs remain
+        def stubs = javafxFiles.files.findAll { it.size() < 1000 }
+        if (!stubs.isEmpty()) {
+            println "⚠️  Warning: Small JavaFX JARs detected (may be stubs):"
+            stubs.each { println "   • ${it.name} (${it.size()} bytes)" }
+        }
+    }
+}
+
+// Create platform-specific dependency directories for Intel Mac builds
+task createIntelMacDependencies(type: Copy) {
+    dependsOn extractDependencies
+    from "$buildDir/extracted-dependencies"
+    into "$buildDir/extracted-dependencies-intel-mac"
+    
+    // Only include Intel Mac and platform-neutral JavaFX JARs
+    include { file ->
+        def name = file.name
+        // Include non-JavaFX JARs
+        if (!name.startsWith('javafx-')) {
+            return true
+        }
+        // Include only Intel Mac JavaFX JARs (not ARM64)
+        return name.contains('-mac.jar') && !name.contains('mac-aarch64')
+    }
+    
+    doLast {
+        def javafxFiles = fileTree("$buildDir/extracted-dependencies-intel-mac").matching {
+            include "javafx-*.jar"
+        }
+        println "✅ Intel Mac JavaFX dependencies:"
+        javafxFiles.files.sort().each { file ->
+            println "   • ${file.name}"
+        }
+    }
+}
+
+task packageApp {
+    group = 'build'
+    description = 'Package application with Conveyor'
+    dependsOn 'jar', 'extractDependencies', 'createIntelMacDependencies'
+    
+    doLast {
+        exec {
+            commandLine getConveyorCommand(), 'make', 'app', '--overwrite'
+            environment 'PATH', System.getenv('PATH')
+        }
+    }
+}
+
+task packageSite {
+    group = 'build' 
+    description = 'Build and package for web deployment'
+    dependsOn 'jar', 'extractDependencies'
+    
+    doLast {
+        exec {
+            commandLine getConveyorCommand(), 'make', 'site', '--overwrite'
+            environment 'PATH', System.getenv('PATH')
+        }
+    }
+}
+
+// Conveyor site build
+tasks.register("conveyor", Exec) {
+    var dir = layout.buildDirectory.dir("packages/${project.name}-${project.version}")
+    outputs.dir(dir)
+    commandLine = ["conveyor", "make", "--overwrite", "--output-dir", dir.get(), "site"]
+    dependsOn("jar", "extractDependencies")
+}
+
+task deploy {
+    group = 'build'
+    description = 'Build and deploy application packages for all platforms'
+    dependsOn 'conveyor'
+    
+    doLast {
+        // Rename download.html to index.html for GitHub Pages compatibility
+        def packagesDir = layout.buildDirectory.dir("packages/${project.name}-${project.version}").get().asFile
+        def downloadHtml = new File(packagesDir, "download.html")
+        def indexHtml = new File(packagesDir, "index.html")
+        
+        if (downloadHtml.exists()) {
+            if (indexHtml.exists()) {
+                indexHtml.delete()
+            }
+            downloadHtml.renameTo(indexHtml)
+            println "✅ Renamed download.html to index.html for GitHub Pages"
+        } else {
+            println "⚠️  download.html not found in ${packagesDir}"
+        }
+    }
+}
+
+task deployApp {
+    group = 'build'
+    description = 'Build application packages only (no website)'
+    dependsOn 'jar', 'extractDependencies'
+    
+    doFirst {
+        println "📦 Building application packages..."
+    }
+    
+    doLast {
+        exec {
+            commandLine getConveyorCommand(), 'make', 'app', '--overwrite'
+            environment 'PATH', System.getenv('PATH')
+        }
+        println "✅ Application packages created in ./output directory"
+    }
+}
+
+task deploySite {
+    group = 'build'
+    description = 'Build download website only'
+    dependsOn 'jar', 'extractDependencies'
+    
+    doFirst {
+        println "🌐 Building download website..."
+    }
+    
+    doLast {
+        exec {
+            commandLine getConveyorCommand(), 'make', 'site', '--overwrite'
+            environment 'PATH', System.getenv('PATH')
+        }
+        println "✅ Download site created in ./output directory"
+    }
+}
+
+task validateJavaFXBundling {
+    group = 'verification'
+    description = 'Validate that JavaFX is properly bundled for all platforms'
+    dependsOn 'extractDependencies'
+    
+    doLast {
+        def extractedDir = file("$buildDir/extracted-dependencies")
+        def javafxFiles = fileTree(extractedDir).matching {
+            include "javafx-*.jar"
+        }
+        
+        println "🔍 Validating JavaFX bundling..."
+        
+        def requiredModules = ['base', 'controls', 'fxml', 'graphics', 'media', 'web']
+        def platforms = ['mac', 'mac-aarch64', 'win']
+        
+        def missingFiles = []
+        
+        platforms.each { platform ->
+            requiredModules.each { module ->
+                def expectedFile = "javafx-${module}-21.0.5-${platform}.jar"
+                def found = javafxFiles.files.any { it.name == expectedFile }
+                if (!found) {
+                    missingFiles.add(expectedFile)
+                }
+            }
+        }
+        
+        if (missingFiles.isEmpty()) {
+            println "✅ All required JavaFX platform dependencies are present"
+        } else {
+            println "❌ Missing JavaFX dependencies:"
+            missingFiles.each { println "   • $it" }
+            throw new GradleException("Missing required JavaFX dependencies")
+        }
+        
+        println "📊 JavaFX bundling summary:"
+        println "   • Total JavaFX JARs: ${javafxFiles.files.size()}"
+        println "   • Expected minimum: ${requiredModules.size() * platforms.size()}"
+    }
+}
+
+task diagnoseJavaFXIssue {
+    group = 'verification'
+    description = 'Diagnose JavaFX bundling issues and provide recommendations'
+    dependsOn 'extractDependencies'
+    
+    doLast {
+        def extractedDir = file("$buildDir/extracted-dependencies")
+        def javafxFiles = fileTree(extractedDir).matching {
+            include "javafx-*.jar"
+        }
+        
+        println "🔍 JavaFX Bundling Diagnostic Report"
+        println "=" * 50
+        
+        println "\n📦 Extracted JavaFX JARs:"
+        javafxFiles.files.sort().each { file ->
+            def size = String.format("%,d", file.size())
+            println "   • ${file.name} (${size} bytes)"
+        }
+        
+        println "\n🔍 Architecture Analysis:"
+        def intelCount = javafxFiles.files.count { it.name.contains('-mac.jar') }
+        def armCount = javafxFiles.files.count { it.name.contains('-mac-aarch64.jar') }
+        def windowsCount = javafxFiles.files.count { it.name.contains('-win.jar') }
+        def genericCount = javafxFiles.files.count { it.name.matches('.*21\\.0\\.2\\.jar') }
+        
+        println "   • Intel Mac JARs: $intelCount"
+        println "   • ARM Mac JARs: $armCount" 
+        println "   • Windows JARs: $windowsCount"
+        println "   • Generic JARs: $genericCount"
+        
+        println "\n⚠️  Potential Issues:"
+        def issues = []
+        
+        if (genericCount > 0) {
+            issues.add("Generic JavaFX JARs detected (may cause platform issues)")
+        }
+        
+        def versionMixed = javafxFiles.files.any { it.name.contains('21.0.5') } &&
+                          javafxFiles.files.any { !it.name.contains('21.0.5') }
+        if (versionMixed) {
+            issues.add("Mixed JavaFX versions detected")
+        }
+        
+        if (issues.isEmpty()) {
+            println "   ✅ No issues detected"
+        } else {
+            issues.each { println "   ❌ $it" }
+        }
+        
+        println "\n💡 Recommendations:"
+        println "   1. Ensure the Intel Mac gets mac.jar files (not mac-aarch64.jar)"
+        println "   2. Remove small generic JavaFX stubs that may confuse the runtime"
+        println "   3. Force consistent JavaFX version 21.0.5 across all modules"
+        println "   4. Test the packaged app on the target Intel Mac"
+    }
+}
+
+// Conveyor integration (temporarily disabled)
+// conveyor {
+//     // Conveyor will be configured via conveyor.conf
+// }
+
+// Configure jar task for Conveyor compatibility
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    manifest {
+        attributes(
+            'Main-Class': 'tools.moodframe.MoodframeApplication',
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+// Copy resources task
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // Copy all resources including FXML, CSS, and images
+    from('src/main/resources') {
+        include '**/*'
+    }
+}
+
+// Development helper tasks
+task cleanData {
+    group = 'development'
+    description = 'Clean user data and cache for fresh development start'
+    
+    doLast {
+        def userHome = System.getProperty('user.home')
+        def dataDir = new File("$userHome/.moodframe")
+        if (dataDir.exists()) {
+            dataDir.deleteDir()
+            println "Cleaned user data directory: $dataDir"
+        }
+    }
+}
+
+task generateIcon {
+    group = 'development'
+    description = 'Generate application icon in multiple sizes'
+    
+    doLast {
+        // This would use a tool like ImageMagick to generate icons
+        // For now, just a placeholder
+        println "Icon generation would happen here"
+    }
+}
+
+// Version information
+task printVersion {
+    group = 'help'
+    description = 'Print version information'
+    
+    doLast {
+        println "Moodframe Version: $version"
+        println "Java Version: ${System.getProperty('java.version')}"
+        println "JavaFX Version: ${javafx.version}"
+    }
+}
+
+// Note: printConveyorConfig task is automatically provided by the Conveyor plugin
+
+
+// ================================================================================
+// BUILD OPTIMIZATION CONFIGURATION
+// ================================================================================
+
+// OWASP Dependency Check Configuration
+dependencyCheck {
+    formats = ['HTML', 'JSON']
+    outputDirectory = "$buildDir/reports/dependency-check"
+    suppressionFile = 'dependency-check-suppressions.xml'
+    
+    // Skip test dependencies by default
+    skipTestGroups = true
+    
+    // Configure NVD API (optional - requires free API key)
+    nvd {
+        apiKey = System.getenv('NVD_API_KEY') ?: ''
+        delay = 2000 // Rate limiting
+    }
+    
+    // Fail build on CVSS score >= 8.0 (High/Critical vulnerabilities)
+    failBuildOnCVSS = 8.0
+}
+
+// Build Performance Optimizations
+gradle.projectsEvaluated {
+    tasks.withType(JavaCompile) {
+        options.compilerArgs += [
+            '-Xlint:unchecked',
+            '-Xlint:deprecation',
+            '-parameters' // Enable parameter names for better debugging
+        ]
+        // Enable incremental compilation
+        options.incremental = true
+    }
+}
+
+// JavaFX module path handled by javafx plugin
+
+// Enable Gradle Build Cache
+tasks.withType(Test) {
+    outputs.upToDateWhen { false } // Always run tests for safety
+}
+
+// Note: Build performance optimizations are configured in gradle.properties
+
+// Create suppression file for dependency check if it doesn't exist
+task createDependencyCheckSuppressions {
+    def suppressionFile = file('dependency-check-suppressions.xml')
+    if (!suppressionFile.exists()) {
+        suppressionFile.text = """<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!-- Add suppression rules here for false positives -->
+    <!--
+    <suppress>
+        <notes>False positive: This vulnerability does not apply to our usage</notes>
+        <packageUrl regex="true">^pkg:maven/org\\.example/.*\$</packageUrl>
+        <cve>CVE-YYYY-XXXXX</cve>
+    </suppress>
+    -->
+</suppressions>"""
+    }
+}
+
+// Dependency check task will automatically use the suppression file when it runs
+
+// Bundle size analysis task
+task analyzeBundleSize {
+    group = 'build'
+    description = 'Analyze bundle size and dependencies'
+    dependsOn 'jar'
+    
+    doLast {
+        def jarFile = jar.archiveFile.get().asFile
+        def jarSize = jarFile.length()
+        
+        println "📦 JAR Analysis:"
+        println "   File: ${jarFile.name}"
+        println "   Size: ${String.format("%.2f", jarSize / 1024.0 / 1024.0)} MB"
+        
+        // Analyze dependencies
+        def totalDepsSize = 0
+        configurations.runtimeClasspath.files.each { file ->
+            if (file.name.endsWith('.jar')) {
+                totalDepsSize += file.length()
+            }
+        }
+        
+        println "📚 Dependencies:"
+        println "   Total Size: ${String.format("%.2f", totalDepsSize / 1024.0 / 1024.0)} MB"
+        println "   Count: ${configurations.runtimeClasspath.files.size()} files"
+        
+        def totalSize = jarSize + totalDepsSize
+        println "🎯 Total Bundle Size: ${String.format("%.2f", totalSize / 1024.0 / 1024.0)} MB"
+        
+        // Size targets
+        if (totalSize > 100 * 1024 * 1024) {
+            println "⚠️  WARNING: Bundle size exceeds 100MB target (${String.format("%.2f", totalSize / 1024.0 / 1024.0)} MB)"
+        } else {
+            println "✅ Bundle size within 100MB target"
+        }
+    }
+}
+
+// Create processResources task to generate build info
+tasks.named('processResources') {
+    doLast {
+        // Create build.properties with version and build information
+        def buildPropsFile = file("$buildDir/resources/main/build.properties")
+        buildPropsFile.parentFile.mkdirs()
+        
+        def props = new Properties()
+        props.setProperty('build.version', project.version.toString())
+        props.setProperty('build.timestamp', new Date().toString())
+        props.setProperty('build.gradle.version', gradle.gradleVersion)
+        
+        // Add Git information if available
+        try {
+            def gitCommit = 'git rev-parse HEAD'.execute().text.trim()
+            props.setProperty('build.git.commit', gitCommit)
+        } catch (Exception e) {
+            // Git not available or not a git repository
+            props.setProperty('build.git.commit', 'unknown')
+        }
+        
+        props.store(buildPropsFile.newWriter(), 'Build Information')
+    }
+}
+
+// Ensure JAR manifest contains version information
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Matthias Brusdeylins',
+            'Specification-Title': project.description,
+            'Specification-Version': project.version,
+            'Main-Class': 'tools.moodframe.MoodframeApplication',
+            'Built-By': System.getProperty('user.name'),
+            'Built-Date': new Date().toString(),
+            'Built-JDK': System.getProperty('java.version'),
+            'Built-Gradle': gradle.gradleVersion
+        )
+    }
+}
+
+// Enhanced build task with timing
+task enhancedBuild {
+    group = 'build'
+    description = 'Build with performance monitoring and security checks'
+    
+    def startTime = System.currentTimeMillis()
+    
+    dependsOn 'clean', 'compileJava', 'test', 'jar', 'analyzeBundleSize'
+    // Note: dependencyCheckAnalyze excluded from regular builds due to long execution time
+    // Run manually: ./gradlew dependencyCheckAnalyze
+    
+    doLast {
+        def duration = (System.currentTimeMillis() - startTime) / 1000.0
+        println "⏱️  Build completed in ${String.format("%.2f", duration)} seconds"
+        
+        // Check against the target (< 30 seconds)
+        if (duration > 30) {
+            println "⚠️  WARNING: Build time exceeds 30s target (${String.format("%.2f", duration)}s)"
+        } else {
+            println "✅ Build time within 30s target"
+        }
+    }
+}

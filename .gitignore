@@ -1,0 +1,82 @@
+# Gradle
+.gradle/
+build/
+bin/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+!gradle/wrapper/gradle-wrapper.jar
+
+# Java
+*.class
+*.jar
+# The Gradle wrapper jar must be tracked (a later *.jar rule would otherwise ignore it again)
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/settings.json
+.vscode/settings.json.bak
+.project
+.classpath
+.factorypath
+.buildpath
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Application specific
+*.log
+logs/
+/output/
+/out/
+
+# User data
+.moodframe/
+
+# Conveyor
+conveyor-cache/
+output/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Package files
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm
+
+# Local environment
+.env
+.env.local
+local.properties
+
+# Test results
+TEST-*.xml
+test-results/
+test-output/
+
+# AI
+.ase/service.yaml
+.claude/
+

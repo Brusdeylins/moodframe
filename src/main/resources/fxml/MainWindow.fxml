@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Main Window Layout for Moodframe Application -->
+<!-- This FXML defines the primary application window structure with:
+     - Header with title and settings button
+     - SplitPane with sidebar (chat list) and content area
+     - Footer with status information and controls -->
+<StackPane xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="tools.moodframe.ui.controller.MainWindowController"
+           prefHeight="800.0" prefWidth="1200.0"
+           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css">
+    
+    <!-- Main Application Content -->
+    <BorderPane fx:id="mainBorderPane">
+
+    <!-- Header Section -->
+    <top>
+        <HBox spacing="10.0" alignment="CENTER_LEFT" styleClass="bg-inset">
+            <padding>
+                <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
+            </padding>
+            
+            <!-- Application Title -->
+            <Label text="Moodframe" styleClass="title-1" />
+            <Label fx:id="appVersionLabel" styleClass="text-muted" style="-fx-font-size: 11px;" translateY="7" />
+            
+            <!-- Spacer to push settings button to the right -->
+            <Region HBox.hgrow="ALWAYS" />
+            
+            <!-- Settings Button (CRITICAL: Must be available BEFORE API calls) -->
+            <Button fx:id="settingsButton" styleClass="button-icon" 
+                    onAction="#onSettingsClicked">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2c-cog" iconSize="20" styleClass="ikonli-font-icon" />
+                </graphic>
+                <tooltip>
+                    <Tooltip fx:id="settingsTooltip" text="Settings and Configuration" />
+                </tooltip>
+            </Button>
+        </HBox>
+    </top>
+
+    <!-- Main Content Area with Sidebar -->
+    <center>
+        <SplitPane fx:id="mainSplitPane" dividerPositions="0.2">
+            
+            <!-- Left Sidebar: Chat List -->
+            <VBox spacing="5.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset">
+                <padding>
+                    <Insets bottom="10.0" left="10.0" right="5.0" top="0.0" />
+                </padding>
+                
+                <!-- Chat Controls Row -->
+                <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
+                    <!-- New Chat Button -->
+                    <Button fx:id="newChatButton" styleClass="button-icon"
+                            onAction="#onNewChatClicked" HBox.hgrow="ALWAYS">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2p-plus" iconSize="20" styleClass="ikonli-font-icon" />
+                        </graphic>
+                        <tooltip>
+                            <Tooltip fx:id="newChatTooltip" text="Create New Chat" />
+                        </tooltip>
+                    </Button>
+                    
+                    <!-- Trash Visibility Toggle Button -->
+                    <ToggleButton fx:id="trashVisibilityToggle" styleClass="button-outlined"
+                                  onAction="#onTrashVisibilityToggled">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2e-eye-off" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                        <tooltip>
+                            <Tooltip fx:id="trashToggleTooltip" text="Show/Hide Trashed Chats" />
+                        </tooltip>
+                    </ToggleButton>
+                </HBox>
+                
+                <!-- Chat List -->
+                <ListView fx:id="chatListView" VBox.vgrow="ALWAYS">
+                    <!-- Chat list items will be populated dynamically -->
+                </ListView>
+                
+            </VBox>
+            
+            <!-- Middle Content Area with Chat and Parameters using HBox for side-by-side layout -->
+            <HBox>
+                
+                <!-- Left: Chat Area (grows to take available space) -->
+                <BorderPane HBox.hgrow="ALWAYS">
+                    
+                    <!-- Chat Header -->
+                    <top>
+                        <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+                            <padding>
+                                <Insets left="20.0" right="20.0" top="10.0" bottom="15.0" />
+                            </padding>
+                            <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-3" />
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Label fx:id="chatTotalCostLabel" text="" styleClass="text-muted" />
+                        </HBox>
+                    </top>
+                    
+                    <!-- Vertical SplitPane for resizable chat and input areas -->
+                    <center>
+                        <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84">
+
+                            <!-- Top: Chat Messages Area with Overlay Support -->
+                            <StackPane fx:id="chatAreaStackPane">
+
+                                <!-- Main Chat Content -->
+                                <!-- Virtualized ListView for ChatEntries (replaces ScrollPane+VBox) -->
+                                <ListView fx:id="chatEntriesListView" />
+
+                                <!-- Welcome container (shown when no chat selected, overlays ListView) -->
+                                <HBox fx:id="welcomeContainer"
+                                      alignment="CENTER" spacing="10.0" visible="true">
+                                    <FontIcon iconLiteral="mdi2r-robot" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
+                                    <Label fx:id="welcomeLabel" text="Welcome to Moodframe"
+                                           styleClass="title-2" />
+                                </HBox>
+
+                                <!-- Image Preview Overlay (initially hidden) -->
+                                <!-- Will be added programmatically by MainWindowController -->
+
+                            </StackPane>
+
+                            <!-- Bottom: Input Area - resizable via SplitPane divider -->
+                            <VBox spacing="10.0" styleClass="bg-inset">
+                                <padding>
+                                    <Insets bottom="10.0" left="20.0" right="20.0" top="15.0" />
+                                </padding>
+
+                                <!-- Main Input Row -->
+                                <HBox spacing="10.0" alignment="BOTTOM_LEFT" VBox.vgrow="ALWAYS">
+                                    <!-- Text Input Area - grows with available space -->
+                                    <TextArea fx:id="promptTextArea"
+                                              promptText="Enter your prompt here..."
+                                              wrapText="true" prefRowCount="3"
+                                              VBox.vgrow="ALWAYS"
+                                              HBox.hgrow="ALWAYS" />
+
+                                    <!-- Button + Checkbox Column -->
+                                    <VBox alignment="TOP_CENTER" spacing="5.0" minWidth="180.0" prefWidth="180.0" maxWidth="180.0">
+                                        <Button fx:id="sendButton" styleClass="accent"
+                                                text="0.00"
+                                                maxWidth="Infinity" VBox.vgrow="ALWAYS"
+                                                onAction="#onSendClicked"
+                                                disable="true">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2s-send" iconSize="18" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                            <tooltip>
+                                                <Tooltip fx:id="sendTooltip" text="Send Message (Shift+Enter)" />
+                                            </tooltip>
+                                        </Button>
+
+                                        <!-- Brainstorm Button (active only with a Gemini API key) -->
+                                        <Button fx:id="brainstormButton" styleClass="button-outlined"
+                                                text="Brainstorm"
+                                                maxWidth="Infinity"
+                                                onAction="#onBrainstormClicked"
+                                                disable="true">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2l-lightbulb-outline" iconSize="18" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Character Counter -->
+                                        <Label fx:id="characterCountLabel" text="0/3000"
+                                               styleClass="text-small,text-muted"
+                                               maxWidth="Infinity"
+                                               style="-fx-alignment: center-left;" />
+                                    </VBox>
+                                </HBox>
+
+                            </VBox>
+
+                        </SplitPane>
+                    </center>
+                    
+                </BorderPane>
+                
+                <!-- Right: Parameters Panel - Full Height with Scroll -->
+                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" 
+                            prefWidth="250.0" maxWidth="250.0" minWidth="250.0" 
+                            styleClass="bg-inset"
+                            style="-fx-background: -color-bg-inset; -fx-background-color: -color-bg-inset;">
+                    <VBox spacing="15.0" styleClass="bg-inset" 
+                          style="-fx-background-color: -color-bg-inset;">
+                        <padding>
+                            <Insets bottom="20.0" left="15.0" right="15.0" top="0.0" />
+                        </padding>
+                        
+                        <Label fx:id="parametersTitle" text="Generation Parameters" styleClass="title-3">
+                            <VBox.margin>
+                                <Insets top="7.0" />
+                            </VBox.margin>
+                        </Label>
+                        
+                        <!-- Model Selection -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="modelLabel" text="Model:" styleClass="text-bold" />
+                            <ChoiceBox fx:id="modelFamilyChoiceBox" maxWidth="Infinity" />
+                            <!-- Holds the selected variant (family and resolution), the model logic works on it -->
+                            <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
+                        </VBox>
+
+                        <!-- Resolution of the selected model -->
+                        <VBox fx:id="resolutionContainer" spacing="5.0" visible="false" managed="false">
+                            <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
+                            <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" />
+                        </VBox>
+                        
+                        <!-- Style -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
+                            <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Color Style -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="colorStyleLabel" text="Color Style:" styleClass="text-bold" />
+                            <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Aspect Ratio -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="aspectRatioLabel" text="Aspect Ratio:" styleClass="text-bold" />
+                            <ChoiceBox fx:id="aspectRatioComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Image Count (General Parameter - works for both BFL and Gemini) -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="imageCountLabel" text="Images: 1" styleClass="text-bold" />
+                            <Slider fx:id="imageCountSlider"
+                                    min="1" max="4" value="1"
+                                    showTickLabels="true" showTickMarks="true"
+                                    majorTickUnit="1.0" snapToTicks="true" />
+                        </VBox>
+
+                        <!-- BFL-Specific Parameters Container -->
+                        <VBox fx:id="bflParametersContainer" spacing="15.0">
+
+                            <!-- BFL Prompt Upsampling -->
+                            <VBox spacing="5.0">
+                                <CheckBox fx:id="bflPromptUpsamplingCheckBox" text="Prompt Enhancement"
+                                          styleClass="text-bold" />
+                                <Label fx:id="bflPromptUpsamplingHint"
+                                       text="Enhances prompts for better image quality"
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                            <!-- Safety Tolerance (FLUX.1 - hidden when FLUX.2 selected) -->
+                            <VBox fx:id="flux1SafetyContainer" spacing="5.0">
+                                <Label fx:id="safetyToleranceLabel" text="Safety: Strict" styleClass="text-bold" />
+                                <Slider fx:id="safetyToleranceSlider"
+                                        min="0" max="6" value="2"
+                                        showTickLabels="true" showTickMarks="true"
+                                        majorTickUnit="1.0" snapToTicks="true" />
+                            </VBox>
+
+                            <!-- FLUX.2 Safety Tolerance (0-5 scale) - same position as FLUX.1 safety -->
+                            <VBox fx:id="flux2SafetyContainer" spacing="5.0"
+                                  visible="false" managed="false">
+                                <Label fx:id="flux2SafetyLabel" text="Safety Tolerance:" styleClass="text-bold" />
+                                <Slider fx:id="flux2SafetySlider"
+                                        min="0" max="5" value="5"
+                                        showTickLabels="true" showTickMarks="true"
+                                        majorTickUnit="1" minorTickCount="0" snapToTicks="true" />
+                                <Label fx:id="flux2SafetyValueLabel" text="Maximum (5)"
+                                       styleClass="text-small" />
+                            </VBox>
+
+                            <!-- Seed -->
+                            <VBox spacing="5.0">
+                                <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
+                                <HBox spacing="5.0" alignment="CENTER_LEFT">
+                                    <TextField fx:id="seedTextField"
+                                              promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+
+                                    <!-- Clear Seed Button -->
+                                    <Button fx:id="clearSeedButton" styleClass="button-icon, flat"
+                                            onAction="#onClearSeedClicked">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                                        </graphic>
+                                        <tooltip>
+                                            <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
+                                        </tooltip>
+                                    </Button>
+                                </HBox>
+                            </VBox>
+
+                        </VBox>
+
+                        <!-- FLUX.2 Specific Parameters Container -->
+                        <VBox fx:id="flux2ParametersContainer" spacing="15.0"
+                              visible="false" managed="false">
+
+                            <!-- FLUX.2 [max] Grounding Search Info -->
+                            <VBox fx:id="flux2GroundingSearchContainer" spacing="5.0"
+                                  visible="false" managed="false">
+                                <Label text="Web Search" styleClass="text-bold" />
+                                <Label fx:id="flux2GroundingSearchHint"
+                                       text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt."
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                            <!-- FLUX.2 [flex] Guidance -->
+                            <VBox fx:id="flux2GuidanceContainer" spacing="5.0"
+                                  visible="false" managed="false">
+                                <Label fx:id="flux2GuidanceLabel" text="Guidance: 5.0" styleClass="text-bold" />
+                                <Slider fx:id="flux2GuidanceSlider"
+                                        min="1.5" max="10.0" value="5.0"
+                                        showTickLabels="true" showTickMarks="true"
+                                        majorTickUnit="1.0" minorTickCount="1" />
+                                <Label fx:id="flux2GuidanceHint"
+                                       text="Controls prompt adherence (higher = stricter)"
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                            <!-- FLUX.2 [flex] Steps -->
+                            <VBox fx:id="flux2StepsContainer" spacing="5.0"
+                                  visible="false" managed="false">
+                                <Label fx:id="flux2StepsLabel" text="Steps: 50" styleClass="text-bold" />
+                                <Slider fx:id="flux2StepsSlider"
+                                        min="1" max="50" value="50"
+                                        showTickLabels="true" showTickMarks="true"
+                                        majorTickUnit="10" minorTickCount="4" snapToTicks="true" />
+                                <Label fx:id="flux2StepsHint"
+                                       text="Inference steps (higher = more detail)"
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                        </VBox>
+
+                        <!-- Video Parameters Container -->
+                        <VBox fx:id="videoParametersContainer" spacing="15.0"
+                              visible="false" managed="false">
+
+                            <!-- Video Duration -->
+                            <VBox fx:id="videoDurationContainer" spacing="5.0">
+                                <Label text="Duration" styleClass="text-bold" />
+                                <ChoiceBox fx:id="videoDurationChoiceBox" maxWidth="Infinity" />
+                                <Label fx:id="videoDurationHint"
+                                       text="Video length (1080p/4K require 8s)"
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                            <!-- Audio Toggle -->
+                            <VBox fx:id="videoAudioContainer" spacing="5.0" visible="false" managed="false">
+                                <CheckBox fx:id="videoAudioCheckBox" text="Generate Audio" />
+                                <Label fx:id="videoAudioHint"
+                                       text="Audio doubles generation cost"
+                                       styleClass="text-small, text-muted"
+                                       wrapText="true" />
+                            </VBox>
+
+                            <!-- Negative Prompt -->
+                            <VBox fx:id="videoNegativePromptContainer" spacing="5.0" visible="false" managed="false">
+                                <Label text="Negative Prompt" styleClass="text-bold" />
+                                <TextArea fx:id="videoNegativePromptTextArea"
+                                          promptText="Describe what to avoid..."
+                                          prefHeight="60" wrapText="true" />
+                            </VBox>
+
+                        </VBox>
+
+                        <!-- Gemini 3 Pro Thinking Level -->
+                        <VBox fx:id="geminiThinkingLevelContainer" spacing="5.0"
+                              visible="false" managed="false">
+                            <Label fx:id="geminiThinkingLevelLabel" text="Reasoning Quality:"
+                                   styleClass="text-bold" />
+                            <ChoiceBox fx:id="geminiThinkingLevelChoiceBox" maxWidth="Infinity" />
+                            <Label fx:id="geminiThinkingLevelHint"
+                                   text="Low: Fast generation | High: Better reasoning"
+                                   styleClass="text-small, text-muted"
+                                   wrapText="true" />
+                        </VBox>
+
+                        <!-- Gemini Advanced Features Section (Phase 2) -->
+                        <!-- Positioned before Image Attachment, like other parameters -->
+                        <VBox fx:id="geminiAdvancedFeaturesContainer"
+                              visible="false" managed="false"
+                              spacing="0" />
+
+                        <!-- Prompt Context Section (YouTube Video Analysis etc.) -->
+                        <!-- Only visible when Gemini API key is configured -->
+                        <VBox fx:id="promptContextContainer" spacing="5.0"
+                              visible="false" managed="false" />
+
+                        <!-- Multi-Image Attachment Section -->
+                        <!-- Container for MultiImageAttachmentPanel (added programmatically) -->
+                        <VBox fx:id="multiImageAttachmentContainer" spacing="5.0" />
+
+                        <!-- Legacy Single Image Attachment Section (hidden when multi-image is active) -->
+                        <VBox fx:id="imageAttachmentSection" spacing="5.0"
+                              visible="false" managed="false">
+
+                            <Label fx:id="imageAttachmentLabel" text="Image Attachment" styleClass="text-bold" />
+
+                            <!-- Image Preview Area -->
+                            <StackPane fx:id="imagePreviewContainer"
+                                       prefHeight="150.0" maxHeight="150.0" minHeight="150.0"
+                                       style="-fx-background-color: -color-bg-inset; -fx-background-radius: 4px; -fx-border-color: -color-border-muted; -fx-border-width: 1px; -fx-border-style: dashed; -fx-border-radius: 4px;">
+
+                                <!-- No Image Placeholder -->
+                                <VBox fx:id="noImagePlaceholder" alignment="CENTER" spacing="5.0">
+                                    <FontIcon iconLiteral="mdi2i-image-plus" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
+                                    <Label fx:id="noImageLabel" text="No image attached" styleClass="text-muted, text-small" />
+                                </VBox>
+
+                                <!-- Image Preview (initially hidden) -->
+                                <ImageView fx:id="attachmentPreviewImage"
+                                          fitWidth="150.0" fitHeight="150.0"
+                                          preserveRatio="true" smooth="true"
+                                          visible="false" managed="false" />
+
+                            </StackPane>
+
+                            <!-- Attachment Controls -->
+                            <HBox spacing="5.0" alignment="CENTER_LEFT">
+
+                                <!-- Upload Button -->
+                                <Button fx:id="uploadImageButton" styleClass="button-outlined"
+                                        text="Attach Image" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                                        onAction="#onAttachImageClicked">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2u-upload" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                    <tooltip>
+                                        <Tooltip fx:id="uploadImageTooltip" text="Upload an image for editing (PNG, JPEG, WebP)" />
+                                    </tooltip>
+                                </Button>
+
+                                <!-- Remove Button -->
+                                <Button fx:id="removeImageButton" styleClass="button-icon, flat"
+                                        disable="true" onAction="#onRemoveImageClicked">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                                    </graphic>
+                                    <tooltip>
+                                        <Tooltip fx:id="removeImageTooltip" text="Remove attached image" />
+                                    </tooltip>
+                                </Button>
+
+                            </HBox>
+
+                            <!-- Attachment Info -->
+                            <Label fx:id="attachmentInfoLabel" text=""
+                                   styleClass="text-small, text-muted"
+                                   visible="false" managed="false" />
+
+                        </VBox>
+
+                    </VBox>
+                </ScrollPane>
+                
+            </HBox>
+            
+        </SplitPane>
+    </center>
+
+    <!-- Footer: Status Bar -->
+    <bottom>
+        <HBox spacing="10.0" alignment="CENTER_LEFT" styleClass="bg-inset">
+            <padding>
+                <Insets bottom="10.0" left="20.0" right="20.0" top="0.0" />
+            </padding>
+            
+            <!-- Status Message -->
+            <Label fx:id="statusLabel" text="Ready" />
+            
+            <!-- Spacer -->
+            <Region HBox.hgrow="ALWAYS" />
+            
+            <!-- Session Info -->
+            <Label fx:id="sessionInfoLabel" />
+            
+            <!-- API Key Status Indicator -->
+            <HBox spacing="8.0" alignment="CENTER">
+                <FontIcon fx:id="apiKeyStatusIcon" iconLiteral="mdi2k-key" iconSize="16" styleClass="ikonli-font-icon" />
+                <Label fx:id="apiKeyStatusLabel" text="No API Key" />
+            </HBox>
+            
+        </HBox>
+    </bottom>
+
+    </BorderPane>
+    
+    <!-- Image Preview Overlay (initially hidden, added programmatically) -->
+    
+</StackPane>

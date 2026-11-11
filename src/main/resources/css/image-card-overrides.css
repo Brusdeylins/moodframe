@@ -1,0 +1,39 @@
+/* CSS overrides for white icons on black image cards using correct Ikonli properties */
+.black-image-card .button-icon .ikonli-font-icon.text-muted {
+    -fx-icon-color: white !important;
+}
+
+.black-image-card .button-icon .ikonli-font-icon.text-danger {
+    -fx-icon-color: #ff6b6b !important;
+}
+
+/* Button styling for black image cards */
+.black-image-card .button-icon {
+    -fx-background-color: transparent !important;
+    -fx-border-color: transparent !important;
+}
+
+/* Hover effects for buttons on black image cards */
+.black-image-card .button-icon:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.2) !important;
+    -fx-border-color: transparent !important;
+}
+
+/* Keep icons white even on hover for better contrast on semi-transparent background */
+.black-image-card .button-icon:hover .ikonli-font-icon.text-muted {
+    -fx-icon-color: white !important;
+}
+
+.black-image-card .button-icon:hover .ikonli-font-icon.text-danger {
+    -fx-icon-color: #ff6b6b !important;
+}
+
+/* Fallback with broader selector */
+.black-image-card .ikonli-font-icon {
+    -fx-icon-color: white !important;
+}
+
+/* Fallback hover effect - keep white for better contrast */
+.black-image-card .button-icon:hover .ikonli-font-icon {
+    -fx-icon-color: white !important;
+}

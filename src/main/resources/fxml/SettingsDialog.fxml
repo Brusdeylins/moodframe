@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ButtonType?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ChoiceBox?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.DialogPane?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Settings Dialog Layout for Moodframe Application -->
+<!-- This FXML defines the settings dialog with vertical list navigation including:
+     - API Configuration (API key, region, timeouts)
+     - Corporate Proxy (proxy settings, certificates)
+     - Appearance (theme selection)
+     - Language (language switching)
+     - Style Presets (custom style management)
+     - Color Styles (color palette management)
+     - Advanced (additional settings) -->
+
+<DialogPane fx:id="settingsDialogPane" minWidth="730.0" prefHeight="700.0" prefWidth="900.0" styleClass="settings-dialog" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="tools.moodframe.ui.controller.SettingsController">
+
+    <headerText>%settings.title</headerText>
+
+    <!-- Main Content: Split Layout with List and Content -->
+    <content>
+        <SplitPane fx:id="settingsSplitPane" dividerPositions="0.25" orientation="HORIZONTAL" VBox.vgrow="ALWAYS">
+            
+            <!-- Left Side: Settings Categories List -->
+            <VBox maxWidth="250" minWidth="200" spacing="5">
+                <padding>
+                    <Insets bottom="0" left="10.0" right="0" top="0" />
+                </padding>
+
+                <ListView fx:id="settingsCategoryList" styleClass="settings-category-list">
+               <VBox.margin>
+                  <Insets right="10.0" />
+               </VBox.margin></ListView>
+            </VBox>
+            
+            <!-- Right Side: Settings Content -->
+            <StackPane fx:id="settingsContentPane" alignment="TOP_LEFT" minWidth="500" style="-fx-padding: 0;" SplitPane.resizableWithParent="true">
+
+                <!-- API Configuration Content -->
+                <VBox fx:id="apiConfigurationPane" managed="true" spacing="15.0" visible="true">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+                    
+                    <TabPane fx:id="apiProviderTabs" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+                        <Tab closable="false" text="BFL">
+                            <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED">
+                                <VBox spacing="15.0">
+                                    <padding>
+                                        <Insets bottom="10.0" left="0" right="10.0" top="10.0" />
+                                    </padding>
+                    <!-- API Key Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="apiKeyLabel" styleClass="text-bold" text="%settings.api.key" />
+                        <Label fx:id="apiKeyDescLabel" text="%settings.api.key.description" />
+                        
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <PasswordField fx:id="apiKeyField" promptText="%settings.api.key.placeholder" HBox.hgrow="ALWAYS" />
+                            
+                            <Button fx:id="showApiKeyButton" onAction="#onShowApiKeyToggle" styleClass="button-icon">
+                                <graphic>
+                                    <FontIcon fx:id="showApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                                <tooltip>
+                                    <Tooltip text="%settings.api.key.toggle.tooltip" />
+                                </tooltip>
+                            </Button>
+                            
+                            <Button fx:id="testConnectionButton" onAction="#onTestConnection" styleClass="accent" text="%settings.api.test">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+                        
+                        <!-- Connection Status -->
+                        <HBox fx:id="connectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                            <FontIcon fx:id="connectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                            <Label fx:id="connectionStatusLabel" text="%settings.api.connection.none" />
+                        </HBox>
+
+                        <!-- BFL Provider Activation Checkbox -->
+                        <CheckBox fx:id="bflProviderEnabledCheckBox" onAction="#onBflProviderToggle" text="%settings.bfl.enable">
+                            <tooltip>
+                                <Tooltip text="%settings.bfl.enable.tooltip" />
+                            </tooltip>
+                        </CheckBox>
+                    </VBox>
+
+                    <Separator />
+
+                    
+                    <!-- Region Selection -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="apiRegionLabel" styleClass="text-bold" text="%settings.api.region" />
+                        <Label fx:id="apiRegionDescLabel" text="%settings.api.region.description" />
+                        
+                        <ChoiceBox fx:id="regionComboBox" prefWidth="200.0">
+                            <!-- Regions will be populated by controller -->
+                        </ChoiceBox>
+                    </VBox>
+
+                    <Separator />
+
+                    
+                    <!-- Advanced API Settings -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="apiAdvancedLabel" styleClass="text-bold" text="%settings.api.advanced" />
+
+                        <HBox alignment="CENTER_LEFT" spacing="15.0">
+                            <VBox spacing="5.0">
+                                <Label fx:id="apiTimeoutLabel" text="%settings.api.timeout" />
+                                <Spinner fx:id="timeoutSpinner" initialValue="600" max="1200" min="60" prefWidth="80.0" />
+                            </VBox>
+                        </HBox>
+                    </VBox>
+                                </VBox>
+                            </ScrollPane>
+                        </Tab>
+                        <Tab closable="false" text="Gemini">
+                            <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED">
+                                <VBox spacing="15.0">
+                                    <padding>
+                                        <Insets bottom="10.0" left="0" right="10.0" top="10.0" />
+                                    </padding>
+                    <!-- Google Gemini API Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="geminiApiLabel" styleClass="text-bold" text="%settings.gemini.title" />
+                        <Label fx:id="geminiApiDescLabel" text="%settings.gemini.description" />
+
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <PasswordField fx:id="geminiApiKeyField" promptText="%settings.gemini.key.placeholder" HBox.hgrow="ALWAYS" />
+
+                            <Button fx:id="showGeminiApiKeyButton" onAction="#onShowGeminiApiKeyToggle" styleClass="button-icon">
+                                <graphic>
+                                    <FontIcon fx:id="showGeminiApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                                <tooltip>
+                                    <Tooltip text="%settings.gemini.key.toggle.tooltip" />
+                                </tooltip>
+                            </Button>
+
+                            <Button fx:id="testGeminiConnectionButton" onAction="#onTestGeminiConnection" styleClass="accent" text="%settings.gemini.test">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+
+                        <!-- Gemini Connection Status -->
+                        <HBox fx:id="geminiConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                            <FontIcon fx:id="geminiConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                            <Label fx:id="geminiConnectionStatusLabel" text="%settings.gemini.connection.none" />
+                        </HBox>
+
+                        <!-- Gemini Provider Activation Checkbox -->
+                        <CheckBox fx:id="geminiProviderEnabledCheckBox" onAction="#onGeminiProviderToggle" text="%settings.gemini.enable">
+                            <tooltip>
+                                <Tooltip text="%settings.gemini.enable.tooltip" />
+                            </tooltip>
+                        </CheckBox>
+                    </VBox>
+                                </VBox>
+                            </ScrollPane>
+                        </Tab>
+                        <Tab closable="false" text="OpenAI">
+                            <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED">
+                                <VBox spacing="15.0">
+                                    <padding>
+                                        <Insets bottom="10.0" left="0" right="10.0" top="10.0" />
+                                    </padding>
+                    <!-- OpenAI API Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="openaiApiLabel" styleClass="text-bold" text="%settings.openai.title" />
+                        <Label fx:id="openaiApiDescLabel" text="%settings.openai.description" />
+
+                        <TextField fx:id="openaiBaseUrlField" promptText="%settings.openai.baseurl.placeholder" />
+
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <PasswordField fx:id="openaiApiKeyField" promptText="%settings.openai.key.placeholder" HBox.hgrow="ALWAYS" />
+
+                            <Button fx:id="showOpenaiApiKeyButton" onAction="#onShowOpenaiApiKeyToggle" styleClass="button-icon">
+                                <graphic>
+                                    <FontIcon fx:id="showOpenaiApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                                <tooltip>
+                                    <Tooltip text="%settings.openai.key.toggle.tooltip" />
+                                </tooltip>
+                            </Button>
+
+                            <Button fx:id="testOpenaiConnectionButton" onAction="#onTestOpenaiConnection" styleClass="accent" text="%settings.openai.test">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+
+                        <!-- OpenAI Connection Status -->
+                        <HBox fx:id="openaiConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                            <FontIcon fx:id="openaiConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                            <Label fx:id="openaiConnectionStatusLabel" text="%settings.openai.connection.none" />
+                        </HBox>
+
+                        <!-- OpenAI Image Model Selection -->
+                        <VBox fx:id="openaiModelsContainer" spacing="4.0" visible="false" managed="false">
+                            <Label text="%settings.openai.models.label" />
+                            <ListView fx:id="openaiModelList" minHeight="150.0" prefHeight="150.0" maxHeight="150.0" />
+                            <Label text="%settings.openai.chat.label" />
+                            <ComboBox fx:id="openaiChatModelBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- OpenAI Provider Activation Checkbox -->
+                        <CheckBox fx:id="openaiProviderEnabledCheckBox" onAction="#onOpenaiProviderToggle" text="%settings.openai.enable">
+                            <tooltip>
+                                <Tooltip text="%settings.openai.enable.tooltip" />
+                            </tooltip>
+                        </CheckBox>
+                    </VBox>
+                                </VBox>
+                            </ScrollPane>
+                        </Tab>
+                    </TabPane>
+                </VBox>
+
+                <!-- Corporate Proxy Content -->
+                <ScrollPane fx:id="corporateProxyPane" fitToHeight="true" fitToWidth="true" hbarPolicy="NEVER" managed="false" vbarPolicy="AS_NEEDED" visible="false">
+                    <VBox spacing="15.0">
+                        <padding>
+                            <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                        </padding>
+                        
+                        <!-- Proxy Configuration Section -->
+                        <VBox spacing="8.0">
+                            <Label fx:id="proxyTitleLabel" styleClass="text-bold" text="%settings.proxy.title" />
+                            <Label fx:id="proxyDescLabel" text="%settings.proxy.description" />
+                            
+                            <!-- Proxy Enable/Disable -->
+                            <CheckBox fx:id="enableProxyCheckBox" text="%settings.proxy.enable" />
+                            
+                            <HBox alignment="CENTER_LEFT" spacing="15.0">
+                                <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                                    <Label fx:id="proxyHostLabel" text="%settings.proxy.host" />
+                                    <TextField fx:id="proxyHostField" promptText="%settings.proxy.host.placeholder" />
+                                </VBox>
+                                
+                                <VBox spacing="5.0">
+                                    <Label fx:id="proxyPortLabel" text="%settings.proxy.port" />
+                                    <Spinner fx:id="proxyPortSpinner" initialValue="8080" max="65535" min="1" prefWidth="100.0" />
+                                </VBox>
+                            </HBox>
+                            
+                            <!-- Proxy Authentication -->
+                            <VBox spacing="5.0">
+                                <Label fx:id="proxyAuthLabel" text="%settings.proxy.auth" />
+                                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                                        <Label fx:id="proxyUsernameLabel" text="%settings.proxy.username" />
+                                        <TextField fx:id="proxyUsernameField" promptText="%settings.proxy.username.placeholder" />
+                                    </VBox>
+                                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                                        <Label fx:id="proxyPasswordLabel" text="%settings.proxy.password" />
+                                        <PasswordField fx:id="proxyPasswordField" promptText="%settings.proxy.password.placeholder" />
+                                    </VBox>
+                                </HBox>
+                            </VBox>
+                            
+                            <!-- Proxy Test Section -->
+                            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                <Button fx:id="testProxyConnectionButton" onAction="#onTestProxyConnection" styleClass="accent" text="%settings.proxy.test">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+                                <Button fx:id="resetProxyConfigButton" onAction="#onResetProxyConfig" styleClass="danger" text="%settings.proxy.clear">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2r-restore" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+                            </HBox>
+                            
+                            <!-- Proxy Connection Status -->
+                            <HBox fx:id="proxyConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                                <FontIcon fx:id="proxyConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                                <Label fx:id="proxyConnectionStatusLabel" text="%settings.proxy.connection.none" />
+                            </HBox>
+                        </VBox>
+                        
+                        <Separator />
+                        
+                        <!-- Certificate Management Section -->
+                        <VBox spacing="8.0">
+                            <Label fx:id="certificatesTitleLabel" styleClass="text-bold" text="%settings.certificates.title" />
+                            <Label fx:id="certificatesDescLabel" text="%settings.certificates.description" />
+                            
+                            <!-- Certificate Directory -->
+                            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                <Label fx:id="certificatesDirectoryLabel" styleClass="label-muted" text="%settings.certificates.directory" />
+                                <Label fx:id="certificatePathLabel" styleClass="text-caption" text="%settings.certificates.path" HBox.hgrow="ALWAYS" />
+                            </HBox>
+                            
+                            <!-- Certificate Upload -->
+                            <VBox spacing="5.0">
+                                <Label fx:id="certificatesUploadTitleLabel" text="%settings.certificates.upload.title" />
+                                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                    <Button fx:id="uploadCertificateButton" onAction="#onUploadCertificate" styleClass="accent" text="%settings.certificates.upload.button">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2u-upload" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                    </Button>
+                                    <Label fx:id="certificateUploadStatus" text="" />
+                                </HBox>
+                                <Label fx:id="certificatesFormatsLabel" styleClass="text-muted" text="%settings.certificates.formats" />
+                            </VBox>
+                            
+                            <!-- Installed Certificates List -->
+                            <VBox spacing="5.0">
+                                <Label fx:id="certificatesInstalledLabel" text="%settings.certificates.installed" />
+                                <ListView fx:id="installedCertificatesListView" maxHeight="150.0" prefHeight="120.0">
+                                    <!-- Certificate items will be populated by controller -->
+                                </ListView>
+                                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                                    <Button fx:id="removeCertificateButton" disable="true" onAction="#onRemoveCertificate" styleClass="danger" text="%settings.certificates.remove">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2d-delete" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                    </Button>
+                                    <Button fx:id="refreshCertificatesButton" onAction="#onRefreshCertificates" text="%settings.certificates.refresh">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2r-refresh" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                    </Button>
+                                    <Region HBox.hgrow="ALWAYS" />
+                                    <Button fx:id="testCertificateButton" onAction="#onTestCertificateConnection" styleClass="accent" text="%settings.certificates.test">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2s-shield-check" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                    </Button>
+                                </HBox>
+                                
+                                <!-- Certificate Connection Status -->
+                                <HBox fx:id="certificateConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                                    <FontIcon fx:id="certificateConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                                    <Label fx:id="certificateConnectionStatusLabel" text="%settings.certificates.connection.none" />
+                                </HBox>
+                            </VBox>
+                            
+                            <!-- Configuration Source Info -->
+                            <HBox fx:id="proxyConfigSourceContainer" alignment="CENTER_LEFT" spacing="8.0">
+                                <FontIcon fx:id="proxyConfigSourceIcon" iconLiteral="mdi2i-information" iconSize="12" />
+                                <Label fx:id="proxyConfigSourceLabel" text="%proxy.source.none" />
+                            </HBox>
+                        </VBox>
+                    </VBox>
+                </ScrollPane>
+                
+                <!-- Appearance Content -->
+                <VBox fx:id="appearancePane" managed="false" spacing="15.0" visible="false">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+                    
+                    <!-- Theme Selection -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="themeTitleLabel" styleClass="text-bold" text="%settings.theme.title" />
+                        <Label fx:id="themeDescLabel" text="%settings.theme.description" />
+                        
+                        <VBox fx:id="themeSelectionContainer" spacing="5.0">
+                            <!-- Theme radio buttons will be populated by controller -->
+                        </VBox>
+                        
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <Label fx:id="themeChangesLabel" text="%settings.theme.changes" />
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Button fx:id="resetThemeButton" onAction="#onResetToSystemTheme" text="%settings.theme.reset" />
+                        </HBox>
+                    </VBox>
+                    
+                    <Separator />
+                    
+                    <!-- Preview Area -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="themePreviewLabel" styleClass="text-bold" text="%settings.theme.preview" />
+                        <HBox fx:id="themePreviewContainer" alignment="CENTER_LEFT" minHeight="60.0" spacing="10.0" styleClass="bg-inset">
+                            <padding>
+                                <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+                            </padding>
+                            
+                            <Button styleClass="accent" text="%settings.theme.button" />
+                            <Button styleClass="button-outlined" text="%settings.theme.outlined" />
+                            <Label fx:id="themeSampleLabel" text="%settings.theme.sample" />
+                            <FontIcon iconLiteral="mdi2s-star" iconSize="20" styleClass="ikonli-font-icon" />
+                        </HBox>
+                    </VBox>
+                </VBox>
+                
+                <!-- Language Content -->
+                <VBox fx:id="languagePane" managed="false" spacing="15.0" visible="false">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+                    
+                    <!-- Language Selection -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="languageTitleLabel" styleClass="text-bold" text="%settings.language.title" />
+                        <Label fx:id="languageDescLabel" text="%settings.language.description" />
+                        
+                        <VBox fx:id="languageSelectionContainer" spacing="5.0">
+                            <RadioButton fx:id="germanRadio" text="%settings.language.german" />
+                            <RadioButton fx:id="englishRadio" text="%settings.language.english" />
+                        </VBox>
+                        
+                        <Label fx:id="languageChangesLabel" text="%settings.language.changes" />
+                    </VBox>
+                </VBox>
+                
+                <!-- Style Presets Content -->
+                <VBox fx:id="stylePresetsPane" managed="false" spacing="15.0" visible="false">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+                    
+                    <!-- Style Management Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="stylesTitleLabel" styleClass="text-bold" text="%settings.styles.title" />
+                        <Label fx:id="stylesDescLabel" text="%settings.styles.description" />
+                        
+                        <!-- Style List -->
+                        <ListView fx:id="stylePresetsListView" prefHeight="300.0">
+                            <!-- Style items will be populated by controller -->
+                        </ListView>
+                        
+                        <!-- Style Management Buttons -->
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <Button fx:id="addStyleButton" onAction="#onAddStyle" styleClass="accent" text="%settings.styles.add">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2p-plus" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                            
+                            <Button fx:id="editStyleButton" disable="true" onAction="#onEditStyle" text="%settings.styles.edit">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2p-pencil" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                            
+                            <Button fx:id="deleteStyleButton" disable="true" onAction="#onDeleteStyle" styleClass="danger" text="%settings.styles.delete">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2d-delete" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                            
+                            <Region HBox.hgrow="ALWAYS" />
+                            
+                            <Button fx:id="resetStylesButton" onAction="#onResetStyles" text="%settings.styles.reset">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2r-restore" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+                    </VBox>
+                    
+                    <Separator />
+                    
+                    <!-- Style Preview Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="stylesPreviewTitleLabel" styleClass="text-bold" text="%settings.styles.preview.title" />
+                        <Label fx:id="stylePreviewLabel" text="%settings.styles.preview.none" />
+                        
+                        <!-- Prompt Text Display -->
+                        <TextArea fx:id="stylePreviewPromptLabel" editable="false" maxHeight="100.0" maxWidth="Infinity" prefRowCount="5" text="%settings.styles.preview.prompt" wrapText="true" />
+                    </VBox>
+                </VBox>
+
+                <!-- Color Styles Content -->
+                <VBox fx:id="colorStylesPane" managed="false" spacing="15.0" visible="false">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+
+                    <!-- Color Style Management Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="colorStylesTitleLabel" styleClass="text-bold" text="%settings.colorstyles.title" />
+                        <Label fx:id="colorStylesDescLabel" text="%settings.colorstyles.description" />
+
+                        <!-- Color Style List -->
+                        <ListView fx:id="colorStylesListView" prefHeight="300.0">
+                            <!-- Color style items will be populated by controller -->
+                        </ListView>
+
+                        <!-- Color Style Management Buttons -->
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <Button fx:id="addColorStyleButton" onAction="#onAddColorStyle" styleClass="accent" text="%settings.colorstyles.add">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2p-plus" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+
+                            <Button fx:id="editColorStyleButton" disable="true" onAction="#onEditColorStyle" text="%settings.colorstyles.edit">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2p-pencil" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+
+                            <Button fx:id="deleteColorStyleButton" disable="true" onAction="#onDeleteColorStyle" styleClass="danger" text="%settings.colorstyles.delete">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2d-delete" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+
+                            <Region HBox.hgrow="ALWAYS" />
+
+                            <Button fx:id="resetColorStylesButton" onAction="#onResetColorStyles" text="%settings.colorstyles.reset">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2r-restore" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+                    </VBox>
+
+                    <Separator />
+
+                    <!-- Color Style Preview Section -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="colorStylesPreviewTitleLabel" styleClass="text-bold" text="%settings.colorstyles.preview.title" />
+                        <Label fx:id="colorStylePreviewLabel" text="%settings.colorstyles.preview.none" />
+
+                        <!-- Color Boxes Preview -->
+                        <HBox fx:id="colorStylePreviewBox" alignment="CENTER_LEFT" spacing="8.0">
+                            <!-- Color boxes will be populated by controller -->
+                        </HBox>
+                    </VBox>
+                </VBox>
+
+                <!-- Advanced Content -->
+                <VBox fx:id="advancedPane" managed="false" spacing="15.0" visible="false">
+                    <padding>
+                        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+                    </padding>
+
+                    <!-- Performance Settings -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="performanceTitleLabel" styleClass="text-bold" text="%settings.performance.title" />
+
+                        <CheckBox fx:id="enableLoggingCheckBox" selected="false" text="%settings.performance.logging" />
+                    </VBox>
+                    
+                    <Separator />
+                    
+                    <!-- Data Management -->
+                    <VBox spacing="8.0">
+                        <Label fx:id="dataTitleLabel" styleClass="text-bold" text="%settings.data.title" />
+                        
+                        <Button fx:id="exportSettingsButton" onAction="#onExportSettings" text="%settings.data.export" />
+                        <Button fx:id="importSettingsButton" onAction="#onImportSettings" text="%settings.data.import" />
+                        <Button fx:id="resetSettingsButton" onAction="#onResetSettings" styleClass="danger" text="%settings.data.reset" />
+                    </VBox>
+                    
+                    <Separator />
+                    
+                    <!-- About Section -->
+                    <VBox spacing="5.0">
+                        <Label fx:id="aboutTitleLabel" styleClass="text-bold" text="%settings.about.title" />
+                        <Label fx:id="versionLabel" text="%settings.about.version" />
+                        <Label fx:id="configPathTitleLabel" text="%settings.about.config.path" />
+                        <HBox alignment="CENTER_LEFT" spacing="10.0">
+                            <Label fx:id="configPathLabel" HBox.hgrow="ALWAYS" />
+                            <Button fx:id="openConfigDirectoryButton" onAction="#onOpenConfigDirectory" text="%settings.about.config.open">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2f-folder-open" iconSize="16" styleClass="ikonli-font-icon" />
+                                </graphic>
+                            </Button>
+                        </HBox>
+                    </VBox>
+                </VBox>
+                
+            </StackPane>
+            
+        </SplitPane>
+    </content>
+
+    <!-- Dialog Buttons -->
+    <buttonTypes>
+        <ButtonType fx:constant="CLOSE" />
+    </buttonTypes>
+
+</DialogPane>

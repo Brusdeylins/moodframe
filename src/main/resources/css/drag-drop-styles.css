@@ -1,0 +1,116 @@
+/**
+ * Drag and Drop Styles for Image Attachment
+ * Version 1.1 - Drag & Drop Feature
+ */
+
+/* Base state for the image preview container */
+#imagePreviewContainer {
+    -fx-background-color: -color-bg-inset;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-muted;
+    -fx-border-width: 1px;
+    -fx-border-style: dashed;
+    -fx-border-radius: 4px;
+    transition: all 0.15s ease-in-out;
+}
+
+/* Valid drag over state - green/success indication */
+#imagePreviewContainer.drag-over-valid {
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2px;
+    -fx-border-style: solid;
+    -fx-background-color: rgba(76, 175, 80, 0.05);
+    -fx-effect: dropshadow(gaussian, rgba(76, 175, 80, 0.3), 10, 0, 0, 0);
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+/* Invalid drag over state - red/error indication */
+#imagePreviewContainer.drag-over-invalid {
+    -fx-border-color: #f44336;
+    -fx-border-width: 2px;
+    -fx-border-style: solid;
+    -fx-background-color: rgba(244, 67, 54, 0.05);
+    -fx-effect: dropshadow(gaussian, rgba(244, 67, 54, 0.3), 10, 0, 0, 0);
+}
+
+/* Success drop animation */
+#imagePreviewContainer.drop-success {
+    -fx-border-color: #4CAF50;
+    -fx-border-width: 2px;
+    -fx-border-style: solid;
+    -fx-background-color: rgba(76, 175, 80, 0.1);
+}
+
+/* Fade-in animation for dropped images */
+.drop-success ImageView {
+    -fx-opacity: 0;
+    animation: fadeIn 0.3s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+    from { -fx-opacity: 0; }
+    to { -fx-opacity: 1; }
+}
+
+/* Hover state when dragging */
+#imagePreviewContainer:hover.drag-over-valid {
+    -fx-border-color: #45a049;
+    -fx-background-color: rgba(76, 175, 80, 0.1);
+}
+
+#imagePreviewContainer:hover.drag-over-invalid {
+    -fx-border-color: #da190b;
+    -fx-background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Placeholder text styling during drag */
+#noImagePlaceholder {
+    transition: opacity 0.2s ease-in-out;
+}
+
+.drag-over-valid #noImagePlaceholder Label {
+    -fx-text-fill: #4CAF50;
+}
+
+.drag-over-invalid #noImagePlaceholder Label {
+    -fx-text-fill: #f44336;
+}
+
+/* Icon color changes during drag */
+.drag-over-valid #noImagePlaceholder .ikonli-font-icon {
+    -fx-icon-color: #4CAF50;
+}
+
+.drag-over-invalid #noImagePlaceholder .ikonli-font-icon {
+    -fx-icon-color: #f44336;
+}
+
+/* Smooth transitions */
+#imagePreviewContainer,
+#imagePreviewContainer * {
+    -fx-transition: all 0.15s ease-in-out;
+}
+
+/* Pulse animation for valid drag (optional enhancement) */
+@keyframes pulse-valid {
+    0% { -fx-border-color: #4CAF50; }
+    50% { -fx-border-color: #66BB6A; }
+    100% { -fx-border-color: #4CAF50; }
+}
+
+.drag-over-valid {
+    animation: pulse-valid 1.5s infinite;
+}
+
+/* Error shake animation (optional for invalid drops) */
+@keyframes shake {
+    0%, 100% { -fx-translate-x: 0; }
+    10%, 30%, 50%, 70%, 90% { -fx-translate-x: -5; }
+    20%, 40%, 60%, 80% { -fx-translate-x: 5; }
+}
+
+.drop-error {
+    animation: shake 0.3s;
+    -fx-border-color: #f44336 !important;
+}

@@ -1,0 +1,45 @@
+/*
+ * Memory Status Component Styles
+ * Styles for the memory monitoring display in the footer
+ */
+
+.memory-status {
+    -fx-background-color: transparent;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 2 8 2 8;
+}
+
+.memory-status:hover {
+    -fx-background-color: -color-bg-subtle;
+}
+
+.memory-status .label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.memory-status .ikonli-font-icon {
+    -fx-icon-size: 12px;
+    -fx-icon-color: derive(-fx-text-base-color, 50%);
+}
+
+/* Status color classes */
+.memory-status .ikonli-font-icon.text-success {
+    -fx-icon-color: #28a745;
+}
+
+.memory-status .ikonli-font-icon.text-warning {
+    -fx-icon-color: #ffc107;  
+}
+
+.memory-status .ikonli-font-icon.text-danger {
+    -fx-icon-color: #dc3545;
+}
+
+/* Tooltips for detailed information */
+.memory-status .tooltip {
+    -fx-font-size: 11px;
+    -fx-max-width: 300px;
+    -fx-wrap-text: true;
+}

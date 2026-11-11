@@ -1,0 +1,39 @@
+/* Settings Dialog Styling */
+/* Styles the header panel and label text in the Settings Dialog */
+
+/* Settings Dialog - Base padding */
+.settings-dialog {
+    -fx-padding: 10;
+    -fx-background-color: -color-bg-default;
+}
+
+/* Settings Dialog - Header Panel Styling */
+.settings-dialog .header-panel {
+    /* Fixed height with asymmetric spacing */
+    -fx-min-height: 50px;
+    -fx-pref-height: 50px;
+    -fx-max-height: 50px;
+    /* Left padding of 20px, 12px top, 17px bottom for vertical centering */
+    -fx-padding: 12 0 17 20;
+    /* Left-aligned text */
+    -fx-alignment: center-left;
+    /* Extend black background to dialog edges */
+    -fx-background-insets: -10 -10 0 -10;
+}
+
+/* Settings Dialog - Header Label Text */
+.settings-dialog .header-panel .label.title-3 {
+    /* Shift text 10px to the right - font styling comes from title-3 class */
+    -fx-padding: 0 0 0 10;
+}
+
+/* Settings Dialog - Content Region (20px top padding for spacing from header) */
+.settings-dialog .content {
+    -fx-padding: 20 0 0 0;
+    -fx-background-insets: 0;
+}
+
+/* Settings Dialog - Button Bar (no padding) */
+.settings-dialog .button-bar {
+    -fx-padding: 0;
+}

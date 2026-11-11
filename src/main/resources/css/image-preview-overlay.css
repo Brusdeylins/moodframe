@@ -1,0 +1,38 @@
+/* Image Preview Overlay CSS - Force white icons */
+
+.image-preview-overlay .button-icon .ikonli-font-icon {
+    -fx-icon-color: white !important;
+    -fx-fill: white !important;
+    -fx-text-fill: white !important;
+    -ikonli-icon-color: white !important;
+}
+
+.image-preview-overlay .button-icon {
+    -fx-text-fill: white !important;
+    -ikonli-icon-color: white !important;
+}
+
+/* Ensure FontIcon elements in overlay buttons are white */
+.image-preview-overlay FontIcon {
+    -fx-icon-color: white !important;
+    -fx-fill: white !important;
+    -ikonli-icon-color: white !important;
+}
+
+/* Override any AtlantaFX theme styles for these specific buttons */
+.image-preview-overlay .button-icon:any-link,
+.image-preview-overlay .button-icon:visited,
+.image-preview-overlay .button-icon:hover,
+.image-preview-overlay .button-icon:pressed,
+.image-preview-overlay .button-icon:focused {
+    -fx-text-fill: white !important;
+    -ikonli-icon-color: white !important;
+}
+
+/* Force all child elements to be white */
+.image-preview-overlay .button-icon * {
+    -fx-icon-color: white !important;
+    -fx-fill: white !important;
+    -fx-text-fill: white !important;
+    -ikonli-icon-color: white !important;
+}

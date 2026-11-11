@@ -1,0 +1,79 @@
+# Version Catalog for Moodframe dependencies
+# This file centralizes all dependency versions for better maintenance
+# External API documentation links are included for reference
+
+[versions]
+# Core JavaFX
+javafx = "21.0.2"
+
+# HTTP Client
+okhttp = "4.12.0"
+
+# JSON Processing - Jackson
+jackson = "2.16.1"
+
+# Database - SQLite & JDBI
+sqlite = "3.45.1.0"
+jdbi = "3.45.1"
+
+# Logging - Logback & SLF4J  
+logback = "1.4.14"
+slf4j = "2.0.11"
+
+# UI Icons - Ikonli MaterialDesign
+ikonli = "12.3.1"
+
+# Testing - JUnit & TestFX
+junit = "5.10.1"
+testfx = "4.0.18"
+
+# Build Tools
+owasp-dependency-check = "10.0.4"
+
+[libraries]
+# JavaFX - https://openjfx.io/javadoc/21/
+javafx-controls = { module = "org.openjfx:javafx-controls", version.ref = "javafx" }
+javafx-fxml = { module = "org.openjfx:javafx-fxml", version.ref = "javafx" }
+
+# HTTP Client - https://square.github.io/okhttp/
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+
+# JSON Processing - https://github.com/FasterXML/jackson
+jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310", version.ref = "jackson" }
+
+# Database - https://github.com/xerial/sqlite-jdbc & https://jdbi.org/
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
+jdbi-core = { module = "org.jdbi:jdbi3-core", version.ref = "jdbi" }
+jdbi-sqlobject = { module = "org.jdbi:jdbi3-sqlobject", version.ref = "jdbi" }
+
+# Logging - https://logback.qos.ch/documentation.html
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+
+# Icons - https://kordamp.org/ikonli/
+ikonli-core = { module = "org.kordamp.ikonli:ikonli-core", version.ref = "ikonli" }
+ikonli-javafx = { module = "org.kordamp.ikonli:ikonli-javafx", version.ref = "ikonli" }
+ikonli-materialdesign2 = { module = "org.kordamp.ikonli:ikonli-materialdesign2-pack", version.ref = "ikonli" }
+
+# Testing - https://junit.org/junit5/docs/current/user-guide/
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+testfx-core = { module = "org.testfx:testfx-core", version.ref = "testfx" }
+testfx-junit5 = { module = "org.testfx:testfx-junit5", version.ref = "testfx" }
+
+[bundles]
+# Common dependency bundles
+javafx = ["javafx-controls", "javafx-fxml"]
+jackson = ["jackson-core", "jackson-databind", "jackson-datatype-jsr310"]
+jdbi = ["jdbi-core", "jdbi-sqlobject"]
+logging = ["logback-classic", "logback-core", "slf4j-api"]
+ikonli = ["ikonli-core", "ikonli-javafx", "ikonli-materialdesign2"]
+testing = ["junit-jupiter", "testfx-core", "testfx-junit5"]
+
+[plugins]
+# Build plugins
+javafx = { id = "org.openjfx.javafxplugin", version = "0.1.0" }
+dependency-check = { id = "org.owasp.dependencycheck", version.ref = "owasp-dependency-check" }
+conveyor = { id = "dev.hydraulic.conveyor", version = "1.10" }

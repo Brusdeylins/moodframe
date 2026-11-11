@@ -1,0 +1,46 @@
+# Moodframe
+
+Moodframe is a desktop studio for AI image generation. The mood decides how an image feels; the frame decides how
+it is rendered. One app for several image models, with prompt building blocks and a brainstorm assistant that turns
+a rough idea into a finished prompt.
+
+## Features
+
+- **Image models:** FLUX 3 and FLUX.2 (Black Forest Labs), Nano Banana (Google Gemini), and any OpenAI-compatible
+  image API (OpenAI or your own gateway), with model families and resolutions
+- **Building blocks:** styles and color palettes, built in and your own
+- **Brainstorm:** a guided chat with Gemini or an OpenAI-compatible model, with web research and fact checks, that
+  hands over prompt, style, colors, model and resolution
+- **Reference images:** up to 10 per request (depending on the model), from file, drag and drop or clipboard,
+  scaled down automatically when too large
+- **Video:** Gemini Omni
+- **Library:** chats with all images, costs per image, trash with restore
+- **Corporate networks:** proxy settings and custom root certificates
+
+## Requirements
+
+- Java 21
+- An API key for at least one provider (BFL, Google Gemini, or an OpenAI-compatible endpoint)
+
+## Build and run
+
+```bash
+./gradlew run      # start the app
+./gradlew test     # run the tests
+```
+
+API keys are entered in the settings and stored encrypted in `~/.moodframe/config.properties`. The key for that
+encryption is created per installation in `~/.moodframe/secret.key`. You can also pass keys as environment variables
+(`BFL_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`).
+
+## Packaging
+
+Installers for macOS and Windows are built with [Conveyor](https://conveyor.hydraulic.dev) (`conveyor.conf`):
+
+```bash
+./gradlew deploy
+```
+
+## License
+
+[MIT](LICENSE) © Matthias Brusdeylins

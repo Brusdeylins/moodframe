@@ -1,0 +1,135 @@
+/* CSS Performance Optimizations for Smooth Scrolling */
+
+/* Optimize ScrollPane performance */
+.scroll-pane {
+    /* Increase scroll increment for smoother scrolling (higher = faster but less smooth) */
+    -fx-unit-increment: 25;
+    -fx-block-increment: 100;
+    /* Enable smooth transitions */
+    -fx-smooth: true;
+}
+
+.scroll-pane .scroll-bar:vertical {
+    /* Fine-tune vertical scrolling increments */
+    -fx-unit-increment: 25;
+    -fx-block-increment: 100;
+}
+
+.scroll-pane .scroll-bar:horizontal {
+    /* Fine-tune horizontal scrolling increments */
+    -fx-unit-increment: 25;
+    -fx-block-increment: 100;
+}
+
+/* Optimize VBox performance for many children */
+.chat-messages-container {
+    /* Enable GPU caching for the container */
+    -fx-cache: true;
+    -fx-cache-hint: speed;
+    
+    /* Disable expensive CSS effects during scrolling */
+    -fx-blend-mode: null;
+}
+
+/* Performance-optimized chat entry cards */
+.chat-entry-card {
+    /* Use simpler border style (avoid dashed borders which hurt performance) */
+    -fx-border-style: solid;
+    
+    /* Optimize shadow for GPU rendering */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 1, 0, 0, 1);
+    
+    /* Enable hardware acceleration */
+    -fx-cache: true;
+    -fx-cache-hint: speed;
+}
+
+/* Optimize image containers for better performance */
+.image-container {
+    -fx-cache: true;
+    -fx-cache-hint: quality;
+}
+
+/* Smooth scrolling viewport */
+.scroll-pane .viewport {
+    -fx-cache: true;
+}
+
+/* Disable expensive CSS during scrolling animations */
+.scroll-pane:scrolling .chat-entry-card {
+    -fx-effect: null;
+}
+
+.scroll-pane:scrolling .image-container {
+    -fx-effect: null;
+}
+
+/* Resizable Input Area - SplitPane Divider Styling */
+#chatInputSplitPane {
+    -fx-background-color: transparent;
+}
+
+#chatInputSplitPane .split-pane-divider {
+    -fx-padding: 0 0 0 0;
+    -fx-background-color: -color-border-default;
+    -fx-background-insets: 0;
+    -fx-pref-height: 3px;
+    -fx-cursor: row-resize;
+}
+
+#chatInputSplitPane .split-pane-divider:hover {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-pref-height: 4px;
+}
+
+#chatInputSplitPane .split-pane-divider:pressed {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-pref-height: 5px;
+}
+
+/* ============================================= */
+/* Chat Entries ListView - Virtualized Scrolling */
+/* ============================================= */
+
+.chat-entries-list {
+    /* Remove default border/background */
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+
+    /* CRITICAL: Disable horizontal scrollbar */
+    -fx-fit-to-width: true;
+}
+
+/* Hide horizontal scrollbar completely */
+.chat-entries-list .scroll-bar:horizontal {
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-min-height: 0;
+    -fx-opacity: 0;
+}
+
+/* Style vertical scrollbar */
+.chat-entries-list .scroll-bar:vertical {
+    -fx-unit-increment: 40;
+    -fx-block-increment: 200;
+}
+
+/* Cell styling - must fill width */
+.chat-entries-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 5 10 5 10;
+    /* Prevent cell from expanding beyond ListView width */
+    -fx-max-width: infinity;
+}
+
+.chat-entries-list .list-cell:empty {
+    -fx-background-color: transparent;
+}
+
+/* Prevent selection highlighting */
+.chat-entries-list .list-cell:selected,
+.chat-entries-list .list-cell:focused,
+.chat-entries-list .list-cell:selected:focused {
+    -fx-background-color: transparent;
+}
