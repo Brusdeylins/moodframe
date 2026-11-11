@@ -16,6 +16,7 @@ import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.util.Secrets;
 import art.moodframe.util.ThemeManager;
 
 /**
@@ -107,6 +108,9 @@ public class MoodframeApplication extends Application {
             // Initialize configuration
             ApplicationConfig config = new ApplicationConfig();
             ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+
+            /*  Earlier versions wrote the Gemini key into the log files  */
+            Secrets.redactLogs(java.nio.file.Paths.get(config.getLogsPath()));
 
             // Initialize CorporateProxyConfig after ApplicationConfig
             CorporateProxyConfig proxyConfig = new CorporateProxyConfig(config);

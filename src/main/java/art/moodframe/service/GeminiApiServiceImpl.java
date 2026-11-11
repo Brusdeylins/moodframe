@@ -170,10 +170,11 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             try {
                 // Test connection by listing available models
                 // This is a lightweight API call that validates the key
-                String url = GEMINI_API_BASE_URL + "/models?key=" + apiKey;
+                String url = getApiBaseUrl() + "/models";
 
                 Request request = new Request.Builder()
                         .url(url)
+                        .header("x-goog-api-key", apiKey)
                         .get()
                         .build();
 
@@ -218,8 +219,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 String geminiModelName = getGeminiModelName(request.getModel());
 
                 // Build API endpoint
-                String endpoint = GEMINI_API_BASE_URL + "/models/" + geminiModelName +
-                                ":generateContent?key=" + apiKey;
+                String endpoint = getApiBaseUrl() + "/models/" + geminiModelName + ":generateContent";
 
                 logger.info("Submitting Gemini generation request to: {}", endpoint);
 
@@ -231,6 +231,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
                 Request httpRequest = new Request.Builder()
                     .url(endpoint)
+                    .header("x-goog-api-key", apiKey)
                     .post(body)
                     .build();
 
@@ -859,6 +860,13 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         return fullMessage.substring(0, endIndex).trim();
     }
 
+    /**
+     * Returns the base URL of the Gemini API. The tests override it to answer the requests themselves.
+     */
+    String getApiBaseUrl() {
+        return GEMINI_API_BASE_URL;
+    }
+
     @Override
     public String getApiKey() {
         return apiKey;
@@ -985,8 +993,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 // Use text generation model for video understanding
                 // gemini-3.5-flash supports video understanding (gemini-2.0-flash EOL June 2026)
                 String modelName = "gemini-3.5-flash";
-                String endpoint = GEMINI_API_BASE_URL + "/models/" + modelName +
-                                ":generateContent?key=" + apiKey;
+                String endpoint = getApiBaseUrl() + "/models/" + modelName + ":generateContent";
 
                 logger.info("Submitting YouTube video analysis request to: {}", endpoint);
                 logger.debug("Analyzing video: {} ({}s - {}s)",
@@ -1005,6 +1012,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
                 Request httpRequest = new Request.Builder()
                     .url(endpoint)
+                    .header("x-goog-api-key", apiKey)
                     .post(body)
                     .build();
 
@@ -1361,7 +1369,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
      */
     private JSONObject postBrainstorm(String model, JSONObject requestBody, int readTimeoutSeconds) {
         Request httpRequest = new Request.Builder()
-                .url(GEMINI_API_BASE_URL + "/models/" + model + ":generateContent")
+                .url(getApiBaseUrl() + "/models/" + model + ":generateContent")
                 .header("x-goog-api-key", apiKey)
                 .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json; charset=utf-8")))
                 .build();
@@ -1454,7 +1462,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                         .readTimeout(OMNI_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .build();
                 Request httpRequest = new Request.Builder()
-                        .url(GEMINI_API_BASE_URL + "/interactions")
+                        .url(getApiBaseUrl() + "/interactions")
                         .header("x-goog-api-key", apiKey)
                         .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
                         .build();
@@ -1643,7 +1651,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         if (!matcher.find()) return;
 
         Request request = new Request.Builder()
-                .url(GEMINI_API_BASE_URL + "/files/" + matcher.group(1))
+                .url(getApiBaseUrl() + "/files/" + matcher.group(1))
                 .header("x-goog-api-key", apiKey)
                 .get()
                 .build();

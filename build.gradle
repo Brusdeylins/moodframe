@@ -121,6 +121,7 @@ dependencies {
     testImplementation 'org.testfx:testfx-core:4.0.18'
     testImplementation 'org.testfx:testfx-junit5:4.0.18'
     testImplementation 'org.hamcrest:hamcrest:2.2'
+    testRuntimeOnly 'org.testfx:openjfx-monocle:21.0.2'
 }
 
 application {
@@ -148,6 +149,14 @@ test {
     systemProperty 'prism.order', 'sw'
     systemProperty 'prism.text', 't2k'
     systemProperty 'java.awt.headless', 'true'
+
+    // JavaFX starts on the Monocle headless platform: the native one finds no screen once AWT runs headless
+    systemProperty 'glass.platform', 'Monocle'
+    systemProperty 'monocle.platform', 'Headless'
+
+    // Time limit of every test and lifecycle method, and of the whole run
+    systemProperty 'junit.jupiter.execution.timeout.default', '60 s'
+    timeout = Duration.ofMinutes(2)
 }
 
 // Custom tasks

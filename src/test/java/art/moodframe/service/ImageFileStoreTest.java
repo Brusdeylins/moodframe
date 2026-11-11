@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,5 +62,18 @@ class ImageFileStoreTest {
         assertTrue(stored.filename().endsWith(".png"));
         assertEquals(Files.size(stored.path()), stored.size());
         assertEquals(dir, stored.path().getParent());
+    }
+
+    @Test
+    void doesNotQuoteTheSignatureOfARejectedUrl(@TempDir Path dir) {
+        ApplicationConfig config = mock(ApplicationConfig.class);
+        when(config.getImagesPath()).thenReturn(dir.toString());
+        GeneratedImage image = image();
+        image.setImageUrl("https://delivery.example/result image.png?sp=r&sig=SECRETSIG");
+
+        Exception error = assertThrows(java.io.IOException.class, () -> new ImageFileStore(config, null).download(image));
+
+        assertTrue(error.getMessage().contains("sig=***"), error.getMessage());
+        assertFalse(error.getMessage().contains("SECRETSIG"), error.getMessage());
     }
 }

@@ -7,6 +7,7 @@ import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.util.Secrets;
 import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -465,7 +466,7 @@ public class BflGenerationFlow {
                     downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
 
                     if (config.getLoggingEnabled()) {
-                        logger.info("Job {} completed successfully with image URL: {}", jobId, imageUrl);
+                        logger.info("Job {} completed successfully with image URL: {}", jobId, Secrets.redact(imageUrl));
                     }
             } else {
                 logger.error("No image URL found in result for job: {}", jobId);

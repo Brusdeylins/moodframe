@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,11 +79,18 @@ public class ImageFileStore {
         Path imagesDir = Paths.get(config.getImagesPath());
         Files.createDirectories(imagesDir);
 
-        HttpRequest downloadRequest = HttpRequest.newBuilder()
-                .uri(URI.create(imageUrl))
-                .timeout(Duration.ofSeconds(60)) // Longer timeout for image download
-                .GET()
-                .build();
+        HttpRequest downloadRequest;
+        try {
+            downloadRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(imageUrl))
+                    .timeout(Duration.ofSeconds(60)) // Longer timeout for image download
+                    .GET()
+                    .build();
+        }
+        catch (IllegalArgumentException e) {
+            /*  The message quotes the rejected URL, which carries the signature of the download  */
+            throw new java.io.IOException(Secrets.redact(e.getMessage()));
+        }
         HttpResponse<byte[]> downloadResponse = downloadClient.send(
                 downloadRequest, HttpResponse.BodyHandlers.ofByteArray());
         if (downloadResponse.statusCode() != 200)
