@@ -33,6 +33,24 @@ class BrainstormPromptBuilderTest {
     }
 
     @Test
+    void shipsTheSettingSectionWithAllStructuresAndPatterns() throws Exception {
+        String template = new String(getClass().getResourceAsStream("/brainstorm/system-prompt.txt").readAllBytes());
+
+        String prompt = BrainstormPromptBuilder.build(template, "German", context, "");
+
+        assertTrue(prompt.contains("\n# Setting\n"), "the section \"Setting\" is part of the system prompt");
+        for (String structure : List.of("Timeline: Horizontal timeline", "Steps: Step-by-step guide",
+                "Flowchart: Flowchart titled", "Mind Map: Mind map with", "Comparison: Side-by-side comparison",
+                "Data Chart: Data infographic", "Hierarchy: Hierarchy diagram", "Cycle: Circular process diagram",
+                "Architecture: System architecture diagram"))
+            assertTrue(prompt.contains("\n- " + structure), structure);
+        assertTrue(prompt.contains("[N] people: [who, role, rough age, clothing only if it matters]."),
+                "the pattern of the person scene");
+        assertTrue(prompt.contains("[Product, material, color] standing/lying on [surface] in front of [background]."),
+                "the pattern of the product setup");
+    }
+
+    @Test
     void listsStylesColorStylesModelsAndRatios() {
         String prompt = BrainstormPromptBuilder.build(
                 "{{STYLES}}|{{COLOR_STYLES}}|{{MODELS}}|{{ASPECT_RATIOS}}|{{CURRENT_STATE}}|{{CURRENT_DRAFT}}",
