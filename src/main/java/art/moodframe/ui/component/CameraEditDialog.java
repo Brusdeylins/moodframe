@@ -1,0 +1,459 @@
+package art.moodframe.ui.component;
+
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
+import javafx.util.StringConverter;
+import org.kordamp.ikonli.javafx.FontIcon;
+
+import art.moodframe.config.ServiceFactory;
+import art.moodframe.model.CameraSettings;
+import art.moodframe.model.CameraSettings.Aperture;
+import art.moodframe.model.CameraSettings.Body;
+import art.moodframe.model.CameraSettings.Iso;
+import art.moodframe.model.CameraSettings.Lens;
+import art.moodframe.model.CameraSettings.Perspective;
+import art.moodframe.model.CameraSettings.Shot;
+import art.moodframe.model.CameraSettings.Shutter;
+import art.moodframe.model.PromptBlock;
+import art.moodframe.service.CameraPromptBuilder;
+import art.moodframe.service.PromptBlockService;
+import art.moodframe.util.I18nChangeListener;
+import art.moodframe.util.I18nManager;
+
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+
+/**
+ * Dialog for creating and editing a camera: no free text, but settings from which the app builds the fragment.
+ *
+ * <p>
+ * Left the settings (tiles for the camera type with its model, sliders with detents for focal length and aperture,
+ * symbol rows for shutter, ISO, perspective and shot size), right a schematic preview, below the generated prompt,
+ * all live. Every setting starts at "Any". A camera of the user is saved in place or as a new one, a standard camera
+ * only as a new one.
+ * </p>
+ *
+ * @since 2.0.0
+ */
+public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements I18nChangeListener {
+
+    /**
+     * Result of the dialog.
+     *
+     * @param save     how the camera is stored
+     * @param name     the name
+     * @param settings the settings
+     */
+    public record Result(BlockEditDialog.Save save, String name, CameraSettings settings) {
+    }
+
+    /*  The detents of the focal length slider: "Any", then the focal lengths from wide to long  */
+    private static final List<Lens> FOCAL_LENGTHS = List.of(Lens.MM_14, Lens.MM_24, Lens.MM_35, Lens.MM_50,
+            Lens.MM_85, Lens.MM_135, Lens.MM_200, Lens.MM_400);
+    private static final List<Lens> SPECIAL_LENSES = List.of(Lens.MACRO, Lens.FISHEYE, Lens.TILT_SHIFT,
+            Lens.ANAMORPHIC);
+    private static final double SETTINGS_WIDTH = 484;
+
+    private static final Map<Body, String> BODY_ICONS = Map.of(Body.SMARTPHONE, "mdi2c-cellphone",
+            Body.COMPACT_35MM, "mdi2f-film", Body.FULL_FRAME, "mdi2c-camera", Body.APS_C, "mdi2c-camera-outline",
+            Body.MEDIUM_FORMAT, "mdi2c-camera-iris", Body.LARGE_FORMAT, "mdi2c-crop-free",
+            Body.CINEMA, "mdi2m-movie-open-outline", Body.INSTANT, "mdi2i-image-frame", Body.DRONE, "mdi2q-quadcopter",
+            Body.ACTION_CAM, "mdi2c-camera-gopro");
+    private static final Map<Shutter, String> SHUTTER_ICONS = Map.of(Shutter.FROZEN, "mdi2s-snowflake",
+            Shutter.NORMAL, "mdi2c-camera-iris", Shutter.MOTION_BLUR, "mdi2r-run-fast",
+            Shutter.LONG_EXPOSURE, "mdi2t-timer-sand");
+    private static final Map<Perspective, String> PERSPECTIVE_ICONS = Map.of(
+            Perspective.EYE_LEVEL, "mdi2e-eye-outline", Perspective.LOW_ANGLE, "mdi2a-arrow-up-bold-outline",
+            Perspective.HIGH_ANGLE, "mdi2a-arrow-down-bold-outline", Perspective.TOP_DOWN, "mdi2a-arrow-collapse-down",
+            Perspective.DUTCH_ANGLE, "mdi2r-rotate-right");
+    private static final Map<Shot, String> SHOT_ICONS = Map.of(Shot.EXTREME_WIDE, "mdi2i-image-filter-hdr",
+            Shot.WIDE, "mdi2a-account-multiple-outline", Shot.MEDIUM, "mdi2a-account-outline",
+            Shot.CLOSE_UP, "mdi2a-account-box-outline", Shot.DETAIL, "mdi2m-magnify-plus-outline");
+
+    private final PromptBlock block;
+    private final PromptBlockService blockService;
+    private final ButtonType saveButtonType;
+    private final ButtonType saveAsNewButtonType;
+    private final Map<Object, String> texts = new IdentityHashMap<>();
+    private final List<Runnable> headings = new ArrayList<>();
+    private final TextField nameField = new TextField();
+    private final ToggleGroup bodyGroup = new ToggleGroup();
+    private final ChoiceBox<CameraPromptBuilder.Model> modelBox = new ChoiceBox<>();
+    private final Slider focalSlider = new Slider(0, FOCAL_LENGTHS.size(), 0);
+    private final ToggleGroup specialGroup = new ToggleGroup();
+    private final Slider apertureSlider = new Slider(0, Aperture.values().length, 0);
+    private final ToggleGroup shutterGroup = new ToggleGroup();
+    private final ToggleGroup isoGroup = new ToggleGroup();
+    private final ToggleGroup perspectiveGroup = new ToggleGroup();
+    private final ToggleGroup shotGroup = new ToggleGroup();
+    private final CameraPreview preview = new CameraPreview();
+    private final TextArea promptArea = new TextArea();
+    private final Label validationLabel = new Label();
+    private final Label helpLabel = new Label();
+
+    /**
+     * Creates the dialog.
+     *
+     * @param block the camera to edit, null for a new one
+     */
+    public CameraEditDialog(PromptBlock block) {
+        this.block = block;
+        this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
+        CameraSettings settings = block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY;
+
+        I18nManager.addChangeListener(this);
+
+        /*  A new camera and a camera of the user are saved, a standard camera only as a new one  */
+        DialogPane dialogPane = getDialogPane();
+        saveButtonType = block == null || !block.isDefault() ? new ButtonType("", ButtonBar.ButtonData.OK_DONE) : null;
+        saveAsNewButtonType = block != null ? new ButtonType("", ButtonBar.ButtonData.OTHER) : null;
+        if (saveAsNewButtonType != null)
+            dialogPane.getButtonTypes().add(saveAsNewButtonType);
+        if (saveButtonType != null)
+            dialogPane.getButtonTypes().add(saveButtonType);
+        dialogPane.getButtonTypes().add(ButtonType.CANCEL);
+
+        /*  Name  */
+        nameField.setText(block != null ? block.getName() : "");
+        HBox.setHgrow(nameField, Priority.ALWAYS);
+        HBox nameRow = new HBox(10, text(new Label(), "block.dialog.name"), nameField);
+        nameRow.setAlignment(Pos.CENTER_LEFT);
+
+        /*  Camera type: tiles, "Any" first, with the model of the chosen type next to them  */
+        FlowPane bodyTiles = new FlowPane(4, 4);
+        bodyTiles.getChildren().add(tile(bodyGroup, null, "camera.dialog.any", "mdi2a-asterisk", settings.body()));
+        for (Body body : Body.values())
+            bodyTiles.getChildren().add(tile(bodyGroup, body, "camera.body." + key(body), BODY_ICONS.get(body),
+                    settings.body()));
+        modelBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(CameraPromptBuilder.Model model) {
+                return model == null ? "" : model.name().isEmpty()
+                        ? I18nManager.getText("camera.dialog.model.generic") : model.label();
+            }
+
+            @Override
+            public CameraPromptBuilder.Model fromString(String text) {
+                return null;
+            }
+        });
+        modelBox.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(modelBox, Priority.ALWAYS);
+        fillModels(settings.body(), settings.model());
+        HBox modelRow = new HBox(10, text(new Label(), "camera.dialog.model"), modelBox);
+        modelRow.setAlignment(Pos.CENTER_LEFT);
+
+        /*  Focal length: a slider with detents, the special lenses beside it; a special lens overrides the slider  */
+        detents(focalSlider, (index) -> index == 0 ? I18nManager.getText("camera.dialog.any")
+                : String.valueOf(FOCAL_LENGTHS.get(index - 1).millimeters()));
+        focalSlider.setValue(settings.lens() != null && !settings.lens().isSpecial()
+                ? FOCAL_LENGTHS.indexOf(settings.lens()) + 1 : 0);
+        HBox specialRow = new HBox(4);
+        for (Lens lens : SPECIAL_LENSES) {
+            ToggleButton button = text(new ToggleButton(), "camera.lens." + key(lens));
+            button.setToggleGroup(specialGroup);
+            button.setUserData(lens);
+            button.setSelected(lens == settings.lens());
+            specialRow.getChildren().add(button);
+        }
+        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (specialGroup.getSelectedToggle() != null && oldVal.intValue() != newVal.intValue())
+                specialGroup.selectToggle(null);
+        });
+
+        /*  Aperture: a slider with detents from open to closed  */
+        detents(apertureSlider, (index) -> index == 0 ? I18nManager.getText("camera.dialog.any")
+                : Aperture.values()[index - 1].label());
+        apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
+
+        /*  Shutter, ISO, perspective and shot size: rows of symbols  */
+        VBox shutter = symbols("camera.dialog.shutter", shutterGroup, Shutter.values(),
+                (value) -> "camera.shutter." + key(value), SHUTTER_ICONS, settings.shutter());
+        VBox iso = symbols("camera.dialog.iso", isoGroup, Iso.values(), null, null, settings.iso());
+        VBox perspective = symbols("camera.dialog.perspective", perspectiveGroup, Perspective.values(),
+                (value) -> "camera.perspective." + key(value), PERSPECTIVE_ICONS, settings.perspective());
+        VBox shot = symbols("camera.dialog.shot", shotGroup, Shot.values(), (value) -> "camera.shot." + key(value),
+                SHOT_ICONS, settings.shot());
+
+        /*  Left the device with lens and exposure, right the preview with what it draws: perspective and shot size  */
+        VBox settingsBox = new VBox(6,
+                heading("camera.dialog.type"), bodyTiles, modelRow,
+                heading("camera.dialog.lens"), focalSlider, specialRow,
+                heading("camera.dialog.aperture"), apertureSlider,
+                new HBox(20, shutter, iso));
+        settingsBox.setMinWidth(SETTINGS_WIDTH);
+        settingsBox.setPrefWidth(SETTINGS_WIDTH);
+        bodyTiles.setPrefWrapLength(SETTINGS_WIDTH);
+        VBox previewBox = new VBox(10, preview, perspective, shot);
+
+        /*  Generated prompt, below both columns  */
+        promptArea.setEditable(false);
+        promptArea.setWrapText(true);
+        promptArea.setPrefRowCount(3);
+        promptArea.setFocusTraversable(false);
+
+        validationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #d32f2f;");
+        validationLabel.setWrapText(true);
+        validationLabel.setVisible(false);
+        validationLabel.setManaged(false);
+        helpLabel.setStyle("-fx-font-size: 11px;");
+        helpLabel.setWrapText(true);
+        texts.put(helpLabel, "camera.dialog.help");
+
+        HBox columns = new HBox(24, settingsBox, previewBox);
+        VBox content = new VBox(10, nameRow, validationLabel, columns, text(new Label(), "camera.dialog.prompt"),
+                promptArea, helpLabel);
+        content.setPadding(new Insets(20, 20, 10, 20));
+        content.setPrefWidth(SETTINGS_WIDTH + 24 + 300 + 40);
+        dialogPane.setContent(content);
+        setResizable(true);
+
+        updateTexts();
+
+        /*  Every change shows at once in the preview and in the prompt  */
+        bodyGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            fillModels(selected(bodyGroup, Body.class), null);
+            update();
+        });
+        modelBox.valueProperty().addListener((obs, oldVal, newVal) -> update());
+        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> update());
+        specialGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
+        apertureSlider.valueProperty().addListener((obs, oldVal, newVal) -> update());
+        for (ToggleGroup group : List.of(shutterGroup, isoGroup, perspectiveGroup, shotGroup))
+            group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
+        update();
+
+        validateName(nameField.getText().trim());
+        nameField.textProperty().addListener((obs, oldText, newText) -> validateName(newText.trim()));
+        Platform.runLater(nameField::requestFocus);
+
+        setResultConverter((buttonType) -> {
+            if (buttonType == null || buttonType == ButtonType.CANCEL)
+                return null;
+            return new Result(buttonType == saveButtonType ? BlockEditDialog.Save.SAVE
+                    : BlockEditDialog.Save.SAVE_AS_NEW, nameField.getText().trim(), settings());
+        });
+    }
+
+    /** The settings as chosen in the dialog. */
+    private CameraSettings settings() {
+        CameraPromptBuilder.Model model = modelBox.getValue();
+        Lens special = selected(specialGroup, Lens.class);
+        int focal = (int) Math.round(focalSlider.getValue());
+        int aperture = (int) Math.round(apertureSlider.getValue());
+        return new CameraSettings(selected(bodyGroup, Body.class),
+                model != null && !model.name().isEmpty() ? model.name() : null,
+                special != null ? special : focal > 0 ? FOCAL_LENGTHS.get(focal - 1) : null,
+                aperture > 0 ? Aperture.values()[aperture - 1] : null,
+                selected(shutterGroup, Shutter.class), selected(isoGroup, Iso.class),
+                selected(perspectiveGroup, Perspective.class), selected(shotGroup, Shot.class));
+    }
+
+    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides  */
+    private void update() {
+        CameraSettings settings = settings();
+        String camera = CameraPromptBuilder.build(settings, true);
+        preview.show(settings);
+        promptArea.setText(camera.isEmpty() ? I18nManager.getText("camera.dialog.prompt.empty")
+                : "Camera: " + camera + ".");
+        focalSlider.setOpacity(specialGroup.getSelectedToggle() != null ? 0.5 : 1);
+    }
+
+    /*  "Generic" and the models of the type; no model without a type  */
+    private void fillModels(Body body, String model) {
+        CameraPromptBuilder.Model generic = new CameraPromptBuilder.Model(body, "", false);
+        List<CameraPromptBuilder.Model> models = new ArrayList<>(List.of(generic));
+        if (body != null)
+            models.addAll(CameraPromptBuilder.models(body));
+        modelBox.getItems().setAll(models);
+        modelBox.setValue(models.stream().filter((item) -> item.name().equals(model)).findFirst().orElse(generic));
+        modelBox.setDisable(body == null);
+    }
+
+    /*  A tile of the camera type: symbol over name  */
+    private <E> ToggleButton tile(ToggleGroup group, E value, String key, String icon, E selected) {
+        ToggleButton tile = text(new ToggleButton(), key);
+        tile.setGraphic(icon(icon, 20));
+        tile.setContentDisplay(ContentDisplay.TOP);
+        tile.setPrefSize(118, 54);
+        tile.getStyleClass().add("text-small");
+        tile.setWrapText(true);
+        tile.setTextAlignment(TextAlignment.CENTER);
+        join(group, tile, value, value == selected);
+        return tile;
+    }
+
+    /*  A setting as a row of symbols, "Any" first, each named by its tooltip; the heading names the chosen one. The
+        ISO values show their number instead, below the heading "ISO".  */
+    private <E extends Enum<E>> VBox symbols(String headingKey, ToggleGroup group, E[] values,
+            Function<E, String> key, Map<E, String> icons, E selected) {
+        HBox row = new HBox(4);
+        Map<Toggle, String> names = new IdentityHashMap<>();
+        List<E> choices = new ArrayList<>();
+        choices.add(null);
+        choices.addAll(List.of(values));
+        for (E value : choices) {
+            String name = value == null ? "camera.dialog.any" : key != null ? key.apply(value) : null;
+            ToggleButton button = new ToggleButton();
+            if (icons != null) {
+                button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
+                button.setPrefSize(38, 34);
+                Tooltip tooltip = new Tooltip();
+                texts.put(tooltip, name);
+                button.setTooltip(tooltip);
+            }
+            else if (name != null)
+                text(button, name);
+            else
+                button.setText(((Iso) value).label().substring("ISO ".length()));
+            names.put(button, name);
+            join(group, button, value, value == selected);
+            row.getChildren().add(button);
+        }
+
+        Label heading = heading(null);
+        Runnable naming = () -> {
+            String name = names.get(group.getSelectedToggle());
+            heading.setText(I18nManager.getText(headingKey) + (icons != null && name != null
+                    ? ": " + I18nManager.getText(name) : ""));
+        };
+        group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> naming.run());
+        headings.add(naming);
+        return new VBox(6, heading, row);
+    }
+
+    /*  a member of a group in which one button stays selected: clicking the selected one keeps it  */
+    private static void join(ToggleGroup group, ToggleButton button, Object value, boolean selected) {
+        button.setUserData(value);
+        button.setToggleGroup(group);
+        button.setSelected(selected);
+        if (group.getProperties().putIfAbsent("keep-selection", true) == null)
+            group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal == null && oldVal != null)
+                    oldVal.setSelected(true);
+            });
+    }
+
+    private static <E> E selected(ToggleGroup group, Class<E> type) {
+        Toggle toggle = group.getSelectedToggle();
+        return toggle != null && type.isInstance(toggle.getUserData()) ? type.cast(toggle.getUserData()) : null;
+    }
+
+    /*  a slider that stops on whole numbers only, labeled by the given names  */
+    private static void detents(Slider slider, Function<Integer, String> label) {
+        slider.setMajorTickUnit(1);
+        slider.setMinorTickCount(0);
+        slider.setSnapToTicks(true);
+        slider.setShowTickMarks(true);
+        slider.setShowTickLabels(true);
+        slider.setBlockIncrement(1);
+        slider.setLabelFormatter(new StringConverter<>() {
+            @Override
+            public String toString(Double value) {
+                return label.apply((int) Math.round(value));
+            }
+
+            @Override
+            public Double fromString(String text) {
+                return 0.0;
+            }
+        });
+    }
+
+    /*  a bold heading; without key, its text is set by the caller  */
+    private Label heading(String key) {
+        Label label = key != null ? text(new Label(), key) : new Label();
+        label.getStyleClass().add("text-bold");
+        label.setPadding(new Insets(4, 0, 0, 0));
+        return label;
+    }
+
+    private <T extends Labeled> T text(T labeled, String key) {
+        texts.put(labeled, key);
+        return labeled;
+    }
+
+    private static FontIcon icon(String literal, int size) {
+        FontIcon icon = new FontIcon(literal);
+        icon.getStyleClass().add("ikonli-font-icon");
+        icon.setIconSize(size);
+        return icon;
+    }
+
+    private static String key(Enum<?> value) {
+        return value.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Validates the name: it must not be empty, and saving in place needs a name no other camera has. Saving as a new
+     * camera takes the next free name instead.
+     *
+     * @param name the name to validate
+     */
+    private void validateName(String name) {
+        boolean taken = !name.isEmpty() && (block == null || !name.equals(block.getName())) && blockService != null
+                && blockService.exists(PromptBlock.Type.CAMERA, name);
+
+        if (saveButtonType != null)
+            getDialogPane().lookupButton(saveButtonType).setDisable(name.isEmpty() || taken);
+        if (saveAsNewButtonType != null)
+            getDialogPane().lookupButton(saveAsNewButtonType).setDisable(name.isEmpty());
+
+        validationLabel.setText(taken ? I18nManager.getText(saveAsNewButtonType != null
+                ? "block.dialog.validation.taken.copy" : "block.dialog.validation.taken") : "");
+        validationLabel.setVisible(taken);
+        validationLabel.setManaged(taken);
+    }
+
+    /**
+     * Updates all text elements with localized strings.
+     */
+    private void updateTexts() {
+        setTitle(block == null ? I18nManager.getText("block.dialog.new.camera")
+                : I18nManager.getText("block.dialog.edit", I18nManager.getText("block.type.camera")));
+        setHeaderText(block != null && block.isDefault()
+                ? I18nManager.getText("block.dialog.header.default", block.getName()) : null);
+        texts.forEach((target, key) -> {
+            if (target instanceof Labeled labeled)
+                labeled.setText(I18nManager.getText(key));
+            else if (target instanceof Tooltip tooltip)
+                tooltip.setText(I18nManager.getText(key));
+        });
+        headings.forEach(Runnable::run);
+        nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
+        preview.updateTexts();
+
+        /*  the labels of the detents and of "Generic" are drawn anew  */
+        for (Slider slider : List.of(focalSlider, apertureSlider)) {
+            StringConverter<Double> formatter = slider.getLabelFormatter();
+            slider.setLabelFormatter(null);
+            slider.setLabelFormatter(formatter);
+        }
+        CameraPromptBuilder.Model model = modelBox.getValue();
+        modelBox.setValue(null);
+        modelBox.setValue(model);
+        update();
+
+        if (saveButtonType != null)
+            ((Button) getDialogPane().lookupButton(saveButtonType)).setText(I18nManager.getText("block.dialog.save"));
+        if (saveAsNewButtonType != null)
+            ((Button) getDialogPane().lookupButton(saveAsNewButtonType)).setText(
+                    I18nManager.getText("block.dialog.save.new"));
+    }
+
+    @Override
+    public void onLanguageChanged() {
+        Platform.runLater(this::updateTexts);
+    }
+}

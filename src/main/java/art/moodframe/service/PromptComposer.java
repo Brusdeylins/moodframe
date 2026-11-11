@@ -1,5 +1,6 @@
 package art.moodframe.service;
 
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 
@@ -20,7 +21,8 @@ import java.util.List;
  * Color palette: &lt;palette&gt;
  * </pre>
  *
- * <p>Light and camera do not apply to layout styles; these get a rule for their text instead.</p>
+ * <p>The light does not apply to layout styles; these get a rule for their text instead. For a style that is not
+ * photographic, layout included, the camera adds only perspective and shot size (see {@link CameraPromptBuilder}).</p>
  *
  * @since 2.0.0
  */
@@ -36,10 +38,10 @@ public class PromptComposer {
      * @param style the style
      * @param atmosphere the atmosphere
      * @param light the light
-     * @param camera the camera text
+     * @param camera the camera
      * @param palette the color palette
      */
-    public record Selection(PromptBlock style, PromptBlock atmosphere, PromptBlock light, String camera,
+    public record Selection(PromptBlock style, PromptBlock atmosphere, PromptBlock light, PromptBlock camera,
             ColorStyle palette) {
     }
 
@@ -68,6 +70,9 @@ public class PromptComposer {
 
         PromptBlock style = selection.style();
         boolean layout = style != null && style.isLayout();
+        boolean photographic = style == null || style.isPhotographic();
+        String camera = selection.camera() != null
+                ? CameraPromptBuilder.build(CameraSettings.fromJson(selection.camera().getParams()), photographic) : "";
         List<String> lines = new ArrayList<>();
 
         if (style != null && !isBlank(style.getText()))
@@ -79,9 +84,8 @@ public class PromptComposer {
             lines.add("Atmosphere: " + sentence(selection.atmosphere().getText()));
         if (!layout && selection.light() != null && !isBlank(selection.light().getText()))
             lines.add("Lighting: " + sentence(selection.light().getText()));
-        if (!layout && !isBlank(selection.camera()))
-            lines.add((style == null || style.isPhotographic() ? "Camera: " : "Framing: ")
-                    + sentence(selection.camera()));
+        if (!camera.isEmpty())
+            lines.add((photographic ? "Camera: " : "Framing: ") + sentence(camera));
         if (selection.palette() != null && !selection.palette().toPromptString().isEmpty())
             lines.add("Color palette: " + selection.palette().toPromptString());
         return String.join("\n", lines);

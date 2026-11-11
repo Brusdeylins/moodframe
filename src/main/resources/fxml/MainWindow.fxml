@@ -314,6 +314,25 @@
                                    visible="false" managed="false" />
                         </VBox>
 
+                        <!-- Camera -->
+                        <VBox spacing="5.0" styleClass="block-field">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label fx:id="cameraLabel" text="Camera:" styleClass="text-bold" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <ToggleButton fx:id="cameraLockButton" styleClass="block-lock">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                            </HBox>
+                            <ComboBox fx:id="cameraComboBox" maxWidth="Infinity" />
+
+                            <!-- Shown for a style that is not photographic, layout included: only the framing applies -->
+                            <Label fx:id="cameraHint" text="Only perspective and shot size apply to this style"
+                                   styleClass="text-small, text-muted" wrapText="true"
+                                   visible="false" managed="false" />
+                        </VBox>
+
                         <!-- Frame: how the image is technically produced -->
                         <VBox spacing="5.0">
                             <VBox.margin>

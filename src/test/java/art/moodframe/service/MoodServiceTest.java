@@ -101,13 +101,24 @@ class MoodServiceTest {
     }
 
     @Test
-    void savesTheFieldsAndKeepsTheCameraOfTheChosenMood() {
+    void savesTheFieldsAsTheyAreTheCameraToo() {
         Mood product = moods.find("std:mood:clean-product");
         Map<Mood.Field, String> fields = Map.of(Mood.Field.STYLE, "std:style:watercolor");
 
-        assertEquals(Map.of(Mood.Field.STYLE, "std:style:watercolor", Mood.Field.CAMERA, "std:camera:product-tabletop"),
-                moods.capture(product, fields), "the camera has no field yet, an empty field stays empty");
+        assertEquals(fields, moods.capture(product, fields), "an empty field stays empty, the camera too");
         assertEquals(fields, moods.capture(null, fields));
+        Map<Mood.Field, String> withCamera = Map.of(Mood.Field.STYLE, "std:style:watercolor",
+                Mood.Field.CAMERA, "std:camera:macro-detail");
+        assertEquals(withCamera, moods.capture(product, withCamera));
+    }
+
+    @Test
+    void putsTheCameraOfTheMoodIntoThePromptAndItsName() {
+        Mood product = moods.find("std:mood:clean-product");
+        String prompt = new PromptComposer(10000).compose("a perfume bottle", null, moods.selection(product));
+
+        assertTrue(prompt.contains("\nCamera: shot on Hasselblad X2D, a medium format camera, "), prompt);
+        assertTrue(moods.describe(product).endsWith(" · Product Tabletop"), moods.describe(product));
     }
 
     @Test

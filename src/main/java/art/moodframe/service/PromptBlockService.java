@@ -1,5 +1,13 @@
 package art.moodframe.service;
 
+import art.moodframe.model.CameraSettings;
+import art.moodframe.model.CameraSettings.Aperture;
+import art.moodframe.model.CameraSettings.Body;
+import art.moodframe.model.CameraSettings.Iso;
+import art.moodframe.model.CameraSettings.Lens;
+import art.moodframe.model.CameraSettings.Perspective;
+import art.moodframe.model.CameraSettings.Shot;
+import art.moodframe.model.CameraSettings.Shutter;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.PromptBlockRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -32,6 +40,9 @@ import java.util.Map;
  * does; a color temperature only where it belongs to the situation (golden and blue hour), otherwise no
  * colors, no medium and no mood.</p>
  *
+ * <p>The standard cameras carry settings only ({@link CameraSettings}); their fragment comes from
+ * {@link CameraPromptBuilder}. Exposure stays with the light, film stock with the style.</p>
+ *
  * @since 2.0.0
  */
 public class PromptBlockService {
@@ -55,6 +66,7 @@ public class PromptBlockService {
     private final List<PromptBlock> defaultStyles;
     private final List<PromptBlock> defaultAtmospheres;
     private final List<PromptBlock> defaultLights;
+    private final List<PromptBlock> defaultCameras;
 
     /**
      * Creates the service.
@@ -64,6 +76,7 @@ public class PromptBlockService {
         this.defaultStyles = defaultStyles();
         this.defaultAtmospheres = defaultAtmospheres();
         this.defaultLights = defaultLights();
+        this.defaultCameras = defaultCameras();
         renameCustomBlocksNamedLikeDefaults();
     }
 
@@ -321,6 +334,54 @@ public class PromptBlockService {
                 false);
     }
 
+    private static List<PromptBlock> defaultCameras() {
+        List<PromptBlock> cameras = new ArrayList<>();
+        cameras.add(camera("Street 35mm", new CameraSettings(Body.COMPACT_35MM, "Leica M6", Lens.MM_35, Aperture.F_8,
+                null, null, Perspective.EYE_LEVEL, null)));
+        cameras.add(camera("Classic Portrait", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_2,
+                null, null, Perspective.EYE_LEVEL, Shot.CLOSE_UP)));
+        cameras.add(camera("Epic Wide Low Angle", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_14, Aperture.F_8,
+                null, null, Perspective.LOW_ANGLE, Shot.WIDE)));
+        cameras.add(camera("Telephoto Compression", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_200,
+                Aperture.F_4, null, null, null, null)));
+        cameras.add(camera("Macro Detail", new CameraSettings(Body.FULL_FRAME, null, Lens.MACRO, Aperture.F_4,
+                null, null, null, Shot.DETAIL)));
+        cameras.add(camera("Drone Overview", new CameraSettings(Body.DRONE, null, Lens.MM_24, Aperture.F_8,
+                null, null, Perspective.TOP_DOWN, Shot.EXTREME_WIDE)));
+        cameras.add(camera("Cinematic Anamorphic", new CameraSettings(Body.CINEMA, "ARRI Alexa 35", Lens.ANAMORPHIC,
+                Aperture.F_2, null, null, null, Shot.MEDIUM)));
+        cameras.add(camera("Product Tabletop", new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", Lens.MM_85,
+                Aperture.F_8, null, Iso.ISO_100, Perspective.HIGH_ANGLE, null)));
+        cameras.add(camera("Long Exposure Landscape", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_24,
+                Aperture.F_16, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, Shot.WIDE)));
+        cameras.add(camera("Phone Snapshot", new CameraSettings(Body.SMARTPHONE, null, null, null, null, null,
+                Perspective.EYE_LEVEL, null)));
+
+        for (int i = 0; i < cameras.size(); i++)
+            cameras.get(i).setSortOrder(i);
+        return cameras;
+    }
+
+    /**
+     * A camera block from its settings; its text is the fragment for a photographic style, for display and export.
+     * The prompt itself is built from the settings, see {@link CameraPromptBuilder}.
+     *
+     * @param id       the id, null to let the repository assign one
+     * @param name     the name
+     * @param settings the settings
+     * @return the block
+     */
+    public static PromptBlock camera(String id, String name, CameraSettings settings) {
+        PromptBlock block = new PromptBlock(id, PromptBlock.Type.CAMERA, name,
+                CameraPromptBuilder.build(settings, true), null, false);
+        block.setParams(settings.toJson());
+        return block;
+    }
+
+    private static PromptBlock camera(String name, CameraSettings settings) {
+        return camera(standardId(PromptBlock.Type.CAMERA, name), name, settings);
+    }
+
     /**
      * The fixed id of a standard block, for example {@code std:style:watercolor}.
      *
@@ -365,7 +426,7 @@ public class PromptBlockService {
             case STYLE -> new ArrayList<>(defaultStyles);
             case ATMOSPHERE -> new ArrayList<>(defaultAtmospheres);
             case LIGHT -> new ArrayList<>(defaultLights);
-            default -> new ArrayList<>();
+            case CAMERA -> new ArrayList<>(defaultCameras);
         };
     }
 

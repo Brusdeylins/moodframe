@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.PromptBlockRepository;
@@ -71,6 +72,31 @@ class PromptBlockServiceTest {
                 assertFalse(Pattern.compile("\\b" + Pattern.quote(name) + "\\b").matcher(text).find(),
                         style.getName() + " names " + name);
         }
+    }
+
+    @Test
+    void offersTenStandardCamerasFromSettingsOnly() {
+        PromptBlockService service = new PromptBlockService();
+        List<PromptBlock> cameras = service.getDefaults(PromptBlock.Type.CAMERA);
+
+        assertEquals(List.of("Street 35mm", "Classic Portrait", "Epic Wide Low Angle", "Telephoto Compression",
+                "Macro Detail", "Drone Overview", "Cinematic Anamorphic", "Product Tabletop", "Long Exposure Landscape",
+                "Phone Snapshot"), cameras.stream().map(PromptBlock::getName).toList());
+        for (PromptBlock camera : cameras) {
+            assertTrue(camera.isDefault(), camera.getName());
+            assertEquals("std:camera:" + PromptBlockService.slug(camera.getName()), camera.getId());
+            assertEquals(CameraPromptBuilder.build(CameraSettings.fromJson(camera.getParams()), true), camera.getText(),
+                    camera.getName() + " carries the fragment of its settings");
+        }
+
+        PromptBlock street = service.find(PromptBlock.Type.CAMERA, "std:camera:street-35mm");
+        assertEquals("""
+                Image style: realistic photograph, sharp focus, natural detail and texture.
+                a market at dawn
+                Camera: shot on Leica M6, a 35mm compact film camera, candid analog snapshot look, 35mm lens, natural \
+                documentary perspective, f/8, deep depth of field, sharp from foreground to background, shot at eye \
+                level.""", new PromptComposer(2000).compose("a market at dawn", null, new PromptComposer.Selection(
+                service.find(PromptBlock.Type.STYLE, "Photography"), null, null, street, null)));
     }
 
     @Test

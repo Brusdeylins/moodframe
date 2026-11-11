@@ -210,6 +210,12 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label lightLayoutHint;
     @FXML
+    private javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> cameraComboBox;
+    @FXML
+    private Label cameraLabel;
+    @FXML
+    private Label cameraHint;
+    @FXML
     private javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> atmosphereComboBox;
     @FXML
     private Label atmosphereLabel;
@@ -221,8 +227,10 @@ public class MainWindowController implements I18nChangeListener {
     private ToggleButton colorLockButton;
     @FXML
     private ToggleButton lightLockButton;
+    @FXML
+    private ToggleButton cameraLockButton;
 
-    /*  The building block lists with their actions on top: style, atmosphere and light, and the color  */
+    /*  The building block lists with their actions on top: style, atmosphere, light and camera, and the color  */
     private final java.util.Map<art.moodframe.model.PromptBlock.Type,
             art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem>> blockChoices =
             new java.util.EnumMap<>(art.moodframe.model.PromptBlock.Type.class);
@@ -1010,12 +1018,13 @@ public class MainWindowController implements I18nChangeListener {
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
         art.moodframe.model.StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
         art.moodframe.model.StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
+        art.moodframe.model.StylePresetItem cameraItem = cameraComboBox != null ? cameraComboBox.getValue() : null;
         art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
         return new art.moodframe.service.PromptComposer.Selection(styleItem != null ? styleItem.getBlock() : null,
                 atmosphereItem != null ? atmosphereItem.getBlock() : null, lightItem != null ? lightItem.getBlock() : null,
-                null, palette);
+                cameraItem != null ? cameraItem.getBlock() : null, palette);
     }
 
     /**
@@ -1651,7 +1660,7 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the building block lists: style, atmosphere and light from the text blocks, the color from the
+     * Sets up the building block lists: style, atmosphere, light and camera from the blocks, the color from the
      * palettes. Each list starts with its actions "Edit…", "New…" and "Manage…" (see
      * {@link art.moodframe.ui.component.BlockChoice}), followed by "None" (the default) and the entries; the styles
      * are grouped into photo, art and layout.
@@ -1660,7 +1669,8 @@ public class MainWindowController implements I18nChangeListener {
         java.util.Map<art.moodframe.model.PromptBlock.Type, ComboBox<art.moodframe.model.StylePresetItem>> fields =
                 java.util.Map.of(art.moodframe.model.PromptBlock.Type.STYLE, stylePresetsComboBox,
                         art.moodframe.model.PromptBlock.Type.ATMOSPHERE, atmosphereComboBox,
-                        art.moodframe.model.PromptBlock.Type.LIGHT, lightComboBox);
+                        art.moodframe.model.PromptBlock.Type.LIGHT, lightComboBox,
+                        art.moodframe.model.PromptBlock.Type.CAMERA, cameraComboBox);
         fields.forEach((type, comboBox) -> {
             art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice =
                     new art.moodframe.ui.component.BlockChoice<>(comboBox,
@@ -1782,12 +1792,14 @@ public class MainWindowController implements I18nChangeListener {
             case STYLE -> stylePresetsComboBox;
             case ATMOSPHERE -> atmosphereComboBox;
             case LIGHT -> lightComboBox;
+            case CAMERA -> cameraComboBox;
         };
     }
 
     /**
      * Creates or edits a text building block in its dialog and selects the stored block. A block of the user is
      * saved in place or as a new block, a standard block only as a new one, which keeps the group of its origin.
+     * A camera has a dialog of its own (see {@link #editCamera}).
      *
      * @param type  the type of the block
      * @param block the block to edit, null for a new one
@@ -1797,6 +1809,8 @@ public class MainWindowController implements I18nChangeListener {
                 .getService(art.moodframe.service.PromptBlockService.class);
         if (service == null)
             return null;
+        if (type == art.moodframe.model.PromptBlock.Type.CAMERA)
+            return editCamera(service, block);
 
         art.moodframe.ui.component.BlockEditDialog dialog = new art.moodframe.ui.component.BlockEditDialog(type, block);
         dialog.initOwner(activeWindow());
@@ -1816,6 +1830,39 @@ public class MainWindowController implements I18nChangeListener {
             if (saved) {
                 fillBlockChoice(type, stored.getName());
                 storedId[0] = stored.getId();
+            }
+            else
+                setStatus(I18nManager.getText("block.error.save", result.name()));
+        });
+        return storedId[0];
+    }
+
+    /**
+     * Creates or edits a camera in its dialog of settings and selects the stored camera. A camera of the user is saved
+     * in place or as a new one, a standard camera only as a new one.
+     *
+     * @param service the building blocks
+     * @param block   the camera to edit, null for a new one
+     */
+    private String editCamera(art.moodframe.service.PromptBlockService service, art.moodframe.model.PromptBlock block) {
+        art.moodframe.ui.component.CameraEditDialog dialog = new art.moodframe.ui.component.CameraEditDialog(block);
+        dialog.initOwner(activeWindow());
+        String[] storedId = { null };
+        dialog.showAndWait().ifPresent((result) -> {
+            boolean inPlace = block != null && result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            art.moodframe.model.PromptBlock stored = art.moodframe.service.PromptBlockService.camera(
+                    inPlace ? block.getId() : null, result.name(), result.settings());
+            if (block != null)
+                stored.setSortOrder(block.getSortOrder());
+            boolean saved = inPlace ? service.updateCustom(stored)
+                    : result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
+                    : service.addCopy(stored);
+            if (saved) {
+                fillBlockChoice(art.moodframe.model.PromptBlock.Type.CAMERA, stored.getName());
+                storedId[0] = stored.getId();
+
+                /*  a camera changed in place keeps its name, so the list reports no change of the selection  */
+                updateUIState();
             }
             else
                 setStatus(I18nManager.getText("block.error.save", result.name()));
@@ -2006,7 +2053,8 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void setupBlockLocks() {
         java.util.Map<ToggleButton, String> locks = java.util.Map.of(atmosphereLockButton, "atmosphere",
-                styleLockButton, "style", colorLockButton, "palette", lightLockButton, "light");
+                styleLockButton, "style", colorLockButton, "palette", lightLockButton, "light", cameraLockButton,
+                "camera");
         locks.forEach((lock, field) -> {
             lock.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 ((FontIcon) lock.getGraphic()).setIconLiteral(newVal ? "mdi2l-lock" : "mdi2l-lock-open-variant-outline");
@@ -2039,7 +2087,7 @@ public class MainWindowController implements I18nChangeListener {
         moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, () -> moodChanged, this::isMoodSaveLocked));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(oldVal, newVal));
         for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
-                colorStyleComboBox, lightComboBox))
+                colorStyleComboBox, lightComboBox, cameraComboBox))
             field.valueProperty().addListener((obs, oldVal, newVal) -> {
                 if (!updatingMood)
                     updateMoodState();
@@ -2154,6 +2202,7 @@ public class MainWindowController implements I18nChangeListener {
         selectBlock(art.moodframe.model.PromptBlock.Type.ATMOSPHERE, fields.get(Mood.Field.ATMOSPHERE));
         selectBlock(art.moodframe.model.PromptBlock.Type.STYLE, fields.get(Mood.Field.STYLE));
         selectBlock(art.moodframe.model.PromptBlock.Type.LIGHT, fields.get(Mood.Field.LIGHT));
+        selectBlock(art.moodframe.model.PromptBlock.Type.CAMERA, fields.get(Mood.Field.CAMERA));
 
         /*  only entries: the actions on top of the list ("Edit…", "New…", "Manage…") would open their dialogs  */
         colorStyleComboBox.getItems().stream().filter((item) -> colorChoice.isEntry(item)
@@ -2257,7 +2306,7 @@ public class MainWindowController implements I18nChangeListener {
     private java.util.Map<Mood.Field, String> currentMoodFields() {
         java.util.Map<Mood.Field, String> fields = new java.util.EnumMap<>(Mood.Field.class);
         java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereComboBox, Mood.Field.STYLE, stylePresetsComboBox,
-                Mood.Field.LIGHT, lightComboBox).forEach((field, comboBox) -> {
+                Mood.Field.LIGHT, lightComboBox, Mood.Field.CAMERA, cameraComboBox).forEach((field, comboBox) -> {
             art.moodframe.model.StylePresetItem item = comboBox.getValue();
             if (item != null && item.getBlock() != null)
                 fields.put(field, item.getBlock().getId());
@@ -2274,7 +2323,8 @@ public class MainWindowController implements I18nChangeListener {
     private Set<Mood.Field> lockedMoodFields() {
         Set<Mood.Field> locked = java.util.EnumSet.noneOf(Mood.Field.class);
         java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereLockButton, Mood.Field.STYLE, styleLockButton,
-                Mood.Field.COLOR, colorLockButton, Mood.Field.LIGHT, lightLockButton).forEach((field, lock) -> {
+                Mood.Field.COLOR, colorLockButton, Mood.Field.LIGHT, lightLockButton, Mood.Field.CAMERA,
+                cameraLockButton).forEach((field, lock) -> {
             if (lock.isSelected())
                 locked.add(field);
         });
@@ -2865,6 +2915,15 @@ public class MainWindowController implements I18nChangeListener {
                             .ifPresent(lightComboBox::setValue);
                 }
 
+                // Load camera selection
+                if (cameraComboBox != null) {
+                    String savedCamera = config.getDefaultCamera();
+                    cameraComboBox.getItems().stream()
+                            .filter((item) -> item.getName().equals(savedCamera))
+                            .findFirst()
+                            .ifPresent(cameraComboBox::setValue);
+                }
+
                 // Load atmosphere selection
                 if (atmosphereComboBox != null) {
                     String savedAtmosphere = config.getDefaultAtmosphere();
@@ -3045,6 +3104,13 @@ public class MainWindowController implements I18nChangeListener {
                     lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.LIGHT).isEntry(newVal))
                             config.setDefaultLight(newVal.getName());
+                    });
+
+                // Save camera selection changes
+                if (cameraComboBox != null)
+                    cameraComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.CAMERA).isEntry(newVal))
+                            config.setDefaultCamera(newVal.getName());
                     });
 
                 // Save atmosphere selection changes
@@ -3697,7 +3763,8 @@ public class MainWindowController implements I18nChangeListener {
         promptTextArea.textProperty().addListener((obs, oldText, newText) -> updateUIState());
         for (javafx.beans.value.ObservableValue<?> value : List.<javafx.beans.value.ObservableValue<?>>of(
                 atmosphereComboBox.valueProperty(), stylePresetsComboBox.valueProperty(),
-                colorStyleComboBox.valueProperty(), lightComboBox.valueProperty(), moodApplyCheckBox.selectedProperty()))
+                colorStyleComboBox.valueProperty(), lightComboBox.valueProperty(), cameraComboBox.valueProperty(),
+                moodApplyCheckBox.selectedProperty()))
             value.addListener((obs, oldVal, newVal) -> updateUIState());
 
         /*  The fold of the final prompt below the input field  */
@@ -3959,6 +4026,9 @@ public class MainWindowController implements I18nChangeListener {
         lightComboBox.setDisable(!moodApplies || layoutStyle);
         lightLayoutHint.setVisible(layoutStyle);
         lightLayoutHint.setManaged(layoutStyle);
+        cameraLabel.setDisable(!moodApplies);
+        cameraComboBox.setDisable(!moodApplies);
+        updateCameraHint();
 
         if (seedLabel != null)
             seedLabel.setDisable(!enableInput);
@@ -6213,6 +6283,19 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
+     * Shows the hint below the camera for a style that is not photographic, layout included: only perspective and shot
+     * size apply (see {@link art.moodframe.service.PromptComposer}).
+     */
+    private void updateCameraHint() {
+        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
+        boolean framingOnly = styleItem != null && styleItem.getBlock() != null
+                && !styleItem.getBlock().isPhotographic();
+        cameraHint.setText(I18nManager.getText("params.camera.framing.hint"));
+        cameraHint.setVisible(framingOnly);
+        cameraHint.setManaged(framingOnly);
+    }
+
+    /**
      * Updates parameter labels that are hardcoded in FXML.
      */
     private void updateParameterLabels() {
@@ -6229,12 +6312,16 @@ public class MainWindowController implements I18nChangeListener {
             lightLabel.setText(I18nManager.getText("params.light"));
         if (lightLayoutHint != null)
             lightLayoutHint.setText(I18nManager.getText("params.light.layout.hint"));
+        if (cameraLabel != null)
+            cameraLabel.setText(I18nManager.getText("params.camera"));
+        if (cameraHint != null)
+            updateCameraHint();
         if (atmosphereLabel != null)
             atmosphereLabel.setText(I18nManager.getText("params.atmosphere"));
         if (colorStyleLabel != null)
             colorStyleLabel.setText(I18nManager.getText("params.colorstyle"));
         for (ToggleButton lock : java.util.Arrays.asList(atmosphereLockButton, styleLockButton, colorLockButton,
-                lightLockButton))
+                lightLockButton, cameraLockButton))
             if (lock != null)
                 lock.setTooltip(new Tooltip(I18nManager.getText("params.block.lock.tooltip")));
 

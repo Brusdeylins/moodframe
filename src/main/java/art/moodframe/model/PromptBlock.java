@@ -3,10 +3,12 @@ package art.moodframe.model;
 import java.time.LocalDateTime;
 
 /**
- * One text building block of the image prompt: a style, an atmosphere or a light.
+ * One building block of the image prompt: a style, an atmosphere, a light or a camera.
  *
  * <p>Each type covers exactly one aspect of the image: the style the medium and its rendering,
- * the atmosphere mood, weather and sense of space, the light its source, direction and quality.
+ * the atmosphere mood, weather and sense of space, the light its source, direction and quality,
+ * the camera device, lens and framing. A camera has no free text: its settings are kept in the
+ * parameters ({@link CameraSettings}), from which the app builds its fragment.
  * The standard blocks come from code and carry fixed ids starting with {@value #STANDARD_PREFIX};
  * the blocks of the user are stored in SQLite.</p>
  *
@@ -23,12 +25,12 @@ public class PromptBlock {
     /** Group of the painted, drawn and digital styles. */
     public static final String GROUP_ART = "Art";
 
-    /** Group of the layout styles (infographics, logo, comic); light and camera do not apply to them. */
+    /** Group of the layout styles (infographics, logo, comic); the light does not apply, the camera as framing only. */
     public static final String GROUP_LAYOUT = "Layout";
 
     /** The aspect of the image a block describes. */
     public enum Type {
-        STYLE, ATMOSPHERE, LIGHT
+        STYLE, ATMOSPHERE, LIGHT, CAMERA
     }
 
     private String id;

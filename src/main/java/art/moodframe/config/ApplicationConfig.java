@@ -554,6 +554,25 @@ public class ApplicationConfig {
     }
 
     /**
+     * Gets the remembered camera selection.
+     *
+     * @return the name of the camera block, or "None" if not set
+     */
+    public String getDefaultCamera() {
+        return properties.getProperty("camera.default", "None");
+    }
+
+    /**
+     * Remembers the camera selection.
+     *
+     * @param camera the name of the camera block
+     */
+    public void setDefaultCamera(String camera) {
+        properties.setProperty("camera.default", camera);
+        saveConfiguration();
+    }
+
+    /**
      * Gets the remembered atmosphere selection.
      *
      * @return the name of the atmosphere block, or "None" if not set
@@ -575,7 +594,7 @@ public class ApplicationConfig {
     /**
      * Whether a building block field of the mood is locked: moods and brainstorm leave it unchanged.
      *
-     * @param field the field ("atmosphere", "style", "palette" or "light")
+     * @param field the field ("atmosphere", "style", "palette", "light" or "camera")
      * @return true if locked (default: unlocked)
      */
     public boolean isBlockLocked(String field) {
@@ -585,7 +604,7 @@ public class ApplicationConfig {
     /**
      * Locks or unlocks a building block field of the mood.
      *
-     * @param field the field ("atmosphere", "style", "palette" or "light")
+     * @param field the field ("atmosphere", "style", "palette", "light" or "camera")
      * @param locked true to lock it
      */
     public void setBlockLocked(String field, boolean locked) {

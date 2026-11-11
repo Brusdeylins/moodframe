@@ -93,10 +93,10 @@ public class MoodService implements BlockUsage {
         mood.setReference(Mood.Field.STYLE, standardId(PromptBlock.Type.STYLE, style));
         mood.setReference(Mood.Field.ATMOSPHERE, standardId(PromptBlock.Type.ATMOSPHERE, atmosphere));
         mood.setReference(Mood.Field.LIGHT, standardId(PromptBlock.Type.LIGHT, light));
+        mood.setReference(Mood.Field.CAMERA, standardId(PromptBlock.Type.CAMERA, camera));
 
-        /*  The fixed ids of the standard palettes (ColorStyleService) and of the coming standard cameras  */
+        /*  The fixed ids of the standard palettes (ColorStyleService)  */
         mood.setReference(Mood.Field.COLOR, palette != null ? "std:color:" + PromptBlockService.slug(palette) : null);
-        mood.setReference(Mood.Field.CAMERA, camera != null ? "std:camera:" + PromptBlockService.slug(camera) : null);
         return mood;
     }
 
@@ -298,8 +298,8 @@ public class MoodService implements BlockUsage {
     }
 
     /**
-     * The blocks a mood saved from the fields refers to: the block of each field. The camera, which has no field yet,
-     * and a field left empty as its block lies in the trash keep the reference of the chosen mood.
+     * The blocks a mood saved from the fields refers to: the block of each field. A field left empty as its block
+     * lies in the trash keeps the reference of the chosen mood.
      *
      * @param chosen the chosen mood, null for "No mood"
      * @param fields the block ids of the fields; a missing field is empty
@@ -311,7 +311,7 @@ public class MoodService implements BlockUsage {
         for (Mood.Field field : Mood.Field.values()) {
             String kept = chosen != null ? chosen.getReference(field) : null;
             String id = fields.get(field) != null ? fields.get(field)
-                    : field == Mood.Field.CAMERA || kept != null && trashed.contains(kept) ? kept : null;
+                    : kept != null && trashed.contains(kept) ? kept : null;
             if (id != null)
                 references.put(field, id);
         }
@@ -349,14 +349,14 @@ public class MoodService implements BlockUsage {
      * The building blocks a mood puts into the prompt (see {@link PromptComposer}); the mood adds no text of its own.
      *
      * @param mood the mood
-     * @return the blocks in use; the camera stays empty
+     * @return the blocks in use
      */
     public PromptComposer.Selection selection(Mood mood) {
         Map<Mood.Field, String> fields = apply(mood, Map.of(), Set.of());
         return new PromptComposer.Selection(block(Mood.Field.STYLE, fields.get(Mood.Field.STYLE)),
                 block(Mood.Field.ATMOSPHERE, fields.get(Mood.Field.ATMOSPHERE)),
-                block(Mood.Field.LIGHT, fields.get(Mood.Field.LIGHT)), null,
-                colors.getStyleById(fields.get(Mood.Field.COLOR)));
+                block(Mood.Field.LIGHT, fields.get(Mood.Field.LIGHT)),
+                block(Mood.Field.CAMERA, fields.get(Mood.Field.CAMERA)), colors.getStyleById(fields.get(Mood.Field.COLOR)));
     }
 
     /**
@@ -374,7 +374,7 @@ public class MoodService implements BlockUsage {
                 if (palette != null)
                     names.add(palette.getName());
             }
-            else if (field != Mood.Field.CAMERA) {
+            else {
                 PromptBlock block = block(field, id);
                 block = block != null ? block : blocks.findInTrash(id);
                 if (block != null)
@@ -593,12 +593,11 @@ public class MoodService implements BlockUsage {
         return blocks.addCopy(block) ? block.getId() : null;
     }
 
-    /** True if the block a field refers to is in use; a camera counts as in use unless it lies in the trash. */
+    /** True if the block a field refers to is in use. */
     private boolean inUse(Mood.Field field, String id) {
         return switch (field) {
-            case ATMOSPHERE, STYLE, LIGHT -> block(field, id) != null;
+            case ATMOSPHERE, STYLE, LIGHT, CAMERA -> block(field, id) != null;
             case COLOR -> colors.getStyleById(id) != null;
-            case CAMERA -> !inTrash(field, id);
         };
     }
 
@@ -606,12 +605,13 @@ public class MoodService implements BlockUsage {
         return field == Mood.Field.COLOR ? colors.findInTrash(id) != null : blocks.findInTrash(id) != null;
     }
 
-    /** The block in use with exactly this id, null for none, the color or the camera. */
+    /** The block in use with exactly this id, null for none or the color. */
     private PromptBlock block(Mood.Field field, String id) {
         PromptBlock.Type type = switch (field) {
             case ATMOSPHERE -> PromptBlock.Type.ATMOSPHERE;
             case STYLE -> PromptBlock.Type.STYLE;
             case LIGHT -> PromptBlock.Type.LIGHT;
+            case CAMERA -> PromptBlock.Type.CAMERA;
             default -> null;
         };
         PromptBlock block = type != null && id != null ? blocks.find(type, id) : null;
