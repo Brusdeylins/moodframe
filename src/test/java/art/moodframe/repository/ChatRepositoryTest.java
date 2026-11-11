@@ -47,17 +47,20 @@ class ChatRepositoryTest {
     void storesTheMoodAndTheCopiesOfTheBlocksOfAnEntry() throws Exception {
         Map<Mood.Field, EntryMood.Block> blocks = new EnumMap<>(Mood.Field.class);
         blocks.put(Mood.Field.STYLE, new EntryMood.Block("std:style:analog-film", "Analog Film",
-                "analog film photograph, visible grain", "Photo", true, List.of()));
+                "analog film photograph, visible grain", "Photo", true, List.of(), null));
         blocks.put(Mood.Field.ATMOSPHERE, new EntryMood.Block("atmosphere-1", "Harbor Fog",
-                "quiet, cold, a sense of distance", null, false, List.of()));
+                "quiet, cold, a sense of distance", null, false, List.of(), null));
         blocks.put(Mood.Field.COLOR, new EntryMood.Block("palette-1", "Harbor", null, null, false,
-                List.of("#1A1A1A", "#C0C0C0")));
+                List.of("#1A1A1A", "#C0C0C0"), null));
+        blocks.put(Mood.Field.CAMERA, new EntryMood.Block("camera-1", "Harbor Tele",
+                "shot on a full-frame digital camera, 200mm telephoto lens", null, false, List.of(),
+                "{\"body\":\"FULL_FRAME\",\"lens\":\"MM_200\"}"));
         EntryMood mood = new EntryMood("mood-1", "Harbor Dawn", blocks);
         ChatEntry entry = save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a harbor at dawn")
                 .style("Analog Film").mood(mood).build());
 
         ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
-        assertEquals(mood, stored.getMood());
+        assertEquals(mood, stored.getMood(), "the camera keeps its settings");
         assertEquals("Analog Film", stored.getStyle());
         assertEquals("mood-1", moodIdColumn(entry.getId()));
 
@@ -71,7 +74,8 @@ class ChatRepositoryTest {
     @Test
     void storesACombinationOfItsOwnWithoutMoodId() throws Exception {
         EntryMood combination = new EntryMood(null, null, Map.of(Mood.Field.LIGHT,
-                new EntryMood.Block("light-1", "Sodium Lamp", "a single sodium street lamp", null, true, List.of())));
+                new EntryMood.Block("light-1", "Sodium Lamp", "a single sodium street lamp", null, true, List.of(),
+                        null)));
         ChatEntry entry = save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a street at night")
                 .mood(combination).build());
 
@@ -196,7 +200,7 @@ class ChatRepositoryTest {
     /** A mood with a palette of one color; a null id stands for a combination of its own. */
     private static EntryMood mood(String id, String name, String color) {
         return new EntryMood(id, name, Map.of(Mood.Field.COLOR,
-                new EntryMood.Block("palette-" + color, "Palette", null, null, false, List.of(color))));
+                new EntryMood.Block("palette-" + color, "Palette", null, null, false, List.of(color), null)));
     }
 
     private static MoodGroup group(List<MoodGroup> groups, String moodId) {

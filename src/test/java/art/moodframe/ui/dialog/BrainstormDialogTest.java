@@ -2,6 +2,7 @@ package art.moodframe.ui.dialog;
 
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormSession;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
@@ -9,10 +10,13 @@ import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
+import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.GeminiApiService;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -80,7 +84,7 @@ class BrainstormDialogTest {
     }
 
     @Test
-    void showsTheMoodTheNewBlocksAndTheLockedFieldOfAStoredDraft() throws Exception {
+    void showsTheMoodTheNewBlocksAndTheLockedFieldOfAStoredDraftAndAdoptsTheNewCamera() throws Exception {
         PromptBlock calm = new PromptBlock("std:atmosphere:calm", PromptBlock.Type.ATMOSPHERE, "Calm", "calm", null,
                 false);
         PromptBlock blueHour = new PromptBlock("std:light:blue-hour", PromptBlock.Type.LIGHT, "Blue Hour", "blue hour",
@@ -88,7 +92,7 @@ class BrainstormDialogTest {
         Mood morning = new Mood("std:mood:quiet-morning", "Quiet Morning");
         morning.setReference(Mood.Field.ATMOSPHERE, calm.getId());
         morning.setReference(Mood.Field.LIGHT, blueHour.getId());
-        BrainstormContext context = new BrainstormContext(List.of(), List.of(calm), List.of(blueHour),
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(calm), List.of(blueHour), List.of(),
                 List.of(new ColorStyle("Ocean Breeze", List.of("#48BDFF"), true)), List.of(morning),
                 List.of(GenerationModel.FLUX2_PRO), "Target model: x",
                 List.of(GenerationModel.FLUX2_PRO.getLocalizedDisplayName()), Set.of(Mood.Field.LIGHT));
@@ -99,20 +103,30 @@ class BrainstormDialogTest {
         when(repository.findLatestDraft("s1")).thenReturn(Optional.of(BrainstormDraft.fromJson(new JSONObject("""
             {"prompt": "A lighthouse", "mood": "Quiet Morning",
              "style": {"name": "Ink Wash", "text": "ink wash on rice paper", "is_new": true},
-             "color": {"name": "Sea", "colors": ["#112233"], "is_new": true}}
+             "color": {"name": "Sea", "colors": ["#112233"], "is_new": true},
+             "camera": {"name": "Harbor Tele", "settings": {"body": "FULL_FRAME", "lens": "MM_200"}, "is_new": true}}
             """))));
+        CameraSettings tele = new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200,
+                null, null, null, null, null);
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<List<CheckBox>> checks = new AtomicReference<>();
+        AtomicReference<List<String>> labels = new AtomicReference<>();
+        AtomicReference<BrainstormDialog.Result> adopted = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
                 BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                        GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                        GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), adopted::set);
                 dialog.getScene().getRoot().applyCss();
                 checks.set(dialog.getScene().getRoot().lookupAll(".check-box").stream()
                         .map((node) -> (CheckBox) node).toList());
+                labels.set(dialog.getScene().getRoot().lookupAll(".label").stream()
+                        .map((node) -> ((Label) node).getText()).toList());
+                dialog.getScene().getRoot().lookupAll(".button").stream().map((node) -> (Button) node)
+                        .filter((button) -> I18nManager.getText("brainstorm.adopt").equals(button.getText()))
+                        .findFirst().orElseThrow().fire();
             } catch (Throwable t) {
                 failure.set(t);
             } finally {
@@ -125,10 +139,15 @@ class BrainstormDialogTest {
             throw new AssertionError(failure.get());
         }
         String myList = I18nManager.getText("brainstorm.block.mylist");
-        assertEquals(2, checks.get().stream().filter((check) -> myList.equals(check.getText()) && check.isSelected())
-                .count(), "the new style and the new palette go into the list of the user");
+        assertEquals(3, checks.get().stream().filter((check) -> myList.equals(check.getText()) && check.isSelected())
+                .count(), "the new style, the new palette and the new camera go into the list of the user");
+        assertTrue(labels.get().contains(CameraPromptBuilder.build(tele, true)), "a new camera shows its fragment");
         CheckBox locked = checks.get().stream().filter(CheckBox::isDisabled)
                 .filter((check) -> check.getTooltip() != null).findFirst().orElseThrow();
         assertFalse(locked.isSelected(), "the locked light is not adopted");
+        BrainstormDraft.Block camera = adopted.get().blocks().get(Mood.Field.CAMERA);
+        assertEquals("Harbor Tele", camera.name());
+        assertEquals(tele, camera.settings(), "the new camera is adopted with its settings");
+        assertFalse(adopted.get().blocks().containsKey(Mood.Field.LIGHT));
     }
 }

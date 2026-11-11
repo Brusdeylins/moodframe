@@ -3,6 +3,7 @@ package art.moodframe.service;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormTurn;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
@@ -44,6 +45,8 @@ class MoodAnalysisServiceTest {
             List.of(block("std:atmosphere:foggy", PromptBlock.Type.ATMOSPHERE, "Foggy", "dense fog, muted space"),
                     block("u1", PromptBlock.Type.ATMOSPHERE, "Harbor Mist", "mist over the harbor")),
             List.of(block("std:light:golden-hour", PromptBlock.Type.LIGHT, "Golden Hour", "low warm sun")),
+            List.of(PromptBlockService.camera("std:camera:classic-portrait", "Classic Portrait", new CameraSettings(
+                    CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85, null, null, null, null, null))),
             List.of(palette("std:color:ocean", "Ocean")), List.of(), List.of(), "", List.of(), Set.of());
 
     private GeminiApiService gemini;
@@ -102,6 +105,24 @@ class MoodAnalysisServiceTest {
     }
 
     @Test
+    void aCameraIsAnEntryOrANewCameraWithTheSettingsFromTheImage() {
+        Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply("{\"camera\": {\"name\": "
+                + "\"Classic Portrait\", \"is_new\": true, \"settings\": {\"body\": \"DRONE\", \"lens\": \"MM_24\", "
+                + "\"aperture\": \"F_8\", \"perspective\": \"TOP_DOWN\", \"shot\": \"EXTREME_WIDE\"}}}",
+                context, List.of());
+
+        assertEquals(new BrainstormDraft.Block(null, "Classic Portrait (1)", null, List.of(), new CameraSettings(
+                CameraSettings.Body.DRONE, null, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_8, null, null,
+                CameraSettings.Perspective.TOP_DOWN, CameraSettings.Shot.EXTREME_WIDE), true),
+                blocks.get(Mood.Field.CAMERA));
+        assertEquals("std:camera:classic-portrait", MoodAnalysisService.parseReply(
+                "{\"camera\": {\"name\": \"Classic Portrait\", \"is_new\": false}}", context, List.of())
+                .get(Mood.Field.CAMERA).id());
+        assertFalse(MoodAnalysisService.parseReply("{\"camera\": {\"name\": \"Wide\", \"text\": \"24mm\", "
+                + "\"is_new\": true}}", context, List.of()).containsKey(Mood.Field.CAMERA), "a camera needs settings");
+    }
+
+    @Test
     void anEntryTheListDoesNotHaveIsLeftOut() {
         Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply(
                 "{\"light\": {\"name\": \"Neon Glow\", \"is_new\": false}, \"style\": \"Watercolor\"}", context, List.of());
@@ -129,10 +150,15 @@ class MoodAnalysisServiceTest {
     }
 
     @Test
-    void thePromptCarriesTheRulesAndTheLists() {
-        String prompt = MoodAnalysisService.prompt("{{UI_LANGUAGE}}|{{ATMOSPHERES}}|{{STYLES}}|{{LIGHTS}}", context);
+    void thePromptCarriesTheRulesAndTheLists() throws Exception {
+        String prompt = MoodAnalysisService.prompt(
+                "{{UI_LANGUAGE}}|{{ATMOSPHERES}}|{{STYLES}}|{{LIGHTS}}|{{CAMERAS}}|{{CAMERA_SETTINGS}}", context);
+        String template = new String(getClass().getResourceAsStream("/brainstorm/mood-from-image.txt").readAllBytes());
 
         assertFalse(prompt.contains("{{"));
+        assertFalse(MoodAnalysisService.prompt(template, context).contains("{{"), "the shipped template is filled");
+        assertTrue(prompt.contains("- Classic Portrait: {"), prompt);
+        assertTrue(prompt.contains("- perspective: EYE_LEVEL, LOW_ANGLE, HIGH_ANGLE, TOP_DOWN, DUTCH_ANGLE"), prompt);
         assertTrue(prompt.contains("- Harbor Mist: mist over the harbor"));
         assertTrue(prompt.contains("- Watercolor: watercolor painting"));
         assertTrue(prompt.contains("- Golden Hour: low warm sun"));

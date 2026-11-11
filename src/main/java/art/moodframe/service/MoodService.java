@@ -386,7 +386,7 @@ public class MoodService implements BlockUsage {
 
     /**
      * Copies the mood and the building blocks that go into the prompt of a chat entry, so the entry stays traceable
-     * when a block is changed or deleted later. The camera has no block yet and is not copied.
+     * when a block is changed or deleted later; a camera keeps its settings.
      *
      * @param mood the chosen mood, null for a combination of its own (no mood, or the chosen one changed)
      * @param selection the blocks that go into the prompt
@@ -397,6 +397,7 @@ public class MoodService implements BlockUsage {
         copy(copies, Mood.Field.ATMOSPHERE, selection.atmosphere());
         copy(copies, Mood.Field.STYLE, selection.style());
         copy(copies, Mood.Field.LIGHT, selection.light());
+        copy(copies, Mood.Field.CAMERA, selection.camera());
 
         /*  The palette of the main window carries no id, the stored one of the same name does  */
         ColorStyle palette = selection.palette();
@@ -404,7 +405,7 @@ public class MoodService implements BlockUsage {
             ColorStyle stored = palette.getId() != null ? palette : colors.getStyleByName(palette.getName());
             copies.put(Mood.Field.COLOR, new EntryMood.Block(stored != null ? stored.getId() : null, palette.getName(),
                     null, null, false, palette.getColors().stream()
-                            .filter((String color) -> color != null && !color.isEmpty()).toList()));
+                            .filter((String color) -> color != null && !color.isEmpty()).toList(), null));
         }
         return copies.isEmpty() ? null
                 : new EntryMood(mood != null ? mood.getId() : null, mood != null ? mood.getName() : null, copies);
@@ -577,7 +578,7 @@ public class MoodService implements BlockUsage {
     private static void copy(Map<Mood.Field, EntryMood.Block> copies, Mood.Field field, PromptBlock block) {
         if (block != null)
             copies.put(field, new EntryMood.Block(block.getId(), block.getName(), block.getText(), block.getGroup(),
-                    block.isPhotographic(), List.of()));
+                    block.isPhotographic(), List.of(), block.getParams()));
     }
 
     /** Creates a block of the user from a copy under the next free name; returns its id, null if it was not stored. */
@@ -587,9 +588,10 @@ public class MoodService implements BlockUsage {
             return colors.addCopy(palette) ? palette.getId() : null;
         }
 
-        /*  The text fields carry the names of their block types  */
+        /*  The text fields carry the names of their block types; a camera brings its settings  */
         PromptBlock block = new PromptBlock(null, PromptBlock.Type.valueOf(field.name()), copy.name(), copy.text(),
                 copy.group(), copy.photographic());
+        block.setParams(copy.params());
         return blocks.addCopy(block) ? block.getId() : null;
     }
 

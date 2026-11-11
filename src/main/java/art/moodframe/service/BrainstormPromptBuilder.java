@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
@@ -9,6 +10,7 @@ import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ModelFamilies;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,6 +48,8 @@ public final class BrainstormPromptBuilder {
                 .replace("{{STYLES}}", styles(context))
                 .replace("{{ATMOSPHERES}}", blocks(context.atmospheres()))
                 .replace("{{LIGHTS}}", blocks(context.lights()))
+                .replace("{{CAMERAS}}", cameras(context.cameras()))
+                .replace("{{CAMERA_SETTINGS}}", cameraSettings())
                 .replace("{{COLOR_STYLES}}", colorStyles(context))
                 .replace("{{MOODS}}", moods(context))
                 .replace("{{ASPECT_RATIOS}}", aspectRatios())
@@ -67,6 +71,32 @@ public final class BrainstormPromptBuilder {
         return blocks.stream()
                 .map((PromptBlock block) -> "- " + block.getName() + ": " + block.getText())
                 .collect(Collectors.joining("\n"));
+    }
+
+    /** One line per camera with its name and its settings as JSON. */
+    static String cameras(List<PromptBlock> cameras) {
+        return cameras.stream()
+                .map((PromptBlock camera) -> "- " + camera.getName() + ": "
+                        + CameraSettings.fromJson(camera.getParams()).toJson())
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** One line per key of the camera settings with its values; a key left out means "any". */
+    static String cameraSettings() {
+        return "- body: " + names(CameraSettings.Body.values()) + "\n"
+                + "- model (only with its body): " + CameraPromptBuilder.MODELS.stream()
+                        .map((CameraPromptBuilder.Model model) -> model.name() + " (" + model.body().name() + ")")
+                        .collect(Collectors.joining(", ")) + "\n"
+                + "- lens: " + names(CameraSettings.Lens.values()) + "\n"
+                + "- aperture: " + names(CameraSettings.Aperture.values()) + "\n"
+                + "- shutter: " + names(CameraSettings.Shutter.values()) + "\n"
+                + "- iso: " + names(CameraSettings.Iso.values()) + "\n"
+                + "- perspective: " + names(CameraSettings.Perspective.values()) + "\n"
+                + "- shot: " + names(CameraSettings.Shot.values());
+    }
+
+    private static String names(Enum<?>[] values) {
+        return Arrays.stream(values).map(Enum::name).collect(Collectors.joining(", "));
     }
 
     /** One line per mood with the names of its blocks in use; a mood without any is left out. */

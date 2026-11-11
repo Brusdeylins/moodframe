@@ -13,6 +13,7 @@ import art.moodframe.model.ResearchNote;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
+import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.MoodService;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
 import art.moodframe.ui.component.ColorBox;
@@ -1161,8 +1162,8 @@ public class BrainstormDialog extends Stage {
 
     /**
      * The row of a building block in the result panel: "None", a new block the AI proposes (its name editable, its
-     * text or colors shown below) or an entry of the list. The checkbox adopts the block, a new one into the list of
-     * the user; for a field locked in the main window it stays off.
+     * text, colors or camera fragment shown below) or an entry of the list. The checkbox adopts the block, a new one
+     * into the list of the user; for a field locked in the main window it stays off.
      */
     private final class BlockRow {
 
@@ -1230,13 +1231,16 @@ public class BrainstormDialog extends Stage {
          */
         void show(BrainstormDraft.Block block) {
             box.getItems().remove(newItem);
-            proposed = block != null && block.isNew()
-                    && (field == Mood.Field.COLOR ? !block.colors().isEmpty() : block.text() != null) ? block : null;
+            proposed = block != null && block.isNew() && (field == Mood.Field.COLOR ? !block.colors().isEmpty()
+                    : field == Mood.Field.CAMERA ? block.settings() != null : block.text() != null) ? block : null;
             String value = I18nManager.getText(NONE_ITEM_KEY);
             if (proposed != null) {
                 box.getItems().add(1, newItem);
                 nameField.setText(proposed.name());
-                textLabel.setText(proposed.text());
+
+                /*  a new camera shows the fragment of its settings  */
+                textLabel.setText(proposed.settings() != null ? CameraPromptBuilder.build(proposed.settings(), true)
+                        : proposed.text());
                 colorBoxes.getChildren().setAll(proposed.colors().stream().map(ColorBox::new).toList());
                 value = newItem;
             }
@@ -1256,7 +1260,7 @@ public class BrainstormDialog extends Stage {
                 return null;
             if (newItem.equals(box.getValue()))
                 return new BrainstormDraft.Block(null, nameField.getText().trim(), proposed.text(), proposed.colors(),
-                        true);
+                        proposed.settings(), true);
             return new BrainstormDraft.Block(context.idOf(field, box.getValue()), box.getValue(), null, List.of(),
                     false);
         }

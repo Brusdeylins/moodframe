@@ -81,7 +81,7 @@ class MoodImageDialogTest {
         BrainstormContext context = new BrainstormContext(
                 List.of(new PromptBlock("std:style:pixel-art", PromptBlock.Type.STYLE, "Pixel Art", "retro pixel art",
                         PromptBlock.GROUP_ART, false)),
-                List.of(), List.of(), List.of(), List.of(), List.of(), "", List.of(), locked);
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "", List.of(), locked);
         MoodAnalysisService service = new MoodAnalysisService(null, null, mock(ApplicationConfig.class));
         AtomicReference<MoodImageDialog.Result> adopted = new AtomicReference<>();
         MoodImageDialog dialog = onFx(() -> new MoodImageDialog(null, service, context, imageFile, adopted::set));

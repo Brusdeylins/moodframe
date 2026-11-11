@@ -825,6 +825,7 @@ public class MainWindowController implements I18nChangeListener {
                     + fieldState("Atmosphere", atmosphereComboBox.getValue(), locked.contains(Mood.Field.ATMOSPHERE))
                     + fieldState("Light", lightComboBox.getValue(), locked.contains(Mood.Field.LIGHT))
                     + fieldState("Color", colorStyleComboBox.getValue(), locked.contains(Mood.Field.COLOR))
+                    + fieldState("Camera", cameraComboBox.getValue(), locked.contains(Mood.Field.CAMERA))
                     + "\nAspect ratio: " + aspectRatioComboBox.getValue()
                     + "\nText currently in the input field: "
                     + (promptTextArea.getText().isBlank() ? "(empty)" : promptTextArea.getText().trim());
@@ -832,7 +833,8 @@ public class MainWindowController implements I18nChangeListener {
             art.moodframe.service.BrainstormContext brainstormContext = new art.moodframe.service.BrainstormContext(
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
-                    styleService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT), colorService.getAllStyles(),
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                     moodService != null ? moodService.getAll() : List.of(), models, currentState, modelNames, locked);
             art.moodframe.service.BrainstormService brainstormService = art.moodframe.service.BrainstormService.create(config);
 
@@ -898,7 +900,7 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Sets a building block adopted in the brainstorm popup into its field. A new block is stored in the list of the
-     * user first; a new style counts as photographic, like every style of the user.
+     * user first; a new style counts as photographic, like every style of the user, a new camera brings its settings.
      */
     private void adoptBlock(Mood.Field field, art.moodframe.model.BrainstormDraft.Block block) {
         if (!block.isNew()) {
@@ -918,8 +920,10 @@ public class MainWindowController implements I18nChangeListener {
             art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(art.moodframe.service.PromptBlockService.class);
             art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
-            saved = service != null && service.addCustom(new art.moodframe.model.PromptBlock(null, type, block.name(),
-                    block.text(), null, type == art.moodframe.model.PromptBlock.Type.STYLE));
+            saved = service != null && service.addCustom(type == art.moodframe.model.PromptBlock.Type.CAMERA
+                    ? art.moodframe.service.PromptBlockService.camera(null, block.name(), block.settings())
+                    : new art.moodframe.model.PromptBlock(null, type, block.name(), block.text(), null,
+                            type == art.moodframe.model.PromptBlock.Type.STYLE));
             if (saved)
                 fillBlockChoice(type, block.name());
         }
@@ -929,10 +933,6 @@ public class MainWindowController implements I18nChangeListener {
 
     /** Selects the entry with this id in the field of a building block, "None" if the field does not list it. */
     private void selectField(Mood.Field field, String id) {
-
-        /*  the camera has no field yet (task 18)  */
-        if (field == Mood.Field.CAMERA)
-            return;
         if (field != Mood.Field.COLOR) {
             selectBlock(art.moodframe.model.PromptBlock.Type.valueOf(field.name()), id);
             return;
@@ -2230,12 +2230,7 @@ public class MainWindowController implements I18nChangeListener {
     private void chooseMood(Mood combination, Mood mood) {
         java.util.Map<Mood.Field, String> fields = moodService.apply(combination, currentMoodFields(),
                 lockedMoodFields());
-
-        /*  The camera has no field yet  */
-        java.util.Map<Mood.Field, String> moodFields = moodService.apply(mood, currentMoodFields(), lockedMoodFields());
-        moodFields.remove(Mood.Field.CAMERA);
-        fields.remove(Mood.Field.CAMERA);
-        boolean changed = !fields.equals(moodFields);
+        boolean changed = !fields.equals(moodService.apply(mood, currentMoodFields(), lockedMoodFields()));
 
         art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
         String paletteName = palette != null ? palette.getName() : "None";
@@ -2457,7 +2452,8 @@ public class MainWindowController implements I18nChangeListener {
         art.moodframe.service.BrainstormContext context = new art.moodframe.service.BrainstormContext(
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
-                blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT), colorService.getAllStyles(),
+                blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
+                blockService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                 List.of(), List.of(), "", List.of(), lockedMoodFields());
         new art.moodframe.ui.dialog.MoodImageDialog(mainBorderPane.getScene().getWindow(),
                 art.moodframe.service.MoodAnalysisService.create(config), context, imageFile,

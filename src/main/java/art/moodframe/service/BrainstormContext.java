@@ -14,6 +14,7 @@ import java.util.Set;
  * @param styles all style blocks
  * @param atmospheres all atmosphere blocks
  * @param lights all light blocks
+ * @param cameras all camera blocks
  * @param colorStyles all color styles
  * @param moods all moods
  * @param models the models that can be selected in the main window
@@ -27,6 +28,7 @@ public record BrainstormContext(
         List<PromptBlock> styles,
         List<PromptBlock> atmospheres,
         List<PromptBlock> lights,
+        List<PromptBlock> cameras,
         List<ColorStyle> colorStyles,
         List<Mood> moods,
         List<GenerationModel> models,
@@ -37,21 +39,22 @@ public record BrainstormContext(
     /** Creates the context with styles and color styles only, no field locked, the display name of each model. */
     public BrainstormContext(List<PromptBlock> styles, List<ColorStyle> colorStyles, List<GenerationModel> models,
             String currentState) {
-        this(styles, List.of(), List.of(), colorStyles, List.of(), models, currentState,
+        this(styles, List.of(), List.of(), List.of(), colorStyles, List.of(), models, currentState,
                 models.stream().map(GenerationModel::getLocalizedDisplayName).toList(), Set.of());
     }
 
     /**
-     * The text blocks of a field.
+     * The blocks of a field.
      *
-     * @param field the style, atmosphere or light field
-     * @return the blocks, empty for the color and the camera
+     * @param field the style, atmosphere, light or camera field
+     * @return the blocks, empty for the color
      */
     public List<PromptBlock> blocks(Mood.Field field) {
         return switch (field) {
             case STYLE -> styles;
             case ATMOSPHERE -> atmospheres;
             case LIGHT -> lights;
+            case CAMERA -> cameras;
             default -> List.of();
         };
     }

@@ -32,8 +32,9 @@ import java.util.concurrent.CompletionException;
 
 /**
  * Derives the building blocks of a mood from an image: the palette locally ({@link PaletteExtractor}), the
- * atmosphere, the style and the light from the language model of the brainstorm (Gemini or OpenAI), which gets the
- * scaled-down image, the rules of the building blocks and the lists, and names an entry or a new block for each.
+ * atmosphere, the style, the light and the camera from the language model of the brainstorm (Gemini or OpenAI), which
+ * gets the scaled-down image, the rules of the building blocks and the lists, and names an entry or a new block for
+ * each, a new camera with its settings.
  *
  * @since 2.0.0
  */
@@ -47,7 +48,8 @@ public class MoodAnalysisService {
     private static final int MAX_SIDE = 1024;
 
     /** The fields the language model fills; the palette comes from the pixels. */
-    static final List<Mood.Field> TEXT_FIELDS = List.of(Mood.Field.ATMOSPHERE, Mood.Field.STYLE, Mood.Field.LIGHT);
+    static final List<Mood.Field> MODEL_FIELDS = List.of(Mood.Field.ATMOSPHERE, Mood.Field.STYLE, Mood.Field.LIGHT,
+            Mood.Field.CAMERA);
 
     /**
      * The blocks found in an image.
@@ -120,7 +122,7 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Checks if a language model is set up for the atmosphere, the style and the light.
+     * Checks if a language model is set up for the atmosphere, the style, the light and the camera.
      *
      * @return true if Gemini or an OpenAI language model can answer
      */
@@ -164,7 +166,8 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Fills the template with the language of the user interface and the lists of atmospheres, styles and lights.
+     * Fills the template with the language of the user interface, the lists of atmospheres, styles, lights and cameras
+     * and the camera settings.
      *
      * @param template the template with {@code {{...}}} placeholders
      * @param context the lists
@@ -175,7 +178,9 @@ public class MoodAnalysisService {
                 .replace("{{UI_LANGUAGE}}", BrainstormService.language())
                 .replace("{{ATMOSPHERES}}", BrainstormPromptBuilder.blocks(context.atmospheres()))
                 .replace("{{STYLES}}", BrainstormPromptBuilder.styles(context))
-                .replace("{{LIGHTS}}", BrainstormPromptBuilder.blocks(context.lights()));
+                .replace("{{LIGHTS}}", BrainstormPromptBuilder.blocks(context.lights()))
+                .replace("{{CAMERAS}}", BrainstormPromptBuilder.cameras(context.cameras()))
+                .replace("{{CAMERA_SETTINGS}}", BrainstormPromptBuilder.cameraSettings());
     }
 
     /**
@@ -218,8 +223,9 @@ public class MoodAnalysisService {
 
     /**
      * Reads the answer of the language model. A block naming an entry of its list refers to it by id, a block naming
-     * none is left out; a new block whose name an entry has already gets the next free name. The palette is a new
-     * block with the colors of the pixels and the name from the answer.
+     * none is left out; a new block (a camera with its settings, any other with its text) whose name an entry has
+     * already gets the next free name. The palette is a new block with the colors of the pixels and the name from the
+     * answer.
      *
      * @param raw the answer, a JSON object possibly with text around it
      * @param context the lists
@@ -236,11 +242,14 @@ public class MoodAnalysisService {
         JSONObject json = new JSONObject(raw.substring(start, end + 1));
 
         Map<Mood.Field, BrainstormDraft.Block> blocks = new EnumMap<>(Mood.Field.class);
-        for (Mood.Field field : TEXT_FIELDS) {
+        for (Mood.Field field : MODEL_FIELDS) {
             BrainstormDraft.Block block = BrainstormDraft.Block.fromJson(json.opt(field.name().toLowerCase(Locale.ROOT)));
             if (block == null)
                 continue;
-            if (block.isNew() && block.text() != null)
+            if (block.isNew() && field == Mood.Field.CAMERA && block.settings() != null)
+                blocks.put(field, new BrainstormDraft.Block(null, freeName(context, field, block.name()), null,
+                        List.of(), block.settings(), true));
+            else if (block.isNew() && field != Mood.Field.CAMERA && block.text() != null)
                 blocks.put(field, new BrainstormDraft.Block(null, freeName(context, field, block.name()), block.text(),
                         List.of(), true));
             else if (!block.isNew() && context.idOf(field, block.name()) != null)

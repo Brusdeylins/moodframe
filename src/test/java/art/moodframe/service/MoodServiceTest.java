@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
@@ -280,6 +281,34 @@ class MoodServiceTest {
         assertTrue(recreatedPalette.getName().startsWith("Harbor Night"));
         assertEquals(List.of("#0A1A2A", "#FFAA00"), recreatedPalette.getColors());
         assertFalse(recreatedPalette.getId().equals(palette.getId()), "the palette in the trash stays there");
+    }
+
+    @Test
+    void copiesTheCameraOfAnEntryWithItsSettingsTakesItOverAndCreatesItAnew() throws Exception {
+        PromptBlock camera = PromptBlockService.camera(null, "Harbor Tele", new CameraSettings(
+                CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200, CameraSettings.Aperture.F_4, null,
+                null, null, null));
+        assertTrue(blocks.addCustom(camera));
+        Mood product = moods.find("std:mood:clean-product");
+
+        EntryMood.Block tabletop = moods.snapshot(product, moods.selection(product)).blocks().get(Mood.Field.CAMERA);
+        assertEquals("std:camera:product-tabletop", tabletop.id());
+        assertEquals(blocks.find(PromptBlock.Type.CAMERA, tabletop.id()).getParams(), tabletop.params());
+
+        /*  "Take over mood" sets the camera of the copy, a locked camera keeps its block  */
+        EntryMood copy = moods.snapshot(null, new PromptComposer.Selection(null, null, null, camera, null));
+        Mood combination = new Mood(null, null);
+        moods.references(copy, false).forEach(combination::setReference);
+        assertEquals(Map.of(Mood.Field.CAMERA, camera.getId()), moods.apply(combination, Map.of(), Set.of()));
+        assertEquals(Map.of(Mood.Field.CAMERA, "std:camera:macro-detail"), moods.apply(combination,
+                Map.of(Mood.Field.CAMERA, "std:camera:macro-detail"), Set.of(Mood.Field.CAMERA)));
+
+        execute("DELETE FROM prompt_blocks WHERE id = '" + camera.getId() + "'");
+        assertEquals(List.of(Mood.Field.CAMERA), moods.missingBlocks(copy));
+        PromptBlock recreated = blocks.find(PromptBlock.Type.CAMERA,
+                moods.references(copy, true).get(Mood.Field.CAMERA));
+        assertEquals("Harbor Tele", recreated.getName());
+        assertEquals(camera.getParams(), recreated.getParams(), "the camera comes back with its settings");
     }
 
     private static void execute(String sql) throws Exception {

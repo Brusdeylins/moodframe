@@ -14,35 +14,44 @@ import java.util.regex.Pattern;
  * The current result of a brainstorm session: the prompt and the suggested settings.
  *
  * <p>All settings are optional ({@code null} or empty means "no suggestion"). The look comes from a mood and the
- * building blocks of {@link #FIELDS}: each is an entry of the lists or a new block the AI proposes. Older drafts name
- * only the style and the palette ({@code "style"}, {@code "color_style"}); they are read as references by name.</p>
+ * building blocks of {@link #FIELDS}: each is an entry of the lists or a new block the AI proposes, a new camera with
+ * its settings instead of a text. Older drafts name only the style and the palette ({@code "style"},
+ * {@code "color_style"}); they are read as references by name.</p>
  *
  * @since 1.7.0
  */
 public class BrainstormDraft {
 
-    /** The building blocks the brainstorm suggests, each under its lower-case name as key; no camera block yet. */
+    /** The building blocks the brainstorm suggests, each under its lower-case name as key. */
     public static final List<Mood.Field> FIELDS = List.of(Mood.Field.STYLE, Mood.Field.ATMOSPHERE, Mood.Field.LIGHT,
-            Mood.Field.COLOR);
+            Mood.Field.COLOR, Mood.Field.CAMERA);
 
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-F]{6}");
     private static final int MAX_COLORS = 5;
 
     /**
      * A building block of the draft: an entry of the lists, referred to by id or name, or a new block the AI proposes
-     * with its text, for a palette with its colors.
+     * with its text, for a palette with its colors, for a camera with its settings.
      *
      * @param id the id of the entry, null for a new block or a name that is not resolved yet
      * @param name the name of the entry, or the proposed name of a new block
      * @param text the prompt fragment of a new text block, null otherwise
      * @param colors the colors of a new palette as {@code #RRGGBB}, empty otherwise
+     * @param settings the settings of a new camera, null otherwise
      * @param isNew whether the AI proposes the block as a new entry
      */
-    public record Block(String id, String name, String text, List<String> colors, boolean isNew) {
+    public record Block(String id, String name, String text, List<String> colors, CameraSettings settings,
+            boolean isNew) {
+
+        /** Creates a block without camera settings. */
+        public Block(String id, String name, String text, List<String> colors, boolean isNew) {
+            this(id, name, text, colors, null, isNew);
+        }
 
         /**
-         * Reads a block: a plain name (older drafts, a mood) or an object with id, name, text, colors and is_new.
-         * Without is_new, a block with a text or colors counts as new.
+         * Reads a block: a plain name (older drafts, a mood) or an object with id, name, text, colors, settings and
+         * is_new. Without is_new, a block with a text, colors or settings counts as new; settings that leave every
+         * value "any" count as none.
          *
          * @param value the JSON value, a string or an object
          * @return the block, null for a missing value, a missing name or a new block without content
@@ -62,10 +71,13 @@ public class BrainstormDraft {
                 if (HEX_COLOR.matcher(color).matches())
                     colors.add(color);
             }
-            boolean isNew = json.optBoolean("is_new", text != null || !colors.isEmpty());
-            if (name == null || isNew && text == null && colors.isEmpty())
+            JSONObject settingsJson = json.optJSONObject("settings");
+            CameraSettings settings = settingsJson != null ? CameraSettings.fromJson(settingsJson.toString()) : null;
+            settings = CameraSettings.ANY.equals(settings) ? null : settings;
+            boolean isNew = json.optBoolean("is_new", text != null || !colors.isEmpty() || settings != null);
+            if (name == null || isNew && text == null && colors.isEmpty() && settings == null)
                 return null;
-            return isNew ? new Block(null, name, text, List.copyOf(colors), true)
+            return isNew ? new Block(null, name, text, List.copyOf(colors), settings, true)
                     : new Block(optText(json, "id"), name, null, List.of(), false);
         }
 
@@ -82,6 +94,8 @@ public class BrainstormDraft {
                 json.put("text", text);
             if (!colors.isEmpty())
                 json.put("colors", new JSONArray(colors));
+            if (settings != null)
+                json.put("settings", new JSONObject(settings.toJson()));
             return json;
         }
 
@@ -92,7 +106,7 @@ public class BrainstormDraft {
          * @return the block with the id
          */
         public Block withId(String entryId) {
-            return new Block(entryId, name, text, colors, isNew);
+            return new Block(entryId, name, text, colors, settings, isNew);
         }
     }
 

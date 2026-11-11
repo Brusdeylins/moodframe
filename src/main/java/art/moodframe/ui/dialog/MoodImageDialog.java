@@ -5,6 +5,7 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
+import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.MoodAnalysisService;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.util.I18nManager;
@@ -57,8 +58,8 @@ import java.util.function.Consumer;
 
 /**
  * Dialog "Mood from image": the user drops, pastes or picks an image, the {@link MoodAnalysisService} finds its
- * atmosphere, style, light and colors, and the user decides per building block what goes into the fields of the main
- * window, optionally saved as a new mood.
+ * atmosphere, style, light, colors and camera, and the user decides per building block what goes into the fields of
+ * the main window, optionally saved as a new mood.
  *
  * <p>Each row shows "None", an entry of the list or a new block from the image with an editable name; the checkbox
  * adopts the block, a new one into the list of the user. A field locked in the main window is not adopted. Without a
@@ -80,7 +81,7 @@ public class MoodImageDialog extends Stage {
     private static final KeyCombination PASTE = new KeyCodeCombination(KeyCode.V, KeyCombination.SHORTCUT_DOWN);
     /** The rows, in the order of the fields of the main window. */
     private static final List<Mood.Field> FIELDS = List.of(Mood.Field.ATMOSPHERE, Mood.Field.STYLE, Mood.Field.COLOR,
-            Mood.Field.LIGHT);
+            Mood.Field.LIGHT, Mood.Field.CAMERA);
 
     /**
      * The values adopted into the main window.
@@ -332,9 +333,9 @@ public class MoodImageDialog extends Stage {
     }
 
     /**
-     * The row of a building block: "None", a new block from the image (its name editable, its text or colors shown
-     * below) or an entry of the list. The checkbox adopts the block, a new one into the list of the user; for a field
-     * locked in the main window it stays off.
+     * The row of a building block: "None", a new block from the image (its name editable, its text, colors or camera
+     * fragment shown below) or an entry of the list. The checkbox adopts the block, a new one into the list of the
+     * user; for a field locked in the main window it stays off.
      */
     private final class BlockRow {
 
@@ -401,13 +402,16 @@ public class MoodImageDialog extends Stage {
          */
         void show(BrainstormDraft.Block block) {
             box.getItems().remove(newItem);
-            proposed = block != null && block.isNew()
-                    && (field == Mood.Field.COLOR ? !block.colors().isEmpty() : block.text() != null) ? block : null;
+            proposed = block != null && block.isNew() && (field == Mood.Field.COLOR ? !block.colors().isEmpty()
+                    : field == Mood.Field.CAMERA ? block.settings() != null : block.text() != null) ? block : null;
             String value = I18nManager.getText(NONE_ITEM_KEY);
             if (proposed != null) {
                 box.getItems().add(1, newItem);
                 nameField.setText(proposed.name());
-                textLabel.setText(proposed.text());
+
+                /*  a new camera shows the fragment of its settings  */
+                textLabel.setText(proposed.settings() != null ? CameraPromptBuilder.build(proposed.settings(), true)
+                        : proposed.text());
                 colorBoxes.getChildren().setAll(proposed.colors().stream().map(ColorBox::new).toList());
                 value = newItem;
             }
@@ -427,7 +431,7 @@ public class MoodImageDialog extends Stage {
                 return null;
             if (newItem.equals(box.getValue()))
                 return new BrainstormDraft.Block(null, nameField.getText().trim(), proposed.text(), proposed.colors(),
-                        true);
+                        proposed.settings(), true);
             return new BrainstormDraft.Block(context.idOf(field, box.getValue()), box.getValue(), null, List.of(),
                     false);
         }

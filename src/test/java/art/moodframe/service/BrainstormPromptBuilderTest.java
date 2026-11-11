@@ -1,5 +1,6 @@
 package art.moodframe.service;
 
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
@@ -70,8 +71,9 @@ class BrainstormPromptBuilderTest {
         List<GenerationModel> models = List.of(GenerationModel.FLUX3_IMAGE_768, GenerationModel.FLUX3_IMAGE_1K,
                 GenerationModel.FLUX3_IMAGE_1_5K, GenerationModel.FLUX3_IMAGE_2K, GenerationModel.FLUX3_IMAGE_4K,
                 GenerationModel.FLUX3_KLEIN_1K, GenerationModel.FLUX3_KLEIN_4K);
-        BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(), models,
-                "", models.stream().map(GenerationModel::getLocalizedDisplayName).toList(), Set.of());
+        BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), models, "", models.stream().map(GenerationModel::getLocalizedDisplayName).toList(),
+                Set.of());
 
         String prompt = BrainstormPromptBuilder.build("{{MODELS}}|{{ASPECT_RATIOS}}", "English", flux3, "");
 
@@ -85,7 +87,7 @@ class BrainstormPromptBuilderTest {
     @Test
     void listsOneLinePerFamilyWithItsResolutionsAndPrices() {
         BrainstormContext variants = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_2K,
+                List.of(), List.of(GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_2K,
                         GenerationModel.NANO_BANANA2_4K, GenerationModel.OPENAI_IMAGE),
                 "", List.of(GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName(),
                         GenerationModel.NANO_BANANA2_2K.getLocalizedDisplayName(),
@@ -100,7 +102,7 @@ class BrainstormPromptBuilderTest {
     }
 
     @Test
-    void listsAtmospheresLightsAndTheMoodsWithTheirBlocksInUse() {
+    void listsAtmospheresLightsCamerasAndTheMoodsWithTheirBlocksInUse() {
         PromptBlock style = new PromptBlock("std:style:watercolor", PromptBlock.Type.STYLE, "Watercolor",
                 "watercolor painting", PromptBlock.GROUP_ART, false);
         PromptBlock calm = new PromptBlock("std:atmosphere:calm", PromptBlock.Type.ATMOSPHERE, "Calm",
@@ -109,6 +111,8 @@ class BrainstormPromptBuilderTest {
                 "cool blue twilight", null, false);
         ColorStyle palette = new ColorStyle("Arctic Ice", List.of("#E0F7FA"), true);
         palette.setId("std:color:arctic-ice");
+        PromptBlock street = PromptBlockService.camera("std:camera:street-35mm", "Street 35mm", new CameraSettings(
+                CameraSettings.Body.COMPACT_35MM, "Leica M6", CameraSettings.Lens.MM_35, null, null, null, null, null));
 
         Mood morning = new Mood("std:mood:quiet-morning", "Quiet Morning");
         morning.setReference(Mood.Field.STYLE, style.getId());
@@ -120,12 +124,19 @@ class BrainstormPromptBuilderTest {
         trashed.setReference(Mood.Field.STYLE, "trashed-style");
 
         BrainstormContext library = new BrainstormContext(List.of(style), List.of(calm), List.of(blueHour),
-                List.of(palette), List.of(morning, trashed), List.of(), "", List.of(), Set.of());
+                List.of(street), List.of(palette), List.of(morning, trashed), List.of(), "", List.of(), Set.of());
         String prompt = BrainstormPromptBuilder.build("{{ATMOSPHERES}}|{{LIGHTS}}|{{MOODS}}", "English", library, "");
 
         assertEquals("- Calm: calm, quiet, a sense of stillness|- Blue Hour: cool blue twilight|"
-                + "- Quiet Morning: style Watercolor, atmosphere Calm, light Blue Hour, color Arctic Ice", prompt,
-                "a mood without any block in use is left out, the camera has no block yet");
+                + "- Quiet Morning: style Watercolor, atmosphere Calm, light Blue Hour, color Arctic Ice, "
+                + "camera Street 35mm", prompt, "a mood without any block in use is left out");
+
+        String cameras = BrainstormPromptBuilder.build("{{CAMERAS}}|{{CAMERA_SETTINGS}}", "English", library, "");
+        assertTrue(cameras.startsWith("- Street 35mm: {"), cameras);
+        assertTrue(cameras.contains("\"lens\":\"MM_35\"") && cameras.contains("\"model\":\"Leica M6\""), cameras);
+        assertTrue(cameras.contains("- lens: MM_14, MM_24, MM_35, "), cameras);
+        assertTrue(cameras.contains("Leica M6 (COMPACT_35MM)"), cameras);
+        assertTrue(cameras.endsWith("- shot: EXTREME_WIDE, WIDE, MEDIUM, CLOSE_UP, DETAIL"), cameras);
     }
 
     @Test

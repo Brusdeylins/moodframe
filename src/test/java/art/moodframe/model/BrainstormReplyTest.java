@@ -175,6 +175,31 @@ class BrainstormReplyTest {
     }
 
     @Test
+    void readsACameraAsEntryOrAsNewCameraWithItsSettings() {
+        BrainstormDraft draft = BrainstormReply.parse("""
+            {"step": 7, "message": "m", "draft": {"prompt": "A harbor",
+              "camera": {"name": "Harbor Tele", "is_new": true,
+                "settings": {"body": "FULL_FRAME", "lens": "MM_200", "shot": "WIDE", "iso": "ISO_9"}}}}
+            """).getDraft();
+
+        BrainstormDraft.Block camera = draft.getBlock(Mood.Field.CAMERA);
+        assertTrue(camera.isNew());
+        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200, null, null,
+                null, null, CameraSettings.Shot.WIDE), camera.settings(), "an unknown value counts as any");
+        assertEquals(camera, BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()))
+                .getBlock(Mood.Field.CAMERA));
+
+        BrainstormDraft entry = BrainstormDraft.fromJson(new JSONObject("""
+            {"prompt": "p", "camera": {"name": "Classic Portrait", "is_new": false}}
+            """));
+        assertEquals(new BrainstormDraft.Block(null, "Classic Portrait", null, List.of(), false),
+                entry.getBlock(Mood.Field.CAMERA));
+        assertNull(BrainstormDraft.fromJson(new JSONObject("""
+            {"prompt": "p", "camera": {"name": "Anything", "settings": {"lens": "MM_7"}, "is_new": true}}
+            """)).getBlock(Mood.Field.CAMERA), "a new camera whose settings leave every value any has no content");
+    }
+
+    @Test
     void dropsBlocksWithoutNameAndNewBlocksWithoutContent() {
         BrainstormDraft draft = BrainstormDraft.fromJson(new JSONObject("""
             {"prompt": "p", "mood": "null",

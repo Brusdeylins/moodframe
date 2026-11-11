@@ -109,11 +109,14 @@ class BrainstormServiceTest {
     @Test
     void refersTheMoodAndTheBlocksOfTheDraftToTheirEntriesById() {
         PromptBlock calm = new PromptBlock("own-calm", PromptBlock.Type.ATMOSPHERE, "My Calm", "calm", null, false);
-        BrainstormContext library = new BrainstormContext(List.of(), List.of(calm), List.of(), List.of(),
-                List.of(new Mood("std:mood:wild-north", "Wild North")), List.of(), "state", List.of(),
+        PromptBlock portrait = new PromptBlock("std:camera:classic-portrait", PromptBlock.Type.CAMERA,
+                "Classic Portrait", "85mm", null, false);
+        BrainstormContext library = new BrainstormContext(List.of(), List.of(calm), List.of(), List.of(portrait),
+                List.of(), List.of(new Mood("std:mood:wild-north", "Wild North")), List.of(), "state", List.of(),
                 java.util.Set.of());
         answers(text("{\"step\": 7, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"mood\": \"Wild North\", "
                 + "\"atmosphere\": {\"name\": \"My Calm\", \"is_new\": false}, "
+                + "\"camera\": {\"name\": \"Classic Portrait\", \"is_new\": false}, "
                 + "\"light\": {\"name\": \"Unknown\", \"is_new\": false}, "
                 + "\"style\": {\"name\": \"Ink\", \"text\": \"ink wash\", \"is_new\": true}}}"));
 
@@ -121,6 +124,7 @@ class BrainstormServiceTest {
 
         assertEquals("std:mood:wild-north", draft.getMood().id());
         assertEquals("own-calm", draft.getBlock(Mood.Field.ATMOSPHERE).id());
+        assertEquals("std:camera:classic-portrait", draft.getBlock(Mood.Field.CAMERA).id());
         assertNull(draft.getBlock(Mood.Field.LIGHT).id(), "a name without entry keeps its reference");
         assertNull(draft.getBlock(Mood.Field.STYLE).id(), "a new block has no entry yet");
     }

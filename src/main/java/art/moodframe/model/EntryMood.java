@@ -32,14 +32,17 @@ public record EntryMood(String moodId, String moodName, Map<Mood.Field, Block> b
      * @param group the group of a text block, null for none
      * @param photographic whether a style describes a photograph
      * @param colors the hex colors of a palette, empty for a text block
+     * @param params the parameters of the block as JSON text (the settings of a camera), null for none
      */
-    public record Block(String id, String name, String text, String group, boolean photographic, List<String> colors) {
+    public record Block(String id, String name, String text, String group, boolean photographic, List<String> colors,
+            String params) {
     }
 
     /**
      * The copy as JSON, for example
      * {@code {"mood": {"id": "std:mood:film-noir", "name": "Film Noir"}, "blocks": {"style": {"id": ..., "name": ...,
-     * "text": ..., "photographic": true}, "color": {"id": ..., "name": ..., "colors": ["#1A1A1A"]}}}}.
+     * "text": ..., "photographic": true}, "color": {"id": ..., "name": ..., "colors": ["#1A1A1A"]},
+     * "camera": {"id": ..., "name": ..., "text": ..., "params": ...}}}}.
      *
      * @return the JSON text
      */
@@ -54,6 +57,7 @@ public record EntryMood(String moodId, String moodName, Map<Mood.Field, Block> b
                 copy.put("text", block.text()).put("group", block.group()).put("photographic", block.photographic());
             else
                 copy.put("colors", new JSONArray(block.colors()));
+            copy.putOpt("params", block.params());
             fields.put(field.name().toLowerCase(Locale.ROOT), copy);
         });
         return json.put("blocks", fields).toString();
@@ -80,7 +84,8 @@ public record EntryMood(String moodId, String moodName, Map<Mood.Field, Block> b
                 JSONArray colors = copy.optJSONArray("colors");
                 blocks.put(field, new Block(copy.optString("id", null), copy.optString("name", null),
                         copy.optString("text", null), copy.optString("group", null), copy.optBoolean("photographic"),
-                        colors != null ? colors.toList().stream().map(String::valueOf).toList() : List.of()));
+                        colors != null ? colors.toList().stream().map(String::valueOf).toList() : List.of(),
+                        copy.optString("params", null)));
             }
             return new EntryMood(mood != null ? mood.optString("id", null) : null,
                     mood != null ? mood.optString("name", null) : null, blocks);
