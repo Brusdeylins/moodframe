@@ -87,6 +87,10 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Button settingsButton;
     @FXML
+    private Button infoButton;
+    @FXML
+    private Tooltip infoTooltip;
+    @FXML
     private Label appVersionLabel;
 
     // Sidebar Controls
@@ -379,6 +383,7 @@ public class MainWindowController implements I18nChangeListener {
 
         setupChatSystem();
         setupUI();
+        setupCornerCloud();
         setupImagePreviewOverlay();
         setupEventHandlers();
         setupDragAndDrop();
@@ -2083,6 +2088,10 @@ public class MainWindowController implements I18nChangeListener {
             settingsButton.setStyle(
                     "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
         }
+        if (infoButton != null) {
+            infoButton.setStyle(
+                    "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
+        }
 
         // Setup chat list view with filtered list
         chatListView.setItems(filteredChatList);
@@ -3257,6 +3266,53 @@ public class MainWindowController implements I18nChangeListener {
 
     // FXML Event Handlers
 
+    /*  the colored cloud in the lower right corner, behind all panels and controls  */
+    private javafx.scene.image.ImageView cornerCloud;
+    private static final double CLOUD_WIDTH = 1000.0;
+    private static final double CLOUD_HEIGHT = 747.0;
+
+    /**
+     * Puts the colored cloud that rises from the lower right corner (as on the splash screen) behind the whole
+     * window content. The image is transparent around the cloud; the panels above it are transparent too
+     * ({@code main-window.css}), while controls, the chat list and images keep their own background and cover it.
+     */
+    private void setupCornerCloud() {
+        if (!(mainBorderPane.getParent() instanceof StackPane stack))
+            return;
+        var image = new javafx.scene.image.Image(
+                getClass().getResourceAsStream("/images/corner-cloud.png"), CLOUD_WIDTH, CLOUD_HEIGHT, true, true);
+        cornerCloud = new javafx.scene.image.ImageView(image);
+        cornerCloud.setMouseTransparent(true);
+        cornerCloud.setFocusTraversable(false);
+        cornerCloud.setManaged(false);
+        stack.getChildren().add(0, cornerCloud);
+        stack.layoutBoundsProperty().addListener((obs, old, bounds) -> placeCornerCloud(bounds));
+        placeCornerCloud(stack.getLayoutBounds());
+        updateCornerCloudTheme();
+    }
+
+    private void placeCornerCloud(javafx.geometry.Bounds bounds) {
+        cornerCloud.relocate(bounds.getWidth() - CLOUD_WIDTH, bounds.getHeight() - CLOUD_HEIGHT);
+    }
+
+    /**
+     * Matches the strength of the corner cloud to the current theme.
+     */
+    private void updateCornerCloudTheme() {
+        if (cornerCloud == null)
+            return;
+        boolean dark = art.moodframe.util.ThemeManager.isDarkTheme(art.moodframe.util.ThemeManager.getCurrentTheme());
+        cornerCloud.setOpacity(dark ? 0.85 : 0.55);
+    }
+
+    /**
+     * Shows the splash screen again as an info window; it closes with Esc or a click.
+     */
+    @FXML
+    private void onInfoClicked() {
+        art.moodframe.ui.SplashScreen.showInfo(infoButton.getScene().getWindow());
+    }
+
     /**
      * Handles the settings button click event.
      */
@@ -3320,6 +3376,7 @@ public class MainWindowController implements I18nChangeListener {
 
             // Show the dialog and handle the result
             dialog.showAndWait();
+            updateCornerCloudTheme();
 
             // Auto-save settings when dialog is closed (regardless of how it was closed)
             // Always apply settings and refresh UI after dialog closes
@@ -5384,6 +5441,9 @@ public class MainWindowController implements I18nChangeListener {
      * Updates all tooltip texts for live language switching.
      */
     private void updateTooltipTexts() {
+        if (infoTooltip != null) {
+            infoTooltip.setText(I18nManager.getText("main.info.tooltip"));
+        }
         if (settingsTooltip != null) {
             settingsTooltip.setText(I18nManager.getText("main.settings.tooltip"));
         }

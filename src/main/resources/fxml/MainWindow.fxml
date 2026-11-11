@@ -15,7 +15,8 @@
 <StackPane xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
            fx:controller="art.moodframe.ui.controller.MainWindowController"
            prefHeight="800.0" prefWidth="1200.0"
-           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css">
+           styleClass="app-root"
+           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css,@../css/main-window.css">
     
     <!-- Main Application Content -->
     <BorderPane fx:id="mainBorderPane">
@@ -36,8 +37,19 @@
             <!-- Spacer to push settings button to the right -->
             <Region HBox.hgrow="ALWAYS" />
             
+            <!-- Info Button: shows the splash screen again, closes with Esc -->
+            <Button fx:id="infoButton" styleClass="button-icon, flat"
+                    onAction="#onInfoClicked">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2i-information-outline" iconSize="20" styleClass="ikonli-font-icon" />
+                </graphic>
+                <tooltip>
+                    <Tooltip fx:id="infoTooltip" text="Info" />
+                </tooltip>
+            </Button>
+
             <!-- Settings Button (CRITICAL: Must be available BEFORE API calls) -->
-            <Button fx:id="settingsButton" styleClass="button-icon" 
+            <Button fx:id="settingsButton" styleClass="button-icon, flat" 
                     onAction="#onSettingsClicked">
                 <graphic>
                     <FontIcon iconLiteral="mdi2c-cog" iconSize="20" styleClass="ikonli-font-icon" />
@@ -192,10 +204,9 @@
                 <!-- Right: Parameters Panel - Full Height with Scroll -->
                 <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" 
                             prefWidth="250.0" maxWidth="250.0" minWidth="250.0" 
-                            styleClass="bg-inset"
-                            style="-fx-background: -color-bg-inset; -fx-background-color: -color-bg-inset;">
-                    <VBox spacing="15.0" styleClass="bg-inset" 
-                          style="-fx-background-color: -color-bg-inset;">
+                            styleClass="see-through"
+                            style="-fx-background: transparent; -fx-background-color: transparent;">
+                    <VBox spacing="15.0" styleClass="see-through">
                         <padding>
                             <Insets bottom="20.0" left="15.0" right="15.0" top="0.0" />
                         </padding>

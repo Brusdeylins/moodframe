@@ -7,15 +7,22 @@ import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.input.KeyCode;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Screen;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.Window;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,8 +42,14 @@ public class SplashScreen {
     private static final int SPLASH_HEIGHT = 720;
     private static final int DISPLAY_DURATION_MS = 1000;
 
+    /*  height of the dark floor at the bottom of the splash image, in window pixels  */
+    private static final double FLOOR_HEIGHT = 150.0;
+
     private final Stage splashStage;
     private final Runnable onComplete;
+
+    /*  opened from the Info button: stays until Esc or a click, belongs to the main window  */
+    private final boolean info;
 
     /**
      * Creates a new splash screen.
@@ -44,9 +57,28 @@ public class SplashScreen {
      * @param onComplete callback to execute when splash screen closes
      */
     public SplashScreen(Runnable onComplete) {
+        this(onComplete, null);
+    }
+
+    private SplashScreen(Runnable onComplete, Window owner) {
         this.onComplete = onComplete;
+        this.info = owner != null;
         this.splashStage = new Stage();
+        if (info) {
+            splashStage.initOwner(owner);
+            splashStage.initModality(Modality.WINDOW_MODAL);
+        }
         initializeSplashStage();
+    }
+
+    /**
+     * Shows the splash screen again as an info window over the given window. It stays until the user presses
+     * Esc or clicks it.
+     *
+     * @param owner the window the info belongs to
+     */
+    public static void showInfo(Window owner) {
+        new SplashScreen(null, owner).show();
     }
 
     /**
@@ -57,7 +89,7 @@ public class SplashScreen {
             // Configure stage style - undecorated for borderless window
             splashStage.initStyle(StageStyle.UNDECORATED);
             splashStage.setResizable(false);
-            splashStage.setAlwaysOnTop(true);
+            splashStage.setAlwaysOnTop(!info);
 
             // Load splash image
             Image splashImage = new Image(
@@ -75,36 +107,40 @@ public class SplashScreen {
 
             // Create version overlay
             String version = VersionManager.getVersion();
-            Label versionLabel = new Label("MoodFrame - Version " + version + " - © Matthias Brusdeylins 2025-2026");
-            versionLabel.setStyle(
-                    "-fx-text-fill: #FFFFFF;" +
-                            "-fx-font-size: 12px;" +
-                            "-fx-font-weight: 300;");
+            String titleStyle = "-fx-text-fill: #FFFFFF; -fx-font-size: 14px;";
+            Label moodLabel = new Label("Mood");
+            moodLabel.setStyle(titleStyle + " -fx-font-weight: bold;");
+            Label versionText = new Label("Frame · Version " + version + " · © Matthias Brusdeylins 2025-2026");
+            versionText.setStyle(titleStyle + " -fx-font-weight: 300;");
+            HBox versionLabel = new HBox(moodLabel, versionText);
+            versionLabel.setAlignment(Pos.BASELINE_CENTER);
 
-            // Create AI development credits
-            Label emptyLine = new Label("");
-            Label aiCreditLine1 = new Label("This application was built with Agentic Coding using Claude Code AI.");
-            aiCreditLine1.setStyle(
-                    "-fx-text-fill: #FFFFFF;" +
-                            "-fx-font-size: 11px;" +
-                            "-fx-font-weight: 200;");
+            /*  credits: built with ASE (a link in the info window, plain text during startup)  */
+            String creditStyle = "-fx-text-fill: #FFFFFF; -fx-font-size: 12px; -fx-font-weight: 200;";
+            Label creditBefore = new Label("This application was built with Agentic Coding using Claude Code and ");
+            creditBefore.setStyle(creditStyle);
+            Hyperlink aseLink = new Hyperlink("ase.tools");
+            aseLink.setStyle(creditStyle + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
+            aseLink.setFocusTraversable(false);
+            aseLink.setOnAction((event) -> openInBrowser("https://ase.tools"));
+            Label creditAfter = new Label(".");
+            creditAfter.setStyle(creditStyle);
+            HBox aiCreditLine1 = new HBox(creditBefore, aseLink, creditAfter);
+            aiCreditLine1.setAlignment(Pos.BASELINE_CENTER);
 
-            Label aiCreditLine2 = new Label("Concept, planning, review and direction by human – implementation by AI.");
-            aiCreditLine2.setStyle(
-                    "-fx-text-fill: #FFFFFF;" +
-                            "-fx-font-size: 11px;" +
-                            "-fx-font-weight: 200;");
+            Label aiCreditLine2 = new Label("Concept, planning, review and direction by human.");
+            aiCreditLine2.setStyle(creditStyle);
 
-            // Create semi-transparent black bar for version text
+            /*  the text stands directly on the image, centered in the dark floor below the glass pane  */
             VBox versionOverlay = new VBox(2);
             versionOverlay.setAlignment(Pos.CENTER);
-            versionOverlay.setPadding(new Insets(10));
-            versionOverlay.setMaxHeight(80); // Increased height for multiple lines
-            versionOverlay.setPrefHeight(80);
-            versionOverlay.setStyle(
-                    "-fx-background-color: rgba(0, 0, 0, 0.7);" +
-                            "-fx-background-radius: 0;");
-            versionOverlay.getChildren().addAll(versionLabel, emptyLine, aiCreditLine1, aiCreditLine2);
+            versionOverlay.setPadding(new Insets(0, 10, 17, 10));
+            versionOverlay.setMaxHeight(FLOOR_HEIGHT);
+            versionOverlay.setPrefHeight(FLOOR_HEIGHT);
+            versionOverlay.setEffect(new DropShadow(6.0, Color.rgb(0, 0, 0, 0.9)));
+            Region gap = new Region();
+            gap.setMinHeight(6.0);
+            versionOverlay.getChildren().addAll(versionLabel, gap, aiCreditLine1, aiCreditLine2);
 
             // Stack image and overlay
             StackPane root = new StackPane();
@@ -114,6 +150,14 @@ public class SplashScreen {
             // Create scene
             Scene scene = new Scene(root, SPLASH_WIDTH, SPLASH_HEIGHT);
             scene.setFill(Color.TRANSPARENT);
+
+            if (info) {
+                scene.setOnKeyPressed((event) -> {
+                    if (event.getCode() == KeyCode.ESCAPE)
+                        close();
+                });
+                scene.setOnMouseClicked((event) -> close());
+            }
 
             splashStage.setScene(scene);
 
@@ -128,6 +172,17 @@ public class SplashScreen {
             if (onComplete != null) {
                 onComplete.run();
             }
+        }
+    }
+
+    private static void openInBrowser(String url) {
+        try {
+            if (java.awt.Desktop.isDesktopSupported()
+                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE))
+                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+        }
+        catch (Exception e) {
+            logger.warn("Could not open {}: {}", url, e.getMessage());
         }
     }
 
@@ -153,6 +208,10 @@ public class SplashScreen {
     public void show() {
         try {
             splashStage.show();
+            if (info) {
+                splashStage.requestFocus();
+                return;
+            }
 
             // Create pause transition for auto-close
             PauseTransition pause = new PauseTransition(Duration.millis(DISPLAY_DURATION_MS));

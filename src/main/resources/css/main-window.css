@@ -1,0 +1,11 @@
+/*  The main window paints its background once, on the root; the panels above it are transparent, so the
+    corner cloud behind them shows through. Controls, the chat list and images keep their own background.  */
+.app-root {
+    -fx-background-color: -color-bg-inset;
+}
+.app-root .bg-inset,
+.app-root .split-pane,
+.app-root .see-through,
+.app-root .see-through > .viewport {
+    -fx-background-color: transparent;
+}
