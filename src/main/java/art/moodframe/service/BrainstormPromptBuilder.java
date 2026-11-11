@@ -2,7 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.model.StylePreset;
+import art.moodframe.model.PromptBlock;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ModelFamilies;
 
@@ -50,7 +50,7 @@ public final class BrainstormPromptBuilder {
 
     private static String styles(BrainstormContext context) {
         return context.styles().stream()
-                .map((StylePreset style) -> "- " + style.getName() + ": " + style.getPromptText())
+                .map((PromptBlock style) -> "- " + style.getName() + ": " + style.getText())
                 .collect(Collectors.joining("\n"));
     }
 

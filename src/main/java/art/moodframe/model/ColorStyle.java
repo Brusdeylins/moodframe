@@ -10,7 +10,7 @@ import java.util.List;
  * Model class representing a color style for image generation.
  *
  * <p>A color style contains 1-5 hex color codes that are appended to the
- * generation prompt in the format "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ...".</p>
+ * generation prompt as its "Color palette" line (see {@link #toPromptString()}).</p>
  *
  * <p>Color styles can be combined with style presets to provide both
  * artistic direction and color palette guidance to the AI model.</p>
@@ -140,11 +140,12 @@ public class ColorStyle {
     }
 
     /**
-     * Converts the colors to a prompt string format.
+     * Converts the colors to the palette text of the prompt (behind "Color palette: "), phrased positively.
      *
-     * <p>Format: "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ..., do not display color codes or color names in the image"</p>
+     * <p>Format: "the image is composed predominantly of these colors: color 1 hex #XXXXXX,
+     * color 2 hex #YYYYYY. The palette takes precedence over ... no written color codes, color names or swatches."</p>
      *
-     * @return the formatted prompt string, or empty string if no colors defined
+     * @return the palette text, or empty string if no colors defined
      */
     public String toPromptString() {
         if (colors == null || colors.isEmpty()) {
@@ -159,17 +160,19 @@ public class ColorStyle {
                 if (sb.length() > 0) {
                     sb.append(", ");
                 }
-                sb.append("Color ").append(colorNum).append(" = ").append(color);
+                sb.append("color ").append(colorNum).append(" hex ").append(color);
                 colorNum++;
             }
         }
 
-        // Add instruction to not display color information in the generated image
-        if (sb.length() > 0) {
-            sb.append(", do not display color codes or color names in the image");
+        if (sb.length() == 0) {
+            return "";
         }
 
-        return sb.toString();
+        /*  Hex colors work best bound to objects; the image must not show the codes themselves  */
+        return "the image is composed predominantly of these colors: " + sb
+                + ". The palette takes precedence over the color of the light. The colors appear only as colors"
+                + " of objects, surfaces and light; the image contains no written color codes, color names or swatches.";
     }
 
     /**

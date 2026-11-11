@@ -9,7 +9,7 @@ import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ResearchNote;
-import art.moodframe.model.StylePreset;
+import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
@@ -750,7 +750,7 @@ public class BrainstormDialog extends Stage {
         durationBox.setMaxWidth(Double.MAX_VALUE);
 
         styleBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
-        context.styles().stream().map(StylePreset::getName).forEach(styleBox.getItems()::add);
+        context.styles().stream().map(PromptBlock::getName).forEach(styleBox.getItems()::add);
         colorBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
         context.colorStyles().stream().map(ColorStyle::getName).forEach(colorBox.getItems()::add);
 

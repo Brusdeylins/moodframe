@@ -17,13 +17,13 @@ import java.util.*;
  * Service for managing color styles with SQLite persistence.
  *
  * <p>
- * This service provides 17 default color palettes that are hardcoded and
- * cannot be modified. Custom color styles are stored in SQLite and can be
+ * This service provides 20 default color palettes that are hardcoded with
+ * fixed ids ({@code std:color:<slug>}) and cannot be modified. Custom color styles are stored in SQLite and can be
  * added, edited, and deleted by users.
  * </p>
  *
  * <p>
- * <strong>Default Color Palettes (17 styles):</strong>
+ * <strong>Default Color Palettes (20 styles):</strong>
  * </p>
  *
  * <p>
@@ -47,7 +47,7 @@ import java.util.*;
  * <em>Nature & Seasons:</em>
  * </p>
  * <ul>
- * <li>Golden Hour - Warm sunset tones for portraits and landscapes</li>
+ * <li>Sunset Amber - Warm sunset tones for portraits and landscapes</li>
  * <li>Ocean Breeze - Cool coastal blues for serene scenes</li>
  * <li>Forest Dusk - Earthy green tones for nature photography</li>
  * <li>Autumn Leaves - Rich fall colors for warm seasonal imagery</li>
@@ -61,7 +61,7 @@ import java.util.*;
  * <ul>
  * <li>Midnight Purple - Deep purples for mysterious/elegant themes</li>
  * <li>Pastel Serenity - Soft pastels for calm, feminine aesthetics</li>
- * <li>Vintage Film - Muted nostalgic tones for retro aesthetics</li>
+ * <li>Faded Cream - Muted nostalgic tones for retro aesthetics</li>
  * <li>Bold Retro - 70s vintage, split-complementary</li>
  * </ul>
  *
@@ -71,6 +71,9 @@ import java.util.*;
  * <ul>
  * <li>Monochrome Pro - Professional grays for business/minimal design</li>
  * <li>Neon Nights - Vibrant cyberpunk colors for modern/tech themes</li>
+ * <li>Silver Screen - Neutral grays from black to white for black-and-white images</li>
+ * <li>Warm Skin Studio - Warm skin tones for portraits</li>
+ * <li>Fresh Corporate - Light neutrals with a calm blue for business images</li>
  * </ul>
  *
  * @since 1.3.0
@@ -78,6 +81,11 @@ import java.util.*;
 public class ColorStyleService implements ColorStyles {
 
     private static final Logger logger = LoggerFactory.getLogger(ColorStyleService.class);
+
+    /** Former names of default palettes, renamed as a light block and a mood take these names. */
+    private static final Map<String, String> RENAMED_STYLES = Map.of(
+            "Golden Hour", "Sunset Amber",
+            "Vintage Film", "Faded Cream");
 
     private final ColorStyleRepository repository;
     private final ApplicationConfig config;
@@ -92,10 +100,37 @@ public class ColorStyleService implements ColorStyles {
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.objectMapper = new ObjectMapper();
         this.defaultStyles = initializeDefaultStyles();
+        renameCustomPalettesNamedLikeDefaults();
     }
 
     /**
-     * Initializes the 17 default color palettes.
+     * A palette of the user named like a standard palette (which may be new) keeps its colors and gets the next
+     * free name with a counter, so it stays selectable next to the standard one.
+     */
+    private void renameCustomPalettesNamedLikeDefaults() {
+        for (ColorStyle custom : repository.findAllCustom()) {
+            if (!isDefaultStyle(custom.getName()))
+                continue;
+            String original = custom.getName();
+            custom.setName(freeName(original));
+            if (repository.update(custom))
+                logger.info("Renamed palette '{}' of the user to '{}', a standard palette has its name", original,
+                        custom.getName());
+        }
+    }
+
+    /*  the name unchanged if it is free, else with the next free counter, e.g. "Silver Screen (1)"  */
+    private String freeName(String name) {
+        if (!styleExists(name))
+            return name;
+        int counter = 1;
+        while (styleExists(name + " (" + counter + ")"))
+            counter++;
+        return name + " (" + counter + ")";
+    }
+
+    /**
+     * Initializes the 20 default color palettes.
      *
      * <p>
      * These color palettes are designed to enhance AI-generated images
@@ -131,8 +166,8 @@ public class ColorStyleService implements ColorStyles {
 
         // === NATURE & SEASONS ===
 
-        // 6. Golden Hour - Warm sunset tones for portraits and landscapes
-        defaults.add(new ColorStyle("Golden Hour",
+        // 6. Sunset Amber - Warm sunset tones for portraits and landscapes
+        defaults.add(new ColorStyle("Sunset Amber",
                 List.of("#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617"), true));
 
         // 7. Ocean Breeze - Cool coastal blues for serene scenes
@@ -165,8 +200,8 @@ public class ColorStyleService implements ColorStyles {
         defaults.add(new ColorStyle("Pastel Serenity",
                 List.of("#FFD1DC", "#E6E6FA", "#B5EAD7", "#FFDAC1", "#C7CEEA"), true));
 
-        // 14. Vintage Film - Muted nostalgic tones for retro aesthetics
-        defaults.add(new ColorStyle("Vintage Film",
+        // 14. Faded Cream - Muted nostalgic tones for retro aesthetics
+        defaults.add(new ColorStyle("Faded Cream",
                 List.of("#D4A373", "#CCD5AE", "#E9EDC9", "#FEFAE0", "#FAEDCD"), true));
 
         // 15. Bold Retro - 70s vintage, split-complementary
@@ -183,10 +218,22 @@ public class ColorStyleService implements ColorStyles {
         defaults.add(new ColorStyle("Neon Nights",
                 List.of("#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3"), true));
 
-        // Set sort order for defaults
+        // 18. Silver Screen - Neutral grays from black to white for black-and-white images
+        defaults.add(new ColorStyle("Silver Screen",
+                List.of("#0A0A0A", "#3D3D3D", "#808080", "#C4C4C4", "#F5F5F5"), true));
+
+        // 19. Warm Skin Studio - Warm skin tones for portraits
+        defaults.add(new ColorStyle("Warm Skin Studio",
+                List.of("#F4E3D3", "#E0B899", "#B5805F", "#6E4A38", "#2B1D17"), true));
+
+        // 20. Fresh Corporate - Light neutrals with a calm blue for business images
+        defaults.add(new ColorStyle("Fresh Corporate",
+                List.of("#FFFFFF", "#F2F5F7", "#B8C4CC", "#2F6FA7", "#1C2B39"), true));
+
+        // Set sort order and fixed id for defaults
         for (int i = 0; i < defaults.size(); i++) {
             defaults.get(i).setSortOrder(i);
-            defaults.get(i).setId(UUID.randomUUID().toString());
+            defaults.get(i).setId("std:color:" + PromptBlockService.slug(defaults.get(i).getName()));
         }
 
         return defaults;
@@ -219,7 +266,7 @@ public class ColorStyleService implements ColorStyles {
     }
 
     /**
-     * Gets a color style by name (checks defaults first, then custom).
+     * Gets a color style by name (checks defaults first, then custom, then the former names of defaults).
      */
     @Override
     public ColorStyle getStyleByName(String name) {
@@ -235,15 +282,12 @@ public class ColorStyleService implements ColorStyles {
         }
 
         // Then check custom styles (from DB)
-        return repository.findByName(name);
+        ColorStyle custom = repository.findByName(name);
+        return custom == null && RENAMED_STYLES.containsKey(name) ? getStyleByName(RENAMED_STYLES.get(name)) : custom;
     }
 
     /**
-     * Gets the formatted color prompt text for a style.
-     *
-     * <p>
-     * Format: "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ..."
-     * </p>
+     * Gets the palette text of the prompt for a style (see {@link ColorStyle#toPromptString()}).
      */
     @Override
     public String getColorPromptText(String styleName) {
@@ -429,6 +473,9 @@ public class ColorStyleService implements ColorStyles {
             for (ColorStyle style : importedStyles) {
                 style.setDefault(false);
 
+                /*  a palette named like a (possibly new) standard palette is kept under the next free name  */
+                if (isDefaultStyle(style.getName()))
+                    style.setName(freeName(style.getName()));
                 if (!styleExists(style.getName())) {
                     style.setId(UUID.randomUUID().toString());
                     style.setSortOrder(getNextCustomSortOrder());

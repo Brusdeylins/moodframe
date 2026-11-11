@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.model.StylePreset;
+import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,7 +93,7 @@ public class ConfigurationExporter {
         public int getChangeCount() { return changes.size(); }
     }
     
-    private final StylePresetService stylePresetService;
+    private final PromptBlockService promptBlockService;
     private final ApplicationConfig config;
     
     /**
@@ -104,7 +104,7 @@ public class ConfigurationExporter {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        this.stylePresetService = new StylePresetService();
+        this.promptBlockService = new PromptBlockService();
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
     
@@ -191,12 +191,13 @@ public class ConfigurationExporter {
         
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.CUSTOM_STYLES)) {
             List<Map<String, Object>> customStylesList = new ArrayList<>();
-            List<StylePreset> customStyles = stylePresetService.getCustomStyles();
+            List<PromptBlock> customStyles = promptBlockService.getCustom(PromptBlock.Type.STYLE);
             
-            for (StylePreset style : customStyles) {
+            for (PromptBlock style : customStyles) {
                 Map<String, Object> styleData = new HashMap<>();
                 styleData.put("name", style.getName());
-                styleData.put("promptText", style.getPromptText());
+                styleData.put("promptText", style.getText());
+                styleData.put("photographic", style.isPhotographic());
                 // SortOrder is not exported - will be assigned automatically during import
                 customStylesList.add(styleData);
             }
@@ -408,7 +409,7 @@ public class ConfigurationExporter {
             List<Map<String, Object>> customStylesList = (List<Map<String, Object>>) configData.get("customStyles");
             if (customStylesList != null && !customStylesList.isEmpty()) {
                 // Delete all existing custom styles before import to avoid duplicates
-                int deletedCount = stylePresetService.resetToDefaults();
+                int deletedCount = promptBlockService.resetToDefaults(PromptBlock.Type.STYLE);
                 if (config != null && config.getLoggingEnabled()) {
                     logger.info("Deleted {} existing custom styles before import", deletedCount);
                 }
@@ -417,12 +418,19 @@ public class ConfigurationExporter {
                 for (Map<String, Object> styleData : customStylesList) {
                     String name = (String) styleData.get("name");
                     String promptText = (String) styleData.get("promptText");
+
+                    /*  Older exports have no flag: styles of the user count as photographic  */
+                    boolean photographic = !Boolean.FALSE.equals(styleData.get("photographic"));
                     
                     if (name != null && promptText != null) {
-                        StylePreset newStyle = new StylePreset(name, promptText, false);
-                        // SortOrder is automatically assigned by addCustomStyle()
+
+                        /*  a style named like a (possibly new) standard style is kept under the next free name  */
+                        PromptBlock newStyle = new PromptBlock(null, PromptBlock.Type.STYLE,
+                                promptBlockService.freeName(PromptBlock.Type.STYLE, name), promptText, null,
+                                photographic);
+                        // SortOrder is automatically assigned by addCustom()
                         
-                        if (stylePresetService.addCustomStyle(newStyle)) {
+                        if (promptBlockService.addCustom(newStyle)) {
                             importedStyles++;
                         }
                     }

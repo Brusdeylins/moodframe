@@ -9,7 +9,7 @@ import java.util.List;
  * Interface for managing color styles.
  *
  * <p>Color styles contain 1-5 hex color codes that are appended to
- * prompts in the format "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ...".</p>
+ * prompts as their "Color palette" line.</p>
  *
  * @since 1.3.0
  */
@@ -45,9 +45,9 @@ public interface ColorStyles {
     ColorStyle getStyleByName(String name);
 
     /**
-     * Gets the formatted color prompt text for a style.
+     * Gets the palette text of the prompt for a style.
      *
-     * <p>Format: "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ..."</p>
+     * <p>Format: see {@link art.moodframe.model.ColorStyle#toPromptString()}</p>
      *
      * @param styleName the style name
      * @return the formatted color prompt, or empty string if not found

@@ -7,7 +7,8 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.service.StylePresetService;
+import art.moodframe.model.PromptBlock;
+import art.moodframe.service.PromptBlockService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 
@@ -16,14 +17,8 @@ import art.moodframe.util.I18nManager;
  * 
  * <p>
  * This dialog provides a user interface for creating new style presets or
- * editing existing ones. It includes fields for the style name and prompt text,
- * with validation to ensure required fields are filled.
- * </p>
- * 
- * <p>
- * <strong>Phase 1 Implementation:</strong> This dialog works with mock data
- * and provides immediate UI feedback. In Phase 2, it will be integrated with
- * persistence layer for permanent storage.
+ * editing existing ones. It includes fields for the style name, prompt text and
+ * whether the style is photographic, with validation to ensure required fields are filled.
  * </p>
  * 
  * @since 1.0.0
@@ -32,9 +27,10 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
 
     private final TextField nameField;
     private final TextArea promptTextArea;
+    private final CheckBox photographicCheckBox;
     private final boolean isEdit;
     private final String originalName; // For edit mode - the name we're editing
-    private final StylePresetService styleService;
+    private final PromptBlockService styleService;
 
     // UI Elements for localization
     private Label nameLabel;
@@ -45,10 +41,11 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
     /**
      * Result record for style edit operations.
      * 
-     * @param name       the style name
-     * @param promptText the style prompt text
+     * @param name         the style name
+     * @param promptText   the style prompt text
+     * @param photographic whether the style describes a photograph
      */
-    public record StyleEditResult(String name, String promptText) {
+    public record StyleEditResult(String name, String promptText, boolean photographic) {
     }
 
     /**
@@ -57,11 +54,12 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
      * @param title             the dialog title
      * @param initialName       the initial name value (empty for new styles)
      * @param initialPromptText the initial prompt text (empty for new styles)
+     * @param initialPhotographic whether the style is photographic (styles of the user are until deselected)
      */
-    public StyleEditDialog(String title, String initialName, String initialPromptText) {
+    public StyleEditDialog(String title, String initialName, String initialPromptText, boolean initialPhotographic) {
         this.isEdit = !initialName.isEmpty();
         this.originalName = initialName;
-        this.styleService = ServiceFactory.getInstance().getService(StylePresetService.class);
+        this.styleService = ServiceFactory.getInstance().getService(PromptBlockService.class);
 
         // Register for i18n updates
         I18nManager.addChangeListener(this);
@@ -93,6 +91,9 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         GridPane.setHgrow(promptTextArea, Priority.ALWAYS);
         GridPane.setVgrow(promptTextArea, Priority.ALWAYS);
 
+        photographicCheckBox = new CheckBox();
+        photographicCheckBox.setSelected(initialPhotographic);
+
         // Create labels with proper width
         nameLabel = new Label();
         nameLabel.setPrefWidth(100);
@@ -107,6 +108,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         grid.add(nameField, 1, 0);
         grid.add(promptLabel, 0, 1);
         grid.add(promptTextArea, 1, 1);
+        grid.add(photographicCheckBox, 1, 2);
 
         // Add validation message label (initially hidden)
         validationLabel = new Label();
@@ -116,7 +118,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         validationLabel.setVisible(false);
         validationLabel.setManaged(false);
         GridPane.setHgrow(validationLabel, Priority.ALWAYS);
-        grid.add(validationLabel, 1, 2);
+        grid.add(validationLabel, 1, 3);
 
         // Add help text
         helpLabel = new Label();
@@ -124,7 +126,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         helpLabel.setWrapText(true);
         helpLabel.setPrefWidth(400);
         GridPane.setHgrow(helpLabel, Priority.ALWAYS);
-        grid.add(helpLabel, 1, 3);
+        grid.add(helpLabel, 1, 4);
 
         // Set localized text for all labels
         updateTexts();
@@ -153,7 +155,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
                     return null; // Should not happen due to validation
                 }
 
-                return new StyleEditResult(name, promptText);
+                return new StyleEditResult(name, promptText, photographicCheckBox.isSelected());
             }
             return null;
         });
@@ -176,7 +178,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         if (styleService != null) {
             boolean isNameChanged = !name.equals(originalName);
 
-            if (isNameChanged && styleService.isDefaultStyle(name)) {
+            if (isNameChanged && styleService.isDefault(PromptBlock.Type.STYLE, name)) {
                 // Name conflicts with a default style
                 okButton.setDisable(true);
                 showValidationMessage(I18nManager.getText("style.dialog.validation.default_exists",
@@ -184,7 +186,7 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
                 return;
             }
 
-            if (isNameChanged && styleService.styleExists(name)) {
+            if (isNameChanged && styleService.exists(PromptBlock.Type.STYLE, name)) {
                 // Name conflicts with another custom style
                 okButton.setDisable(true);
                 showValidationMessage(I18nManager.getText("style.dialog.validation.name_exists",
@@ -232,6 +234,9 @@ public class StyleEditDialog extends Dialog<StyleEditDialog.StyleEditResult> imp
         }
         if (helpLabel != null) {
             helpLabel.setText(I18nManager.getText("style.dialog.help"));
+        }
+        if (photographicCheckBox != null) {
+            photographicCheckBox.setText(I18nManager.getText("style.dialog.photographic.label"));
         }
         
         // Update prompt texts

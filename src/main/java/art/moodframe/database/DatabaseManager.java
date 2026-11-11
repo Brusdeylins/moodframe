@@ -391,6 +391,10 @@ public class DatabaseManager {
                     "V015__Shift_brainstorm_steps.sql"));
             migrations.add(new Migration("016", "Add_brainstorm_session_engine",
                     "V016__Add_brainstorm_session_engine.sql"));
+            migrations.add(new Migration("017", "Add_prompt_blocks",
+                    "V017__Add_prompt_blocks.sql"));
+            migrations.add(new Migration("018", "Add_deleted_at_to_color_styles",
+                    "V018__Add_deleted_at_to_color_styles.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

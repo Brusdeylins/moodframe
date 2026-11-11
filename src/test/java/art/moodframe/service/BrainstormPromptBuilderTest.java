@@ -2,7 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.model.StylePreset;
+import art.moodframe.model.PromptBlock;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BrainstormPromptBuilderTest {
 
     private final BrainstormContext context = new BrainstormContext(
-            List.of(new StylePreset("Pixel Art", "retro pixel art", true)),
+            List.of(new PromptBlock("std:style:pixel-art", PromptBlock.Type.STYLE, "Pixel Art", "retro pixel art",
+                    PromptBlock.GROUP_ART, false)),
             List.of(new ColorStyle("Ocean Breeze", List.of("#48BDFF", "#0096C7"), true)),
             List.of(GenerationModel.FLUX2_PRO, GenerationModel.OMNI_360P),
             "Target model: FLUX.2 [pro]");

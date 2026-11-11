@@ -137,10 +137,10 @@ public class MoodframeApplication extends Application {
                         }
                     });
 
-            // Initialize StylePresetService (new SQLite-based service)
+            // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.StylePresetService.class,
-                    () -> new art.moodframe.service.StylePresetService());
+                    art.moodframe.service.PromptBlockService.class,
+                    () -> new art.moodframe.service.PromptBlockService());
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(

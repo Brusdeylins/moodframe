@@ -708,16 +708,17 @@ public class SettingsController implements Initializable, I18nChangeListener {
         // Create observable list for style presets
         stylePresetsList = FXCollections.observableArrayList();
 
-        // Load styles from StylePresetService (SQLite-based backend)
-        art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                .getService(art.moodframe.service.StylePresetService.class);
+        // Load styles from PromptBlockService (SQLite-based backend)
+        art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
 
         if (styleService != null) {
-            // Convert StylePreset objects to StylePresetItem for UI
-            for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                stylePresetsList.add(preset.toStylePresetItem());
+            // Convert style blocks to StylePresetItem for UI
+            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                stylePresetsList.add(new StylePresetItem(block));
             }
-            logger.warn("StylePresetService not available, using empty list");
+        } else {
+            logger.warn("PromptBlockService not available, using empty list");
         }
 
         // Set up ListView with custom cell factory for icons
@@ -2488,17 +2489,18 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onAddStyle() {
 
-        StyleEditDialog dialog = new StyleEditDialog("Add New Style", "", "");
+        StyleEditDialog dialog = new StyleEditDialog("Add New Style", "", "", true);
         dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.StylePresetService.class);
+            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.PromptBlockService.class);
 
             if (styleService != null) {
-                art.moodframe.model.StylePreset newPreset = new art.moodframe.model.StylePreset(result.name(),
-                        result.promptText(), false);
+                art.moodframe.model.PromptBlock newBlock = new art.moodframe.model.PromptBlock(null,
+                        art.moodframe.model.PromptBlock.Type.STYLE, result.name(), result.promptText(), null,
+                        result.photographic());
 
-                if (styleService.addCustomStyle(newPreset)) {
-                    StylePresetItem newItem = newPreset.toStylePresetItem();
+                if (styleService.addCustom(newBlock)) {
+                    StylePresetItem newItem = new StylePresetItem(newBlock);
                     stylePresetsList.add(newItem);
                     stylePresetsListView.getSelectionModel().select(newItem);
                 } else {
@@ -2517,18 +2519,24 @@ public class SettingsController implements Initializable, I18nChangeListener {
         if (selected == null)
             return;
 
-        StyleEditDialog dialog = new StyleEditDialog("Edit Style", selected.getName(), selected.getPromptText());
-        String oldName = selected.getName();
+        art.moodframe.model.PromptBlock block = selected.getBlock();
+        StyleEditDialog dialog = new StyleEditDialog("Edit Style", selected.getName(), selected.getPromptText(),
+                block == null || block.isPhotographic());
 
         dialog.showAndWait().ifPresent(result -> {
-            art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.StylePresetService.class);
+            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.PromptBlockService.class);
 
-            if (styleService != null && !selected.isDefault()) {
-                art.moodframe.model.StylePreset updatedPreset = new art.moodframe.model.StylePreset(result.name(),
-                        result.promptText(), false);
+            if (styleService != null && block != null && !selected.isDefault()) {
+                art.moodframe.model.PromptBlock updatedBlock = new art.moodframe.model.PromptBlock(block.getId(),
+                        block.getType(), result.name(), result.promptText(), block.getGroup(), result.photographic());
+                updatedBlock.setParams(block.getParams());
+                updatedBlock.setSortOrder(block.getSortOrder());
 
-                if (styleService.updateCustomStyle(oldName, updatedPreset)) {
+                if (styleService.updateCustom(updatedBlock)) {
+                    block.setName(result.name());
+                    block.setText(result.promptText());
+                    block.setPhotographic(result.photographic());
                     selected.setName(result.name());
                     selected.setPromptText(result.promptText());
                     updateStylePreview(selected);
@@ -2558,10 +2566,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.StylePresetService.class);
+                art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                        .getService(art.moodframe.service.PromptBlockService.class);
 
-                if (styleService != null && styleService.deleteCustomStyle(selected.getName())) {
+                if (styleService != null && selected.getBlock() != null
+                        && styleService.deleteCustom(selected.getBlock().getId())) {
                     stylePresetsList.remove(selected);
                     if (!stylePresetsList.isEmpty()) {
                         stylePresetsListView.getSelectionModel().selectFirst();
@@ -2586,16 +2595,16 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
-                art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.StylePresetService.class);
+                art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                        .getService(art.moodframe.service.PromptBlockService.class);
 
                 if (styleService != null) {
-                    styleService.resetToDefaults();
+                    styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
 
                     // Reload the list from backend
                     stylePresetsList.clear();
-                    for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                        stylePresetsList.add(preset.toStylePresetItem());
+                    for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                        stylePresetsList.add(new StylePresetItem(block));
                     }
 
                     if (!stylePresetsList.isEmpty()) {
@@ -2627,15 +2636,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     config.resetToDefaults();
 
                     // Delete all custom styles
-                    art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                            .getService(art.moodframe.service.StylePresetService.class);
+                    art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                            .getService(art.moodframe.service.PromptBlockService.class);
                     if (styleService != null) {
-                        styleService.resetToDefaults();
+                        styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
 
                         // Refresh style presets list in UI
                         stylePresetsList.clear();
-                        for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                            stylePresetsList.add(preset.toStylePresetItem());
+                        for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                            stylePresetsList.add(new StylePresetItem(block));
                         }
 
                         // Select first style if available
@@ -2668,14 +2677,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void refreshCustomStylesList() {
         try {
-            art.moodframe.service.StylePresetService styleService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.StylePresetService.class);
+            art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.PromptBlockService.class);
 
             if (styleService != null) {
                 // Reload the list from backend
                 stylePresetsList.clear();
-                for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                    stylePresetsList.add(preset.toStylePresetItem());
+                for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                    stylePresetsList.add(new StylePresetItem(block));
                 }
 
                 if (!stylePresetsList.isEmpty()) {

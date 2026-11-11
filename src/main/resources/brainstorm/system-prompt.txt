@@ -178,8 +178,7 @@ The target model starts as the model currently selected in the main window (see 
 target model is ALWAYS adopted on "Adopt": its checkbox is locked. So only change it when the user asks
 or clearly needs another model, and then say so.
 - style: pick exactly one name from the list below, or null if none fits. Give a one-sentence reason in
-  the chat language. Caution: "Business Photography" forces people in a business setting, only suggest
-  it when the subject really contains such people.
+  the chat language.
 - color_style: pick exactly one name from the color list, or null. In step 7 ask for it (see there), use null
   only if the user declines, the style already defines the colors, or it is a photo.
 - aspect_ratio: pick a value from the list that is valid for the target model, or null.

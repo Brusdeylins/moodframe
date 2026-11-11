@@ -3,7 +3,7 @@ package art.moodframe.ui.dialog;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.model.StylePreset;
+import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
@@ -44,7 +44,8 @@ class BrainstormDialogTest {
                 LocalDateTime.now(), LocalDateTime.now())));
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(
-                List.of(new StylePreset("Pixel Art", "retro pixel art", true)),
+                List.of(new PromptBlock("std:style:pixel-art", PromptBlock.Type.STYLE, "Pixel Art", "retro pixel art",
+                        PromptBlock.GROUP_ART, false)),
                 List.of(new ColorStyle("Ocean Breeze", List.of("#48BDFF"), true)),
                 List.of(GenerationModel.FLUX2_PRO, GenerationModel.OMNI_720P),
                 "Target model: x");

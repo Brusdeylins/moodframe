@@ -705,8 +705,8 @@ public class MainWindowController implements I18nChangeListener {
     private void onBrainstormClicked() {
         try {
             art.moodframe.config.ServiceFactory services = art.moodframe.config.ServiceFactory.getInstance();
-            art.moodframe.service.StylePresetService styleService =
-                    services.getService(art.moodframe.service.StylePresetService.class);
+            art.moodframe.service.PromptBlockService styleService =
+                    services.getService(art.moodframe.service.PromptBlockService.class);
             art.moodframe.service.ColorStyleService colorService =
                     services.getService(art.moodframe.service.ColorStyleService.class);
 
@@ -729,7 +729,8 @@ public class MainWindowController implements I18nChangeListener {
                     + (promptTextArea.getText().isBlank() ? "(empty)" : promptTextArea.getText().trim());
 
             art.moodframe.service.BrainstormContext brainstormContext = new art.moodframe.service.BrainstormContext(
-                    styleService.getAllStyles(), colorService.getAllStyles(), models, currentState, modelNames);
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE), colorService.getAllStyles(), models,
+                    currentState, modelNames);
             art.moodframe.service.BrainstormService brainstormService = art.moodframe.service.BrainstormService.create(config);
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
@@ -848,66 +849,26 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Builds the final prompt by combining user input with selected styles
-     * and video context attachment (if present).
-     *
-     * <p>Prompt composition order:</p>
-     * <ol>
-     * <li>User prompt</li>
-     * <li>Color style (e.g., "Color 1 = #XXXXXX, Color 2 = #YYYYYY")</li>
-     * <li>Style prompt (comma-separated)</li>
-     * <li>Video context (newline-separated with header)</li>
-     * </ol>
+     * Builds the final prompt from the user input, the selected building blocks and the
+     * video context attachment (if present), see {@link art.moodframe.service.PromptComposer}.
      */
     public String buildFinalPrompt() {
-        String userPrompt = promptTextArea.getText().trim();
+        return promptComposer().compose(promptTextArea.getText(), currentVideoContextContent, selectedBlocks());
+    }
 
-        if (userPrompt.isEmpty()) {
-            return "";
-        }
+    /** The composer for the length limit of the selected model. */
+    private art.moodframe.service.PromptComposer promptComposer() {
+        return new art.moodframe.service.PromptComposer(getMaxPromptLength());
+    }
 
-        StringBuilder finalPrompt = new StringBuilder(userPrompt);
-
-        // Get selected color style from combo box and append color palette
-        art.moodframe.model.ColorStyleItem selectedColorStyle = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
-
-        if (selectedColorStyle != null && !"None".equals(selectedColorStyle.getName())) {
-            art.moodframe.service.ColorStyleService colorStyleService = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ColorStyleService.class);
-
-            if (colorStyleService != null) {
-                String colorPrompt = colorStyleService.getColorPromptText(selectedColorStyle.getName());
-                if (colorPrompt != null && !colorPrompt.trim().isEmpty()) {
-                    // Insert color style after user prompt, before style preset
-                    finalPrompt.append(", ").append(colorPrompt);
-                }
-            }
-        }
-
-        // Get selected style preset from combo box
-        art.moodframe.model.StylePresetItem selectedStyleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
-        String selectedStyle = selectedStyleItem != null ? selectedStyleItem.getName() : null;
-
-        if (selectedStyle != null && !selectedStyle.equals("None")) {
-            // Get style prompt text from backend
-            art.moodframe.service.StylePresetService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.StylePresetService.class);
-
-            if (styleService != null) {
-                String stylePrompt = styleService.getStylePromptText(selectedStyle);
-                if (stylePrompt != null && !stylePrompt.trim().isEmpty()) {
-                    // Combine user prompt with style prompt
-                    finalPrompt.append(", ").append(stylePrompt);
-                }
-            }
-        }
-
-        // Append video context if present (format: Prompt, ColorStyle, Style, Content: VideoAnalysis)
-        if (currentVideoContextContent != null && !currentVideoContextContent.isEmpty()) {
-            finalPrompt.append(", Content: ").append(currentVideoContextContent);
-        }
-
-        return finalPrompt.toString();
+    /** The building blocks selected in the main window. */
+    private art.moodframe.service.PromptComposer.Selection selectedBlocks() {
+        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
+        art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
+        art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
+                ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
+        return new art.moodframe.service.PromptComposer.Selection(styleItem != null ? styleItem.getBlock() : null,
+                null, null, null, palette);
     }
 
     /**
@@ -1537,20 +1498,18 @@ public class MainWindowController implements I18nChangeListener {
         stylePresetsComboBox.setCellFactory(listView -> new art.moodframe.ui.component.StylePresetListCell());
         stylePresetsComboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
 
-        // Load style presets from backend
-        art.moodframe.service.StylePresetService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.StylePresetService.class);
+        // Load style blocks from backend
+        art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
 
         if (styleService != null) {
             // Add "None" option first (not default, since it's a special option)
             stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem("None", "", false));
 
             // Add all styles from service
-            for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                String name = preset.getName();
-                if (name != null && !name.trim().isEmpty()) {
-                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(
-                            name.trim(), preset.getPromptText(), preset.isDefault()));
+            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                if (block.getName() != null && !block.getName().trim().isEmpty()) {
+                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
                 }
             }
 
@@ -1560,7 +1519,7 @@ public class MainWindowController implements I18nChangeListener {
             }
 
         } else {
-            logger.warn("StylePresetService not available, style combo box will be empty");
+            logger.warn("PromptBlockService not available, style combo box will be empty");
             art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
             stylePresetsComboBox.getItems().add(noneItem);
             stylePresetsComboBox.setValue(noneItem);
@@ -1571,7 +1530,7 @@ public class MainWindowController implements I18nChangeListener {
      * Sets up the color styles selection from backend.
      *
      * <p>Color styles are palettes of 1-5 hex colors that get appended to the prompt
-     * in the format "Color 1 = #XXXXXX, Color 2 = #YYYYYY, ...".</p>
+     * as its "Color palette" line (see {@link art.moodframe.service.PromptComposer}).</p>
      */
     private void setupColorStyles() {
         if (colorStyleComboBox == null) {
@@ -1879,8 +1838,12 @@ public class MainWindowController implements I18nChangeListener {
                 int savedImageCount = config.getDefaultImageCount();
                 imageCountSlider.setValue(savedImageCount);
 
-                // Load style selection
-                String savedStyle = config.getDefaultStyle();
+                // Load style selection; a merged former style resolves to the one it went into
+                art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
+                        .getService(art.moodframe.service.PromptBlockService.class);
+                art.moodframe.model.PromptBlock savedBlock = styleService != null
+                        ? styleService.find(art.moodframe.model.PromptBlock.Type.STYLE, config.getDefaultStyle()) : null;
+                String savedStyle = savedBlock != null ? savedBlock.getName() : config.getDefaultStyle();
                 if (savedStyle != null && stylePresetsComboBox != null) {
                     // Find StylePresetItem by name
                     art.moodframe.model.StylePresetItem matchingItem = stylePresetsComboBox.getItems().stream()
@@ -1892,9 +1855,13 @@ public class MainWindowController implements I18nChangeListener {
                     }
                 }
 
-                // Load color style selection
+                // Load color style selection; a renamed default palette resolves to its new name
                 if (colorStyleComboBox != null) {
-                    String savedColorStyle = config.getDefaultColorStyle();
+                    art.moodframe.service.ColorStyleService colorService = art.moodframe.config.ServiceFactory.getInstance()
+                            .getService(art.moodframe.service.ColorStyleService.class);
+                    art.moodframe.model.ColorStyle savedPalette = colorService != null
+                            ? colorService.getStyleByName(config.getDefaultColorStyle()) : null;
+                    String savedColorStyle = savedPalette != null ? savedPalette.getName() : config.getDefaultColorStyle();
                     if (savedColorStyle != null) {
                         for (art.moodframe.model.ColorStyleItem item : colorStyleComboBox.getItems()) {
                             if (savedColorStyle.equals(item.getName())) {
@@ -3085,20 +3052,18 @@ public class MainWindowController implements I18nChangeListener {
         // Clear and reload all styles
         stylePresetsComboBox.getItems().clear();
 
-        // Load style presets from backend
-        art.moodframe.service.StylePresetService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.StylePresetService.class);
+        // Load style blocks from backend
+        art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
 
         if (styleService != null) {
             // Add "None" option first
             stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem("None", "", false));
 
             // Add all styles from service
-            for (art.moodframe.model.StylePreset preset : styleService.getAllStyles()) {
-                String name = preset.getName();
-                if (name != null && !name.trim().isEmpty()) {
-                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(
-                            name.trim(), preset.getPromptText(), preset.isDefault()));
+            for (art.moodframe.model.PromptBlock block : styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE)) {
+                if (block.getName() != null && !block.getName().trim().isEmpty()) {
+                    stylePresetsComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
                 }
             }
 
@@ -3116,7 +3081,7 @@ public class MainWindowController implements I18nChangeListener {
             }
 
         } else {
-            logger.warn("StylePresetService not available during refresh");
+            logger.warn("PromptBlockService not available during refresh");
             art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
             stylePresetsComboBox.getItems().add(noneItem);
             stylePresetsComboBox.setValue(noneItem);
@@ -3437,8 +3402,13 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         // Build final prompt including style and YouTube content
-        String prompt = buildFinalPrompt();
+        art.moodframe.service.PromptComposer composer = promptComposer();
+        String prompt = composer.compose(userPrompt, currentVideoContextContent, selectedBlocks());
         if (prompt.isEmpty()) {
+            return;
+        }
+        if (!composer.fits(prompt)) {
+            setStatus(I18nManager.getText("status.error.prompt.too.long", prompt.length(), getMaxPromptLength()));
             return;
         }
 
@@ -3653,9 +3623,6 @@ public class MainWindowController implements I18nChangeListener {
      */
     private art.moodframe.model.ImageGenerationRequest createImageGenerationRequest(String prompt, ChatEntry chatEntry,
             boolean userProvidedSeed) {
-        // Combine user prompt with style preset if selected
-        String finalPrompt = combinePromptWithStyle(prompt);
-
         // IMPORTANT: Convert display name to API model ID
         // chatEntry.getModel() returns display name like "FLUX 3 Image 1K - Standard ($0.048)"
         // but API needs model ID like "flux.3-image"
@@ -3669,7 +3636,7 @@ public class MainWindowController implements I18nChangeListener {
                     chatEntry.getModel(), apiModelId);
         }
 
-        art.moodframe.model.ImageGenerationRequest request = new art.moodframe.model.ImageGenerationRequest(finalPrompt,
+        art.moodframe.model.ImageGenerationRequest request = new art.moodframe.model.ImageGenerationRequest(prompt,
                 apiModelId);
 
         // Note: Cost calculation is done at the end after all dimensions are set
@@ -3903,47 +3870,6 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         return "1K"; // Default
-    }
-
-    /**
-     * Combines the user prompt with the selected style preset prompt.
-     *
-     * @param userPrompt the user's original prompt
-     * @return the combined prompt with style applied
-     */
-    private String combinePromptWithStyle(String userPrompt) {
-        if (stylePresetsComboBox == null || stylePresetsComboBox.getValue() == null) {
-            return userPrompt;
-        }
-
-        String selectedStyleName = stylePresetsComboBox.getValue().getName();
-        if ("None".equals(selectedStyleName) || selectedStyleName.isEmpty()) {
-            return userPrompt;
-        }
-
-        try {
-            // Get the style preset service to find the prompt text
-            art.moodframe.service.StylePresetService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.StylePresetService.class);
-
-            if (styleService != null) {
-                java.util.List<art.moodframe.model.StylePreset> presets = styleService.getAllStyles();
-                for (art.moodframe.model.StylePreset preset : presets) {
-                    if (selectedStyleName.equals(preset.getName())) {
-                        String stylePrompt = preset.getPromptText();
-                        if (stylePrompt != null && !stylePrompt.trim().isEmpty()) {
-                            // Combine user prompt + comma with space + style prompt
-                            return userPrompt + ", " + stylePrompt.trim();
-                        }
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to get style preset for combination: {}", selectedStyleName, e);
-        }
-
-        return userPrompt;
     }
 
     /**

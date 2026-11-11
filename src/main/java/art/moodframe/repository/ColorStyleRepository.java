@@ -27,6 +27,9 @@ import java.util.UUID;
  * <li>Support for 1-5 hex color codes per style</li>
  * </ul>
  *
+ * <p>The finders skip color styles in the trash ({@code deleted_at} set); the name checks do not,
+ * as such a name stays taken (unique column) until the style is deleted for good.</p>
+ *
  * @since 1.3.0
  */
 public class ColorStyleRepository {
@@ -162,7 +165,7 @@ public class ColorStyleRepository {
      * @return the color style if found, null otherwise
      */
     public ColorStyle findById(String id) {
-        String sql = "SELECT * FROM color_styles WHERE id = ?";
+        String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NULL";
 
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -189,7 +192,7 @@ public class ColorStyleRepository {
      * @return the color style if found, null otherwise
      */
     public ColorStyle findByName(String name) {
-        String sql = "SELECT * FROM color_styles WHERE name = ?";
+        String sql = "SELECT * FROM color_styles WHERE name = ? AND deleted_at IS NULL";
 
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -215,7 +218,7 @@ public class ColorStyleRepository {
      * @return list of all color styles, ordered by sort_order and name
      */
     public List<ColorStyle> findAll() {
-        String sql = "SELECT * FROM color_styles ORDER BY sort_order, name";
+        String sql = "SELECT * FROM color_styles WHERE deleted_at IS NULL ORDER BY sort_order, name";
         List<ColorStyle> styles = new ArrayList<>();
 
         try (Connection conn = DatabaseConfig.getConnection();
@@ -239,7 +242,7 @@ public class ColorStyleRepository {
      * @return list of custom color styles
      */
     public List<ColorStyle> findAllCustom() {
-        String sql = "SELECT * FROM color_styles WHERE is_default = false ORDER BY sort_order, name";
+        String sql = "SELECT * FROM color_styles WHERE is_default = false AND deleted_at IS NULL ORDER BY sort_order, name";
         List<ColorStyle> styles = new ArrayList<>();
 
         try (Connection conn = DatabaseConfig.getConnection();

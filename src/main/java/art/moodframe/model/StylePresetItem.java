@@ -6,13 +6,9 @@ import javafx.beans.property.StringProperty;
 /**
  * Represents a Style Preset item for image generation.
  * 
- * <p>This class holds the name and prompt text for a custom style preset
- * that can be applied to image generation requests. It uses JavaFX properties
- * for UI binding compatibility.</p>
- * 
- * <p><strong>Phase 1 Implementation:</strong> This class serves as both mock data
- * container and future real data model. Currently used with static default styles,
- * will be extended in Phase 2 for persistence.</p>
+ * <p>This class holds the name and prompt text of a style building block
+ * ({@link PromptBlock}) for the UI. It uses JavaFX properties for UI binding
+ * compatibility.</p>
  * 
  * @since 1.0.0
  */
@@ -21,6 +17,7 @@ public class StylePresetItem {
     private final StringProperty name;
     private final StringProperty promptText;
     private final boolean isDefault;
+    private final PromptBlock block;
     
     /**
      * Creates a new StylePresetItem with the specified name and prompt.
@@ -43,6 +40,19 @@ public class StylePresetItem {
         this.name = new SimpleStringProperty(name);
         this.promptText = new SimpleStringProperty(promptText);
         this.isDefault = isDefault;
+        this.block = null;
+    }
+
+    /**
+     * Creates a new StylePresetItem showing a style building block.
+     *
+     * @param block the style block
+     */
+    public StylePresetItem(PromptBlock block) {
+        this.name = new SimpleStringProperty(block.getName());
+        this.promptText = new SimpleStringProperty(block.getText());
+        this.isDefault = block.isDefault();
+        this.block = block;
     }
     
     // Property getters
@@ -73,6 +83,11 @@ public class StylePresetItem {
     
     public boolean isDefault() {
         return isDefault;
+    }
+
+    /** The style block shown, null for the "None" item. */
+    public PromptBlock getBlock() {
+        return block;
     }
     
     @Override
