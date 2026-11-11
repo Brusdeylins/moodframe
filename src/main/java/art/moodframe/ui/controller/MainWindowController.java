@@ -1669,14 +1669,15 @@ public class MainWindowController implements I18nChangeListener {
      * @param type  the type of the block
      * @param block the block to edit, null for a new one
      */
-    private void editBlock(art.moodframe.model.PromptBlock.Type type, art.moodframe.model.PromptBlock block) {
+    private String editBlock(art.moodframe.model.PromptBlock.Type type, art.moodframe.model.PromptBlock block) {
         art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.service.PromptBlockService.class);
         if (service == null)
-            return;
+            return null;
 
         art.moodframe.ui.component.BlockEditDialog dialog = new art.moodframe.ui.component.BlockEditDialog(type, block);
-        dialog.initOwner(mainBorderPane.getScene().getWindow());
+        dialog.initOwner(activeWindow());
+        String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
             boolean inPlace = block != null && result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
             art.moodframe.model.PromptBlock stored = new art.moodframe.model.PromptBlock(
@@ -1689,11 +1690,14 @@ public class MainWindowController implements I18nChangeListener {
             boolean saved = inPlace ? service.updateCustom(stored)
                     : result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
                     : service.addCopy(stored);
-            if (saved)
+            if (saved) {
                 fillBlockChoice(type, stored.getName());
+                storedId[0] = stored.getId();
+            }
             else
                 setStatus(I18nManager.getText("block.error.save", result.name()));
         });
+        return storedId[0];
     }
 
     /**
@@ -1702,27 +1706,38 @@ public class MainWindowController implements I18nChangeListener {
      *
      * @param item the palette to edit, null for a new one
      */
-    private void editPalette(art.moodframe.model.ColorStyleItem item) {
+    private String editPalette(art.moodframe.model.ColorStyleItem item) {
         art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.service.ColorStyleService.class);
         if (service == null)
-            return;
+            return null;
 
         art.moodframe.model.ColorStyle palette = item != null ? service.getStyleByName(item.getName()) : null;
         art.moodframe.ui.component.ColorStyleEditDialog dialog =
                 new art.moodframe.ui.component.ColorStyleEditDialog(palette);
-        dialog.initOwner(mainBorderPane.getScene().getWindow());
+        dialog.initOwner(activeWindow());
+        String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
             art.moodframe.model.ColorStyle stored = new art.moodframe.model.ColorStyle(result.name(), result.colors(),
                     false);
             boolean save = result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
             boolean saved = palette != null && save ? service.updateCustomStyle(palette.getName(), stored)
                     : save ? service.addCustomStyle(stored) : service.addCopy(stored);
-            if (saved)
+            if (saved) {
                 fillColorChoice(stored.getName());
+                art.moodframe.model.ColorStyle now = service.getStyleByName(stored.getName());
+                storedId[0] = now != null ? now.getId() : "";
+            }
             else
                 setStatus(I18nManager.getText("block.error.save", result.name()));
         });
+        return storedId[0];
+    }
+
+    /*  the focused window of the app (a manage dialog, if open), so a nested dialog opens on top of it  */
+    private javafx.stage.Window activeWindow() {
+        return javafx.stage.Window.getWindows().stream().filter(javafx.stage.Window::isFocused).findFirst()
+                .orElse(mainBorderPane.getScene().getWindow());
     }
 
     /**
@@ -1773,6 +1788,21 @@ public class MainWindowController implements I18nChangeListener {
                     @Override
                     public int importFrom(File file) throws IOException {
                         return service.importCustom(type, file);
+                    }
+
+                    @Override
+                    public String create() {
+                        return editBlock(type, null);
+                    }
+
+                    @Override
+                    public String edit(art.moodframe.model.StylePresetItem entry) {
+                        return editBlock(type, entry.getBlock());
+                    }
+
+                    @Override
+                    public boolean editable() {
+                        return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.StylePresetListCell()).showAndWait();
         refreshBlockChoices();
@@ -1826,6 +1856,21 @@ public class MainWindowController implements I18nChangeListener {
                     @Override
                     public int importFrom(File file) {
                         return service.importStyles(file, true);
+                    }
+
+                    @Override
+                    public String create() {
+                        return editPalette(null);
+                    }
+
+                    @Override
+                    public String edit(art.moodframe.model.ColorStyleItem entry) {
+                        return editPalette(entry);
+                    }
+
+                    @Override
+                    public boolean editable() {
+                        return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell()).showAndWait();
         refreshBlockChoices();

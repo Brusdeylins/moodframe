@@ -11,6 +11,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.Separator;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
@@ -107,6 +108,34 @@ public class BlockManageDialog<T> extends Dialog<Void> {
          * @throws IOException if the file cannot be read
          */
         int importFrom(File file) throws IOException;
+
+        /**
+         * Opens the edit dialog for a new entry.
+         *
+         * @return the ID of the created entry, or null if none was created
+         */
+        default String create() {
+            return null;
+        }
+
+        /**
+         * Opens the edit dialog for an entry.
+         *
+         * @param entry the entry
+         * @return the ID of the stored entry (it may be a new copy), or null if nothing was stored
+         */
+        default String edit(T entry) {
+            return null;
+        }
+
+        /**
+         * Tells whether the library can create and edit entries.
+         *
+         * @return true if {@link #create()} and {@link #edit} are supported
+         */
+        default boolean editable() {
+            return false;
+        }
     }
 
     private final Library<T> library;
@@ -136,6 +165,13 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         list.setPrefSize(360, 360);
         HBox.setHgrow(list, Priority.ALWAYS);
 
+        Button newButton = button("block.action.new", "mdi2p-plus", () -> afterEdit(library.create()));
+        Button editButton = button("block.action.edit", "mdi2p-pencil-outline", this::edit);
+        editButton.disableProperty().bind(list.getSelectionModel().selectedIndexProperty().lessThan(0));
+        list.setOnMouseClicked((event) -> {
+            if (event.getClickCount() == 2 && list.getSelectionModel().getSelectedItem() != null)
+                edit();
+        });
         Button upButton = button("block.manage.up", "mdi2a-arrow-up", () -> move(-1));
         Button downButton = button("block.manage.down", "mdi2a-arrow-down", () -> move(1));
         Button deleteButton = button("block.manage.delete", "mdi2t-trash-can-outline", this::delete);
@@ -154,6 +190,8 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         trashLink.setGraphic(new FontIcon("mdi2d-delete-outline"));
         trashLink.setOnAction((event) -> openTrash());
         VBox buttons = new VBox(8, upButton, downButton, deleteButton, gap, importButton, exportButton, trashLink);
+        if (library.editable())
+            buttons.getChildren().addAll(0, List.of(newButton, editButton, new Separator()));
         buttons.setAlignment(Pos.TOP_LEFT);
 
         HBox content = new HBox(12, list, buttons);
@@ -180,6 +218,19 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         list.getSelectionModel().clearSelection();
         list.getItems().stream().filter((entry) -> library.id(entry).equals(selectId)).findFirst()
                 .ifPresent((entry) -> list.getSelectionModel().select(entry));
+    }
+
+    /*  edits the selected entry and shows the stored one  */
+    private void edit() {
+        T entry = list.getSelectionModel().getSelectedItem();
+        if (entry != null)
+            afterEdit(library.edit(entry));
+    }
+
+    /*  loads the entries again after an edit, selecting the stored entry  */
+    private void afterEdit(String storedId) {
+        if (storedId != null)
+            reload(storedId);
     }
 
     /*  moves the selected entry one place up or down  */
