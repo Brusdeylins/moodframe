@@ -50,6 +50,14 @@ Installers for macOS and Windows are built with [Conveyor](https://conveyor.hydr
 ./gradlew deploy
 ```
 
+Conveyor is free for open source projects: `app.vcs-url` points to this public repository, and the build confirms that
+with Conveyor's license server. Conveyor uses its own trust store, so behind a TLS-inspecting proxy the build stops
+with `Could not contact license server`; import the proxy's root certificate into Conveyor's
+`runtime/Contents/Home/lib/security/cacerts` with `keytool`.
+
+The download site is written to `build/packages/moodframe-<version>/`. Upload its content to
+`https://moodframe.art/download` (`app.site.base-url`); installed apps check that address for updates on every launch.
+
 ## License
 
 [MIT](LICENSE) © Matthias Brusdeylins. The logo is set in Space Grotesk (SIL Open Font License).
