@@ -73,6 +73,13 @@
                 
                 <!-- Chat Controls Row -->
                 <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
+                    <!-- Switch of the list: by chat or by mood -->
+                    <HBox alignment="CENTER_LEFT">
+                        <ToggleButton fx:id="chatsModeButton" text="Chats" styleClass="left-pill" selected="true" />
+                        <ToggleButton fx:id="moodsModeButton" text="Moods" styleClass="right-pill" />
+                    </HBox>
+                    <Region HBox.hgrow="ALWAYS" />
+
                     <!-- New Chat Button -->
                     <Button fx:id="newChatButton" styleClass="button-icon, flat"
                             onAction="#onNewChatClicked" HBox.hgrow="ALWAYS">
@@ -101,6 +108,9 @@
                     <!-- Chat list items will be populated dynamically -->
                 </ListView>
                 
+                <!-- Mood List: the moods images were generated with, shown instead of the chats -->
+                <ListView fx:id="moodGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
+
             </VBox>
             
             <!-- Middle Content Area with Chat and Parameters using HBox for side-by-side layout -->

@@ -14,6 +14,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
@@ -1851,6 +1852,23 @@ public class ChatEntryCard extends ManagedComponent {
         fromImage.setOnAction((action) -> onMoodFromImage.accept(new File(path)));
         new ContextMenu(fromImage).show(this, event.getScreenX(), event.getScreenY());
         event.consume();
+    }
+
+    /**
+     * Shows the chat the entry was generated in above its prompt, as a link to that chat, for the view by mood.
+     *
+     * @param chatName the name of the chat
+     * @param onOpen opens the chat
+     */
+    public void showOrigin(String chatName, Runnable onOpen) {
+        FontIcon chatIcon = new FontIcon("mdi2c-chat-outline");
+        chatIcon.setIconSize(12);
+        Hyperlink originLink = new Hyperlink(chatName, chatIcon);
+        originLink.getStyleClass().add("text-small");
+        originLink.setPadding(Insets.EMPTY);
+        originLink.setTooltip(new Tooltip(I18nManager.getText("entry.origin.tooltip")));
+        originLink.setOnAction((event) -> onOpen.run());
+        getChildren().add(0, originLink);
     }
 
     /**

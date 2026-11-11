@@ -643,6 +643,25 @@ public class ApplicationConfig {
     }
 
     /**
+     * Whether the left sidebar lists the moods instead of the chats.
+     *
+     * @return true for the list by mood (default: the chats)
+     */
+    public boolean isSidebarByMood() {
+        return Boolean.parseBoolean(properties.getProperty("sidebar.by.mood", "false"));
+    }
+
+    /**
+     * Remembers whether the left sidebar lists the moods instead of the chats.
+     *
+     * @param byMood true for the list by mood
+     */
+    public void setSidebarByMood(boolean byMood) {
+        properties.setProperty("sidebar.by.mood", String.valueOf(byMood));
+        saveConfiguration();
+    }
+
+    /**
      * Gets the remembered frame selection.
      *
      * @return the id of the frame, empty for "No frame" (default)

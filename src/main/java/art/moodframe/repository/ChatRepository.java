@@ -7,6 +7,9 @@ import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.Mood;
+import art.moodframe.model.MoodGroup;
+import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -558,6 +562,111 @@ public class ChatRepository {
         }
 
         return entries;
+    }
+
+    // ========== Mood Group Operations ==========
+
+    /**
+     * Groups the entries of the active chats by the mood stored at them: one group per mood with at least one image,
+     * the latest use first, followed by the combinations of their own and the entries without blocks, which are always
+     * listed. Only images that were generated and downloaded count; chats, entries and images in the trash do not.
+     *
+     * @return the groups
+     * @throws SQLException if query fails
+     */
+    public List<MoodGroup> findMoodGroups() throws SQLException {
+        String sql = """
+                SELECT ce.mood_id, ce.mood_json, ce.created_at, m.name AS mood_name,
+                       m.id IS NULL OR m.deleted_at IS NOT NULL AS mood_deleted,
+                       (SELECT COUNT(*) FROM generated_images gi
+                        WHERE gi.chat_entry_id = ce.id AND gi.deleted_at IS NULL
+                        AND gi.download_status = 'CACHED') AS image_count
+                FROM chat_entries ce
+                JOIN chats c ON c.id = ce.chat_id
+                LEFT JOIN moods m ON m.id = ce.mood_id
+                WHERE ce.deleted_at IS NULL AND c.deleted_at IS NULL
+                ORDER BY ce.created_at DESC
+                """;
+
+        /*  The entries come latest first: the first one of a group names it and gives its palette  */
+        Map<String, MoodGroup> groups = new LinkedHashMap<>();
+        Map<String, Integer> imageCounts = new HashMap<>();
+
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                String moodId = rs.getString("mood_id");
+                String json = rs.getString("mood_json");
+                MoodGroup.Kind kind = moodId != null ? MoodGroup.Kind.MOOD
+                        : json != null ? MoodGroup.Kind.CUSTOM : MoodGroup.Kind.NONE;
+                String key = kind + ":" + moodId;
+                imageCounts.merge(key, rs.getInt("image_count"), Integer::sum);
+                if (groups.containsKey(key))
+                    continue;
+
+                /*  A standard mood is never stored, so only a mood of the user can be deleted  */
+                EntryMood mood = EntryMood.fromJson(json);
+                EntryMood.Block palette = mood != null ? mood.blocks().get(Mood.Field.COLOR) : null;
+                boolean deleted = kind == MoodGroup.Kind.MOOD && !moodId.startsWith(PromptBlock.STANDARD_PREFIX)
+                        && rs.getBoolean("mood_deleted");
+                String current = rs.getString("mood_name");
+                String name = kind != MoodGroup.Kind.MOOD ? null
+                        : !deleted && current != null ? current : mood != null ? mood.moodName() : null;
+                groups.put(key, new MoodGroup(kind, moodId, name, deleted,
+                        kind == MoodGroup.Kind.MOOD && palette != null ? palette.colors() : List.of(), 0,
+                        rs.getTimestamp("created_at").toLocalDateTime()));
+            }
+        }
+
+        /*  A mood is listed once an image of it exists, the two fixed groups always  */
+        List<MoodGroup> result = new ArrayList<>();
+        for (MoodGroup.Kind kind : MoodGroup.Kind.values()) {
+            groups.forEach((String key, MoodGroup group) -> {
+                int count = imageCounts.get(key);
+                if (group.kind() == kind && (kind != MoodGroup.Kind.MOOD || count > 0))
+                    result.add(new MoodGroup(kind, group.moodId(), group.name(), group.deleted(), group.colors(),
+                            count, group.lastUsed()));
+            });
+            if (kind != MoodGroup.Kind.MOOD && !groups.containsKey(kind + ":null"))
+                result.add(new MoodGroup(kind, null, null, false, List.of(), 0, null));
+        }
+        return result;
+    }
+
+    /**
+     * Lists the entries of a group (see {@link #findMoodGroups()}) in the active chats, in the order of their creation.
+     * Entries in the trash do not count.
+     *
+     * @param group the group
+     * @return the ids of the entries
+     * @throws SQLException if query fails
+     */
+    public List<String> findChatEntryIdsByMood(MoodGroup group) throws SQLException {
+        String condition = switch (group.kind()) {
+            case MOOD -> "ce.mood_id = ?";
+            case CUSTOM -> "ce.mood_id IS NULL AND ce.mood_json IS NOT NULL";
+            case NONE -> "ce.mood_json IS NULL";
+        };
+        String sql = "SELECT ce.id FROM chat_entries ce JOIN chats c ON c.id = ce.chat_id "
+                + "WHERE ce.deleted_at IS NULL AND c.deleted_at IS NULL AND " + condition + " ORDER BY ce.created_at";
+
+        List<String> ids = new ArrayList<>();
+
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            if (group.kind() == MoodGroup.Kind.MOOD)
+                stmt.setString(1, group.moodId());
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next())
+                    ids.add(rs.getString("id"));
+            }
+        }
+
+        return ids;
     }
 
     // ========== Generated Image Operations ==========

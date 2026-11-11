@@ -3,6 +3,7 @@ package art.moodframe.service;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.MoodGroup;
 import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
 import org.slf4j.Logger;
@@ -369,6 +370,16 @@ public class ChatHistoryService {
 
     public Optional<ChatEntry> findChatEntryById(String entryId) throws SQLException {
         return chatRepository.findChatEntryById(entryId);
+    }
+
+    /** Groups the entries of the active chats by their mood, for the left sidebar by mood. */
+    public List<MoodGroup> findMoodGroups() throws SQLException {
+        return chatRepository.findMoodGroups();
+    }
+
+    /** Lists the ids of the entries of a mood group, in the order of their creation. */
+    public List<String> findChatEntryIdsByMood(MoodGroup group) throws SQLException {
+        return chatRepository.findChatEntryIdsByMood(group);
     }
 
     public List<GeneratedImage> findGeneratedImagesByEntry(String entryId) throws SQLException {
