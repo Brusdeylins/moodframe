@@ -74,7 +74,7 @@
                 <!-- Chat Controls Row -->
                 <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
                     <!-- New Chat Button -->
-                    <Button fx:id="newChatButton" styleClass="button-icon"
+                    <Button fx:id="newChatButton" styleClass="button-icon, flat"
                             onAction="#onNewChatClicked" HBox.hgrow="ALWAYS">
                         <graphic>
                             <FontIcon iconLiteral="mdi2p-plus" iconSize="20" styleClass="ikonli-font-icon" />
@@ -85,7 +85,7 @@
                     </Button>
                     
                     <!-- Trash Button: opens the central trash -->
-                    <Button fx:id="trashButton" styleClass="button-icon"
+                    <Button fx:id="trashButton" styleClass="button-icon, flat"
                             onAction="#onTrashClicked">
                         <graphic>
                             <FontIcon iconLiteral="mdi2t-trash-can-outline" iconSize="20" styleClass="ikonli-font-icon" />
@@ -126,7 +126,7 @@
                         <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84">
 
                             <!-- Top: Chat Messages Area with Overlay Support -->
-                            <StackPane fx:id="chatAreaStackPane">
+                            <StackPane fx:id="chatAreaStackPane" styleClass="glass">
 
                                 <!-- Main Chat Content -->
                                 <!-- Virtualized ListView for ChatEntries (replaces ScrollPane+VBox) -->
@@ -146,7 +146,7 @@
                             </StackPane>
 
                             <!-- Bottom: Input Area - resizable via SplitPane divider -->
-                            <VBox spacing="10.0" styleClass="bg-inset">
+                            <VBox spacing="10.0" styleClass="bg-inset, see-through">
                                 <padding>
                                     <Insets bottom="10.0" left="20.0" right="20.0" top="15.0" />
                                 </padding>

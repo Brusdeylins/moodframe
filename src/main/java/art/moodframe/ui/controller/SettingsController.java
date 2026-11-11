@@ -196,6 +196,10 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private Label themeChangesLabel;
     @FXML
+    private CheckBox backgroundImageCheckBox;
+    @FXML
+    private Label backgroundImageDescLabel;
+    @FXML
     private Label themePreviewLabel;
     @FXML
     private Label themeSampleLabel;
@@ -667,6 +671,16 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 ThemeManager.applyTheme(themeName);
             }
         });
+
+        /*  background image of the main window, applied at once  */
+        if (backgroundImageCheckBox != null) {
+            backgroundImageCheckBox.setSelected(config == null || config.isBackgroundImageEnabled());
+            backgroundImageCheckBox.selectedProperty().addListener((obs, was, on) -> {
+                if (config != null)
+                    config.setBackgroundImageEnabled(on);
+                ThemeManager.notifyAppearanceChanged();
+            });
+        }
     }
 
     /**
@@ -3157,6 +3171,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
         }
         if (themeDescLabel != null) {
             themeDescLabel.setText(I18nManager.getText("settings.theme.description"));
+        }
+        if (backgroundImageCheckBox != null) {
+            backgroundImageCheckBox.setText(I18nManager.getText("settings.background.image"));
+        }
+        if (backgroundImageDescLabel != null) {
+            backgroundImageDescLabel.setText(I18nManager.getText("settings.background.image.description"));
         }
         if (themeChangesLabel != null) {
             themeChangesLabel.setText(I18nManager.getText("settings.theme.changes"));

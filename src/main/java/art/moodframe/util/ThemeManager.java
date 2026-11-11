@@ -36,6 +36,31 @@ import art.moodframe.config.ServiceFactory;
 public class ThemeManager {
     
     private static final Logger logger = LoggerFactory.getLogger(ThemeManager.class);
+
+    /*  notified with the theme name after a theme was applied (on the FX thread, once the styles are in place)  */
+    private static final java.util.List<java.util.function.Consumer<String>> listeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Registers a listener that is called after every applied theme, with the name of the theme.
+     *
+     * @param listener the listener
+     */
+    public static void addThemeListener(java.util.function.Consumer<String> listener) {
+        listeners.add(listener);
+    }
+
+    /*  the theme applied last, also while the settings still preview it unsaved  */
+    private static volatile String appliedTheme;
+
+    /**
+     * Tells the listeners that the appearance changed without a new theme (for example the background image).
+     */
+    public static void notifyAppearanceChanged() {
+        String theme = appliedTheme != null ? appliedTheme : getCurrentTheme();
+        for (var listener : listeners)
+            javafx.application.Platform.runLater(() -> listener.accept(theme));
+    }
     private static final String DEFAULT_THEME = "primer-light";
     
     /**
@@ -73,6 +98,9 @@ public class ThemeManager {
             Theme theme = getAtlantaFXTheme(themeName);
             if (theme != null) {
                 Application.setUserAgentStylesheet(theme.getUserAgentStylesheet());
+                appliedTheme = themeName;
+                for (var listener : listeners)
+                    javafx.application.Platform.runLater(() -> listener.accept(themeName));
                 if (config != null && config.getLoggingEnabled()) {
                     logger.info("Theme applied successfully: {}", themeName);
                 }

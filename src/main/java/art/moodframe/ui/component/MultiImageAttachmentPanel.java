@@ -697,7 +697,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             // Preview container - square (height = width), clickable
             previewContainer = new StackPane();
             previewContainer.setMaxWidth(Double.MAX_VALUE);
-            previewContainer.setStyle("-fx-background-color: -color-bg-inset; " +
+            previewContainer.setStyle("-fx-background-color: " + emptySlotBackground() + "; " +
                     "-fx-background-radius: 4px; " +
                     "-fx-border-color: -color-border-muted; " +
                     "-fx-border-width: 1px; " +
@@ -936,7 +936,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
                         "-fx-border-style: solid; " +
                         "-fx-border-radius: 4px;");
             } else {
-                previewContainer.setStyle("-fx-background-color: -color-bg-inset; " +
+                previewContainer.setStyle("-fx-background-color: " + emptySlotBackground() + "; " +
                         "-fx-background-radius: 4px; " +
                         "-fx-border-color: -color-border-muted; " +
                         "-fx-border-width: 1px; " +
@@ -1017,5 +1017,10 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             imageView.setImage(null);
             attachment = null;
         }
+    }
+
+    /*  an empty slot uses the field color of its panel, which is translucent over the window cloud  */
+    private static String emptySlotBackground() {
+        return "-color-bg-default";
     }
 }

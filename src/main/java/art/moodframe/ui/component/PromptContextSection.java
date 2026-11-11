@@ -65,11 +65,11 @@ public class PromptContextSection extends VBox implements I18nChangeListener {
         // Add YouTube button
         addYouTubeButton = new Button();
         addYouTubeButton.setStyle(
-            "-fx-background-color: transparent; " +
+            "-fx-background-color: -color-bg-default; " +
             "-fx-border-color: -color-border-default; " +
             "-fx-border-style: dashed; " +
-            "-fx-border-radius: 6; " +
-            "-fx-background-radius: 6; " +
+            "-fx-border-radius: 4; " +
+            "-fx-background-radius: 4; " +
             "-fx-padding: 8 12; " +
             "-fx-cursor: hand; " +
             "-fx-font-size: 12px;"
@@ -87,18 +87,18 @@ public class PromptContextSection extends VBox implements I18nChangeListener {
             "-fx-background-color: -color-bg-subtle; " +
             "-fx-border-color: -color-accent-emphasis; " +
             "-fx-border-style: dashed; " +
-            "-fx-border-radius: 6; " +
-            "-fx-background-radius: 6; " +
+            "-fx-border-radius: 4; " +
+            "-fx-background-radius: 4; " +
             "-fx-padding: 8 12; " +
             "-fx-cursor: hand; " +
             "-fx-font-size: 12px;"
         ));
         addYouTubeButton.setOnMouseExited(e -> addYouTubeButton.setStyle(
-            "-fx-background-color: transparent; " +
+            "-fx-background-color: -color-bg-default; " +
             "-fx-border-color: -color-border-default; " +
             "-fx-border-style: dashed; " +
-            "-fx-border-radius: 6; " +
-            "-fx-background-radius: 6; " +
+            "-fx-border-radius: 4; " +
+            "-fx-background-radius: 4; " +
             "-fx-padding: 8 12; " +
             "-fx-cursor: hand; " +
             "-fx-font-size: 12px;"

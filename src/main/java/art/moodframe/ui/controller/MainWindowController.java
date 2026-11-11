@@ -3204,16 +3204,39 @@ public class MainWindowController implements I18nChangeListener {
     private void setupCornerCloud() {
         if (!(mainBorderPane.getParent() instanceof StackPane stack))
             return;
-        var image = new javafx.scene.image.Image(
-                getClass().getResourceAsStream("/images/corner-cloud.png"), CLOUD_WIDTH, CLOUD_HEIGHT, true, true);
-        cornerCloud = new javafx.scene.image.ImageView(image);
+        cornerCloud = new javafx.scene.image.ImageView(cloudImage(true));
         cornerCloud.setMouseTransparent(true);
         cornerCloud.setFocusTraversable(false);
         cornerCloud.setManaged(false);
         stack.getChildren().add(0, cornerCloud);
         stack.layoutBoundsProperty().addListener((obs, old, bounds) -> placeCornerCloud(bounds));
         placeCornerCloud(stack.getLayoutBounds());
-        updateCornerCloudTheme();
+
+        /*  follow a theme change at once, not only when the settings close  */
+        art.moodframe.util.ThemeManager.addThemeListener(this::updateCornerCloudTheme);
+
+        /*  the theme colors resolve only once the window has its scene  */
+        if (stack.getScene() != null)
+            updateCornerCloudTheme();
+        else
+            stack.sceneProperty().addListener((obs, old, scene) -> {
+                if (scene != null)
+                    javafx.application.Platform.runLater(this::updateCornerCloudTheme);
+            });
+    }
+
+    /*  the cloud for dark themes, and a deeper, more saturated one that stays visible on light themes  */
+    private javafx.scene.image.Image cloudDark;
+    private javafx.scene.image.Image cloudLight;
+
+    private javafx.scene.image.Image cloudImage(boolean dark) {
+        if (dark && cloudDark == null)
+            cloudDark = new javafx.scene.image.Image(getClass().getResourceAsStream("/images/corner-cloud.png"),
+                    CLOUD_WIDTH, CLOUD_HEIGHT, true, true);
+        if (!dark && cloudLight == null)
+            cloudLight = new javafx.scene.image.Image(getClass().getResourceAsStream("/images/corner-cloud-light.png"),
+                    CLOUD_WIDTH, CLOUD_HEIGHT, true, true);
+        return dark ? cloudDark : cloudLight;
     }
 
     private void placeCornerCloud(javafx.geometry.Bounds bounds) {
@@ -3224,10 +3247,49 @@ public class MainWindowController implements I18nChangeListener {
      * Matches the strength of the corner cloud to the current theme.
      */
     private void updateCornerCloudTheme() {
+        updateCornerCloudTheme(art.moodframe.util.ThemeManager.getCurrentTheme());
+    }
+
+    private void updateCornerCloudTheme(String themeName) {
         if (cornerCloud == null)
             return;
-        boolean dark = art.moodframe.util.ThemeManager.isDarkTheme(art.moodframe.util.ThemeManager.getCurrentTheme());
-        cornerCloud.setOpacity(dark ? 0.85 : 0.55);
+        boolean dark = art.moodframe.util.ThemeManager.isDarkTheme(themeName);
+        List<Node> panels = new java.util.ArrayList<>(mainBorderPane.lookupAll(".see-through"));
+        panels.addAll(mainBorderPane.lookupAll(".glass"));
+
+        /*  switched off: no cloud, and fields with their normal, opaque theme colors  */
+        boolean enabled = config == null || config.isBackgroundImageEnabled();
+        cornerCloud.setVisible(enabled);
+        if (!enabled) {
+            for (Node panel : panels)
+                panel.setStyle(panel.getStyle().replaceAll("-color-bg-(default|subtle): [^;]*;\\s*", "").trim());
+            return;
+        }
+        cornerCloud.setImage(cloudImage(dark));
+        cornerCloud.setOpacity(dark ? 0.55 : 0.75);
+
+        /*  fields and buttons over the cloud: the theme colors of their background at 55 %  */
+        String fields = "-color-bg-default: " + themeColor("-color-bg-default", CONTROL_ALPHA) + "; "
+                + "-color-bg-subtle: " + themeColor("-color-bg-subtle", CONTROL_ALPHA) + ";";
+        /*  ".glass": the chat area, whose entries draw their own (now translucent) background  */
+        for (Node panel : panels)
+            panel.setStyle(panel.getStyle().replaceAll("-color-bg-(default|subtle): [^;]*;\\s*", "") + " " + fields);
+    }
+
+    private static final double CONTROL_ALPHA = 0.55;
+
+    /*  the current value of a looked-up theme color, as rgba with the given opacity  */
+    private String themeColor(String token, double alpha) {
+        var probe = new javafx.scene.layout.Region();
+        probe.setStyle("-fx-background-color: " + token + ";");
+        var stack = (StackPane) mainBorderPane.getParent();
+        stack.getChildren().add(probe);
+        probe.applyCss();
+        var fills = probe.getBackground() != null ? probe.getBackground().getFills() : List.<javafx.scene.layout.BackgroundFill>of();
+        stack.getChildren().remove(probe);
+        var color = !fills.isEmpty() && fills.get(0).getFill() instanceof javafx.scene.paint.Color c ? c : javafx.scene.paint.Color.BLACK;
+        return String.format(java.util.Locale.ROOT, "rgba(%d, %d, %d, %.2f)", Math.round(color.getRed() * 255),
+                Math.round(color.getGreen() * 255), Math.round(color.getBlue() * 255), alpha);
     }
 
     /**

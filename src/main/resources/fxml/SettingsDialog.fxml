@@ -399,6 +399,14 @@
                     </VBox>
                     
                     <Separator />
+
+                    <!-- Background image of the main window -->
+                    <VBox spacing="4.0">
+                        <CheckBox fx:id="backgroundImageCheckBox" text="%settings.background.image" />
+                        <Label fx:id="backgroundImageDescLabel" styleClass="text-muted, text-small" text="%settings.background.image.description" wrapText="true" />
+                    </VBox>
+
+                    <Separator />
                     
                     <!-- Preview Area -->
                     <VBox spacing="8.0">

@@ -497,6 +497,25 @@ public class ApplicationConfig {
     }
 
     /**
+     * Whether the main window shows the colored cloud in its lower right corner.
+     *
+     * @return true unless the user switched it off (default: on)
+     */
+    public boolean isBackgroundImageEnabled() {
+        return Boolean.parseBoolean(properties.getProperty("ui.background.image", "true"));
+    }
+
+    /**
+     * Switches the colored cloud of the main window on or off.
+     *
+     * @param enabled true to show it
+     */
+    public void setBackgroundImageEnabled(boolean enabled) {
+        properties.setProperty("ui.background.image", String.valueOf(enabled));
+        saveConfiguration();
+    }
+
+    /**
      * Gets the default color style selection.
      *
      * @return the default color style name, or "None" if not set

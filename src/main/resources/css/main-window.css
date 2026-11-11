@@ -9,3 +9,69 @@
 .app-root .see-through > .viewport {
     -fx-background-color: transparent;
 }
+
+/*  Inside the panels over the cloud, fields and buttons have a translucent background (the controller sets
+    -color-bg-default and -color-bg-subtle there to the theme colors at 55 %). Disabled controls keep that
+    background and only fade their text, instead of fading as a whole.  */
+.see-through .button:disabled,
+.see-through .toggle-button:disabled,
+.see-through .combo-box-base:disabled,
+.see-through .choice-box:disabled,
+.see-through .text-input:disabled,
+.see-through .check-box:disabled,
+.see-through .slider:disabled {
+    -fx-opacity: 1;
+    -color-fg-default: -color-fg-subtle;
+    -color-fg-muted: -color-fg-subtle;
+}
+.see-through .button.accent:disabled {
+    -fx-opacity: 0.4;
+}
+
+/*  The theme draws a field as two layers, a full-size border color with the field color 1 px inside. With a
+    translucent field color the border color would shine through the whole field (grey, or blue when focused),
+    so over the cloud a field has one translucent layer and a real 1 px border.  */
+.see-through .text-input,
+.see-through .combo-box-base,
+.see-through .choice-box {
+    -fx-background-color: -color-bg-default;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+}
+.see-through .text-input:focused,
+.see-through .combo-box-base:focused,
+.see-through .combo-box-base:showing,
+.see-through .choice-box:focused {
+    -fx-border-color: -color-accent-emphasis;
+}
+.see-through .button {
+    -fx-background-color: -color-button-bg;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-button-border;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+}
+.see-through .button:hover {
+    -fx-background-color: -color-button-bg-hover;
+    -fx-border-color: -color-button-border-hover;
+}
+.see-through .button:focused {
+    -fx-border-color: -color-button-border-focused;
+}
+.see-through .check-box > .box {
+    -fx-background-color: -color-bg-default;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 4px;
+}
+.see-through .check-box:selected > .box,
+.see-through .check-box:indeterminate > .box {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-border-color: -color-accent-emphasis;
+}
