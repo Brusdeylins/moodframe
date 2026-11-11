@@ -5,6 +5,7 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
+<?import art.moodframe.ui.component.Wordmark?>
 
 <!-- Main Window Layout for MoodFrame Application -->
 <!-- This FXML defines the primary application window structure with:
@@ -26,9 +27,11 @@
                 <Insets bottom="10.0" left="20.0" right="20.0" top="10.0" />
             </padding>
             
-            <!-- Application Title -->
-            <Label text="MoodFrame" styleClass="title-1" />
-            <Label fx:id="appVersionLabel" styleClass="text-muted" style="-fx-font-size: 11px;" translateY="7" />
+            <!-- Wordmark; the version number sits on the baseline of "FRAME" -->
+            <HBox spacing="10.0" alignment="BASELINE_LEFT">
+                <Wordmark markHeight="46" />
+                <Label fx:id="appVersionLabel" styleClass="text-muted" style="-fx-font-size: 11px;" />
+            </HBox>
             
             <!-- Spacer to push settings button to the right -->
             <Region HBox.hgrow="ALWAYS" />
