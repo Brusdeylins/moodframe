@@ -222,16 +222,36 @@
                         </padding>
                         
                         <!-- Mood: the building blocks that decide how the image looks -->
-                        <HBox alignment="CENTER_LEFT" spacing="8.0">
+                        <VBox spacing="5.0">
                             <VBox.margin>
                                 <Insets top="7.0" />
                             </VBox.margin>
-                            <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-3" />
-                            <Region HBox.hgrow="ALWAYS" />
+                            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-3" />
+                                <Region HBox.hgrow="ALWAYS" />
 
-                            <!-- Only with a reference image: whether the building blocks go into the prompt -->
-                            <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
-                        </HBox>
+                                <!-- Only with a reference image: whether the building blocks go into the prompt -->
+                                <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
+
+                                <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
+                                <Button fx:id="saveMoodButton" styleClass="button-icon, flat" onAction="#onSaveMoodClicked">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+                            </HBox>
+
+                            <!-- The actions, "No mood" and the moods; the warning leads to a block of the mood in the trash -->
+                            <HBox alignment="CENTER_LEFT" spacing="4.0">
+                                <ComboBox fx:id="moodComboBox" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                                <Button fx:id="moodIncompleteButton" styleClass="button-icon, flat, mood-incomplete"
+                                        onAction="#onMoodIncompleteClicked" visible="false" managed="false">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2a-alert-circle-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+                            </HBox>
+                        </VBox>
 
                         <!-- Atmosphere -->
                         <VBox spacing="5.0" styleClass="block-field">

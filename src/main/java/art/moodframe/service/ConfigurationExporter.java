@@ -58,6 +58,7 @@ public class ConfigurationExporter {
         PROXY_SETTINGS("Proxy Settings", "Proxy configuration and authentication"),
         ADVANCED_SETTINGS("Advanced Settings", "Logging, development mode, SSL bypass"),
         CUSTOM_STYLES("Custom Building Blocks", "User-created styles, atmospheres, lights and palettes"),
+        MOODS("Moods", "User-created moods, the saved combinations of building blocks"),
         ALL("All Settings", "Complete configuration export");
         
         private final String displayName;
@@ -97,6 +98,7 @@ public class ConfigurationExporter {
     
     private final PromptBlockService promptBlockService;
     private final ColorStyleService colorStyleService;
+    private final MoodService moodService;
     private final ApplicationConfig config;
     
     /**
@@ -109,6 +111,7 @@ public class ConfigurationExporter {
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         this.promptBlockService = new PromptBlockService();
         this.colorStyleService = new ColorStyleService();
+        this.moodService = new MoodService(promptBlockService, colorStyleService);
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
     
@@ -203,6 +206,12 @@ public class ConfigurationExporter {
             configData.put("customPalettes", colorStyleService.getCustomStyles());
         }
         
+        if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.MOODS)) {
+
+            /*  The moods of the user with their IDs and the IDs of their blocks  */
+            configData.put("moods", moodService.exportCustom());
+        }
+
         exportData.put("configuration", configData);
         
         // Write to file
@@ -427,6 +436,15 @@ public class ConfigurationExporter {
                     changes.put("Palettes", String.format("%d palettes imported", importedPalettes));
             }
             
+            /*  The moods of the user next to the existing ones; an ID or name that is taken gets a new one  */
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> moods = (List<Map<String, Object>>) configData.get("moods");
+            if (moods != null) {
+                int importedMoods = moodService.importCustom(moods);
+                if (importedMoods > 0)
+                    changes.put("Moods", String.format("%d moods imported", importedMoods));
+            }
+
             if (config != null && config.getLoggingEnabled()) {
                 logger.info("Configuration imported successfully. {} settings changed", changes.size());
             }

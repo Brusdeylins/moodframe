@@ -563,7 +563,10 @@ public class ChatEntryCard extends ManagedComponent {
         if (stylePreset != null && !stylePreset.trim().isEmpty() && !"None".equals(stylePreset)) {
             if (params.length() > 0)
                 params.append(" • ");
-            params.append(I18nManager.getText("params.style")).append(" ").append(stylePreset);
+
+            /*  A former look style (1.x) lives on as the standard mood of the same name  */
+            params.append(I18nManager.getText(art.moodframe.service.MoodService.isLegacyLook(stylePreset)
+                    ? "params.mood" : "params.style")).append(" ").append(stylePreset);
         }
 
         // Add cost to the parameters line

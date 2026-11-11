@@ -395,6 +395,8 @@ public class DatabaseManager {
                     "V017__Add_prompt_blocks.sql"));
             migrations.add(new Migration("018", "Add_deleted_at_to_color_styles",
                     "V018__Add_deleted_at_to_color_styles.sql"));
+            migrations.add(new Migration("019", "Add_moods",
+                    "V019__Add_moods.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

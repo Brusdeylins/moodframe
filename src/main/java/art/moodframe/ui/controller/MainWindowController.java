@@ -4,10 +4,14 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.Mood;
 import art.moodframe.service.ChatHistoryService;
+import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.component.MemoryStatusComponent;
+import art.moodframe.ui.component.MoodChoice;
+import art.moodframe.ui.component.MoodListCell;
 import art.moodframe.ui.cell.ChatListCell;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -130,6 +134,12 @@ public class MainWindowController implements I18nChangeListener {
     private Label moodTitleLabel;
     @FXML
     private CheckBox moodApplyCheckBox;
+    @FXML
+    private Button saveMoodButton;
+    @FXML
+    private javafx.scene.control.ComboBox<MoodChoice> moodComboBox;
+    @FXML
+    private Button moodIncompleteButton;
     @FXML
     private Label frameTitleLabel;
     @FXML
@@ -380,6 +390,13 @@ public class MainWindowController implements I18nChangeListener {
     private art.moodframe.ui.component.PromptContextSection promptContextSection;
     private String currentVideoContextContent; // Stores the video analysis result for prompt attachment
     private art.moodframe.ui.dialog.YouTubeAnalysisDialog.VideoDirectResult currentVideoSource; // Direct video-to-image source (gemini-3.1-flash-image)
+
+    /*  The moods: the blocks of the fields right after the chosen mood was applied or saved (a field that differs
+        marks the mood as changed), whether it is changed, and a guard while the mood selection sets the fields  */
+    private MoodService moodService;
+    private java.util.Map<Mood.Field, String> moodSnapshot = java.util.Map.of();
+    private boolean moodChanged;
+    private boolean updatingMood;
 
     /**
      * Initializes the controller after FXML loading.
@@ -795,8 +812,11 @@ public class MainWindowController implements I18nChangeListener {
         }
         promptTextArea.setText(result.prompt());
 
-        /*  a locked building block field keeps its choice  */
-        if (result.style() != null && !styleLockButton.isSelected()) {
+        /*  a locked building block field keeps its choice; a former look style (1.x) sets its standard mood  */
+        Mood legacyMood = moodService != null ? moodService.findForLegacyStyle(result.style()) : null;
+        if (legacyMood != null) {
+            chooseMood(legacyMood);
+        } else if (result.style() != null && !styleLockButton.isSelected()) {
             stylePresetsComboBox.getItems().stream()
                     .filter(item -> result.style().equals(item.getName())).findFirst()
                     .ifPresent(stylePresetsComboBox::setValue);
@@ -1181,6 +1201,9 @@ public class MainWindowController implements I18nChangeListener {
         // Setup persistence listeners for UI selections
         setupPersistenceListeners();
 
+        // Setup the mood selection on the restored fields
+        setupMoods();
+
         // Initial UI state
         updateUIState();
         updateCostDisplay(); // Initial cost calculation
@@ -1221,13 +1244,24 @@ public class MainWindowController implements I18nChangeListener {
                         if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
                             javafx.application.Platform.runLater(() -> showRestoredChat(id));
                         else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
-                            javafx.application.Platform.runLater(() -> refreshBlockChoices());
+                            javafx.application.Platform.runLater(() -> {
+                                refreshBlockChoices();
+                                refreshMoods();
+                            });
+                        else
+                            javafx.application.Platform.runLater(() -> refreshMoods());
                     }
 
+                    /*  A mood that lost its last block with these blocks may go to the trash as well  */
                     @Override
                     public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
                         if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
                             javafx.application.Platform.runLater(() -> removeChats(ids));
+                        else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                            javafx.application.Platform.runLater(() -> {
+                                askToDeleteEmptiedMoods();
+                                refreshMoods();
+                            });
                     }
                 });
             } else {
@@ -1898,6 +1932,263 @@ public class MainWindowController implements I18nChangeListener {
             if (config != null)
                 config.setMoodAppliedToReference(newVal);
         });
+    }
+
+    /**
+     * Sets up the mood selection: the actions "Save", "Save as..." and "Manage...", "No mood" and the moods. Choosing a
+     * mood sets the fields that are not locked; a field changed afterwards shows the mood as changed until it is
+     * saved or chosen again. A remembered former look style (1.x) is chosen as the standard mood of the same name.
+     */
+    private void setupMoods() {
+        moodService = art.moodframe.config.ServiceFactory.getInstance().getService(MoodService.class);
+        if (moodService == null || moodComboBox == null) {
+            logger.warn("MoodService not available, no mood selection");
+            return;
+        }
+
+        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, null, this::isMoodSaveLocked));
+        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, () -> moodChanged, this::isMoodSaveLocked));
+        moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(oldVal, newVal));
+        for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
+                colorStyleComboBox, lightComboBox))
+            field.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (!updatingMood)
+                    updateMoodState();
+            });
+
+        Mood legacyMood = moodService.findForLegacyStyle(config != null ? config.getDefaultStyle() : null);
+        reloadMoods(config != null ? config.getSelectedMood() : "");
+        if (legacyMood != null) {
+            chooseMood(legacyMood);
+
+            /*  The former look style is taken over once, also while the style field is locked  */
+            art.moodframe.model.StylePresetItem style = stylePresetsComboBox.getValue();
+            config.setDefaultStyle(style != null ? style.getName() : "None");
+        }
+        else {
+            moodSnapshot = currentMoodFields();
+            moodChanged = config != null && config.isSelectedMoodChanged();
+            updateMoodState();
+        }
+
+        /*  Moods that lost their last block while the window was closed, for example by the automatic cleanup  */
+        Platform.runLater(this::askToDeleteEmptiedMoods);
+    }
+
+    /** The mood shown as chosen, null for "No mood". */
+    private Mood chosenMood() {
+        MoodChoice choice = moodComboBox != null ? moodComboBox.getValue() : null;
+        return choice != null ? choice.mood() : null;
+    }
+
+    private boolean isMoodIncomplete(Mood mood) {
+        return !moodService.trashedBlocks(mood).isEmpty();
+    }
+
+    /** "Save" is not available for a standard mood, which can only be saved as a new one. */
+    private boolean isMoodSaveLocked() {
+        Mood mood = chosenMood();
+        return mood != null && mood.isDefault();
+    }
+
+    /** Lists the actions, "No mood" and the moods, and shows the mood with this id as chosen, without applying it. */
+    private void reloadMoods(String selectId) {
+        MoodChoice none = MoodChoice.of(MoodChoice.Kind.NONE);
+        List<MoodChoice> items = new java.util.ArrayList<>(List.of(MoodChoice.of(MoodChoice.Kind.SAVE),
+                MoodChoice.of(MoodChoice.Kind.SAVE_AS), MoodChoice.of(MoodChoice.Kind.MANAGE),
+                MoodChoice.of(MoodChoice.Kind.SEPARATOR), none));
+        moodService.getAll().forEach((mood) -> items.add(new MoodChoice(MoodChoice.Kind.MOOD, mood)));
+
+        updatingMood = true;
+        moodComboBox.getItems().setAll(items);
+        moodComboBox.setValue(items.stream().filter((item) -> item.mood() != null && item.mood().getId().equals(selectId))
+                .findFirst().orElse(none));
+        updatingMood = false;
+    }
+
+    /** Lists the moods again, keeping the choice, for example once a block or a mood left the trash. */
+    private void refreshMoods() {
+        if (moodService == null)
+            return;
+        Mood chosen = chosenMood();
+        reloadMoods(chosen != null ? chosen.getId() : "");
+        updateMoodState();
+    }
+
+    /** Applies a chosen mood, or runs an action and leaves the choice as it was. */
+    private void onMoodChoice(MoodChoice oldVal, MoodChoice newVal) {
+        if (updatingMood || newVal == null)
+            return;
+        if (!newVal.isAction()) {
+            chooseMood(newVal.mood());
+            return;
+        }
+
+        /*  Once the list has closed  */
+        Platform.runLater(() -> {
+            updatingMood = true;
+            moodComboBox.setValue(oldVal);
+            updatingMood = false;
+            switch (newVal.kind()) {
+                case SAVE -> saveMood(false);
+                case SAVE_AS -> saveMood(true);
+                case MANAGE -> manageMoods();
+                default -> {
+                }
+            }
+        });
+    }
+
+    /** Sets the fields that are not locked to the blocks of a mood, null for "No mood", and shows it unchanged. */
+    private void chooseMood(Mood mood) {
+        java.util.Map<Mood.Field, String> fields = moodService.apply(mood, currentMoodFields(), lockedMoodFields());
+        art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
+        String paletteName = palette != null ? palette.getName() : "None";
+
+        updatingMood = true;
+        selectBlock(atmosphereComboBox, fields.get(Mood.Field.ATMOSPHERE));
+        selectBlock(stylePresetsComboBox, fields.get(Mood.Field.STYLE));
+        selectBlock(lightComboBox, fields.get(Mood.Field.LIGHT));
+        colorStyleComboBox.getItems().stream().filter((item) -> item.getName().equals(paletteName)).findFirst()
+                .or(() -> colorStyleComboBox.getItems().stream().findFirst()).ifPresent(colorStyleComboBox::setValue);
+        moodComboBox.getItems().stream().filter((item) -> mood == null ? item.kind() == MoodChoice.Kind.NONE
+                : item.mood() != null && item.mood().getId().equals(mood.getId()))
+                .findFirst().ifPresent(moodComboBox::setValue);
+        updatingMood = false;
+
+        moodSnapshot = currentMoodFields();
+        moodChanged = false;
+        updateMoodState();
+    }
+
+    /** Selects the item of a block in a field, "None" (the first item) if the block is not listed. */
+    private void selectBlock(javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox,
+            String blockId) {
+        comboBox.getItems().stream().filter((item) -> item.getBlock() != null && item.getBlock().getId().equals(blockId))
+                .findFirst().or(() -> comboBox.getItems().stream().findFirst()).ifPresent(comboBox::setValue);
+    }
+
+    /** The block ids of the fields; an empty field is missing. */
+    private java.util.Map<Mood.Field, String> currentMoodFields() {
+        java.util.Map<Mood.Field, String> fields = new java.util.EnumMap<>(Mood.Field.class);
+        java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereComboBox, Mood.Field.STYLE, stylePresetsComboBox,
+                Mood.Field.LIGHT, lightComboBox).forEach((field, comboBox) -> {
+            art.moodframe.model.StylePresetItem item = comboBox.getValue();
+            if (item != null && item.getBlock() != null)
+                fields.put(field, item.getBlock().getId());
+        });
+        art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox.getValue();
+        art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
+                ? colorStyleService().getStyleByName(colorItem.getName()) : null;
+        if (palette != null)
+            fields.put(Mood.Field.COLOR, palette.getId());
+        return fields;
+    }
+
+    /** The fields whose lock is closed. */
+    private Set<Mood.Field> lockedMoodFields() {
+        Set<Mood.Field> locked = java.util.EnumSet.noneOf(Mood.Field.class);
+        java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereLockButton, Mood.Field.STYLE, styleLockButton,
+                Mood.Field.COLOR, colorLockButton, Mood.Field.LIGHT, lightLockButton).forEach((field, lock) -> {
+            if (lock.isSelected())
+                locked.add(field);
+        });
+        return locked;
+    }
+
+    private art.moodframe.service.ColorStyleService colorStyleService() {
+        return art.moodframe.config.ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class);
+    }
+
+    /**
+     * Marks the chosen mood as changed once a field differs from it, remembers the choice and shows the warning of a
+     * mood with a block in the trash.
+     */
+    private void updateMoodState() {
+        if (moodService == null)
+            return;
+        Mood mood = chosenMood();
+        moodChanged = mood != null && (moodChanged || !moodSnapshot.equals(currentMoodFields()));
+        if (config != null)
+            config.setSelectedMood(mood != null ? mood.getId() : "", moodChanged);
+
+        boolean incomplete = mood != null && isMoodIncomplete(mood);
+        moodIncompleteButton.setVisible(incomplete);
+        moodIncompleteButton.setManaged(incomplete);
+        moodIncompleteButton.setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete")) : null);
+        ((MoodListCell) moodComboBox.getButtonCell()).refresh();
+    }
+
+    /** Saves the fields over the chosen mood of the user, or as a new mood under a name the user enters. */
+    private void saveMood(boolean asNew) {
+        Mood chosen = chosenMood();
+        Mood mood;
+        if (!asNew && chosen != null && !chosen.isDefault())
+            mood = chosen;
+        else {
+            String name = art.moodframe.ui.dialog.MoodManageDialog.askName(mainBorderPane.getScene().getWindow(),
+                    moodService, I18nManager.getText("mood.name.new"),
+                    chosen != null ? moodService.freeName(chosen.getName()) : "", null);
+            if (name == null)
+                return;
+            mood = new Mood(null, name);
+        }
+        java.util.Map<Mood.Field, String> references = moodService.capture(chosen, currentMoodFields());
+        for (Mood.Field field : Mood.Field.values())
+            mood.setReference(field, references.get(field));
+
+        if (!(mood.getId() == null ? moodService.add(mood) : moodService.update(mood))) {
+            showErrorMessage(I18nManager.getText("error.mood.save"));
+            return;
+        }
+        reloadMoods(mood.getId());
+        moodSnapshot = currentMoodFields();
+        moodChanged = false;
+        updateMoodState();
+        setStatus(I18nManager.getText("status.mood.saved", mood.getName()));
+    }
+
+    /** Opens the window for the moods of the user and lists them again afterwards. */
+    private void manageMoods() {
+        new art.moodframe.ui.dialog.MoodManageDialog(mainBorderPane.getScene().getWindow(), moodService).showAndWait();
+        refreshMoods();
+    }
+
+    @FXML
+    private void onSaveMoodClicked() {
+        if (moodService != null)
+            saveMood(false);
+    }
+
+    /** Shows the first block of the chosen mood that lies in the trash. */
+    @FXML
+    private void onMoodIncompleteClicked() {
+        Mood mood = chosenMood();
+        List<String> trashed = mood != null ? moodService.trashedBlocks(mood) : List.of();
+        if (!trashed.isEmpty())
+            art.moodframe.ui.dialog.TrashWindow.open(mainBorderPane.getScene().getWindow(),
+                    art.moodframe.service.TrashGroup.Kind.BLOCKS, trashed.get(0));
+    }
+
+    /** Asks for every mood that lost its last block whether to move it to the trash. */
+    private void askToDeleteEmptiedMoods() {
+        if (moodService == null)
+            return;
+        List<Mood> emptied = moodService.takeEmptied();
+        for (Mood mood : emptied) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.initOwner(mainBorderPane.getScene() != null ? mainBorderPane.getScene().getWindow() : null);
+            alert.setTitle(I18nManager.getText("mood.empty.title"));
+            alert.setHeaderText(I18nManager.getText("mood.empty.header", mood.getName()));
+            alert.setContentText(I18nManager.getText("mood.empty.content"));
+            ButtonType delete = new ButtonType(I18nManager.getText("mood.empty.delete"), ButtonBar.ButtonData.YES);
+            ButtonType keep = new ButtonType(I18nManager.getText("mood.empty.keep"), ButtonBar.ButtonData.NO);
+            alert.getButtonTypes().setAll(delete, keep);
+            if (alert.showAndWait().orElse(keep) == delete)
+                moodService.moveToTrash(mood.getId());
+        }
+        if (!emptied.isEmpty())
+            refreshMoods();
     }
 
     /**
@@ -3243,8 +3534,8 @@ public class MainWindowController implements I18nChangeListener {
         moodApplyCheckBox.setVisible(hasAttachment);
         moodApplyCheckBox.setManaged(hasAttachment);
         moodApplyCheckBox.setDisable(!enableInput);
-        for (Node field : List.of(atmosphereLabel, atmosphereComboBox, styleLabel, stylePresetsComboBox,
-                colorStyleLabel, colorStyleComboBox))
+        for (Node field : List.of(moodComboBox, saveMoodButton, atmosphereLabel, atmosphereComboBox, styleLabel,
+                stylePresetsComboBox, colorStyleLabel, colorStyleComboBox))
             field.setDisable(!moodApplies);
         lightLabel.setDisable(!moodApplies || layoutStyle);
         lightComboBox.setDisable(!moodApplies || layoutStyle);
@@ -5489,6 +5780,9 @@ public class MainWindowController implements I18nChangeListener {
             moodApplyCheckBox.setText(I18nManager.getText("params.mood.apply"));
             moodApplyCheckBox.setTooltip(new Tooltip(I18nManager.getText("params.mood.apply.tooltip")));
         }
+        if (saveMoodButton != null)
+            saveMoodButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.save.tooltip")));
+        refreshMoods();
         if (promptPreviewToggle != null)
             promptPreviewToggle.setText(I18nManager.getText("input.prompt.preview"));
 

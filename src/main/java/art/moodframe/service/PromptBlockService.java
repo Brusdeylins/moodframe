@@ -404,6 +404,16 @@ public class PromptBlockService {
     }
 
     /**
+     * Finds a block of the user in the trash.
+     *
+     * @param id the block id
+     * @return the block, null if it is not in the trash
+     */
+    public PromptBlock findInTrash(String id) {
+        return id == null || id.startsWith(PromptBlock.STANDARD_PREFIX) ? null : repository.findInTrash(id);
+    }
+
+    /**
      * Returns the name unchanged if no block of the type has it yet, else the name with the next free counter,
      * e.g. {@code "Analog Film (1)"}.
      *

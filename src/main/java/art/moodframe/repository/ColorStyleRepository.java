@@ -186,6 +186,28 @@ public class ColorStyleRepository {
     }
 
     /**
+     * Finds a color style in the trash by its ID.
+     *
+     * @param id the ID of the color style
+     * @return the color style, null if it is not in the trash
+     */
+    public ColorStyle findInTrash(String id) {
+        String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NOT NULL";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next())
+                    return mapResultSetToColorStyle(rs);
+            }
+        } catch (SQLException e) {
+            logger.error("Failed to find color style in the trash: " + id, e);
+        }
+        return null;
+    }
+
+    /**
      * Finds a color style by its name.
      *
      * @param name the name of the color style

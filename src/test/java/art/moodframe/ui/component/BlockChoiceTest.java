@@ -36,7 +36,9 @@ class BlockChoiceTest {
     private static void onFxThread(Runnable step) throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(step);
-        Platform.runLater(done::countDown);
+
+        /*  posted from the queue, so it runs after what the step itself left for later  */
+        Platform.runLater(() -> Platform.runLater(done::countDown));
         assertTrue(done.await(10, TimeUnit.SECONDS));
     }
 
@@ -48,7 +50,8 @@ class BlockChoiceTest {
     @Test
     void anActionKeepsTheSelectedEntryAndRuns() throws Exception {
         ComboBox<StylePresetItem> comboBox = new ComboBox<>();
-        List<String> calls = new ArrayList<>();
+        /*  the actions run on the FX thread, the test reads them on its own  */
+        List<String> calls = new java.util.concurrent.CopyOnWriteArrayList<>();
         BlockChoice<StylePresetItem> choice = new BlockChoice<>(comboBox, (name) -> new StylePresetItem(name, "", false),
                 (item) -> item.getBlock() != null, new BlockChoice.Actions<>() {
                     @Override
@@ -84,6 +87,7 @@ class BlockChoiceTest {
         onFxThread(() -> comboBox.setValue(items.get(0)));
         onFxThread(() -> comboBox.setValue(items.get(1)));
         onFxThread(() -> comboBox.setValue(items.get(2)));
+
         assertEquals(List.of("edit Photo Style", "create", "manage"), calls);
         assertEquals(photo, comboBox.getValue());
 

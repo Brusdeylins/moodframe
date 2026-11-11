@@ -183,6 +183,17 @@ public class PromptBlockRepository {
     }
 
     /**
+     * Finds a stored block in the trash by its id.
+     *
+     * @param id the block id
+     * @return the block, null if it is not in the trash
+     */
+    public PromptBlock findInTrash(String id) {
+        List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id);
+        return blocks.isEmpty() ? null : blocks.get(0);
+    }
+
+    /**
      * Finds a stored block of a type by its name.
      *
      * @param type the block type

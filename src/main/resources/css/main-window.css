@@ -106,6 +106,10 @@
     -fx-font-weight: bold;
     -fx-text-fill: -color-fg-muted;
 }
+/*  The warning next to the mood selection: a block of the chosen mood lies in the trash  */
+.mood-incomplete .ikonli-font-icon {
+    -fx-icon-color: -color-warning-fg;
+}
 
 /*  The fold of the final prompt below the input field: a muted line of text with a chevron  */
 .prompt-preview-toggle,

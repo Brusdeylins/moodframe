@@ -147,6 +147,18 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.ColorStyleService.class,
                     () -> new art.moodframe.service.ColorStyleService());
 
+            // Initialize MoodService for the moods, the saved combinations of building blocks
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.MoodService.class,
+                    () -> new art.moodframe.service.MoodService(
+                            ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
+                            ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class)));
+
+            /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.BlockUsage.class,
+                    () -> ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class));
+
             // Initialize TrashManager for trash file operations (60 days retention)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.TrashManager.class,
@@ -201,6 +213,22 @@ public class MoodframeApplication extends Application {
                                 ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
                                 ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
                                 ServiceFactory.getInstance().getService(art.moodframe.service.BlockUsage.class)));
+
+                        /*  Moods lose the references to blocks deleted for good, also by the automatic cleanup  */
+                        art.moodframe.service.MoodService moodService = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.MoodService.class);
+                        trashCenter.register(new art.moodframe.service.MoodTrashGroup(moodService));
+                        trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
+                            @Override
+                            public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
+                            }
+
+                            @Override
+                            public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
+                                if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                                    moodService.blocksDeleted(ids);
+                            }
+                        });
                         return trashCenter;
                     });
 

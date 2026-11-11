@@ -594,6 +594,36 @@ public class ApplicationConfig {
     }
 
     /**
+     * Gets the remembered mood selection.
+     *
+     * @return the id of the mood, empty for "No mood" (default)
+     */
+    public String getSelectedMood() {
+        return properties.getProperty("mood.selected", "");
+    }
+
+    /**
+     * Whether a field was changed after the remembered mood was chosen.
+     *
+     * @return true if the mood shows as changed (default: unchanged)
+     */
+    public boolean isSelectedMoodChanged() {
+        return Boolean.parseBoolean(properties.getProperty("mood.selected.changed", "false"));
+    }
+
+    /**
+     * Remembers the mood selection and whether a field was changed after it.
+     *
+     * @param moodId the id of the mood, empty for "No mood"
+     * @param changed true if a field was changed after the mood was chosen
+     */
+    public void setSelectedMood(String moodId, boolean changed) {
+        properties.setProperty("mood.selected", moodId);
+        properties.setProperty("mood.selected.changed", String.valueOf(changed));
+        saveConfiguration();
+    }
+
+    /**
      * Whether the building blocks of the mood go into the prompt while a reference image is attached.
      *
      * @return true if the mood applies (default: off, the image sets the look)

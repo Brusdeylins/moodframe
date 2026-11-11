@@ -288,6 +288,32 @@ public class ColorStyleService implements ColorStyles {
     }
 
     /**
+     * Gets a color style in use by its id, a standard palette or one of the user.
+     *
+     * @param id the id, for example {@code std:color:ocean-breeze}
+     * @return the color style, null if there is none in use
+     */
+    public ColorStyle getStyleById(String id) {
+        if (id == null || id.isEmpty())
+            return null;
+        for (ColorStyle style : defaultStyles) {
+            if (style.getId().equals(id))
+                return style;
+        }
+        return repository.findById(id);
+    }
+
+    /**
+     * Finds a color style of the user in the trash.
+     *
+     * @param id the id of the color style
+     * @return the color style, null if it is not in the trash
+     */
+    public ColorStyle findInTrash(String id) {
+        return id == null || id.startsWith("std:") ? null : repository.findInTrash(id);
+    }
+
+    /**
      * Gets the palette text of the prompt for a style (see {@link ColorStyle#toPromptString()}).
      */
     @Override

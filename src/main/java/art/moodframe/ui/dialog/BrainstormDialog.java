@@ -12,6 +12,7 @@ import art.moodframe.model.ResearchNote;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
+import art.moodframe.service.MoodService;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
@@ -971,6 +972,10 @@ public class BrainstormDialog extends Stage {
         showVariant(modelBox.getValue(), newDraft.getResolution());
 
         showFacts(newDraft.getFacts());
+
+        /*  A former look style (1.x) of an older draft stays selectable: the main window sets its standard mood  */
+        if (MoodService.isLegacyLook(newDraft.getStyle()) && !styleBox.getItems().contains(newDraft.getStyle()))
+            styleBox.getItems().add(newDraft.getStyle());
         select(styleBox, newDraft.getStyle(), styleCheck);
         styleReasonLabel.setText(newDraft.getStyleReason());
         select(colorBox, newDraft.getColorStyle(), colorCheck);
