@@ -553,6 +553,65 @@ public class ApplicationConfig {
         saveConfiguration();
     }
 
+    /**
+     * Gets the remembered atmosphere selection.
+     *
+     * @return the name of the atmosphere block, or "None" if not set
+     */
+    public String getDefaultAtmosphere() {
+        return properties.getProperty("atmosphere.default", "None");
+    }
+
+    /**
+     * Remembers the atmosphere selection.
+     *
+     * @param atmosphere the name of the atmosphere block
+     */
+    public void setDefaultAtmosphere(String atmosphere) {
+        properties.setProperty("atmosphere.default", atmosphere);
+        saveConfiguration();
+    }
+
+    /**
+     * Whether a building block field of the mood is locked: moods and brainstorm leave it unchanged.
+     *
+     * @param field the field ("atmosphere", "style", "palette" or "light")
+     * @return true if locked (default: unlocked)
+     */
+    public boolean isBlockLocked(String field) {
+        return Boolean.parseBoolean(properties.getProperty("block.lock." + field, "false"));
+    }
+
+    /**
+     * Locks or unlocks a building block field of the mood.
+     *
+     * @param field the field ("atmosphere", "style", "palette" or "light")
+     * @param locked true to lock it
+     */
+    public void setBlockLocked(String field, boolean locked) {
+        properties.setProperty("block.lock." + field, String.valueOf(locked));
+        saveConfiguration();
+    }
+
+    /**
+     * Whether the building blocks of the mood go into the prompt while a reference image is attached.
+     *
+     * @return true if the mood applies (default: off, the image sets the look)
+     */
+    public boolean isMoodAppliedToReference() {
+        return Boolean.parseBoolean(properties.getProperty("mood.apply.reference", "false"));
+    }
+
+    /**
+     * Sets whether the building blocks of the mood go into the prompt while a reference image is attached.
+     *
+     * @param applied true to apply the mood
+     */
+    public void setMoodAppliedToReference(boolean applied) {
+        properties.setProperty("mood.apply.reference", String.valueOf(applied));
+        saveConfiguration();
+    }
+
 
     // Configuration setter methods
     // Each setter updates the configuration and automatically saves to file

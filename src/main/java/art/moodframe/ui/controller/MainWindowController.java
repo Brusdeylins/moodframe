@@ -120,10 +120,18 @@ public class MainWindowController implements I18nChangeListener {
     private TextArea promptTextArea;
     @FXML
     private Label characterCountLabel;
+    @FXML
+    private ToggleButton promptPreviewToggle;
+    @FXML
+    private TextArea promptPreviewTextArea;
 
     // Parameter Panel Controls
     @FXML
-    private Label parametersTitle;
+    private Label moodTitleLabel;
+    @FXML
+    private CheckBox moodApplyCheckBox;
+    @FXML
+    private Label frameTitleLabel;
     @FXML
     private CheckBox bflPromptUpsamplingCheckBox;
     @FXML
@@ -178,6 +186,20 @@ public class MainWindowController implements I18nChangeListener {
     private javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> lightComboBox;
     @FXML
     private Label lightLabel;
+    @FXML
+    private Label lightLayoutHint;
+    @FXML
+    private javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> atmosphereComboBox;
+    @FXML
+    private Label atmosphereLabel;
+    @FXML
+    private ToggleButton atmosphereLockButton;
+    @FXML
+    private ToggleButton styleLockButton;
+    @FXML
+    private ToggleButton colorLockButton;
+    @FXML
+    private ToggleButton lightLockButton;
 
     // Parameter Labels for i18n
     @FXML
@@ -594,6 +616,7 @@ public class MainWindowController implements I18nChangeListener {
 
             promptContextSection.setYouTubeContext(title, content);
         }
+        updateUIState();
 
         logger.info("Video context attachment set ({} characters)", content.length());
     }
@@ -608,6 +631,7 @@ public class MainWindowController implements I18nChangeListener {
         if (promptContextSection != null) {
             promptContextSection.clearContext();
         }
+        updateUIState();
 
         logger.info("Video context attachment cleared");
     }
@@ -647,6 +671,7 @@ public class MainWindowController implements I18nChangeListener {
             }
             promptContextSection.setDirectVideoContext(title, detail);
         }
+        updateUIState();
 
         logger.info("Direct video source set: {} ({}s - {}s)",
                 result.url(), result.startSeconds(), result.endSeconds());
@@ -764,12 +789,13 @@ public class MainWindowController implements I18nChangeListener {
         }
         promptTextArea.setText(result.prompt());
 
-        if (result.style() != null) {
+        /*  a locked building block field keeps its choice  */
+        if (result.style() != null && !styleLockButton.isSelected()) {
             stylePresetsComboBox.getItems().stream()
                     .filter(item -> result.style().equals(item.getName())).findFirst()
                     .ifPresent(stylePresetsComboBox::setValue);
         }
-        if (result.colorStyle() != null) {
+        if (result.colorStyle() != null && !colorLockButton.isSelected()) {
             colorStyleComboBox.getItems().stream()
                     .filter(item -> result.colorStyle().equals(item.getName())).findFirst()
                     .ifPresent(colorStyleComboBox::setValue);
@@ -843,13 +869,14 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Updates the prompt preview to show how style will affect final prompt.
-     * Phase 2: Real-time preview of style combination
+     * Shows the final prompt in the fold below the input field and counts its characters.
+     *
+     * @param prompt the composed prompt
      */
-    private void updatePromptPreview() {
-        buildFinalPrompt();
-        // For now, we could update a status or tooltip
-        // In future, this could update a preview label or send button text
+    private void updatePromptPreview(String prompt) {
+        if (promptPreviewTextArea != null)
+            promptPreviewTextArea.setText(prompt);
+        updateCharacterCount(prompt);
     }
 
     /**
@@ -865,15 +892,20 @@ public class MainWindowController implements I18nChangeListener {
         return new art.moodframe.service.PromptComposer(getMaxPromptLength());
     }
 
-    /** The building blocks selected in the main window. */
+    /** The building blocks selected in the main window; none with a reference image unless "Apply mood" is on. */
     private art.moodframe.service.PromptComposer.Selection selectedBlocks() {
+        if (attachedImageFile != null && moodApplyCheckBox != null && !moodApplyCheckBox.isSelected())
+            return new art.moodframe.service.PromptComposer.Selection(null, null, null, null, null);
+
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
+        art.moodframe.model.StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
         art.moodframe.model.StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
         art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
         return new art.moodframe.service.PromptComposer.Selection(styleItem != null ? styleItem.getBlock() : null,
-                null, lightItem != null ? lightItem.getBlock() : null, null, palette);
+                atmosphereItem != null ? atmosphereItem.getBlock() : null, lightItem != null ? lightItem.getBlock() : null,
+                null, palette);
     }
 
     /**
@@ -1121,8 +1153,12 @@ public class MainWindowController implements I18nChangeListener {
         // Setup color styles selection
         setupColorStyles();
 
-        // Setup light selection
-        setupLights();
+        // Setup atmosphere and light selection
+        setupBlockChoice(atmosphereComboBox, art.moodframe.model.PromptBlock.Type.ATMOSPHERE);
+        setupBlockChoice(lightComboBox, art.moodframe.model.PromptBlock.Type.LIGHT);
+
+        // Setup the locks of the building block fields and the "Apply mood" switch
+        setupBlockLocks();
 
         // Setup Gemini Advanced Features section (Phase 2)
         setupGeminiAdvancedFeatures();
@@ -1579,25 +1615,53 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the light selection: "None" (the default) followed by the light blocks, which go into the
-     * prompt as its "Lighting" line (see {@link art.moodframe.service.PromptComposer}).
+     * Sets up the selection of a building block type: "None" (the default) followed by its blocks, which go into
+     * the prompt as their own line (see {@link art.moodframe.service.PromptComposer}).
+     *
+     * @param comboBox the field of the type
+     * @param type the type of the blocks
      */
-    private void setupLights() {
-        if (lightComboBox == null)
+    private void setupBlockChoice(javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox,
+            art.moodframe.model.PromptBlock.Type type) {
+        if (comboBox == null)
             return;
 
         art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
-        lightComboBox.getItems().setAll(noneItem);
+        comboBox.getItems().setAll(noneItem);
         art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.service.PromptBlockService.class);
         if (service == null)
-            logger.warn("PromptBlockService not available, light combo box only offers None");
+            logger.warn("PromptBlockService not available, {} combo box only offers None", type);
         else
-            for (art.moodframe.model.PromptBlock block : service.getAll(art.moodframe.model.PromptBlock.Type.LIGHT))
-                lightComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
-        lightComboBox.setValue(noneItem);
-        lightComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell());
-        lightComboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+            for (art.moodframe.model.PromptBlock block : service.getAll(type))
+                comboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
+        comboBox.setValue(noneItem);
+        comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell());
+        comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+    }
+
+    /**
+     * Sets up the locks of the building block fields and the "Apply mood" switch, both remembered. A locked field
+     * keeps its choice when a mood or the brainstorm sets the fields; the lock shows while the pointer is over the
+     * field, and always once locked (see main-window.css).
+     */
+    private void setupBlockLocks() {
+        java.util.Map<ToggleButton, String> locks = java.util.Map.of(atmosphereLockButton, "atmosphere",
+                styleLockButton, "style", colorLockButton, "palette", lightLockButton, "light");
+        locks.forEach((lock, field) -> {
+            lock.selectedProperty().addListener((obs, oldVal, newVal) -> {
+                ((FontIcon) lock.getGraphic()).setIconLiteral(newVal ? "mdi2l-lock" : "mdi2l-lock-open-variant-outline");
+                if (config != null)
+                    config.setBlockLocked(field, newVal);
+            });
+            lock.setSelected(config != null && config.isBlockLocked(field));
+        });
+
+        moodApplyCheckBox.setSelected(config != null && config.isMoodAppliedToReference());
+        moodApplyCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            if (config != null)
+                config.setMoodAppliedToReference(newVal);
+        });
     }
 
     /**
@@ -1911,6 +1975,15 @@ public class MainWindowController implements I18nChangeListener {
                             .ifPresent(lightComboBox::setValue);
                 }
 
+                // Load atmosphere selection
+                if (atmosphereComboBox != null) {
+                    String savedAtmosphere = config.getDefaultAtmosphere();
+                    atmosphereComboBox.getItems().stream()
+                            .filter((item) -> item.getName().equals(savedAtmosphere))
+                            .findFirst()
+                            .ifPresent(atmosphereComboBox::setValue);
+                }
+
                 // Load BFL Prompt Upsampling setting
                 if (bflPromptUpsamplingCheckBox != null) {
                     boolean savedBflUpsampling = config.getDefaultBflPromptUpsampling();
@@ -2023,14 +2096,10 @@ public class MainWindowController implements I18nChangeListener {
                             multiImagePanel.setCurrentModel(model);
                         }
 
-                        // Update character count display with new limit
-                        String currentText = promptTextArea != null ? promptTextArea.getText() : "";
-                        updateCharacterCount(currentText);
-
                         // Update prompt placeholder when model changes
                         updatePromptPlaceholder();
 
-                        // Update UI state when model changes (to check API key for new provider)
+                        // Update UI state when model changes (API key of the new provider, character count with its limit)
                         updateUIState();
 
                         // Refresh chat entries to update seed copy button visibility
@@ -2087,6 +2156,13 @@ public class MainWindowController implements I18nChangeListener {
                     lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null)
                             config.setDefaultLight(newVal.getName());
+                    });
+
+                // Save atmosphere selection changes
+                if (atmosphereComboBox != null)
+                    atmosphereComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal != null)
+                            config.setDefaultAtmosphere(newVal.getName());
                     });
 
                 // Save BFL Prompt Upsampling changes
@@ -2724,12 +2800,20 @@ public class MainWindowController implements I18nChangeListener {
      * Sets up event handlers for interactive components.
      */
     private void setupEventHandlers() {
-        // Update UI state when prompt text changes
-        promptTextArea.textProperty().addListener((obs, oldText, newText) -> {
-            updateUIState();
-            updatePromptPreview();
-            updateCharacterCount(newText);
-        });
+        /*  Update UI state (final prompt and its character count) when the prompt text, a building block or
+            the "Apply mood" switch changes  */
+        promptTextArea.textProperty().addListener((obs, oldText, newText) -> updateUIState());
+        for (javafx.beans.value.ObservableValue<?> value : List.<javafx.beans.value.ObservableValue<?>>of(
+                atmosphereComboBox.valueProperty(), stylePresetsComboBox.valueProperty(),
+                colorStyleComboBox.valueProperty(), lightComboBox.valueProperty(), moodApplyCheckBox.selectedProperty()))
+            value.addListener((obs, oldVal, newVal) -> updateUIState());
+
+        /*  The fold of the final prompt below the input field  */
+        promptPreviewTextArea.visibleProperty().bind(promptPreviewToggle.selectedProperty());
+        promptPreviewTextArea.managedProperty().bind(promptPreviewToggle.selectedProperty());
+        promptPreviewToggle.selectedProperty().addListener((obs, oldVal, newVal) ->
+                ((FontIcon) promptPreviewToggle.getGraphic()).setIconLiteral(
+                        newVal ? "mdi2c-chevron-down" : "mdi2c-chevron-right"));
 
         // Handle Enter key in prompt area (Enter for line break, Shift+Enter to send)
         promptTextArea.setOnKeyPressed(event -> {
@@ -2779,7 +2863,7 @@ public class MainWindowController implements I18nChangeListener {
     /**
      * Updates the character count display and validates prompt length.
      *
-     * @param text the current text in the prompt area
+     * @param text the final prompt (the text of the user with the building blocks)
      */
     private void updateCharacterCount(String text) {
         if (characterCountLabel == null)
@@ -2809,7 +2893,11 @@ public class MainWindowController implements I18nChangeListener {
     private void updateUIState() {
         String promptText = promptTextArea.getText();
         boolean hasText = promptText != null && !promptText.trim().isEmpty();
-        boolean hasValidText = hasText && (promptText != null && promptText.length() <= getMaxPromptLength());
+
+        /*  the limit of the model applies to the final prompt, which the fold shows and the counter counts  */
+        String finalPrompt = buildFinalPrompt();
+        updatePromptPreview(finalPrompt);
+        boolean hasValidText = hasText && promptComposer().fits(finalPrompt);
 
         // Check if the currently selected model's provider has a valid API key
         boolean hasApiKeyForSelectedModel = hasApiKeyForCurrentProvider();
@@ -2961,17 +3049,23 @@ public class MainWindowController implements I18nChangeListener {
         aspectRatioComboBox.setDisable(!enableInput);
         if (aspectRatioLabel != null)
             aspectRatioLabel.setDisable(!enableInput);
-        stylePresetsComboBox.setDisable(!enableInput);
-        if (styleLabel != null)
-            styleLabel.setDisable(!enableInput);
-        if (colorStyleComboBox != null)
-            colorStyleComboBox.setDisable(!enableInput);
-        if (colorStyleLabel != null)
-            colorStyleLabel.setDisable(!enableInput);
-        if (lightComboBox != null)
-            lightComboBox.setDisable(!enableInput);
-        if (lightLabel != null)
-            lightLabel.setDisable(!enableInput);
+
+        /*  The mood fields are greyed while a reference image is attached without "Apply mood"; the light also for
+            a layout style, keeping its choice (the composer leaves it out)  */
+        boolean moodApplies = enableInput && (!hasAttachment || moodApplyCheckBox.isSelected());
+        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
+        boolean layoutStyle = styleItem != null && styleItem.getBlock() != null && styleItem.getBlock().isLayout();
+        moodApplyCheckBox.setVisible(hasAttachment);
+        moodApplyCheckBox.setManaged(hasAttachment);
+        moodApplyCheckBox.setDisable(!enableInput);
+        for (Node field : List.of(atmosphereLabel, atmosphereComboBox, styleLabel, stylePresetsComboBox,
+                colorStyleLabel, colorStyleComboBox))
+            field.setDisable(!moodApplies);
+        lightLabel.setDisable(!moodApplies || layoutStyle);
+        lightComboBox.setDisable(!moodApplies || layoutStyle);
+        lightLayoutHint.setVisible(layoutStyle);
+        lightLayoutHint.setManaged(layoutStyle);
+
         if (seedLabel != null)
             seedLabel.setDisable(!enableInput);
         if (imageAttachmentLabel != null)
@@ -3453,7 +3547,8 @@ public class MainWindowController implements I18nChangeListener {
 
         // Build final prompt including style and YouTube content
         art.moodframe.service.PromptComposer composer = promptComposer();
-        String prompt = composer.compose(userPrompt, currentVideoContextContent, selectedBlocks());
+        art.moodframe.service.PromptComposer.Selection blocks = selectedBlocks();
+        String prompt = composer.compose(userPrompt, currentVideoContextContent, blocks);
         if (prompt.isEmpty()) {
             return;
         }
@@ -3563,7 +3658,7 @@ public class MainWindowController implements I18nChangeListener {
                 .status(ChatEntry.Status.PENDING)
                 .model(modelDisplay)
                 .size(aspectRatio)
-                .style(stylePresetsComboBox.getValue() != null ? stylePresetsComboBox.getValue().getName() : "None")
+                .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .safetyTolerance(safetyToleranceValue)
                 .seed(seedValue != null ? seedValue : 0) // 0 indicates random generation
                 .cost(totalCost)
@@ -3719,11 +3814,10 @@ public class MainWindowController implements I18nChangeListener {
         }
         request.setSafetyTolerance(safetyTolerance);
 
-        // Set style preset if selected
-        if (stylePresetsComboBox != null && stylePresetsComboBox.getValue() != null &&
-                !"None".equals(stylePresetsComboBox.getValue().getName()) && !stylePresetsComboBox.getValue().getName().isEmpty()) {
-            request.setStylePreset(stylePresetsComboBox.getValue().getName());
-        }
+        // Set style preset if selected (and applied: not with a reference image without "Apply mood")
+        art.moodframe.model.PromptBlock style = selectedBlocks().style();
+        if (style != null)
+            request.setStylePreset(style.getName());
 
         // Convert aspect ratio to width/height based on model capabilities
         String aspectRatio = aspectRatioComboBox.getValue();
@@ -4032,16 +4126,6 @@ public class MainWindowController implements I18nChangeListener {
         updateModelSelectionForAttachment(hasAttachment);
 
         if (hasAttachment) {
-            // Set style to NONE for image-to-image (image provides the style)
-            if (stylePresetsComboBox != null && stylePresetsComboBox.getValue() != null
-                    && !"None".equals(stylePresetsComboBox.getValue().getName())) {
-                // Find and set the "None" item
-                stylePresetsComboBox.getItems().stream()
-                        .filter(item -> "None".equals(item.getName()))
-                        .findFirst()
-                        .ifPresent(stylePresetsComboBox::setValue);
-            }
-
             // Auto-detect aspect ratio ONLY from the first attached image
             // When adding additional images, keep the aspect ratio from the first one
             int attachmentCount = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 1;
@@ -4051,7 +4135,7 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         // Update prompt placeholder and all UI elements to reflect attachment state
-        // (includes disabling thinking level when image attached)
+        // (includes disabling thinking level and, without "Apply mood", the mood fields when image attached)
         updateUIState();
     }
 
@@ -5002,9 +5086,8 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         if (characterCountLabel != null) {
-            // Update character count with current text length and dynamic limit
-            String currentText = promptTextArea != null ? promptTextArea.getText() : "";
-            updateCharacterCount(currentText);
+            // Update character count with the length of the final prompt and dynamic limit
+            updatePromptPreview(buildFinalPrompt());
         }
     }
 
@@ -5267,10 +5350,17 @@ public class MainWindowController implements I18nChangeListener {
      * Updates FXML hardcoded texts that need to be replaced programmatically.
      */
     private void updateFXMLTexts() {
-        // Update parameter section title
-        if (parametersTitle != null) {
-            parametersTitle.setText(I18nManager.getText("params.title"));
+        // Update the titles of the mood and frame sections, the "Apply mood" switch and the final prompt fold
+        if (moodTitleLabel != null)
+            moodTitleLabel.setText(I18nManager.getText("params.mood.title"));
+        if (frameTitleLabel != null)
+            frameTitleLabel.setText(I18nManager.getText("params.frame.title"));
+        if (moodApplyCheckBox != null) {
+            moodApplyCheckBox.setText(I18nManager.getText("params.mood.apply"));
+            moodApplyCheckBox.setTooltip(new Tooltip(I18nManager.getText("params.mood.apply.tooltip")));
         }
+        if (promptPreviewToggle != null)
+            promptPreviewToggle.setText(I18nManager.getText("input.prompt.preview"));
 
         // Update parameter labels that are hardcoded in FXML
         updateParameterLabels();
@@ -5291,6 +5381,16 @@ public class MainWindowController implements I18nChangeListener {
 
         if (lightLabel != null)
             lightLabel.setText(I18nManager.getText("params.light"));
+        if (lightLayoutHint != null)
+            lightLayoutHint.setText(I18nManager.getText("params.light.layout.hint"));
+        if (atmosphereLabel != null)
+            atmosphereLabel.setText(I18nManager.getText("params.atmosphere"));
+        if (colorStyleLabel != null)
+            colorStyleLabel.setText(I18nManager.getText("params.colorstyle"));
+        for (ToggleButton lock : java.util.Arrays.asList(atmosphereLockButton, styleLockButton, colorLockButton,
+                lightLockButton))
+            if (lock != null)
+                lock.setTooltip(new Tooltip(I18nManager.getText("params.block.lock.tooltip")));
 
         if (aspectRatioLabel != null) {
             aspectRatioLabel.setText(I18nManager.getText("params.aspect.ratio"));

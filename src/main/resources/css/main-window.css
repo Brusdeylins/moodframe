@@ -75,3 +75,36 @@
     -fx-background-color: -color-accent-emphasis;
     -fx-border-color: -color-accent-emphasis;
 }
+
+/*  The lock of a building block field: no button look, shown while the pointer is over the field and always
+    once locked, so it takes its space without making the row jump  */
+.block-lock,
+.block-lock:selected {
+    -fx-background-color: transparent;
+    -fx-padding: 0 2px 0 2px;
+}
+.block-lock {
+    -fx-opacity: 0;
+}
+.block-field:hover .block-lock,
+.block-lock:selected,
+.block-lock:focused {
+    -fx-opacity: 1;
+}
+.block-lock .ikonli-font-icon {
+    -fx-icon-color: -color-fg-muted;
+}
+.block-lock:selected .ikonli-font-icon {
+    -fx-icon-color: -color-accent-fg;
+}
+
+/*  The fold of the final prompt below the input field: a muted line of text with a chevron  */
+.prompt-preview-toggle,
+.prompt-preview-toggle:selected {
+    -fx-background-color: transparent;
+    -fx-text-fill: -color-fg-muted;
+    -fx-padding: 0;
+}
+.prompt-preview-toggle .ikonli-font-icon {
+    -fx-icon-color: -color-fg-muted;
+}

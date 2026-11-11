@@ -194,6 +194,16 @@
                                     </VBox>
                                 </HBox>
 
+                                <!-- Final prompt: the composed text the model receives, folded by default -->
+                                <ToggleButton fx:id="promptPreviewToggle" text="Final prompt" styleClass="prompt-preview-toggle">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                                <TextArea fx:id="promptPreviewTextArea" editable="false" wrapText="true"
+                                          prefRowCount="4" focusTraversable="false"
+                                          visible="false" managed="false" />
+
                             </VBox>
 
                         </SplitPane>
@@ -211,12 +221,86 @@
                             <Insets bottom="20.0" left="15.0" right="15.0" top="0.0" />
                         </padding>
                         
-                        <Label fx:id="parametersTitle" text="Generation Parameters" styleClass="title-3">
+                        <!-- Mood: the building blocks that decide how the image looks -->
+                        <HBox alignment="CENTER_LEFT" spacing="8.0">
                             <VBox.margin>
                                 <Insets top="7.0" />
                             </VBox.margin>
+                            <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-3" />
+                            <Region HBox.hgrow="ALWAYS" />
+
+                            <!-- Only with a reference image: whether the building blocks go into the prompt -->
+                            <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
+                        </HBox>
+
+                        <!-- Atmosphere -->
+                        <VBox spacing="5.0" styleClass="block-field">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label fx:id="atmosphereLabel" text="Atmosphere:" styleClass="text-bold" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <ToggleButton fx:id="atmosphereLockButton" styleClass="block-lock">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                            </HBox>
+                            <ComboBox fx:id="atmosphereComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Style -->
+                        <VBox spacing="5.0" styleClass="block-field">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <ToggleButton fx:id="styleLockButton" styleClass="block-lock">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                            </HBox>
+                            <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Color -->
+                        <VBox spacing="5.0" styleClass="block-field">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label fx:id="colorStyleLabel" text="Color:" styleClass="text-bold" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <ToggleButton fx:id="colorLockButton" styleClass="block-lock">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                            </HBox>
+                            <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" />
+                        </VBox>
+
+                        <!-- Light -->
+                        <VBox spacing="5.0" styleClass="block-field">
+                            <HBox alignment="CENTER_LEFT">
+                                <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <ToggleButton fx:id="lightLockButton" styleClass="block-lock">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </ToggleButton>
+                            </HBox>
+                            <ComboBox fx:id="lightComboBox" maxWidth="Infinity" />
+
+                            <!-- Shown for a layout style: the light keeps its choice, but does not apply -->
+                            <Label fx:id="lightLayoutHint" text="Does not apply to layout styles"
+                                   styleClass="text-small, text-muted" wrapText="true"
+                                   visible="false" managed="false" />
+                        </VBox>
+
+                        <!-- Frame: how the image is technically produced -->
+                        <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-3">
+                            <VBox.margin>
+                                <Insets top="10.0" />
+                            </VBox.margin>
                         </Label>
-                        
+
                         <!-- Model Selection -->
                         <VBox spacing="5.0">
                             <Label fx:id="modelLabel" text="Model:" styleClass="text-bold" />
@@ -229,24 +313,6 @@
                         <VBox fx:id="resolutionContainer" spacing="5.0" visible="false" managed="false">
                             <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
                             <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" />
-                        </VBox>
-                        
-                        <!-- Style -->
-                        <VBox spacing="5.0">
-                            <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
-                            <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" />
-                        </VBox>
-
-                        <!-- Color Style -->
-                        <VBox spacing="5.0">
-                            <Label fx:id="colorStyleLabel" text="Color Style:" styleClass="text-bold" />
-                            <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" />
-                        </VBox>
-
-                        <!-- Light -->
-                        <VBox spacing="5.0">
-                            <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
-                            <ComboBox fx:id="lightComboBox" maxWidth="Infinity" />
                         </VBox>
 
                         <!-- Aspect Ratio -->
