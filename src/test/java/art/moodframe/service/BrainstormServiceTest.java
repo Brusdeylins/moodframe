@@ -5,6 +5,8 @@ import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.BrainstormTurn;
+import art.moodframe.model.Mood;
+import art.moodframe.model.PromptBlock;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.repository.BrainstormRepository;
 import org.json.JSONArray;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -101,6 +104,25 @@ class BrainstormServiceTest {
                 stored.stream().map(BrainstormMessage::getRole).toList());
         verify(repository).updateTitle("s1", "Ein Logo");
         verify(repository).addDraft(eq("s1"), any(BrainstormDraft.class));
+    }
+
+    @Test
+    void refersTheMoodAndTheBlocksOfTheDraftToTheirEntriesById() {
+        PromptBlock calm = new PromptBlock("own-calm", PromptBlock.Type.ATMOSPHERE, "My Calm", "calm", null, false);
+        BrainstormContext library = new BrainstormContext(List.of(), List.of(calm), List.of(), List.of(),
+                List.of(new Mood("std:mood:wild-north", "Wild North")), List.of(), "state", List.of(),
+                java.util.Set.of());
+        answers(text("{\"step\": 7, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"mood\": \"Wild North\", "
+                + "\"atmosphere\": {\"name\": \"My Calm\", \"is_new\": false}, "
+                + "\"light\": {\"name\": \"Unknown\", \"is_new\": false}, "
+                + "\"style\": {\"name\": \"Ink\", \"text\": \"ink wash\", \"is_new\": true}}}"));
+
+        BrainstormDraft draft = service.sendUserMessage(session, "Ein Leuchtturm", library).join().getDraft();
+
+        assertEquals("std:mood:wild-north", draft.getMood().id());
+        assertEquals("own-calm", draft.getBlock(Mood.Field.ATMOSPHERE).id());
+        assertNull(draft.getBlock(Mood.Field.LIGHT).id(), "a name without entry keeps its reference");
+        assertNull(draft.getBlock(Mood.Field.STYLE).id(), "a new block has no entry yet");
     }
 
     @Test

@@ -47,7 +47,8 @@ class BrainstormRepositoryTest {
         assertEquals(1, repository.addDraft(session.getId(), first));
         assertEquals(2, repository.addDraft(session.getId(), second));
         assertEquals("v2", repository.findLatestDraft(session.getId()).orElseThrow().getPrompt());
-        assertEquals("Pixel Art", repository.findLatestDraft(session.getId()).orElseThrow().getStyle());
+        assertEquals("Pixel Art", repository.findLatestDraft(session.getId()).orElseThrow()
+                .getBlock(art.moodframe.model.Mood.Field.STYLE).name());
     }
 
     @Test

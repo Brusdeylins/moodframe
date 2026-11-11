@@ -8,12 +8,14 @@ import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.Mood;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
 import art.moodframe.service.MoodService;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
+import art.moodframe.ui.component.ColorBox;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
 import art.moodframe.model.ModelFamilies;
@@ -34,6 +36,7 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -50,10 +53,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -70,6 +75,10 @@ import java.util.function.Supplier;
  * <p>The target model starts with the model of the main window and is always adopted. All other
  * values are adopted only if their checkbox is ticked. Changes in the result panel are sent to the
  * AI as app events, so it can rewrite the prompt.</p>
+ *
+ * <p>The look is a mood and the building blocks style, atmosphere, light and color: each one an entry of the lists or
+ * a new block the AI proposes, which goes into the list of the user on "Adopt". A field locked in the main window is
+ * not adopted.</p>
  *
  * <p>Every chat has its own {@link BrainstormChat}: several chats can wait for the AI at the same time, the answer
  * lands in the chat that asked, and the history list marks chats that are running or have an unread answer.</p>
@@ -91,14 +100,17 @@ public class BrainstormDialog extends Stage {
      *
      * @param prompt the prompt for the input field
      * @param targetModel localized display name of the target model (always adopted)
-     * @param style the style name
+     * @param moodId the id of the mood, which sets its blocks before the adopted blocks
+     * @param blocks the adopted building blocks by field: an entry of the lists with its id, or a new block for the
+     *               list of the user; a field that is not adopted is missing
      * @param aspectRatio the aspect ratio
-     * @param colorStyle the color style name
      * @param durationSeconds the video duration in seconds
      * @param resolution the resolution of a model without resolution variants (1K, 2K, 4K), else null
+     * @param saveMood whether the fields are saved as a new mood afterwards
      */
-    public record Result(String prompt, String targetModel, String style, String aspectRatio, String colorStyle,
-                         Integer durationSeconds, String resolution) {
+    public record Result(String prompt, String targetModel, String moodId,
+                         Map<Mood.Field, BrainstormDraft.Block> blocks, String aspectRatio, Integer durationSeconds,
+                         String resolution, boolean saveMood) {
     }
 
     private final BrainstormService service;
@@ -136,13 +148,13 @@ public class BrainstormDialog extends Stage {
     private final ChoiceBox<String> familyBox = new ChoiceBox<>();
     private final ChoiceBox<String> resolutionBox = new ChoiceBox<>();
     private final VBox resolutionRow = new VBox(3.0);
-    private final ChoiceBox<String> styleBox = new ChoiceBox<>();
+    private final ChoiceBox<String> moodBox = new ChoiceBox<>();
+    private final CheckBox moodCheck = new CheckBox();
+    private final Map<Mood.Field, BlockRow> blockRows = new EnumMap<>(Mood.Field.class);
     private final Label styleReasonLabel = new Label();
+    private final CheckBox saveMoodCheck = new CheckBox();
     private final ChoiceBox<String> ratioBox = new ChoiceBox<>();
-    private final ChoiceBox<String> colorBox = new ChoiceBox<>();
-    private final CheckBox styleCheck = new CheckBox();
     private final CheckBox ratioCheck = new CheckBox();
-    private final CheckBox colorCheck = new CheckBox();
     private final VBox videoBox = new VBox(8.0);
     private final ChoiceBox<String> durationBox = new ChoiceBox<>();
     private VBox durationRow;
@@ -745,15 +757,14 @@ public class BrainstormDialog extends Stage {
 
         familyBox.setMaxWidth(Double.MAX_VALUE);
         resolutionBox.setMaxWidth(Double.MAX_VALUE);
-        styleBox.setMaxWidth(Double.MAX_VALUE);
+        moodBox.setMaxWidth(Double.MAX_VALUE);
         ratioBox.setMaxWidth(Double.MAX_VALUE);
-        colorBox.setMaxWidth(Double.MAX_VALUE);
         durationBox.setMaxWidth(Double.MAX_VALUE);
 
-        styleBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
-        context.styles().stream().map(PromptBlock::getName).forEach(styleBox.getItems()::add);
-        colorBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
-        context.colorStyles().stream().map(ColorStyle::getName).forEach(colorBox.getItems()::add);
+        moodBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
+        context.moods().stream().map(Mood::getName).forEach(moodBox.getItems()::add);
+        for (Mood.Field field : BrainstormDraft.FIELDS)
+            blockRows.put(field, new BlockRow(field));
 
         // The target model is always adopted: ticked and locked
         CheckBox modelCheck = new CheckBox();
@@ -810,9 +821,22 @@ public class BrainstormDialog extends Stage {
         resolutionRow.getChildren().add(row(I18nManager.getText("brainstorm.result.resolution"), resolutionBox,
                 resolutionCheck));
         resolutionRow.managedProperty().bind(resolutionRow.visibleProperty());
-        styleBox.valueProperty().addListener((obs, old, value) -> settingChanged("style", value, styleCheck));
+        moodBox.valueProperty().addListener((obs, old, value) -> {
+            if (updatingUi || value == null)
+                return;
+
+            /*  The mood sets its blocks in the rows, the AI learns only about the mood  */
+            Mood mood = moodNamed(value);
+            updatingUi = true;
+            showMood(mood);
+            updatingUi = false;
+            moodCheck.setSelected(mood != null);
+            sendEvent(new JSONObject().put("event", "setting_changed").put("name", "mood")
+                    .put("value", mood != null ? value : ""));
+        });
         ratioBox.valueProperty().addListener((obs, old, value) -> settingChanged("aspect_ratio", value, ratioCheck));
-        colorBox.valueProperty().addListener((obs, old, value) -> settingChanged("color_style", value, colorCheck));
+        saveMoodCheck.setText(I18nManager.getText("brainstorm.result.save.mood"));
+        saveMoodCheck.setTooltip(new Tooltip(I18nManager.getText("brainstorm.result.save.mood.tooltip")));
 
         durationBox.getItems().setAll(DURATIONS);
         durationCheck.setSelected(true);
@@ -837,15 +861,21 @@ public class BrainstormDialog extends Stage {
         resultPanel.getChildren().addAll(resultTitle, promptLabel, promptArea, promptCounter, factsBox,
                 row(I18nManager.getText("brainstorm.result.model"), familyBox, modelCheck),
                 resolutionRow,
-                row(I18nManager.getText("brainstorm.result.style"), styleBox, styleCheck), styleReasonLabel,
+                row(I18nManager.getText("params.mood.title"), moodBox, moodCheck));
+        blockRows.values().forEach((BlockRow blockRow) -> resultPanel.getChildren().add(blockRow.node));
+        resultPanel.getChildren().addAll(styleReasonLabel, saveMoodCheck,
                 row(I18nManager.getText("brainstorm.result.ratio"), ratioBox, ratioCheck),
-                row(I18nManager.getText("brainstorm.result.color"), colorBox, colorCheck),
                 videoBox);
-        VBox.setVgrow(resultPanel, Priority.ALWAYS);
 
-        Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
-        VBox box = new VBox(10.0, resultPanel, spacer, adoptButton);
+        /*  The mood and the four building blocks make the panel taller than the dialog  */
+        ScrollPane resultScroll = new ScrollPane(resultPanel);
+        resultScroll.setFitToWidth(true);
+        resultScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        resultScroll.getStyleClass().add("edge-to-edge");
+        resultScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        VBox.setVgrow(resultScroll, Priority.ALWAYS);
+
+        VBox box = new VBox(10.0, resultScroll, adoptButton);
         box.getStyleClass().add("bg-inset");
         box.setPadding(new Insets(10.0, 15.0, 15.0, 15.0));
         box.setPrefWidth(380.0);
@@ -973,12 +1003,24 @@ public class BrainstormDialog extends Stage {
 
         showFacts(newDraft.getFacts());
 
-        /*  A former look style (1.x) of an older draft stays selectable: the main window sets its standard mood  */
-        if (MoodService.isLegacyLook(newDraft.getStyle()) && !styleBox.getItems().contains(newDraft.getStyle()))
-            styleBox.getItems().add(newDraft.getStyle());
-        select(styleBox, newDraft.getStyle(), styleCheck);
+        /*  The mood sets its blocks, a block of the draft replaces the one of the mood; a former look style (1.x) of
+            an older draft is the standard mood of the same name  */
+        Mood mood = findMood(newDraft.getMood());
+        BrainstormDraft.Block style = newDraft.getBlock(Mood.Field.STYLE);
+        if (mood == null && style != null && !style.isNew() && MoodService.isLegacyLook(style.name())
+                && context.idOf(Mood.Field.STYLE, style.name()) == null) {
+            mood = findMood(style);
+            style = null;
+        }
+        moodBox.setValue(mood != null ? mood.getName() : I18nManager.getText(NONE_ITEM_KEY));
+        moodCheck.setSelected(mood != null);
+        showMood(mood);
+        for (Mood.Field field : BrainstormDraft.FIELDS) {
+            BrainstormDraft.Block block = field == Mood.Field.STYLE ? style : newDraft.getBlock(field);
+            if (block != null)
+                blockRows.get(field).show(block);
+        }
         styleReasonLabel.setText(newDraft.getStyleReason());
-        select(colorBox, newDraft.getColorStyle(), colorCheck);
         if (newDraft.getAspectRatio() != null && ratioBox.getItems().contains(newDraft.getAspectRatio())) {
             ratioBox.setValue(newDraft.getAspectRatio());
             ratioCheck.setSelected(true);
@@ -1039,35 +1081,184 @@ public class BrainstormDialog extends Stage {
         }
     }
 
-    /** Selects a named value, or "none" if the draft sets none, and ticks the checkbox for a real value. */
-    private void select(ChoiceBox<String> box, String value, CheckBox check) {
-        if (value != null && box.getItems().contains(value)) {
-            box.setValue(value);
-            check.setSelected(true);
-        } else {
-            box.setValue(I18nManager.getText(NONE_ITEM_KEY));
-            check.setSelected(false);
+    /** The mood of a draft by id, else by name; null if the draft names none or the mood is gone. */
+    private Mood findMood(BrainstormDraft.Block reference) {
+        if (reference == null)
+            return null;
+        return context.moods().stream().filter((Mood mood) -> reference.id() != null
+                && reference.id().equals(mood.getId())).findFirst().orElseGet(() -> moodNamed(reference.name()));
+    }
+
+    private Mood moodNamed(String name) {
+        return context.moods().stream().filter((Mood mood) -> mood.getName().equals(name)).findFirst().orElse(null);
+    }
+
+    /** Shows the blocks of a mood in the rows, "None" where the mood sets no block in use; null empties every row. */
+    private void showMood(Mood mood) {
+        for (Mood.Field field : BrainstormDraft.FIELDS) {
+            String id = mood != null ? mood.getReference(field) : null;
+            String name = context.nameOf(field, id);
+            blockRows.get(field).show(name != null ? new BrainstormDraft.Block(id, name, null, List.of(), false)
+                    : null);
         }
     }
 
+    /**
+     * Adopts the ticked values. A new block needs a name; if an entry of its list has the name already, the user is
+     * asked whether to take the next free name, else the dialog stays open.
+     */
     private void adopt() {
-        String none = I18nManager.getText(NONE_ITEM_KEY);
         GenerationModel model = GenerationModel.fromLocalizedDisplayName(modelBox.getValue());
         boolean video = model != null && model.isVideoModel();
+
+        Map<Mood.Field, BrainstormDraft.Block> blocks = new EnumMap<>(Mood.Field.class);
+        for (BlockRow blockRow : blockRows.values()) {
+            BrainstormDraft.Block block = blockRow.adopted();
+            if (block != null && block.isNew()) {
+                String name = block.name();
+                List<String> taken = blockRow.names();
+                if (name.isEmpty()) {
+                    blockRow.nameField.requestFocus();
+                    return;
+                }
+                if (taken.contains(name)) {
+                    String free = name;
+                    for (int counter = 1; taken.contains(free); counter++)
+                        free = name + " (" + counter + ")";
+                    Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                            I18nManager.getText("brainstorm.block.taken", name, free), ButtonType.YES, ButtonType.NO);
+                    alert.initOwner(this);
+                    alert.setHeaderText(null);
+                    if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
+                        blockRow.nameField.requestFocus();
+                        return;
+                    }
+                    blockRow.nameField.setText(free);
+                    block = blockRow.adopted();
+                }
+            }
+            if (block != null)
+                blocks.put(blockRow.field, block);
+        }
+        Mood mood = moodCheck.isSelected() ? moodNamed(moodBox.getValue()) : null;
 
         Result result = new Result(
                 promptArea.getText().trim(),
                 modelBox.getValue(),
-                styleCheck.isSelected() && !none.equals(styleBox.getValue()) ? styleBox.getValue() : null,
+                mood != null ? mood.getId() : null,
+                blocks,
                 ratioCheck.isSelected() ? ratioBox.getValue() : null,
-                colorCheck.isSelected() && !none.equals(colorBox.getValue()) ? colorBox.getValue() : null,
                 video && durationCheck.isSelected() ? parseSeconds(durationBox.getValue()) : null,
-                ModelFamilies.freeResolutions(modelBox.getValue()) != null ? resolutionBox.getValue() : null);
+                ModelFamilies.freeResolutions(modelBox.getValue()) != null ? resolutionBox.getValue() : null,
+                saveMoodCheck.isSelected());
         onAdopt.accept(result);
         close();
     }
 
     private static Integer parseSeconds(String value) {
         return value == null ? null : Integer.valueOf(value.replace("s", ""));
+    }
+
+    /**
+     * The row of a building block in the result panel: "None", a new block the AI proposes (its name editable, its
+     * text or colors shown below) or an entry of the list. The checkbox adopts the block, a new one into the list of
+     * the user; for a field locked in the main window it stays off.
+     */
+    private final class BlockRow {
+
+        private final Mood.Field field;
+        private final ChoiceBox<String> box = new ChoiceBox<>();
+        private final CheckBox check = new CheckBox();
+        private final TextField nameField = new TextField();
+        private final Label textLabel = new Label();
+        private final HBox colorBoxes = new HBox(3.0);
+        private final VBox newBox;
+        private final VBox node;
+        private final String newItem = I18nManager.getText("brainstorm.block.new");
+        private BrainstormDraft.Block proposed;
+
+        BlockRow(Mood.Field field) {
+            this.field = field;
+            box.setMaxWidth(Double.MAX_VALUE);
+            box.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
+            box.getItems().addAll(names());
+            nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
+            textLabel.setWrapText(true);
+            textLabel.getStyleClass().addAll("text-muted", "text-small");
+            newBox = new VBox(4.0, nameField, field == Mood.Field.COLOR ? colorBoxes : textLabel);
+            newBox.setPadding(new Insets(0, 0, 0, 12.0));
+            newBox.managedProperty().bind(newBox.visibleProperty());
+            newBox.setVisible(false);
+            if (locked()) {
+                check.setDisable(true);
+                check.setTooltip(new Tooltip(I18nManager.getText("brainstorm.block.locked")));
+            }
+
+            String typeKey = field == Mood.Field.COLOR ? "palette" : field.name().toLowerCase(Locale.ROOT);
+            node = new VBox(3.0, row(I18nManager.getText("block.type." + typeKey), box, check), newBox);
+            box.valueProperty().addListener((obs, old, value) -> {
+                boolean isNewItem = newItem.equals(value);
+                newBox.setVisible(isNewItem);
+                check.setText(isNewItem ? I18nManager.getText("brainstorm.block.mylist") : "");
+                if (updatingUi || value == null)
+                    return;
+
+                check.setSelected(!isNone() && !locked());
+                sendEvent(new JSONObject().put("event", "setting_changed")
+                        .put("name", field.name().toLowerCase(Locale.ROOT))
+                        .put("value", isNone() ? "" : isNewItem ? nameField.getText().trim() : value));
+            });
+        }
+
+        /** The names of the entries of the list of the field. */
+        List<String> names() {
+            return field == Mood.Field.COLOR ? context.colorStyles().stream().map(ColorStyle::getName).toList()
+                    : context.blocks(field).stream().map(PromptBlock::getName).toList();
+        }
+
+        private boolean locked() {
+            return context.locked().contains(field);
+        }
+
+        private boolean isNone() {
+            return box.getValue() == null || I18nManager.getText(NONE_ITEM_KEY).equals(box.getValue());
+        }
+
+        /**
+         * Shows a block: an entry of the list by id, else by name, or a new block; "None" for null or an entry that
+         * is not listed. The checkbox is ticked for a block, unless the field is locked.
+         */
+        void show(BrainstormDraft.Block block) {
+            box.getItems().remove(newItem);
+            proposed = block != null && block.isNew()
+                    && (field == Mood.Field.COLOR ? !block.colors().isEmpty() : block.text() != null) ? block : null;
+            String value = I18nManager.getText(NONE_ITEM_KEY);
+            if (proposed != null) {
+                box.getItems().add(1, newItem);
+                nameField.setText(proposed.name());
+                textLabel.setText(proposed.text());
+                colorBoxes.getChildren().setAll(proposed.colors().stream().map(ColorBox::new).toList());
+                value = newItem;
+            }
+            else if (block != null && !block.isNew()) {
+                String name = context.nameOf(field, block.id());
+                name = name != null ? name : block.name();
+                if (box.getItems().contains(name))
+                    value = name;
+            }
+            box.setValue(value);
+            check.setSelected(!isNone() && !locked());
+        }
+
+        /** The block to adopt, null if the checkbox is off or the row shows "None". */
+        BrainstormDraft.Block adopted() {
+            if (!check.isSelected() || isNone())
+                return null;
+            if (newItem.equals(box.getValue()))
+                return new BrainstormDraft.Block(null, nameField.getText().trim(), proposed.text(), proposed.colors(),
+                        true);
+            return new BrainstormDraft.Block(context.idOf(field, box.getValue()), box.getValue(), null, List.of(),
+                    false);
+        }
     }
 }

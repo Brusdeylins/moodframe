@@ -2,11 +2,14 @@ package art.moodframe.service;
 
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,7 +38,7 @@ class BrainstormPromptBuilderTest {
                 "{{STYLES}}|{{COLOR_STYLES}}|{{MODELS}}|{{ASPECT_RATIOS}}|{{CURRENT_STATE}}|{{CURRENT_DRAFT}}",
                 "English", context, "{\"prompt\":\"p\"}");
 
-        assertTrue(prompt.contains("- Pixel Art: retro pixel art"));
+        assertTrue(prompt.contains("- Pixel Art (Art): retro pixel art"), "a style names its group");
         assertTrue(prompt.contains("- Ocean Breeze: #48BDFF, #0096C7"));
         assertTrue(prompt.contains("- FLUX.2 [pro] | image |"));
         assertTrue(prompt.contains("- Gemini Omni | video | resolutions: 360p"));
@@ -49,8 +52,8 @@ class BrainstormPromptBuilderTest {
         List<GenerationModel> models = List.of(GenerationModel.FLUX3_IMAGE_768, GenerationModel.FLUX3_IMAGE_1K,
                 GenerationModel.FLUX3_IMAGE_1_5K, GenerationModel.FLUX3_IMAGE_2K, GenerationModel.FLUX3_IMAGE_4K,
                 GenerationModel.FLUX3_KLEIN_1K, GenerationModel.FLUX3_KLEIN_4K);
-        BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), models, "",
-                models.stream().map(GenerationModel::getLocalizedDisplayName).toList());
+        BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(), models,
+                "", models.stream().map(GenerationModel::getLocalizedDisplayName).toList(), Set.of());
 
         String prompt = BrainstormPromptBuilder.build("{{MODELS}}|{{ASPECT_RATIOS}}", "English", flux3, "");
 
@@ -63,19 +66,48 @@ class BrainstormPromptBuilderTest {
 
     @Test
     void listsOneLinePerFamilyWithItsResolutionsAndPrices() {
-        BrainstormContext variants = new BrainstormContext(List.of(), List.of(),
+        BrainstormContext variants = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_2K,
                         GenerationModel.NANO_BANANA2_4K, GenerationModel.OPENAI_IMAGE),
                 "", List.of(GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName(),
                         GenerationModel.NANO_BANANA2_2K.getLocalizedDisplayName(),
                         GenerationModel.NANO_BANANA2_4K.getLocalizedDisplayName(),
-                        GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"));
+                        GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"), Set.of());
 
         String models = BrainstormPromptBuilder.build("{{MODELS}}", "English", variants, "");
 
         assertTrue(models.contains("- Nano Banana 2 | image | resolutions: 1K ($0.067), 2K ($0.101), 4K ($0.151) |"), models);
         assertTrue(models.contains("- OpenAI · qwen-image-2.1 | image | resolutions: 2K, 4K |"), models);
         assertFalse(models.contains("Nano Banana 2 4K"), models);
+    }
+
+    @Test
+    void listsAtmospheresLightsAndTheMoodsWithTheirBlocksInUse() {
+        PromptBlock style = new PromptBlock("std:style:watercolor", PromptBlock.Type.STYLE, "Watercolor",
+                "watercolor painting", PromptBlock.GROUP_ART, false);
+        PromptBlock calm = new PromptBlock("std:atmosphere:calm", PromptBlock.Type.ATMOSPHERE, "Calm",
+                "calm, quiet, a sense of stillness", null, false);
+        PromptBlock blueHour = new PromptBlock("std:light:blue-hour", PromptBlock.Type.LIGHT, "Blue Hour",
+                "cool blue twilight", null, false);
+        ColorStyle palette = new ColorStyle("Arctic Ice", List.of("#E0F7FA"), true);
+        palette.setId("std:color:arctic-ice");
+
+        Mood morning = new Mood("std:mood:quiet-morning", "Quiet Morning");
+        morning.setReference(Mood.Field.STYLE, style.getId());
+        morning.setReference(Mood.Field.ATMOSPHERE, calm.getId());
+        morning.setReference(Mood.Field.LIGHT, blueHour.getId());
+        morning.setReference(Mood.Field.COLOR, palette.getId());
+        morning.setReference(Mood.Field.CAMERA, "std:camera:street-35mm");
+        Mood trashed = new Mood("own", "Only Trashed Blocks");
+        trashed.setReference(Mood.Field.STYLE, "trashed-style");
+
+        BrainstormContext library = new BrainstormContext(List.of(style), List.of(calm), List.of(blueHour),
+                List.of(palette), List.of(morning, trashed), List.of(), "", List.of(), Set.of());
+        String prompt = BrainstormPromptBuilder.build("{{ATMOSPHERES}}|{{LIGHTS}}|{{MOODS}}", "English", library, "");
+
+        assertEquals("- Calm: calm, quiet, a sense of stillness|- Blue Hour: cool blue twilight|"
+                + "- Quiet Morning: style Watercolor, atmosphere Calm, light Blue Hour, color Arctic Ice", prompt,
+                "a mood without any block in use is left out, the camera has no block yet");
     }
 
     @Test

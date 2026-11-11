@@ -4,22 +4,103 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * The current result of a brainstorm session: the prompt and the suggested settings.
  *
- * <p>All settings are optional ({@code null} or empty means "no suggestion").</p>
+ * <p>All settings are optional ({@code null} or empty means "no suggestion"). The look comes from a mood and the
+ * building blocks of {@link #FIELDS}: each is an entry of the lists or a new block the AI proposes. Older drafts name
+ * only the style and the palette ({@code "style"}, {@code "color_style"}); they are read as references by name.</p>
  *
  * @since 1.7.0
  */
 public class BrainstormDraft {
 
+    /** The building blocks the brainstorm suggests, each under its lower-case name as key; no camera block yet. */
+    public static final List<Mood.Field> FIELDS = List.of(Mood.Field.STYLE, Mood.Field.ATMOSPHERE, Mood.Field.LIGHT,
+            Mood.Field.COLOR);
+
+    private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-F]{6}");
+    private static final int MAX_COLORS = 5;
+
+    /**
+     * A building block of the draft: an entry of the lists, referred to by id or name, or a new block the AI proposes
+     * with its text, for a palette with its colors.
+     *
+     * @param id the id of the entry, null for a new block or a name that is not resolved yet
+     * @param name the name of the entry, or the proposed name of a new block
+     * @param text the prompt fragment of a new text block, null otherwise
+     * @param colors the colors of a new palette as {@code #RRGGBB}, empty otherwise
+     * @param isNew whether the AI proposes the block as a new entry
+     */
+    public record Block(String id, String name, String text, List<String> colors, boolean isNew) {
+
+        /**
+         * Reads a block: a plain name (older drafts, a mood) or an object with id, name, text, colors and is_new.
+         * Without is_new, a block with a text or colors counts as new.
+         *
+         * @param value the JSON value, a string or an object
+         * @return the block, null for a missing value, a missing name or a new block without content
+         */
+        public static Block fromJson(Object value) {
+            if (value instanceof String name)
+                return isText(name) ? new Block(null, name.trim(), null, List.of(), false) : null;
+            if (!(value instanceof JSONObject json))
+                return null;
+
+            String name = optText(json, "name");
+            String text = optText(json, "text");
+            List<String> colors = new ArrayList<>();
+            JSONArray colorArray = json.optJSONArray("colors");
+            for (int i = 0; colorArray != null && i < colorArray.length() && colors.size() < MAX_COLORS; i++) {
+                String color = colorArray.optString(i, "").trim().toUpperCase(Locale.ROOT);
+                if (HEX_COLOR.matcher(color).matches())
+                    colors.add(color);
+            }
+            boolean isNew = json.optBoolean("is_new", text != null || !colors.isEmpty());
+            if (name == null || isNew && text == null && colors.isEmpty())
+                return null;
+            return isNew ? new Block(null, name, text, List.copyOf(colors), true)
+                    : new Block(optText(json, "id"), name, null, List.of(), false);
+        }
+
+        /**
+         * Returns the JSON form of this block, readable again by {@link #fromJson(Object)}.
+         *
+         * @return the JSON object
+         */
+        public JSONObject toJson() {
+            JSONObject json = new JSONObject().put("name", name).put("is_new", isNew);
+            if (id != null)
+                json.put("id", id);
+            if (text != null)
+                json.put("text", text);
+            if (!colors.isEmpty())
+                json.put("colors", new JSONArray(colors));
+            return json;
+        }
+
+        /**
+         * The same block, referring to its entry by id.
+         *
+         * @param entryId the id of the entry
+         * @return the block with the id
+         */
+        public Block withId(String entryId) {
+            return new Block(entryId, name, text, colors, isNew);
+        }
+    }
+
     private String mediaType = "image";
     private String prompt = "";
-    private String style;
+    private Block mood;
+    private final Map<Mood.Field, Block> blocks = new EnumMap<>(Mood.Field.class);
     private String styleReason = "";
-    private String colorStyle;
     private String aspectRatio;
     private String targetModel;
     private String resolution;
@@ -37,9 +118,14 @@ public class BrainstormDraft {
         BrainstormDraft draft = new BrainstormDraft();
         draft.mediaType = "video".equals(json.optString("media_type")) ? "video" : "image";
         draft.prompt = json.optString("prompt", "");
-        draft.style = optText(json, "style");
+        draft.mood = Block.fromJson(json.opt("mood"));
+        for (Mood.Field field : FIELDS)
+            draft.setBlock(field, Block.fromJson(json.opt(key(field))));
+
+        /*  older drafts name the palette as "color_style"  */
+        if (!json.has(key(Mood.Field.COLOR)))
+            draft.setBlock(Mood.Field.COLOR, Block.fromJson(json.opt("color_style")));
         draft.styleReason = json.optString("style_reason", "");
-        draft.colorStyle = optText(json, "color_style");
         draft.aspectRatio = optText(json, "aspect_ratio");
         draft.targetModel = optText(json, "target_model");
         draft.resolution = optText(json, "resolution");
@@ -74,9 +160,10 @@ public class BrainstormDraft {
         JSONObject json = new JSONObject();
         json.put("media_type", mediaType);
         json.put("prompt", prompt);
-        json.put("style", style == null ? JSONObject.NULL : style);
+        json.put("mood", mood == null ? JSONObject.NULL : mood.toJson());
+        for (Mood.Field field : FIELDS)
+            json.put(key(field), blocks.containsKey(field) ? blocks.get(field).toJson() : JSONObject.NULL);
         json.put("style_reason", styleReason);
-        json.put("color_style", colorStyle == null ? JSONObject.NULL : colorStyle);
         json.put("aspect_ratio", aspectRatio == null ? JSONObject.NULL : aspectRatio);
         json.put("target_model", targetModel == null ? JSONObject.NULL : targetModel);
         json.put("resolution", resolution == null ? JSONObject.NULL : resolution);
@@ -94,7 +181,17 @@ public class BrainstormDraft {
             return null;
         }
         String value = json.optString(key, "").trim();
-        return value.isEmpty() || "null".equalsIgnoreCase(value) ? null : value;
+        return isText(value) ? value : null;
+    }
+
+    /** Whether a value is a real text, not blank and not the word "null". */
+    private static boolean isText(String value) {
+        return !value.isBlank() && !"null".equalsIgnoreCase(value.trim());
+    }
+
+    /** The JSON key of the block of a field, for example {@code "atmosphere"}. */
+    private static String key(Mood.Field field) {
+        return field.name().toLowerCase(Locale.ROOT);
     }
 
     public String getMediaType() {
@@ -117,24 +214,41 @@ public class BrainstormDraft {
         this.prompt = prompt;
     }
 
-    public String getStyle() {
-        return style;
+    /** The mood the AI chose (an entry of the list), null for none. */
+    public Block getMood() {
+        return mood;
     }
 
-    public void setStyle(String style) {
-        this.style = style;
+    public void setMood(Block mood) {
+        this.mood = mood;
     }
 
+    /**
+     * The building block of a field.
+     *
+     * @param field one of {@link #FIELDS}
+     * @return the block, null if the draft suggests none
+     */
+    public Block getBlock(Mood.Field field) {
+        return blocks.get(field);
+    }
+
+    /**
+     * Sets the building block of a field.
+     *
+     * @param field one of {@link #FIELDS}
+     * @param block the block, null for none
+     */
+    public void setBlock(Mood.Field field, Block block) {
+        if (block == null)
+            blocks.remove(field);
+        else
+            blocks.put(field, block);
+    }
+
+    /** The reason for the look (mood and building blocks), one sentence or empty. */
     public String getStyleReason() {
         return styleReason;
-    }
-
-    public String getColorStyle() {
-        return colorStyle;
-    }
-
-    public void setColorStyle(String colorStyle) {
-        this.colorStyle = colorStyle;
     }
 
     public String getAspectRatio() {

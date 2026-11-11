@@ -7,6 +7,7 @@ import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.BrainstormTurn;
+import art.moodframe.model.Mood;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.util.I18nManager;
@@ -288,6 +289,7 @@ public class BrainstormService {
             throw new IllegalStateException(I18nManager.getText("brainstorm.error.invalid.reply"), e);
         }
         markUnverifiedFacts(reply.getDraft(), history, notes);
+        resolveBlocks(reply.getDraft(), context);
         reply.setResearch(notes);
 
         // The session may have been deleted while the AI was answering: then nothing is stored any more
@@ -474,6 +476,23 @@ public class BrainstormService {
             }
             fact.setVerified(match != null);
         }
+    }
+
+    /**
+     * Refers the mood and the building blocks of the draft that name an entry of the lists to that entry by id, so a
+     * stored draft still finds an entry the user renamed later. A name without entry keeps the reference as it is.
+     */
+    private static void resolveBlocks(BrainstormDraft draft, BrainstormContext context) {
+        for (Mood.Field field : BrainstormDraft.FIELDS) {
+            BrainstormDraft.Block block = draft.getBlock(field);
+            String id = block != null && !block.isNew() ? context.idOf(field, block.name()) : null;
+            if (id != null)
+                draft.setBlock(field, block.withId(id));
+        }
+        BrainstormDraft.Block mood = draft.getMood();
+        if (mood != null)
+            context.moods().stream().filter((Mood listed) -> listed.getName().equals(mood.name())).findFirst()
+                    .ifPresent((Mood listed) -> draft.setMood(mood.withId(listed.getId())));
     }
 
     /** Whether two domains are the same site, so that "en.wikipedia.org" matches "wikipedia.org". */

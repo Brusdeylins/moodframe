@@ -3,6 +3,8 @@ package art.moodframe.model;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -40,8 +42,8 @@ class BrainstormReplyTest {
 
         BrainstormDraft draft = reply.getDraft();
         assertFalse(draft.isVideo());
-        assertEquals("Business Photography", draft.getStyle());
-        assertNull(draft.getColorStyle(), "JSON null means no suggestion");
+        assertEquals("Business Photography", draft.getBlock(Mood.Field.STYLE).name());
+        assertNull(draft.getBlock(Mood.Field.COLOR), "JSON null means no suggestion");
         assertEquals("16:9", draft.getAspectRatio());
         assertNull(draft.getDurationSeconds());
     }
@@ -121,9 +123,71 @@ class BrainstormReplyTest {
         BrainstormDraft copy = BrainstormDraft.fromJson(new JSONObject(original.toJson().toString()));
 
         assertEquals(original.getPrompt(), copy.getPrompt());
-        assertEquals(original.getStyle(), copy.getStyle());
+        assertEquals(original.getBlock(Mood.Field.STYLE), copy.getBlock(Mood.Field.STYLE));
         assertEquals(original.getAspectRatio(), copy.getAspectRatio());
         assertEquals(original.getTargetModel(), copy.getTargetModel());
-        assertNull(copy.getColorStyle());
+        assertNull(copy.getBlock(Mood.Field.COLOR));
+    }
+
+    @Test
+    void readsTheStyleAndThePaletteOfAnOlderDraftAsReferencesByName() {
+        BrainstormDraft draft = BrainstormDraft.fromJson(new JSONObject("""
+            {"prompt": "p", "style": "Pixel Art", "color_style": "Ocean Breeze", "style_reason": "r"}
+            """));
+
+        assertEquals(new BrainstormDraft.Block(null, "Pixel Art", null, List.of(), false),
+                draft.getBlock(Mood.Field.STYLE));
+        assertEquals(new BrainstormDraft.Block(null, "Ocean Breeze", null, List.of(), false),
+                draft.getBlock(Mood.Field.COLOR));
+        assertNull(draft.getMood());
+        assertNull(draft.getBlock(Mood.Field.ATMOSPHERE));
+        assertEquals("r", draft.getStyleReason());
+
+        JSONObject written = draft.toJson();
+        assertFalse(written.has("color_style"), "a draft is written in the new format only");
+        assertEquals("Ocean Breeze", written.getJSONObject("color").getString("name"));
+    }
+
+    @Test
+    void readsEntriesNewBlocksAndTheMoodOfTheNewFormat() {
+        BrainstormDraft draft = BrainstormReply.parse("""
+            {"step": 7, "message": "m", "draft": {"prompt": "A lighthouse on a cliff",
+              "mood": "Wild North",
+              "style": {"name": "Watercolor", "is_new": false},
+              "atmosphere": {"name": "Storm Front", "text": "an approaching storm, wind-torn spray", "is_new": true},
+              "light": {"name": "Overcast", "id": "std:light:overcast"},
+              "color": {"name": "Sea Glass", "colors": ["#a8d5ba", "#2F4858", "teal", "#ABCDEF0"], "is_new": true}}}
+            """).getDraft();
+
+        assertEquals("Wild North", draft.getMood().name());
+        assertEquals(new BrainstormDraft.Block(null, "Watercolor", null, List.of(), false),
+                draft.getBlock(Mood.Field.STYLE));
+        assertEquals(new BrainstormDraft.Block(null, "Storm Front", "an approaching storm, wind-torn spray", List.of(),
+                true), draft.getBlock(Mood.Field.ATMOSPHERE));
+        assertEquals("std:light:overcast", draft.getBlock(Mood.Field.LIGHT).id());
+        assertEquals(List.of("#A8D5BA", "#2F4858"), draft.getBlock(Mood.Field.COLOR).colors(),
+                "only colors in the form #RRGGBB are kept, in upper case");
+
+        BrainstormDraft copy = BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()));
+        for (Mood.Field field : BrainstormDraft.FIELDS)
+            assertEquals(draft.getBlock(field), copy.getBlock(field), field.name());
+        assertEquals(draft.getMood(), copy.getMood());
+    }
+
+    @Test
+    void dropsBlocksWithoutNameAndNewBlocksWithoutContent() {
+        BrainstormDraft draft = BrainstormDraft.fromJson(new JSONObject("""
+            {"prompt": "p", "mood": "null",
+             "style": {"text": "ink wash"},
+             "atmosphere": {"name": "Empty", "is_new": true},
+             "light": {"name": "Neon Edge", "text": "thin neon rim light from behind"},
+             "color": {"name": "Grey", "colors": ["grey"], "is_new": true}}
+            """));
+
+        assertNull(draft.getMood(), "the word null is no name");
+        assertNull(draft.getBlock(Mood.Field.STYLE), "a block needs a name");
+        assertNull(draft.getBlock(Mood.Field.ATMOSPHERE), "a new block needs a text");
+        assertTrue(draft.getBlock(Mood.Field.LIGHT).isNew(), "a block with a text counts as new");
+        assertNull(draft.getBlock(Mood.Field.COLOR), "a new palette needs a valid color");
     }
 }

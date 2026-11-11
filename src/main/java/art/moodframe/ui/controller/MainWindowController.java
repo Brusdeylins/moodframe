@@ -771,19 +771,25 @@ public class MainWindowController implements I18nChangeListener {
                     .map(art.moodframe.model.GenerationModel::fromLocalizedDisplayName)
                     .toList();
 
-            String styleName = stylePresetsComboBox.getValue() != null ? stylePresetsComboBox.getValue().getName() : "None";
-            String colorName = colorStyleComboBox.getValue() != null ? colorStyleComboBox.getValue().getName() : "None";
+            /*  the building blocks and the mood as chosen, a locked field keeps its choice on "Adopt"  */
+            java.util.Set<Mood.Field> locked = lockedMoodFields();
+            Mood mood = moodService != null ? chosenMood() : null;
             String currentState = "Target model: " + modelComboBox.getValue()
                     + (resolutionContainer.isVisible() ? "\nResolution: " + resolutionChoiceBox.getValue() : "")
-                    + "\nStyle: " + styleName
-                    + "\nColor style: " + colorName
+                    + "\nMood: " + (mood != null ? mood.getName() + (moodChanged ? " (changed)" : "") : "None")
+                    + fieldState("Style", stylePresetsComboBox.getValue(), locked.contains(Mood.Field.STYLE))
+                    + fieldState("Atmosphere", atmosphereComboBox.getValue(), locked.contains(Mood.Field.ATMOSPHERE))
+                    + fieldState("Light", lightComboBox.getValue(), locked.contains(Mood.Field.LIGHT))
+                    + fieldState("Color", colorStyleComboBox.getValue(), locked.contains(Mood.Field.COLOR))
                     + "\nAspect ratio: " + aspectRatioComboBox.getValue()
                     + "\nText currently in the input field: "
                     + (promptTextArea.getText().isBlank() ? "(empty)" : promptTextArea.getText().trim());
 
             art.moodframe.service.BrainstormContext brainstormContext = new art.moodframe.service.BrainstormContext(
-                    styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE), colorService.getAllStyles(), models,
-                    currentState, modelNames);
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
+                    styleService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT), colorService.getAllStyles(),
+                    moodService != null ? moodService.getAll() : List.of(), models, currentState, modelNames, locked);
             art.moodframe.service.BrainstormService brainstormService = art.moodframe.service.BrainstormService.create(config);
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
@@ -792,6 +798,11 @@ public class MainWindowController implements I18nChangeListener {
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
         }
+    }
+
+    /** One line of the current state for the brainstorm: a building block field, its entry and its lock. */
+    private static String fieldState(String label, Object entry, boolean locked) {
+        return "\n" + label + ": " + (entry != null ? entry.toString() : "None") + (locked ? " (locked)" : "");
     }
 
     /**
@@ -813,19 +824,21 @@ public class MainWindowController implements I18nChangeListener {
         }
         promptTextArea.setText(result.prompt());
 
-        /*  a locked building block field keeps its choice; a former look style (1.x) sets its standard mood  */
-        Mood legacyMood = moodService != null ? moodService.findForLegacyStyle(result.style()) : null;
-        if (legacyMood != null) {
-            chooseMood(legacyMood);
-        } else if (result.style() != null && !styleLockButton.isSelected()) {
-            stylePresetsComboBox.getItems().stream()
-                    .filter(item -> result.style().equals(item.getName())).findFirst()
-                    .ifPresent(stylePresetsComboBox::setValue);
-        }
-        if (result.colorStyle() != null && !colorLockButton.isSelected()) {
-            colorStyleComboBox.getItems().stream()
-                    .filter(item -> result.colorStyle().equals(item.getName())).findFirst()
-                    .ifPresent(colorStyleComboBox::setValue);
+        /*  the mood sets the fields that are not locked, an adopted block then replaces the block of its field and a
+            field that is not adopted keeps its block; a locked field keeps its choice  */
+        java.util.Map<Mood.Field, String> before = currentMoodFields();
+        java.util.Set<Mood.Field> locked = lockedMoodFields();
+        Mood mood = result.moodId() != null && moodService != null ? moodService.find(result.moodId()) : null;
+        if (mood != null)
+            chooseMood(mood);
+        for (Mood.Field field : art.moodframe.model.BrainstormDraft.FIELDS) {
+            if (locked.contains(field))
+                continue;
+            art.moodframe.model.BrainstormDraft.Block block = result.blocks().get(field);
+            if (block != null)
+                adoptBlock(field, block);
+            else if (mood != null)
+                selectField(field, before.get(field));
         }
         if (result.aspectRatio() != null && aspectRatioComboBox.getItems().contains(result.aspectRatio())) {
             aspectRatioComboBox.setValue(result.aspectRatio());
@@ -834,7 +847,52 @@ public class MainWindowController implements I18nChangeListener {
         if (result.durationSeconds() != null && videoDurationChoiceBox.getItems().contains(result.durationSeconds() + "s")) {
             videoDurationChoiceBox.setValue(result.durationSeconds() + "s");
         }
+        if (result.saveMood() && moodService != null)
+            saveMood(true);
         promptTextArea.requestFocus();
+    }
+
+    /**
+     * Sets a building block adopted in the brainstorm popup into its field. A new block is stored in the list of the
+     * user first; a new style counts as photographic, like every style of the user.
+     */
+    private void adoptBlock(Mood.Field field, art.moodframe.model.BrainstormDraft.Block block) {
+        if (!block.isNew()) {
+            selectField(field, block.id());
+            return;
+        }
+
+        boolean saved;
+        if (field == Mood.Field.COLOR) {
+            art.moodframe.service.ColorStyleService service = colorStyleService();
+            saved = service != null && service.addCustomStyle(
+                    new art.moodframe.model.ColorStyle(block.name(), block.colors(), false));
+            if (saved)
+                fillColorChoice(block.name());
+        }
+        else {
+            art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.PromptBlockService.class);
+            art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
+            saved = service != null && service.addCustom(new art.moodframe.model.PromptBlock(null, type, block.name(),
+                    block.text(), null, type == art.moodframe.model.PromptBlock.Type.STYLE));
+            if (saved)
+                fillBlockChoice(type, block.name());
+        }
+        if (!saved)
+            setStatus(I18nManager.getText("block.error.save", block.name()));
+    }
+
+    /** Selects the entry with this id in the field of a building block, "None" if the field does not list it. */
+    private void selectField(Mood.Field field, String id) {
+        if (field != Mood.Field.COLOR) {
+            selectBlock(blockComboBox(art.moodframe.model.PromptBlock.Type.valueOf(field.name())), id);
+            return;
+        }
+        art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(id);
+        String paletteName = palette != null ? palette.getName() : "None";
+        colorStyleComboBox.getItems().stream().filter((item) -> item.getName().equals(paletteName)).findFirst()
+                .or(() -> colorStyleComboBox.getItems().stream().findFirst()).ifPresent(colorStyleComboBox::setValue);
     }
 
     /**

@@ -1,7 +1,9 @@
 package art.moodframe.service;
 
+import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ModelFamilies;
@@ -9,6 +11,7 @@ import art.moodframe.model.ModelFamilies;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -33,7 +36,7 @@ public final class BrainstormPromptBuilder {
      *
      * @param template the template with {@code {{...}}} placeholders
      * @param uiLanguage language name the chat is held in, for example "German"
-     * @param context the selectable styles, color styles, models and the current main window state
+     * @param context the selectable building blocks, moods and models and the current main window state
      * @param currentDraft the current draft as JSON text, or empty if there is none yet
      * @return the system prompt
      */
@@ -41,17 +44,44 @@ public final class BrainstormPromptBuilder {
         return template
                 .replace("{{UI_LANGUAGE}}", uiLanguage)
                 .replace("{{STYLES}}", styles(context))
+                .replace("{{ATMOSPHERES}}", blocks(context.atmospheres()))
+                .replace("{{LIGHTS}}", blocks(context.lights()))
                 .replace("{{COLOR_STYLES}}", colorStyles(context))
+                .replace("{{MOODS}}", moods(context))
                 .replace("{{ASPECT_RATIOS}}", aspectRatios())
                 .replace("{{MODELS}}", models(context))
                 .replace("{{CURRENT_STATE}}", context.currentState())
                 .replace("{{CURRENT_DRAFT}}", currentDraft.isEmpty() ? "none yet" : currentDraft);
     }
 
+    /** One line per style with its group, which tells the layout styles (no light) apart. */
     private static String styles(BrainstormContext context) {
         return context.styles().stream()
-                .map((PromptBlock style) -> "- " + style.getName() + ": " + style.getText())
+                .map((PromptBlock style) -> "- " + style.getName()
+                        + (style.getGroup() != null ? " (" + style.getGroup() + ")" : "") + ": " + style.getText())
                 .collect(Collectors.joining("\n"));
+    }
+
+    private static String blocks(List<PromptBlock> blocks) {
+        return blocks.stream()
+                .map((PromptBlock block) -> "- " + block.getName() + ": " + block.getText())
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** One line per mood with the names of its blocks in use; a mood without any is left out. */
+    private static String moods(BrainstormContext context) {
+        List<String> lines = new ArrayList<>();
+        for (Mood mood : context.moods()) {
+            List<String> parts = new ArrayList<>();
+            for (Mood.Field field : BrainstormDraft.FIELDS) {
+                String name = context.nameOf(field, mood.getReference(field));
+                if (name != null)
+                    parts.add(field.name().toLowerCase(Locale.ROOT) + " " + name);
+            }
+            if (!parts.isEmpty())
+                lines.add("- " + mood.getName() + ": " + String.join(", ", parts));
+        }
+        return String.join("\n", lines);
     }
 
     private static String colorStyles(BrainstormContext context) {
