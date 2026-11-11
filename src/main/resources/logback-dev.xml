@@ -8,7 +8,7 @@
     </appender>
     
     <!-- Logger configurations for development -->
-    <logger name="tools.moodframe" level="DEBUG" />
+    <logger name="art.moodframe" level="DEBUG" />
     <logger name="org.jdbi" level="INFO" />
     <logger name="javafx" level="WARN" />
     

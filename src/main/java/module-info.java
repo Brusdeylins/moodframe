@@ -1,4 +1,4 @@
-module tools.moodframe {
+module art.moodframe {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.web;
@@ -37,16 +37,16 @@ module tools.moodframe {
     requires transitive atlantafx.base;
     
     // Export packages for reflection (FXML, etc.)
-    exports tools.moodframe;
-    exports tools.moodframe.ui.controller;
-    exports tools.moodframe.ui.component;
-    exports tools.moodframe.ui.dialog;
-    exports tools.moodframe.model;
+    exports art.moodframe;
+    exports art.moodframe.ui.controller;
+    exports art.moodframe.ui.component;
+    exports art.moodframe.ui.dialog;
+    exports art.moodframe.model;
 
     // Open for reflection (required for FXML, Jackson)
-    opens tools.moodframe to javafx.fxml, com.fasterxml.jackson.databind;
-    opens tools.moodframe.ui.controller to javafx.fxml;
-    opens tools.moodframe.ui.component to javafx.fxml;
-    opens tools.moodframe.ui.dialog to javafx.fxml;
-    opens tools.moodframe.model to com.fasterxml.jackson.databind;
+    opens art.moodframe to javafx.fxml, com.fasterxml.jackson.databind;
+    opens art.moodframe.ui.controller to javafx.fxml;
+    opens art.moodframe.ui.component to javafx.fxml;
+    opens art.moodframe.ui.dialog to javafx.fxml;
+    opens art.moodframe.model to com.fasterxml.jackson.databind;
 }

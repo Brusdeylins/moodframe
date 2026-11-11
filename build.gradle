@@ -29,7 +29,7 @@ def getConveyorCommand() {
     }
 }
 
-group = 'tools.moodframe'
+group = 'art.moodframe'
 version = '2.0.0'
 description = 'Moodframe - desktop studio for AI image generation'
 
@@ -124,8 +124,8 @@ dependencies {
 }
 
 application {
-    mainModule = 'tools.moodframe'
-    mainClass = 'tools.moodframe.MoodframeApplication'
+    mainModule = 'art.moodframe'
+    mainClass = 'art.moodframe.MoodframeApplication'
     
     // JVM arguments for better performance
     // NOTE: Prism GPU acceleration settings are configured in MoodframeApplication.java main()
@@ -156,7 +156,7 @@ task runDev(type: JavaExec) {
     description = 'Run the application in development mode with debug logging'
     
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'tools.moodframe.MoodframeApplication'
+    mainClass = 'art.moodframe.MoodframeApplication'
     
     jvmArgs = application.applicationDefaultJvmArgs + [
         '-Dlogback.configurationFile=src/main/resources/logback-dev.xml',
@@ -452,7 +452,7 @@ jar {
     
     manifest {
         attributes(
-            'Main-Class': 'tools.moodframe.MoodframeApplication',
+            'Main-Class': 'art.moodframe.MoodframeApplication',
             'Implementation-Title': project.name,
             'Implementation-Version': project.version
         )
@@ -646,7 +646,7 @@ jar {
             'Implementation-Vendor': 'Matthias Brusdeylins',
             'Specification-Title': project.description,
             'Specification-Version': project.version,
-            'Main-Class': 'tools.moodframe.MoodframeApplication',
+            'Main-Class': 'art.moodframe.MoodframeApplication',
             'Built-By': System.getProperty('user.name'),
             'Built-Date': new Date().toString(),
             'Built-JDK': System.getProperty('java.version'),

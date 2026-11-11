@@ -36,7 +36,7 @@
     </appender>
     
     <!-- Logger configurations -->
-    <logger name="tools.moodframe" level="INFO" />
+    <logger name="art.moodframe" level="INFO" />
     <logger name="org.jdbi" level="WARN" />
     <logger name="org.sqlite" level="WARN" />
     

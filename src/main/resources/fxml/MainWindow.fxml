@@ -12,7 +12,7 @@
      - SplitPane with sidebar (chat list) and content area
      - Footer with status information and controls -->
 <StackPane xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
-           fx:controller="tools.moodframe.ui.controller.MainWindowController"
+           fx:controller="art.moodframe.ui.controller.MainWindowController"
            prefHeight="800.0" prefWidth="1200.0"
            stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css">
     
