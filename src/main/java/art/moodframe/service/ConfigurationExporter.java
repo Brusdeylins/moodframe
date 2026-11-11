@@ -59,6 +59,7 @@ public class ConfigurationExporter {
         ADVANCED_SETTINGS("Advanced Settings", "Logging, development mode, SSL bypass"),
         CUSTOM_STYLES("Custom Building Blocks", "User-created styles, atmospheres, lights and palettes"),
         MOODS("Moods", "User-created moods, the saved combinations of building blocks"),
+        FRAMES("Frames", "User-created frames, the saved settings of model, aspect ratio and image count"),
         ALL("All Settings", "Complete configuration export");
         
         private final String displayName;
@@ -99,6 +100,7 @@ public class ConfigurationExporter {
     private final PromptBlockService promptBlockService;
     private final ColorStyleService colorStyleService;
     private final MoodService moodService;
+    private final FrameService frameService;
     private final ApplicationConfig config;
     
     /**
@@ -112,6 +114,7 @@ public class ConfigurationExporter {
         this.promptBlockService = new PromptBlockService();
         this.colorStyleService = new ColorStyleService();
         this.moodService = new MoodService(promptBlockService, colorStyleService);
+        this.frameService = new FrameService();
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
     
@@ -210,6 +213,12 @@ public class ConfigurationExporter {
 
             /*  The moods of the user with their IDs and the IDs of their blocks  */
             configData.put("moods", moodService.exportCustom());
+        }
+
+        if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.FRAMES)) {
+
+            /*  The frames of the user with their IDs, their model as API ID plus resolution  */
+            configData.put("frames", frameService.exportCustom());
         }
 
         exportData.put("configuration", configData);
@@ -443,6 +452,15 @@ public class ConfigurationExporter {
                 int importedMoods = moodService.importCustom(moods);
                 if (importedMoods > 0)
                     changes.put("Moods", String.format("%d moods imported", importedMoods));
+            }
+
+            /*  The frames of the user next to the existing ones; an ID or name that is taken gets a new one  */
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> frames = (List<Map<String, Object>>) configData.get("frames");
+            if (frames != null) {
+                int importedFrames = frameService.importCustom(frames);
+                if (importedFrames > 0)
+                    changes.put("Frames", String.format("%d frames imported", importedFrames));
             }
 
             if (config != null && config.getLoggingEnabled()) {

@@ -315,11 +315,32 @@
                         </VBox>
 
                         <!-- Frame: how the image is technically produced -->
-                        <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-3">
+                        <VBox spacing="5.0">
                             <VBox.margin>
                                 <Insets top="10.0" />
                             </VBox.margin>
-                        </Label>
+                            <HBox alignment="CENTER_LEFT" spacing="8.0">
+                                <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-3" />
+                                <Region HBox.hgrow="ALWAYS" />
+
+                                <!-- Saves the fields over the chosen frame of the user, or as a new frame -->
+                                <Button fx:id="saveFrameButton" styleClass="button-icon, flat" onAction="#onSaveFrameClicked">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Button>
+                            </HBox>
+
+                            <!-- The actions, "No frame" and the frames; the warning tells that the model of the frame is not available -->
+                            <HBox alignment="CENTER_LEFT" spacing="4.0">
+                                <ComboBox fx:id="frameComboBox" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
+                                <Label fx:id="frameUnavailableLabel" styleClass="frame-unavailable" visible="false" managed="false">
+                                    <graphic>
+                                        <FontIcon iconLiteral="mdi2a-alert-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                    </graphic>
+                                </Label>
+                            </HBox>
+                        </VBox>
 
                         <!-- Model Selection -->
                         <VBox spacing="5.0">

@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import org.junit.jupiter.api.BeforeAll;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-/** The full backup of the moods of the user in a fresh SQLite database. */
+/** The full backup of the moods and frames of the user in a fresh SQLite database. */
 class ConfigurationExporterTest {
 
     @TempDir
@@ -60,6 +61,36 @@ class ConfigurationExporterTest {
                 .findFirst().orElseThrow();
         assertNotEquals(mood.getId(), copy.getId());
         assertEquals(mood.getReferences(), copy.getReferences());
+    }
+
+    @Test
+    void exportsAndImportsTheFramesOfTheUser() throws Exception {
+        FrameService frames = new FrameService();
+        Frame frame = new Frame(null, "Druck A3");
+        frame.setModel("flux.3-image");
+        frame.setResolution("4K");
+        frame.setAspectRatio("2:3");
+        frame.setImageCount(1);
+        assertTrue(frames.add(frame));
+
+        ConfigurationExporter exporter = new ConfigurationExporter();
+        File file = tempDir.resolve("frames-backup.json").toFile();
+        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+                Set.of(ConfigurationExporter.ConfigCategory.FRAMES));
+
+        /*  A restore after the frame was lost brings it back under its id and name  */
+        assertTrue(frames.deletePermanently(frame.getId()));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        assertTrue(result.isSuccess(), result.getMessage());
+        assertEquals("1 frames imported", result.getChanges().get("Frames"));
+        Frame restored = frames.find(frame.getId());
+        assertNotNull(restored);
+        assertEquals("Druck A3", restored.getName());
+        assertEquals("flux.3-image", restored.getModel());
+        assertEquals("4K", restored.getResolution());
+        assertEquals("2:3", restored.getAspectRatio());
+        assertEquals(1, restored.getImageCount());
+        assertEquals(null, restored.getGuidance());
     }
 
     @Test

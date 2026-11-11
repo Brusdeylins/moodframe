@@ -4,12 +4,16 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryMood;
+import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.service.ChatHistoryService;
+import art.moodframe.service.FrameService;
 import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.component.FrameChoice;
+import art.moodframe.ui.component.FrameListCell;
 import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.MoodListCell;
@@ -143,6 +147,12 @@ public class MainWindowController implements I18nChangeListener {
     private Button moodIncompleteButton;
     @FXML
     private Label frameTitleLabel;
+    @FXML
+    private Button saveFrameButton;
+    @FXML
+    private javafx.scene.control.ComboBox<FrameChoice> frameComboBox;
+    @FXML
+    private Label frameUnavailableLabel;
     @FXML
     private CheckBox bflPromptUpsamplingCheckBox;
     @FXML
@@ -398,6 +408,15 @@ public class MainWindowController implements I18nChangeListener {
     private java.util.Map<Mood.Field, String> moodSnapshot = java.util.Map.of();
     private boolean moodChanged;
     private boolean updatingMood;
+
+    /*  The frames: the fields right after the chosen frame was applied or saved (a field that differs marks the
+        frame as changed), whether it is changed, a guard while the frame selection sets the fields, and a pending
+        refresh once the model list changed  */
+    private FrameService frameService;
+    private List<Object> frameSnapshot;
+    private boolean frameChanged;
+    private boolean updatingFrame;
+    private boolean frameRefreshPending;
 
     /**
      * Initializes the controller after FXML loading.
@@ -1269,6 +1288,9 @@ public class MainWindowController implements I18nChangeListener {
         // Setup the mood selection on the restored fields
         setupMoods();
 
+        // Setup the frame selection on the restored fields
+        setupFrames();
+
         // Initial UI state
         updateUIState();
         updateCostDisplay(); // Initial cost calculation
@@ -1313,6 +1335,8 @@ public class MainWindowController implements I18nChangeListener {
                                 refreshBlockChoices();
                                 refreshMoods();
                             });
+                        else if (kind == art.moodframe.service.TrashGroup.Kind.FRAMES)
+                            javafx.application.Platform.runLater(() -> refreshFrames());
                         else
                             javafx.application.Platform.runLater(() -> refreshMoods());
                     }
@@ -2350,6 +2374,235 @@ public class MainWindowController implements I18nChangeListener {
         }
         if (!emptied.isEmpty())
             refreshMoods();
+    }
+
+    /**
+     * Sets up the frame selection: the actions "Save", "Save as..." and "Manage...", "No frame" and the frames.
+     * Choosing a frame sets model, resolution, aspect ratio, image count and, if the frame has them, guidance and
+     * steps; a field changed afterwards shows the frame as changed until it is saved or chosen again. A frame none of
+     * whose models is in the model list shows a warning, also once the list changes (API keys, reference images).
+     */
+    private void setupFrames() {
+        frameService = art.moodframe.config.ServiceFactory.getInstance().getService(FrameService.class);
+        if (frameService == null || frameComboBox == null) {
+            logger.warn("FrameService not available, no frame selection");
+            return;
+        }
+
+        frameComboBox.setCellFactory((listView) -> new FrameListCell(this::isFrameUnavailable, null,
+                this::isFrameSaveLocked));
+        frameComboBox.setButtonCell(new FrameListCell(this::isFrameUnavailable, () -> frameChanged,
+                this::isFrameSaveLocked));
+        frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(oldVal, newVal));
+        for (javafx.beans.value.ObservableValue<?> field : List.of(modelComboBox.valueProperty(),
+                resolutionChoiceBox.valueProperty(), aspectRatioComboBox.valueProperty(),
+                imageCountSlider.valueProperty(), flux2GuidanceSlider.valueProperty(), flux2StepsSlider.valueProperty()))
+            field.addListener((obs, oldVal, newVal) -> {
+                if (!updatingFrame)
+                    updateFrameState();
+            });
+
+        /*  The model list is refilled item by item, so the frames are shown again once it is complete  */
+        modelComboBox.getItems().addListener((javafx.collections.ListChangeListener<String>) (change) -> {
+            if (!frameRefreshPending) {
+                frameRefreshPending = true;
+                Platform.runLater(() -> {
+                    frameRefreshPending = false;
+                    refreshFrames();
+                });
+            }
+        });
+
+        reloadFrames(config != null ? config.getSelectedFrame() : "");
+        frameSnapshot = currentFrameFields();
+        frameChanged = config != null && config.isSelectedFrameChanged();
+        updateFrameState();
+    }
+
+    /** The frame shown as chosen, null for "No frame". */
+    private Frame chosenFrame() {
+        FrameChoice choice = frameComboBox != null ? frameComboBox.getValue() : null;
+        return choice != null ? choice.frame() : null;
+    }
+
+    /** True if no model of a frame is in the model list now. */
+    private boolean isFrameUnavailable(Frame frame) {
+        return frameService.resolve(frame, modelComboBox.getItems()) == null;
+    }
+
+    /** "Save" is not available for a standard frame, which can only be saved as a new one. */
+    private boolean isFrameSaveLocked() {
+        Frame frame = chosenFrame();
+        return frame != null && frame.isDefault();
+    }
+
+    /** Lists the actions, "No frame" and the frames, and shows the frame with this id as chosen, without applying it. */
+    private void reloadFrames(String selectId) {
+        FrameChoice none = FrameChoice.of(FrameChoice.Kind.NONE);
+        List<FrameChoice> items = new java.util.ArrayList<>(List.of(FrameChoice.of(FrameChoice.Kind.SAVE),
+                FrameChoice.of(FrameChoice.Kind.SAVE_AS), FrameChoice.of(FrameChoice.Kind.MANAGE),
+                FrameChoice.of(FrameChoice.Kind.SEPARATOR), none));
+        frameService.getAll().forEach((frame) -> items.add(new FrameChoice(FrameChoice.Kind.FRAME, frame)));
+
+        updatingFrame = true;
+        frameComboBox.getItems().setAll(items);
+        frameComboBox.setValue(items.stream().filter((item) -> item.frame() != null
+                && item.frame().getId().equals(selectId)).findFirst().orElse(none));
+        updatingFrame = false;
+    }
+
+    /** Lists the frames again, keeping the choice, for example once the model list changed or a frame left the trash. */
+    private void refreshFrames() {
+        if (frameService == null)
+            return;
+        Frame chosen = chosenFrame();
+        reloadFrames(chosen != null ? chosen.getId() : "");
+        updateFrameState();
+    }
+
+    /** Applies a chosen frame, or runs an action and leaves the choice as it was. */
+    private void onFrameChoice(FrameChoice oldVal, FrameChoice newVal) {
+        if (updatingFrame || newVal == null)
+            return;
+        if (!newVal.isAction()) {
+            chooseFrame(newVal.frame());
+            return;
+        }
+
+        /*  Once the list has closed  */
+        Platform.runLater(() -> {
+            updatingFrame = true;
+            frameComboBox.setValue(oldVal);
+            updatingFrame = false;
+            switch (newVal.kind()) {
+                case SAVE -> saveFrame(false);
+                case SAVE_AS -> saveFrame(true);
+                case MANAGE -> manageFrames();
+                default -> {
+                }
+            }
+        });
+    }
+
+    /**
+     * Sets the fields to a frame and shows it unchanged; "No frame" (null) leaves them as they are. Without an
+     * available model of the frame, the model stays and the aspect ratio is the closest one it can do.
+     */
+    private void chooseFrame(Frame frame) {
+        updatingFrame = true;
+        if (frame != null) {
+            FrameService.Fields fields = frameService.apply(frame, modelComboBox.getItems(), modelComboBox.getValue());
+            if (fields.available()) {
+                modelComboBox.setValue(fields.item());
+
+                /*  The resolution of a model with free choice, and the remembered choice of the family  */
+                String resolution = fields.resolution() != null ? fields.resolution()
+                        : art.moodframe.model.ModelFamilies.resolutionOf(fields.item());
+                if (resolution != null) {
+                    modelFamilySelector.remember(fields.item(), resolution);
+                    if (resolutionChoiceBox.getItems().contains(resolution))
+                        resolutionChoiceBox.setValue(resolution);
+                }
+            }
+            aspectRatioComboBox.setValue(fields.aspectRatio());
+            imageCountSlider.setValue(fields.imageCount());
+            if (fields.guidance() != null)
+                flux2GuidanceSlider.setValue(fields.guidance());
+            if (fields.steps() != null)
+                flux2StepsSlider.setValue(fields.steps());
+        }
+        frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
+                : item.frame() != null && item.frame().getId().equals(frame.getId()))
+                .findFirst().ifPresent(frameComboBox::setValue);
+        updatingFrame = false;
+
+        frameSnapshot = currentFrameFields();
+        frameChanged = false;
+        updateFrameState();
+    }
+
+    /**
+     * The fields a frame sets: model, the resolution of a model with free choice, aspect ratio, image count, guidance
+     * and steps. Null while the model list or the aspect ratios are refilled, which leaves a field without value.
+     */
+    private List<Object> currentFrameFields() {
+        String item = modelComboBox.getValue();
+        String aspectRatio = aspectRatioComboBox.getValue();
+        String resolution = art.moodframe.model.ModelFamilies.freeResolutions(item) != null
+                ? resolutionChoiceBox.getValue() : "";
+        if (item == null || aspectRatio == null || resolution == null)
+            return null;
+        return List.of(item, resolution, aspectRatio, (int) Math.round(imageCountSlider.getValue()),
+                flux2Guidance(), (int) Math.round(flux2StepsSlider.getValue()));
+    }
+
+    /** The guidance of FLUX.2 [flex], to one decimal place as its label shows it. */
+    private double flux2Guidance() {
+        return Math.round(flux2GuidanceSlider.getValue() * 10) / 10.0;
+    }
+
+    /**
+     * Marks the chosen frame as changed once a field differs from it, remembers the choice and shows the warning of
+     * a frame whose models are not available. A field without value is about to be set again and changes nothing.
+     */
+    private void updateFrameState() {
+        if (frameService == null)
+            return;
+        Frame frame = chosenFrame();
+        List<Object> fields = currentFrameFields();
+        if (frameSnapshot == null)
+            frameSnapshot = fields;
+        frameChanged = frame != null && (frameChanged || fields != null && !fields.equals(frameSnapshot));
+        String id = frame != null ? frame.getId() : "";
+        if (config != null && (!id.equals(config.getSelectedFrame()) || frameChanged != config.isSelectedFrameChanged()))
+            config.setSelectedFrame(id, frameChanged);
+
+        boolean unavailable = frame != null && isFrameUnavailable(frame);
+        frameUnavailableLabel.setVisible(unavailable);
+        frameUnavailableLabel.setManaged(unavailable);
+        frameUnavailableLabel.setTooltip(unavailable ? new Tooltip(I18nManager.getText("params.frame.unavailable")) : null);
+        ((FrameListCell) frameComboBox.getButtonCell()).refresh();
+    }
+
+    /** Saves the fields over the chosen frame of the user, or as a new frame under a name the user enters. */
+    private void saveFrame(boolean asNew) {
+        Frame chosen = chosenFrame();
+        Frame frame;
+        if (!asNew && chosen != null && !chosen.isDefault())
+            frame = chosen;
+        else {
+            String name = art.moodframe.ui.dialog.FrameManageDialog.askName(mainBorderPane.getScene().getWindow(),
+                    frameService, I18nManager.getText("frame.name.new"),
+                    chosen != null ? frameService.freeName(chosen.getName()) : "", null);
+            if (name == null)
+                return;
+            frame = new Frame(null, name);
+        }
+        FrameService.capture(frame, modelComboBox.getValue(), resolutionChoiceBox.getValue(),
+                aspectRatioComboBox.getValue(), (int) Math.round(imageCountSlider.getValue()), flux2Guidance(),
+                (int) Math.round(flux2StepsSlider.getValue()));
+
+        if (!(frame.getId() == null ? frameService.add(frame) : frameService.update(frame))) {
+            showErrorMessage(I18nManager.getText("error.frame.save"));
+            return;
+        }
+        reloadFrames(frame.getId());
+        frameSnapshot = currentFrameFields();
+        frameChanged = false;
+        updateFrameState();
+        setStatus(I18nManager.getText("status.frame.saved", frame.getName()));
+    }
+
+    /** Opens the window for the frames of the user and lists them again afterwards. */
+    private void manageFrames() {
+        new art.moodframe.ui.dialog.FrameManageDialog(mainBorderPane.getScene().getWindow(), frameService).showAndWait();
+        refreshFrames();
+    }
+
+    @FXML
+    private void onSaveFrameClicked() {
+        if (frameService != null)
+            saveFrame(false);
     }
 
     /**
@@ -3688,6 +3941,8 @@ public class MainWindowController implements I18nChangeListener {
         aspectRatioComboBox.setDisable(!enableInput);
         if (aspectRatioLabel != null)
             aspectRatioLabel.setDisable(!enableInput);
+        frameComboBox.setDisable(!enableInput);
+        saveFrameButton.setDisable(!enableInput);
 
         /*  The mood fields are greyed while a reference image is attached without "Apply mood"; the light also for
             a layout style, keeping its choice (the composer leaves it out)  */
@@ -5947,6 +6202,9 @@ public class MainWindowController implements I18nChangeListener {
         if (saveMoodButton != null)
             saveMoodButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.save.tooltip")));
         refreshMoods();
+        if (saveFrameButton != null)
+            saveFrameButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.save.tooltip")));
+        refreshFrames();
         if (promptPreviewToggle != null)
             promptPreviewToggle.setText(I18nManager.getText("input.prompt.preview"));
 

@@ -154,6 +154,11 @@ public class MoodframeApplication extends Application {
                             ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
                             ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class)));
 
+            /*  The frames, the saved settings of model, aspect ratio and image count  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.FrameService.class,
+                    () -> new art.moodframe.service.FrameService());
+
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.BlockUsage.class,
@@ -218,6 +223,8 @@ public class MoodframeApplication extends Application {
                         art.moodframe.service.MoodService moodService = ServiceFactory.getInstance()
                                 .getService(art.moodframe.service.MoodService.class);
                         trashCenter.register(new art.moodframe.service.MoodTrashGroup(moodService));
+                        trashCenter.register(new art.moodframe.service.FrameTrashGroup(ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.FrameService.class)));
                         trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
                             @Override
                             public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {

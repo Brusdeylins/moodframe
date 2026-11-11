@@ -399,6 +399,8 @@ public class DatabaseManager {
                     "V019__Add_moods.sql"));
             migrations.add(new Migration("020", "Add_mood_to_chat_entries",
                     "V020__Add_mood_to_chat_entries.sql"));
+            migrations.add(new Migration("021", "Add_frames",
+                    "V021__Add_frames.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

@@ -624,6 +624,36 @@ public class ApplicationConfig {
     }
 
     /**
+     * Gets the remembered frame selection.
+     *
+     * @return the id of the frame, empty for "No frame" (default)
+     */
+    public String getSelectedFrame() {
+        return properties.getProperty("frame.selected", "");
+    }
+
+    /**
+     * Whether a field was changed after the remembered frame was chosen.
+     *
+     * @return true if the frame shows as changed (default: unchanged)
+     */
+    public boolean isSelectedFrameChanged() {
+        return Boolean.parseBoolean(properties.getProperty("frame.selected.changed", "false"));
+    }
+
+    /**
+     * Remembers the frame selection and whether a field was changed after it.
+     *
+     * @param frameId the id of the frame, empty for "No frame"
+     * @param changed true if a field was changed after the frame was chosen
+     */
+    public void setSelectedFrame(String frameId, boolean changed) {
+        properties.setProperty("frame.selected", frameId);
+        properties.setProperty("frame.selected.changed", String.valueOf(changed));
+        saveConfiguration();
+    }
+
+    /**
      * Whether the building blocks of the mood go into the prompt while a reference image is attached.
      *
      * @return true if the mood applies (default: off, the image sets the look)
