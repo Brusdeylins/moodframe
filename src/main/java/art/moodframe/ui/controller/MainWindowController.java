@@ -174,6 +174,10 @@ public class MainWindowController implements I18nChangeListener {
     private javafx.scene.control.ComboBox<art.moodframe.model.ColorStyleItem> colorStyleComboBox;
     @FXML
     private Label colorStyleLabel;
+    @FXML
+    private javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> lightComboBox;
+    @FXML
+    private Label lightLabel;
 
     // Parameter Labels for i18n
     @FXML
@@ -864,11 +868,12 @@ public class MainWindowController implements I18nChangeListener {
     /** The building blocks selected in the main window. */
     private art.moodframe.service.PromptComposer.Selection selectedBlocks() {
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
+        art.moodframe.model.StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
         art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
         return new art.moodframe.service.PromptComposer.Selection(styleItem != null ? styleItem.getBlock() : null,
-                null, null, null, palette);
+                null, lightItem != null ? lightItem.getBlock() : null, null, palette);
     }
 
     /**
@@ -1115,6 +1120,9 @@ public class MainWindowController implements I18nChangeListener {
 
         // Setup color styles selection
         setupColorStyles();
+
+        // Setup light selection
+        setupLights();
 
         // Setup Gemini Advanced Features section (Phase 2)
         setupGeminiAdvancedFeatures();
@@ -1571,6 +1579,28 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
+     * Sets up the light selection: "None" (the default) followed by the light blocks, which go into the
+     * prompt as its "Lighting" line (see {@link art.moodframe.service.PromptComposer}).
+     */
+    private void setupLights() {
+        if (lightComboBox == null)
+            return;
+
+        art.moodframe.model.StylePresetItem noneItem = new art.moodframe.model.StylePresetItem("None", "", false);
+        lightComboBox.getItems().setAll(noneItem);
+        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.PromptBlockService.class);
+        if (service == null)
+            logger.warn("PromptBlockService not available, light combo box only offers None");
+        else
+            for (art.moodframe.model.PromptBlock block : service.getAll(art.moodframe.model.PromptBlock.Type.LIGHT))
+                lightComboBox.getItems().add(new art.moodframe.model.StylePresetItem(block));
+        lightComboBox.setValue(noneItem);
+        lightComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell());
+        lightComboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+    }
+
+    /**
      * Refreshes the color styles dropdown after changes in settings.
      */
     public void refreshColorStyles() {
@@ -1872,6 +1902,15 @@ public class MainWindowController implements I18nChangeListener {
                     }
                 }
 
+                // Load light selection
+                if (lightComboBox != null) {
+                    String savedLight = config.getDefaultLight();
+                    lightComboBox.getItems().stream()
+                            .filter((item) -> item.getName().equals(savedLight))
+                            .findFirst()
+                            .ifPresent(lightComboBox::setValue);
+                }
+
                 // Load BFL Prompt Upsampling setting
                 if (bflPromptUpsamplingCheckBox != null) {
                     boolean savedBflUpsampling = config.getDefaultBflPromptUpsampling();
@@ -2042,6 +2081,13 @@ public class MainWindowController implements I18nChangeListener {
                         }
                     });
                 }
+
+                // Save light selection changes
+                if (lightComboBox != null)
+                    lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+                        if (newVal != null)
+                            config.setDefaultLight(newVal.getName());
+                    });
 
                 // Save BFL Prompt Upsampling changes
                 if (bflPromptUpsamplingCheckBox != null) {
@@ -2922,6 +2968,10 @@ public class MainWindowController implements I18nChangeListener {
             colorStyleComboBox.setDisable(!enableInput);
         if (colorStyleLabel != null)
             colorStyleLabel.setDisable(!enableInput);
+        if (lightComboBox != null)
+            lightComboBox.setDisable(!enableInput);
+        if (lightLabel != null)
+            lightLabel.setDisable(!enableInput);
         if (seedLabel != null)
             seedLabel.setDisable(!enableInput);
         if (imageAttachmentLabel != null)
@@ -5238,6 +5288,9 @@ public class MainWindowController implements I18nChangeListener {
         if (styleLabel != null) {
             styleLabel.setText(I18nManager.getText("params.style"));
         }
+
+        if (lightLabel != null)
+            lightLabel.setText(I18nManager.getText("params.light"));
 
         if (aspectRatioLabel != null) {
             aspectRatioLabel.setText(I18nManager.getText("params.aspect.ratio"));

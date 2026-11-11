@@ -22,6 +22,10 @@ import java.util.Map;
  * words; no persons or facial expressions except as a condition ("people, where present, ..."), no technique,
  * no light, no colors. "Open Business" keeps the wording of the former style "Business Photography".</p>
  *
+ * <p>Rules for the standard light texts (BFL "Lighting"): source, quality, direction and what the light
+ * does; a color temperature only where it belongs to the situation (golden and blue hour), otherwise no
+ * colors, no medium and no mood.</p>
+ *
  * @since 2.0.0
  */
 public class PromptBlockService {
@@ -42,6 +46,7 @@ public class PromptBlockService {
     private final PromptBlockRepository repository;
     private final List<PromptBlock> defaultStyles;
     private final List<PromptBlock> defaultAtmospheres;
+    private final List<PromptBlock> defaultLights;
 
     /**
      * Creates the service.
@@ -50,6 +55,7 @@ public class PromptBlockService {
         this.repository = new PromptBlockRepository();
         this.defaultStyles = defaultStyles();
         this.defaultAtmospheres = defaultAtmospheres();
+        this.defaultLights = defaultLights();
         renameCustomBlocksNamedLikeDefaults();
     }
 
@@ -252,6 +258,61 @@ public class PromptBlockService {
                 null, false);
     }
 
+    private static List<PromptBlock> defaultLights() {
+        List<PromptBlock> lights = new ArrayList<>();
+        lights.add(light("Soft Natural",
+                "soft natural lighting, gentle and even"));
+        lights.add(light("Golden Hour",
+                "low sun shortly before sunset, warm directional light raking across the scene, long soft shadows, "
+                + "a gentle glow on edges"));
+        lights.add(light("Blue Hour",
+                "twilight just after sunset, soft cool ambient skylight without direct sun, "
+                + "the first artificial lights glowing"));
+        lights.add(light("Overcast",
+                "overcast sky acting as a giant diffuser, flat even light, soft shadow-free illumination"));
+        lights.add(light("Hard Noon Sun",
+                "harsh direct midday sun from high above, crisp short shadows, strong contrast"));
+        lights.add(light("Window Light",
+                "soft daylight from a large window at the side, gentle falloff into shadow"));
+        lights.add(light("Studio Softbox",
+                "large softbox key light at 45 degrees with subtle fill, controlled even studio lighting, "
+                + "soft-edged shadows"));
+        lights.add(light("Rembrandt",
+                "Rembrandt lighting, key light at 45 degrees from above, a small triangle of light on the shadow side "
+                + "of the face"));
+        lights.add(light("Rim Light",
+                "strong backlight outlining the subject with a bright rim, the front in gentle shadow, "
+                + "clear separation from the background"));
+        lights.add(light("Backlit Silhouette",
+                "light source directly behind the subject, the subject a dark silhouette against a bright background"));
+        lights.add(light("Chiaroscuro",
+                "a single hard light source from the side, deep black shadows, strong chiaroscuro contrast, "
+                + "large areas falling into darkness"));
+        lights.add(light("Neon Practicals",
+                "lit only by neon signs and practical lights visible in the scene, their glow reflecting on nearby "
+                + "surfaces, dark surroundings"));
+        lights.add(light("Candlelight",
+                "lit only by candle flames, small flickering pools of light, rapid falloff into darkness"));
+        lights.add(light("Moonlight",
+                "dim moonlight from above, low overall brightness, soft-edged shadows, a night scene"));
+        lights.add(light("Light Rays",
+                "beams of light cutting through haze, clearly visible shafts of light, glowing dust in the air"));
+        lights.add(light("Direct Flash",
+                "harsh direct on-camera flash, flat frontal light, a sharp shadow right behind the subject, "
+                + "the background falling off into darkness"));
+        lights.add(light("High-Key",
+                "bright high-key lighting, a very light background, minimal shadows, airy exposure"));
+
+        for (int i = 0; i < lights.size(); i++)
+            lights.get(i).setSortOrder(i);
+        return lights;
+    }
+
+    private static PromptBlock light(String name, String text) {
+        return new PromptBlock(standardId(PromptBlock.Type.LIGHT, name), PromptBlock.Type.LIGHT, name, text, null,
+                false);
+    }
+
     /**
      * The fixed id of a standard block, for example {@code std:style:watercolor}.
      *
@@ -295,6 +356,7 @@ public class PromptBlockService {
         return switch (type) {
             case STYLE -> new ArrayList<>(defaultStyles);
             case ATMOSPHERE -> new ArrayList<>(defaultAtmospheres);
+            case LIGHT -> new ArrayList<>(defaultLights);
             default -> new ArrayList<>();
         };
     }

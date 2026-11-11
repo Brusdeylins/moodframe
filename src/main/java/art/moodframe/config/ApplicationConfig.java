@@ -534,6 +534,25 @@ public class ApplicationConfig {
         saveConfiguration();
     }
 
+    /**
+     * Gets the remembered light selection.
+     *
+     * @return the name of the light block, or "None" if not set
+     */
+    public String getDefaultLight() {
+        return properties.getProperty("light.default", "None");
+    }
+
+    /**
+     * Remembers the light selection.
+     *
+     * @param light the name of the light block
+     */
+    public void setDefaultLight(String light) {
+        properties.setProperty("light.default", light);
+        saveConfiguration();
+    }
+
 
     // Configuration setter methods
     // Each setter updates the configuration and automatically saves to file

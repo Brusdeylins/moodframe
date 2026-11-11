@@ -243,6 +243,12 @@
                             <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" />
                         </VBox>
 
+                        <!-- Light -->
+                        <VBox spacing="5.0">
+                            <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
+                            <ComboBox fx:id="lightComboBox" maxWidth="Infinity" />
+                        </VBox>
+
                         <!-- Aspect Ratio -->
                         <VBox spacing="5.0">
                             <Label fx:id="aspectRatioLabel" text="Aspect Ratio:" styleClass="text-bold" />

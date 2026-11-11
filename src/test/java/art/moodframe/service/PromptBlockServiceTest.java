@@ -74,6 +74,45 @@ class PromptBlockServiceTest {
     }
 
     @Test
+    void writesTheStandardLightsWithoutMediumOrPalette() {
+        Pattern medium = Pattern.compile("\\b(photo\\w*|film|paint\\w*|watercolor|oil|pencil|sketch\\w*|drawing|"
+                + "illustration|digital|render\\w*|anime|comic|vector|canvas|analog|35mm)\\b");
+        Pattern palette = Pattern.compile("#|\\b(hex|palette|colou?rs?|red|orange|yellow|green|blue|purple|violet|"
+                + "pink|magenta|cyan|teal|turquoise|amber|gold|golden)\\b");
+        Pattern temperature = Pattern.compile("\\b(warm|cool)\\b");
+        List<PromptBlock> lights = new PromptBlockService().getDefaults(PromptBlock.Type.LIGHT);
+
+        assertEquals(17, lights.size());
+        assertEquals("std:light:golden-hour", lights.get(1).getId());
+        assertEquals("std:light:high-key", lights.get(16).getId());
+        for (PromptBlock light : lights) {
+            String text = light.getText().toLowerCase(Locale.ROOT);
+            assertTrue(light.isDefault(), light.getName());
+            assertFalse(medium.matcher(text).find(), light.getName() + " names a medium");
+            assertFalse(palette.matcher(text).find(), light.getName() + " names a color");
+
+            /*  A color temperature belongs to the golden and the blue hour only  */
+            if (!List.of("Golden Hour", "Blue Hour").contains(light.getName()))
+                assertFalse(temperature.matcher(text).find(), light.getName() + " names a color temperature");
+        }
+    }
+
+    @Test
+    void composesAStandardLightAsTheLightingLine() {
+        PromptBlockService service = new PromptBlockService();
+        PromptBlock goldenHour = service.find(PromptBlock.Type.LIGHT, "std:light:golden-hour");
+        String prompt = new PromptComposer(2000).compose("a lighthouse on a cliff", null, new PromptComposer.Selection(
+                service.find(PromptBlock.Type.STYLE, "Photography"), null, goldenHour, null, null));
+
+        assertEquals("Golden Hour", service.find(PromptBlock.Type.LIGHT, "Golden Hour").getName());
+        assertEquals("""
+                Image style: realistic photograph, sharp focus, natural detail and texture.
+                a lighthouse on a cliff
+                Lighting: low sun shortly before sunset, warm directional light raking across the scene, long soft \
+                shadows, a gentle glow on edges.""", prompt);
+    }
+
+    @Test
     void groupsTheStylesAndMarksOnlyThePhotoGroupAsPhotographic() {
         List<PromptBlock> styles = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE);
 
