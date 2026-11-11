@@ -67,6 +67,7 @@ public class ChatEntry {
     private final StringProperty size = new SimpleStringProperty();
     private final StringProperty format = new SimpleStringProperty();
     private final StringProperty style = new SimpleStringProperty(); // Style preset name
+    private final ObjectProperty<EntryMood> mood = new SimpleObjectProperty<>();
     private final BooleanProperty promptUpsampling = new SimpleBooleanProperty();
     private final IntegerProperty safetyTolerance = new SimpleIntegerProperty();
     private final LongProperty seed = new SimpleLongProperty();
@@ -112,6 +113,7 @@ public class ChatEntry {
         private String size = "1024x576";
         private String format = "png";
         private String style = "None";
+        private EntryMood mood = null;
         private boolean promptUpsampling = false;
         private int safetyTolerance = 2;
         private long seed = -1;
@@ -199,6 +201,11 @@ public class ChatEntry {
             return this;
         }
 
+        public Builder mood(EntryMood mood) {
+            this.mood = mood;
+            return this;
+        }
+
         public Builder cost(double cost) {
             this.cost = cost;
             return this;
@@ -228,6 +235,7 @@ public class ChatEntry {
             entry.setSize(size);
             entry.setFormat(format);
             entry.setStyle(style);
+            entry.setMood(mood);
             entry.setPromptUpsampling(promptUpsampling);
             entry.setSafetyTolerance(safetyTolerance);
             entry.setSeed(seed);
@@ -411,6 +419,15 @@ public class ChatEntry {
 
     public StringProperty styleProperty() {
         return style;
+    }
+
+    /** The mood and the building blocks the entry was generated with, null for an entry without any. */
+    public EntryMood getMood() {
+        return mood.get();
+    }
+
+    public void setMood(EntryMood mood) {
+        this.mood.set(mood);
     }
 
     public boolean isPromptUpsampling() {

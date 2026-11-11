@@ -3,6 +3,7 @@ package art.moodframe.ui.controller;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.service.ChatHistoryService;
@@ -2041,7 +2042,23 @@ public class MainWindowController implements I18nChangeListener {
 
     /** Sets the fields that are not locked to the blocks of a mood, null for "No mood", and shows it unchanged. */
     private void chooseMood(Mood mood) {
-        java.util.Map<Mood.Field, String> fields = moodService.apply(mood, currentMoodFields(), lockedMoodFields());
+        chooseMood(mood, mood);
+    }
+
+    /**
+     * Sets the fields that are not locked to the blocks of a combination and shows a mood as chosen, null for
+     * "No mood"; the mood shows as changed if the combination sets other blocks than the mood would.
+     */
+    private void chooseMood(Mood combination, Mood mood) {
+        java.util.Map<Mood.Field, String> fields = moodService.apply(combination, currentMoodFields(),
+                lockedMoodFields());
+
+        /*  The camera has no field yet  */
+        java.util.Map<Mood.Field, String> moodFields = moodService.apply(mood, currentMoodFields(), lockedMoodFields());
+        moodFields.remove(Mood.Field.CAMERA);
+        fields.remove(Mood.Field.CAMERA);
+        boolean changed = !fields.equals(moodFields);
+
         art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
         String paletteName = palette != null ? palette.getName() : "None";
 
@@ -2061,8 +2078,78 @@ public class MainWindowController implements I18nChangeListener {
         updatingMood = false;
 
         moodSnapshot = currentMoodFields();
-        moodChanged = false;
+        moodChanged = changed;
         updateMoodState();
+    }
+
+    /**
+     * Takes over the mood and the building blocks of a chat entry into the fields that are not locked. A block that is
+     * not in use anymore can be created anew from its copy at the entry. With {@code save}, the blocks are stored as a
+     * new mood first, under a name the user enters.
+     *
+     * @param entry the chat entry
+     * @param save  whether to save the blocks as a new mood
+     */
+    private void takeOverEntryMood(ChatEntry entry, boolean save) {
+        if (moodService == null)
+            return;
+
+        /*  An entry from before 2.0 with a former look style takes over the standard mood of its name  */
+        EntryMood copy = entry.getMood();
+        Mood combination = copy != null ? new Mood(copy.moodId(), copy.moodName())
+                : moodService.findForLegacyStyle(entry.getStyle());
+        if (combination == null)
+            return;
+        if (copy != null) {
+            List<Mood.Field> missing = moodService.missingBlocks(copy);
+            Boolean recreate = missing.isEmpty() ? Boolean.FALSE : askToRecreateBlocks(copy, missing);
+            if (recreate == null)
+                return;
+            moodService.references(copy, recreate).forEach(combination::setReference);
+            if (recreate)
+                refreshBlockChoices();
+        }
+
+        Mood mood = moodService.find(combination.getId());
+        if (save) {
+            String name = art.moodframe.ui.dialog.MoodManageDialog.askName(mainBorderPane.getScene().getWindow(),
+                    moodService, I18nManager.getText("mood.name.new"),
+                    combination.getName() != null ? moodService.freeName(combination.getName()) : "", null);
+            if (name == null)
+                return;
+            mood = new Mood(null, name);
+            combination.getReferences().forEach(mood::setReference);
+            if (!moodService.add(mood)) {
+                showErrorMessage(I18nManager.getText("error.mood.save"));
+                return;
+            }
+            reloadMoods(mood.getId());
+            combination = mood;
+        }
+        chooseMood(combination, mood);
+        setStatus(save ? I18nManager.getText("status.mood.saved", mood.getName())
+                : I18nManager.getText("status.entry.mood"));
+    }
+
+    /**
+     * Asks whether to create the blocks of a chat entry that are not in use anymore anew from their copies.
+     *
+     * @return true to create them, false to leave their fields empty, null to cancel
+     */
+    private Boolean askToRecreateBlocks(EntryMood copy, List<Mood.Field> missing) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(mainBorderPane.getScene().getWindow());
+        alert.setTitle(I18nManager.getText("entry.mood.missing.title"));
+        alert.setHeaderText(I18nManager.getText("entry.mood.missing.header",
+                String.join(", ", missing.stream().map((field) -> copy.blocks().get(field).name()).toList())));
+        alert.setContentText(I18nManager.getText("entry.mood.missing.content"));
+        ButtonType recreate = new ButtonType(I18nManager.getText("entry.mood.missing.recreate"),
+                ButtonBar.ButtonData.YES);
+        ButtonType skip = new ButtonType(I18nManager.getText("entry.mood.missing.skip"), ButtonBar.ButtonData.NO);
+        ButtonType cancel = new ButtonType(I18nManager.getText("button.cancel"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(recreate, skip, cancel);
+        ButtonType answer = alert.showAndWait().orElse(cancel);
+        return answer == cancel ? null : answer == recreate;
     }
 
     /**
@@ -2820,6 +2907,8 @@ public class MainWindowController implements I18nChangeListener {
                     currentCard.setOnImageDelete((entryId, imageId) -> {
                         handleDeleteImage(entryId, imageId);
                     });
+
+                    currentCard.setOnMoodTakeOver((takenEntry, save) -> takeOverEntryMood(takenEntry, save));
 
                     setGraphic(currentCard);
                     setText(null);
@@ -4090,6 +4179,7 @@ public class MainWindowController implements I18nChangeListener {
                 .model(modelDisplay)
                 .size(aspectRatio)
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
+                .mood(moodService != null ? moodService.snapshot(moodChanged ? null : chosenMood(), blocks) : null)
                 .safetyTolerance(safetyToleranceValue)
                 .seed(seedValue != null ? seedValue : 0) // 0 indicates random generation
                 .cost(totalCost)

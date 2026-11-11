@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.ColorStyle;
+import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.MoodRepository;
@@ -384,6 +385,62 @@ public class MoodService implements BlockUsage {
     }
 
     /**
+     * Copies the mood and the building blocks that go into the prompt of a chat entry, so the entry stays traceable
+     * when a block is changed or deleted later. The camera has no block yet and is not copied.
+     *
+     * @param mood the chosen mood, null for a combination of its own (no mood, or the chosen one changed)
+     * @param selection the blocks that go into the prompt
+     * @return the copy, null if no block goes into the prompt
+     */
+    public EntryMood snapshot(Mood mood, PromptComposer.Selection selection) {
+        Map<Mood.Field, EntryMood.Block> copies = new EnumMap<>(Mood.Field.class);
+        copy(copies, Mood.Field.ATMOSPHERE, selection.atmosphere());
+        copy(copies, Mood.Field.STYLE, selection.style());
+        copy(copies, Mood.Field.LIGHT, selection.light());
+
+        /*  The palette of the main window carries no id, the stored one of the same name does  */
+        ColorStyle palette = selection.palette();
+        if (palette != null) {
+            ColorStyle stored = palette.getId() != null ? palette : colors.getStyleByName(palette.getName());
+            copies.put(Mood.Field.COLOR, new EntryMood.Block(stored != null ? stored.getId() : null, palette.getName(),
+                    null, null, false, palette.getColors().stream()
+                            .filter((String color) -> color != null && !color.isEmpty()).toList()));
+        }
+        return copies.isEmpty() ? null
+                : new EntryMood(mood != null ? mood.getId() : null, mood != null ? mood.getName() : null, copies);
+    }
+
+    /**
+     * The fields of the copy at a chat entry whose block is not in use anymore, as it was deleted or lies in the trash.
+     *
+     * @param entryMood the copy at the entry
+     * @return the fields, in their order
+     */
+    public List<Mood.Field> missingBlocks(EntryMood entryMood) {
+        return entryMood.blocks().entrySet().stream()
+                .filter((Map.Entry<Mood.Field, EntryMood.Block> copy) -> !inUse(copy.getKey(), copy.getValue().id()))
+                .map(Map.Entry::getKey).toList();
+    }
+
+    /**
+     * The blocks the copies at a chat entry stand for now: a block in use stays itself; a block not in use anymore is
+     * created anew as a block of the user from its copy, under the next free name, if {@code recreate} is set.
+     *
+     * @param entryMood the copy at the entry
+     * @param recreate whether to create the blocks not in use anymore from their copies
+     * @return the block ids per field; a field whose block is not in use and not created anew is missing
+     */
+    public Map<Mood.Field, String> references(EntryMood entryMood, boolean recreate) {
+        Map<Mood.Field, String> references = new EnumMap<>(Mood.Field.class);
+        entryMood.blocks().forEach((Mood.Field field, EntryMood.Block copy) -> {
+            String id = inUse(field, copy.id()) ? copy.id() : recreate ? recreate(field, copy) : null;
+            if (id != null)
+                references.put(field, id);
+        });
+        return references;
+    }
+
+    /**
      * Checks if a style name is one of the looks that left the styles in 2.0.
      *
      * @param styleName the style name of an old selection, chat entry or brainstorm draft
@@ -515,6 +572,25 @@ public class MoodService implements BlockUsage {
             return -1;
         }
         return importCustom(entries);
+    }
+
+    private static void copy(Map<Mood.Field, EntryMood.Block> copies, Mood.Field field, PromptBlock block) {
+        if (block != null)
+            copies.put(field, new EntryMood.Block(block.getId(), block.getName(), block.getText(), block.getGroup(),
+                    block.isPhotographic(), List.of()));
+    }
+
+    /** Creates a block of the user from a copy under the next free name; returns its id, null if it was not stored. */
+    private String recreate(Mood.Field field, EntryMood.Block copy) {
+        if (field == Mood.Field.COLOR) {
+            ColorStyle palette = new ColorStyle(copy.name(), copy.colors());
+            return colors.addCopy(palette) ? palette.getId() : null;
+        }
+
+        /*  The text fields carry the names of their block types  */
+        PromptBlock block = new PromptBlock(null, PromptBlock.Type.valueOf(field.name()), copy.name(), copy.text(),
+                copy.group(), copy.photographic());
+        return blocks.addCopy(block) ? block.getId() : null;
     }
 
     /** True if the block a field refers to is in use; a camera counts as in use unless it lies in the trash. */

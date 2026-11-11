@@ -397,6 +397,8 @@ public class DatabaseManager {
                     "V018__Add_deleted_at_to_color_styles.sql"));
             migrations.add(new Migration("019", "Add_moods",
                     "V019__Add_moods.sql"));
+            migrations.add(new Migration("020", "Add_mood_to_chat_entries",
+                    "V020__Add_mood_to_chat_entries.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.ColorStyle;
+import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import org.junit.jupiter.api.BeforeAll;
@@ -225,6 +226,49 @@ class MoodServiceTest {
         assertFalse(copy.getId().equals(mood.getId()));
         assertEquals(mood.getReferences(), copy.getReferences());
         assertEquals(-1, moods.importMoods(tempDir.resolve("missing.json").toFile()));
+    }
+
+    @Test
+    void copiesTheBlocksOfAnEntryAndCreatesThemAnewFromTheCopy() throws Exception {
+        PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Harbor Lamp", "a single sodium lamp", null,
+                true);
+        assertTrue(blocks.addCustom(light));
+        ColorStyle palette = new ColorStyle("Harbor Night", List.of("#0A1A2A", "#FFAA00"), false);
+        assertTrue(colors.addCustomStyle(palette));
+        PromptBlock style = blocks.find(PromptBlock.Type.STYLE, "std:style:analog-film");
+        Mood noir = moods.find("std:mood:film-noir");
+
+        /*  The main window hands over its palette without id  */
+        PromptComposer.Selection selection = new PromptComposer.Selection(style, null, light, null,
+                new ColorStyle("Harbor Night", List.of("#0A1A2A", "#FFAA00"), false));
+        EntryMood copy = moods.snapshot(noir, selection);
+        assertEquals("std:mood:film-noir", copy.moodId());
+        assertEquals("Film Noir", copy.moodName());
+        assertEquals(Set.of(Mood.Field.STYLE, Mood.Field.LIGHT, Mood.Field.COLOR), copy.blocks().keySet());
+        assertEquals(palette.getId(), copy.blocks().get(Mood.Field.COLOR).id());
+        assertEquals("a single sodium lamp", copy.blocks().get(Mood.Field.LIGHT).text());
+        assertNull(moods.snapshot(null, selection).moodId(), "a combination of its own has no mood");
+        assertNull(moods.snapshot(noir, new PromptComposer.Selection(null, null, null, null, null)),
+                "without blocks there is no copy");
+
+        assertTrue(moods.missingBlocks(copy).isEmpty());
+        assertEquals(Map.of(Mood.Field.STYLE, style.getId(), Mood.Field.LIGHT, light.getId(), Mood.Field.COLOR,
+                palette.getId()), moods.references(copy, true), "blocks in use stay themselves");
+
+        execute("DELETE FROM prompt_blocks WHERE id = '" + light.getId() + "'");
+        execute("UPDATE color_styles SET deleted_at = CURRENT_TIMESTAMP WHERE id = '" + palette.getId() + "'");
+        assertEquals(List.of(Mood.Field.COLOR, Mood.Field.LIGHT), moods.missingBlocks(copy));
+        assertEquals(Map.of(Mood.Field.STYLE, style.getId()), moods.references(copy, false));
+
+        Map<Mood.Field, String> references = moods.references(copy, true);
+        PromptBlock recreated = blocks.find(PromptBlock.Type.LIGHT, references.get(Mood.Field.LIGHT));
+        assertEquals("Harbor Lamp", recreated.getName());
+        assertEquals("a single sodium lamp", recreated.getText());
+        assertFalse(recreated.isDefault());
+        ColorStyle recreatedPalette = colors.getStyleById(references.get(Mood.Field.COLOR));
+        assertTrue(recreatedPalette.getName().startsWith("Harbor Night"));
+        assertEquals(List.of("#0A1A2A", "#FFAA00"), recreatedPalette.getColors());
+        assertFalse(recreatedPalette.getId().equals(palette.getId()), "the palette in the trash stays there");
     }
 
     private static void execute(String sql) throws Exception {

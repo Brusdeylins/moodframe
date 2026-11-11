@@ -5,6 +5,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -423,8 +424,8 @@ public class ChatRepository {
                 INSERT INTO chat_entries (
                     id, chat_id, user_prompt, enhanced_prompt, status, error_message,
                     created_at, completed_at, sort_order, model, size, format, style,
-                    prompt_upsampling, steps, guidance, seed, cost
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    prompt_upsampling, steps, guidance, seed, cost, mood_json, mood_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = databaseManager.getConnection();
@@ -448,6 +449,8 @@ public class ChatRepository {
             stmt.setDouble(16, entry.getSafetyTolerance()); // repurpose guidance column for safety_tolerance
             stmt.setLong(17, entry.getSeed());
             stmt.setDouble(18, entry.getCost());
+            stmt.setString(19, entry.getMood() != null ? entry.getMood().toJson() : null);
+            stmt.setString(20, entry.getMood() != null ? entry.getMood().moodId() : null);
 
             stmt.executeUpdate();
         }
@@ -464,7 +467,7 @@ public class ChatRepository {
                 UPDATE chat_entries SET
                     user_prompt = ?, enhanced_prompt = ?, status = ?, error_message = ?,
                     completed_at = ?, sort_order = ?, model = ?, size = ?, format = ?, style = ?,
-                    prompt_upsampling = ?, steps = ?, guidance = ?, seed = ?, cost = ?
+                    prompt_upsampling = ?, steps = ?, guidance = ?, seed = ?, cost = ?, mood_json = ?, mood_id = ?
                 WHERE id = ?
                 """;
 
@@ -486,7 +489,9 @@ public class ChatRepository {
             stmt.setDouble(13, entry.getSafetyTolerance()); // repurpose guidance column for safety_tolerance
             stmt.setLong(14, entry.getSeed());
             stmt.setDouble(15, entry.getCost());
-            stmt.setString(16, entry.getId());
+            stmt.setString(16, entry.getMood() != null ? entry.getMood().toJson() : null);
+            stmt.setString(17, entry.getMood() != null ? entry.getMood().moodId() : null);
+            stmt.setString(18, entry.getId());
 
             stmt.executeUpdate();
         }
@@ -879,6 +884,7 @@ public class ChatRepository {
                 .size(rs.getString("size"))
                 .format(rs.getString("format"))
                 .style(rs.getString("style"))
+                .mood(EntryMood.fromJson(rs.getString("mood_json")))
                 .promptUpsampling(rs.getBoolean("prompt_upsampling"))
                 .safetyTolerance((int) rs.getDouble("guidance")) // repurposed guidance column
                 .seed(rs.getLong("seed"))

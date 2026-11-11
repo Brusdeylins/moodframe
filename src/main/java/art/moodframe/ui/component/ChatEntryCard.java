@@ -13,11 +13,14 @@ import javafx.scene.Cursor;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.layout.*;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
@@ -106,6 +109,7 @@ public class ChatEntryCard extends ManagedComponent {
     private Consumer<String> onImageEdit; // Callback for editing image by file path
     private Consumer<ChatEntry> onEntryDelete; // Callback for deleting entire entry
     private Consumer<GeneratedImage> onImageDelete; // Callback for deleting single image
+    private java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver;
     private java.util.function.Supplier<Boolean> isFluxModelSelected; // Check if FLUX model is currently selected
 
     /**
@@ -262,6 +266,10 @@ public class ChatEntryCard extends ManagedComponent {
         this.imagesContainer = new VBox(8.0);
         imagesContainer.setVisible(false);
         imagesContainer.managedProperty().bind(imagesContainer.visibleProperty());
+
+        /*  The context menu takes over the mood of the entry; a right click on an image opens its preview  */
+        promptContainer.setOnContextMenuRequested(this::showMoodMenu);
+        statusIcon.setOnContextMenuRequested(this::showMoodMenu);
 
         // Assemble the layout (metadataRow is now integrated into statusIcon)
         // errorDetailsLabel is shown below statusIcon when there's a detailed error message
@@ -560,7 +568,14 @@ public class ChatEntryCard extends ManagedComponent {
             stylePreset = firstImage.getStylePreset();
         }
 
-        if (stylePreset != null && !stylePreset.trim().isEmpty() && !"None".equals(stylePreset)) {
+        /*  An entry generated with a mood shows the mood instead of the style  */
+        String moodName = chatEntry.getMood() != null ? chatEntry.getMood().moodName() : null;
+        if (moodName != null) {
+            if (params.length() > 0)
+                params.append(" • ");
+            params.append(I18nManager.getText("params.mood")).append(" ").append(moodName);
+        }
+        else if (stylePreset != null && !stylePreset.trim().isEmpty() && !"None".equals(stylePreset)) {
             if (params.length() > 0)
                 params.append(" • ");
 
@@ -1781,6 +1796,35 @@ public class ChatEntryCard extends ManagedComponent {
                 onImageDelete.accept(chatEntry.getId(), imageId);
             }
         };
+    }
+
+    /**
+     * Sets the callback of the context menu of the entry, which takes over the mood and the building blocks of the
+     * entry into the panel.
+     *
+     * @param onMoodTakeOver the callback that receives the entry and whether to save the blocks as a new mood
+     */
+    public void setOnMoodTakeOver(java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver) {
+        this.onMoodTakeOver = onMoodTakeOver;
+    }
+
+    /**
+     * Shows the context menu with "Take over mood" and "Save as mood...", available for an entry with building blocks
+     * or with a former look style (1.x), which lives on as the standard mood of its name.
+     */
+    private void showMoodMenu(ContextMenuEvent event) {
+        if (onMoodTakeOver == null)
+            return;
+        boolean available = chatEntry.getMood() != null
+                || art.moodframe.service.MoodService.isLegacyLook(chatEntry.getStyle());
+        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.mood.take.over"));
+        takeOver.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, false));
+        takeOver.setDisable(!available);
+        MenuItem save = new MenuItem(I18nManager.getText("entry.mood.save"));
+        save.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, true));
+        save.setDisable(!available);
+        new ContextMenu(takeOver, save).show(this, event.getScreenX(), event.getScreenY());
+        event.consume();
     }
 
     /**
