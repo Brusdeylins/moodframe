@@ -75,10 +75,12 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
         // Register for i18n updates
         I18nManager.addChangeListener(this);
 
-        /*  A new block and a block of the user are saved, a standard block only as a new one  */
+        /*  A new block and a block of the user are saved, a standard block only as a new one: then "As New Entry" is
+            the main button, else it stands at the far left  */
         DialogPane dialogPane = getDialogPane();
         saveButtonType = block == null || !block.isDefault() ? new ButtonType("", ButtonBar.ButtonData.OK_DONE) : null;
-        saveAsNewButtonType = block != null ? new ButtonType("", ButtonBar.ButtonData.OTHER) : null;
+        saveAsNewButtonType = block != null ? new ButtonType("", saveButtonType != null ? ButtonBar.ButtonData.LEFT
+                : ButtonBar.ButtonData.OK_DONE) : null;
         if (saveAsNewButtonType != null)
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)

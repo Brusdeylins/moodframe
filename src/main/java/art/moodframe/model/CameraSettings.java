@@ -3,7 +3,9 @@ package art.moodframe.model;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The settings of a camera building block, from which the app builds its prompt fragment.
@@ -30,6 +32,17 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     /*  Removed values and the value that replaces them, so stored settings keep loading  */
     private static final Map<String, String> REMOVED = Map.of("APS_C", "FULL_FRAME", "MM_200", "MM_135",
             "F_2", "F_1_4", "F_8", "F_11", "F_16", "F_11", "ISO_800", "ISO_100");
+
+    /*  The stages whose prompt text contradicts the one of a type or lens; a stage blocks only stages after it in the
+        order of the dialog (type, lens, aperture, shutter, ISO, perspective, shot), so no choice can block itself  */
+    private static final Map<Enum<?>, Set<Enum<?>>> CONFLICTS = Map.of(
+            Body.DRONE, Set.of(Lens.MACRO, Perspective.EYE_LEVEL, Perspective.LOW_ANGLE, Shot.CLOSE_UP, Shot.DETAIL),
+            Body.SMARTPHONE, Set.of(Lens.TILT_SHIFT, Aperture.F_1_4, Aperture.F_4),
+            Body.ACTION_CAM, Set.of(Lens.MM_24, Lens.MM_35, Lens.MM_50, Lens.MM_85, Lens.MM_135, Lens.MM_400,
+                    Lens.MACRO, Lens.TILT_SHIFT, Lens.ANAMORPHIC),
+            Body.LARGE_FORMAT, Set.of(Lens.FISHEYE, Perspective.DUTCH_ANGLE),
+            Lens.MACRO, Set.of(Shot.EXTREME_WIDE, Shot.WIDE, Shot.MEDIUM),
+            Lens.TILT_SHIFT, Set.of(Aperture.F_11));
 
     /** The camera type. */
     public enum Body {
@@ -103,6 +116,38 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     /** The shot size, from wide to close. */
     public enum Shot {
         EXTREME_WIDE, WIDE, MEDIUM, CLOSE_UP, DETAIL
+    }
+
+    /**
+     * The chosen type or lens whose prompt text contradicts the one of a stage, so the dialog blocks the stage.
+     *
+     * @param stage a value of a setting, null for "any"
+     * @return the type or lens blocking the stage, null if the stage is allowed
+     */
+    public Enum<?> blocker(Enum<?> stage) {
+        if (stage == null)
+            return null;
+        for (Enum<?> chosen : Arrays.<Enum<?>>asList(body, lens))
+            if (chosen != null && CONFLICTS.getOrDefault(chosen, Set.of()).contains(stage))
+                return chosen;
+        return null;
+    }
+
+    /**
+     * The settings with every blocked stage set to "any", in the order of the dialog, so the earlier stage wins: a
+     * lens blocked by the type blocks nothing itself.
+     *
+     * @return the settings without contradiction
+     */
+    public CameraSettings withoutConflicts() {
+        CameraSettings settings = new CameraSettings(body, model, allowed(lens), aperture, shutter, iso, perspective,
+                shot);
+        return new CameraSettings(body, model, settings.lens, settings.allowed(aperture), shutter, iso,
+                settings.allowed(perspective), settings.allowed(shot));
+    }
+
+    private <E extends Enum<E>> E allowed(E stage) {
+        return blocker(stage) == null ? stage : null;
     }
 
     /**

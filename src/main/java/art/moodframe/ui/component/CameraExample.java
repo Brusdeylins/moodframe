@@ -4,11 +4,13 @@ import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Iso;
 import art.moodframe.model.CameraSettings.Lens;
 import art.moodframe.util.I18nManager;
+import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.net.URL;
@@ -21,7 +23,8 @@ import java.util.Map;
  * surroundings are made up.
  *
  * <p>A picture is loaded in the background on its first use and kept as long as the example; a stage without picture
- * shows a placeholder. A camera model has no picture of its own, the one of its type applies.</p>
+ * shows a placeholder. A camera model has no picture of its own, the one of its type applies. Without a stage the
+ * frame stays empty with a hint, in the same size.</p>
  *
  * @since 2.0.0
  */
@@ -33,36 +36,46 @@ public class CameraExample extends VBox {
     private final Map<Enum<?>, Image> images = new HashMap<>();
     private final ImageView view = new ImageView();
     private final FontIcon placeholder = new FontIcon("mdi2i-image-off-outline");
+    private final Label empty = new Label();
     private final Label caption = new Label();
     private final Label hint = new Label();
     private Enum<?> stage;
 
     /**
-     * Creates the example, showing the picture without camera.
+     * Creates the example, showing the empty frame.
      */
     public CameraExample() {
         super(4);
-        view.setFitWidth(SIZE);
-        view.setFitHeight(SIZE);
+        view.setFitWidth(SIZE - 2);
+        view.setFitHeight(SIZE - 2);
         view.setPreserveRatio(true);
         view.setSmooth(true);
         placeholder.getStyleClass().add("ikonli-font-icon");
         placeholder.setIconSize(48);
-        StackPane frame = new StackPane(placeholder, view);
+        empty.getStyleClass().addAll("text-small", "text-muted");
+        empty.setWrapText(true);
+        empty.setTextAlignment(TextAlignment.CENTER);
+        empty.setPadding(new Insets(0, 24, 0, 24));
+        StackPane frame = new StackPane(placeholder, view, empty);
         frame.setMinSize(SIZE, SIZE);
         frame.setMaxSize(SIZE, SIZE);
+
+        /*  the frame stays visible while empty; the picture fits inside its border  */
+        frame.setStyle("-fx-border-color: -color-border-default;");
         caption.getStyleClass().add("text-small");
         hint.getStyleClass().addAll("text-small", "text-muted");
         hint.setWrapText(true);
         setMaxWidth(SIZE);
         getChildren().addAll(frame, caption, hint);
         updateTexts();
+        clear();
     }
 
-    /** Sets the caption and the hint in the current language. */
+    /** Sets the caption and the hints in the current language. */
     public void updateTexts() {
+        empty.setText(I18nManager.getText("camera.dialog.example.empty"));
         hint.setText(I18nManager.getText("camera.dialog.example.hint"));
-        show(stage);
+        caption.setText(caption(stage));
     }
 
     /**
@@ -75,8 +88,24 @@ public class CameraExample extends VBox {
         Image image = images.computeIfAbsent(stage, this::load);
         view.setImage(image);
         placeholder.setVisible(image == null || image.isError());
-        caption.setText(stage == null ? I18nManager.getText("camera.dialog.example.any")
-                : I18nManager.getText("camera.dialog.example", name(stage)));
+        empty.setVisible(false);
+        caption.setText(caption(stage));
+        caption.setVisible(true);
+    }
+
+    /**
+     * Shows the empty frame with the hint to point at an option; the caption keeps its space, so nothing moves.
+     */
+    public void clear() {
+        view.setImage(null);
+        placeholder.setVisible(false);
+        empty.setVisible(true);
+        caption.setVisible(false);
+    }
+
+    private static String caption(Enum<?> stage) {
+        return stage == null ? I18nManager.getText("camera.dialog.example.any")
+                : I18nManager.getText("camera.dialog.example", name(stage));
     }
 
     /**
@@ -103,7 +132,7 @@ public class CameraExample extends VBox {
     }
 
     /*  the name of a stage as the dialog shows it: focal length, f-number and ISO as numbers, the rest by its text  */
-    private static String name(Enum<?> stage) {
+    static String name(Enum<?> stage) {
         return switch (stage) {
             case Lens lens when !lens.isSpecial() -> lens.millimeters() + " mm";
             case Aperture aperture -> aperture.label();

@@ -87,6 +87,8 @@ class PromptBlockServiceTest {
             assertEquals("std:camera:" + PromptBlockService.slug(camera.getName()), camera.getId());
             assertEquals(CameraPromptBuilder.build(CameraSettings.fromJson(camera.getParams()), true), camera.getText(),
                     camera.getName() + " carries the fragment of its settings");
+            assertEquals(CameraSettings.fromJson(camera.getParams()).withoutConflicts(),
+                    CameraSettings.fromJson(camera.getParams()), camera.getName() + " has no contradiction");
         }
 
         PromptBlock street = service.find(PromptBlock.Type.CAMERA, "std:camera:street-35mm");

@@ -75,10 +75,12 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
         // Register for i18n updates
         I18nManager.addChangeListener(this);
 
-        /*  A new palette and a palette of the user are saved, a default palette only as a new one  */
+        /*  A new palette and a palette of the user are saved, a default palette only as a new one: then "As New
+            Entry" is the main button, else it stands at the far left  */
         DialogPane dialogPane = getDialogPane();
         saveButtonType = style == null || !style.isDefault() ? new ButtonType("", ButtonBar.ButtonData.OK_DONE) : null;
-        saveAsNewButtonType = style != null ? new ButtonType("", ButtonBar.ButtonData.OTHER) : null;
+        saveAsNewButtonType = style != null ? new ButtonType("", saveButtonType != null ? ButtonBar.ButtonData.LEFT
+                : ButtonBar.ButtonData.OK_DONE) : null;
         if (saveAsNewButtonType != null)
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)

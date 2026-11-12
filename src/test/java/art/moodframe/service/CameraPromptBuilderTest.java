@@ -46,6 +46,19 @@ class CameraPromptBuilderTest {
     }
 
     @Test
+    void leavesOutAStageThatContradictsAnEarlierOne() {
+        assertEquals("aerial photograph from high above, extreme wide shot, the subject small in the frame",
+                CameraPromptBuilder.build(new CameraSettings(Body.DRONE, null, Lens.MACRO, null, null, null,
+                        Perspective.EYE_LEVEL, Shot.EXTREME_WIDE), true), "the type drops lens and perspective");
+        assertEquals("shot on a smartphone, deep focus, natural unstaged look, "
+                + "f/11, deep depth of field, front and back in sharp focus",
+                CameraPromptBuilder.build(new CameraSettings(Body.SMARTPHONE, null, Lens.TILT_SHIFT, Aperture.F_11,
+                        null, null, null, null), true), "f/11 stays once the type dropped the tilt-shift lens");
+        assertEquals("", CameraPromptBuilder.build(new CameraSettings(Body.DRONE, null, null, null, null, null,
+                Perspective.EYE_LEVEL, null), false), "the camera is the same for every style");
+    }
+
+    @Test
     void givesEveryValueOfEverySettingItsOwnText() {
         Set<String> texts = new HashSet<>();
         int values = 0;

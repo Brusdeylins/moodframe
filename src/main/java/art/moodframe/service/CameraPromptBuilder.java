@@ -141,11 +141,13 @@ public final class CameraPromptBuilder {
     /**
      * Builds the prompt fragment, without the label "Camera:" or "Framing:", which the composer adds.
      *
-     * @param settings     the settings
+     * @param settings     the settings; a stage that contradicts an earlier one is left out (see
+     *                     {@link CameraSettings#withoutConflicts()})
      * @param photographic whether the style describes a photograph; otherwise only perspective and shot size apply
      * @return the fragment, empty if no setting applies
      */
     public static String build(CameraSettings settings, boolean photographic) {
+        settings = settings.withoutConflicts();
         List<String> parts = new ArrayList<>();
         if (photographic) {
             if (settings.body() != null)

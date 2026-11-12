@@ -8,8 +8,12 @@ import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Line;
 import javafx.scene.text.TextAlignment;
 import javafx.util.StringConverter;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -34,9 +38,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Stream;
+import java.util.function.IntToDoubleFunction;
 
 /**
  * Dialog for creating and editing a camera: no free text, but settings from which the app builds the fragment.
@@ -44,7 +47,8 @@ import java.util.stream.Stream;
  * <p>
  * Left the settings (tiles for the camera type with its model, sliders with detents for focal length and aperture,
  * symbol rows for shutter, ISO, perspective and shot size), right a schematic preview and an example picture of the
- * stage chosen last or under the mouse, below the generated prompt, all live. Every setting starts at "Any". A camera
+ * stage under the mouse, below the generated prompt, all live. Every setting starts at "Any". A stage whose prompt
+ * text contradicts the chosen type or lens is blocked and names the reason ({@link CameraSettings#blocker}). A camera
  * of the user is saved in place or as a new one, a standard camera only as a new one.
  * </p>
  *
@@ -60,6 +64,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
      * @param settings the settings
      */
     public record Result(BlockEditDialog.Save save, String name, CameraSettings settings) {
+    }
+
+    /*  a control of a stage that a chosen type or lens can block, in the wrapper naming the reason: a disabled control
+        gets no mouse events  */
+    private record Blockable(Enum<?> stage, Control control, Node wrapper, Tooltip reason) {
     }
 
     /*  The detents of the focal length slider: "Any", then the focal lengths from wide to long  */
@@ -91,6 +100,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final ButtonType saveAsNewButtonType;
     private final Map<Object, String> texts = new IdentityHashMap<>();
     private final List<Runnable> headings = new ArrayList<>();
+    private final List<Blockable> blockables = new ArrayList<>();
     private final TextField nameField = new TextField();
     private final ToggleGroup bodyGroup = new ToggleGroup();
     private final ChoiceBox<CameraPromptBuilder.Model> modelBox = new ChoiceBox<>();
@@ -106,7 +116,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final TextArea promptArea = new TextArea();
     private final Label validationLabel = new Label();
     private final Label helpLabel = new Label();
-    private Enum<?> chosen;
 
     /**
      * Creates the dialog.
@@ -116,14 +125,17 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     public CameraEditDialog(PromptBlock block) {
         this.block = block;
         this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
-        CameraSettings settings = block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY;
+        CameraSettings settings = (block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY)
+                .withoutConflicts();
 
         I18nManager.addChangeListener(this);
 
-        /*  A new camera and a camera of the user are saved, a standard camera only as a new one  */
+        /*  A new camera and a camera of the user are saved, a standard camera only as a new one: then "As New Entry"
+            is the main button, else it stands at the far left  */
         DialogPane dialogPane = getDialogPane();
         saveButtonType = block == null || !block.isDefault() ? new ButtonType("", ButtonBar.ButtonData.OK_DONE) : null;
-        saveAsNewButtonType = block != null ? new ButtonType("", ButtonBar.ButtonData.OTHER) : null;
+        saveAsNewButtonType = block != null ? new ButtonType("", saveButtonType != null ? ButtonBar.ButtonData.LEFT
+                : ButtonBar.ButtonData.OK_DONE) : null;
         if (saveAsNewButtonType != null)
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)
@@ -161,8 +173,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         modelRow.setAlignment(Pos.CENTER_LEFT);
 
         /*  Focal length: a slider with detents, the special lenses beside it; a special lens overrides the slider  */
-        detents(focalSlider, (index) -> index == 0 ? I18nManager.getText("camera.dialog.any")
-                : String.valueOf(FOCAL_LENGTHS.get(index - 1).millimeters()));
+        VBox focalTrack = detents(focalSlider, FOCAL_LENGTHS, (lens) -> String.valueOf(lens.millimeters()));
         focalSlider.setValue(settings.lens() != null && !settings.lens().isSpecial()
                 ? FOCAL_LENGTHS.indexOf(settings.lens()) + 1 : 0);
         HBox specialRow = new HBox(4);
@@ -171,26 +182,18 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             button.setToggleGroup(specialGroup);
             button.setUserData(lens);
             button.setSelected(lens == settings.lens());
-            hover(button, (event) -> lens);
-            specialRow.getChildren().add(button);
+            StackPane wrapper = blockable(lens, button);
+            hover(wrapper, (event) -> lens);
+            specialRow.getChildren().add(wrapper);
         }
         focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (specialGroup.getSelectedToggle() != null && oldVal.intValue() != newVal.intValue())
                 specialGroup.selectToggle(null);
         });
-        hover(focalSlider, (event) -> {
-            int index = detent(focalSlider, event);
-            return index > 0 ? FOCAL_LENGTHS.get(index - 1) : null;
-        });
 
         /*  Aperture: a slider with detents from open to closed  */
-        detents(apertureSlider, (index) -> index == 0 ? I18nManager.getText("camera.dialog.any")
-                : Aperture.values()[index - 1].label());
+        VBox apertureTrack = detents(apertureSlider, List.of(Aperture.values()), Aperture::label);
         apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
-        hover(apertureSlider, (event) -> {
-            int index = detent(apertureSlider, event);
-            return index > 0 ? Aperture.values()[index - 1] : null;
-        });
 
         /*  Shutter, ISO, perspective and shot size: rows of symbols  */
         VBox shutter = symbols("camera.dialog.shutter", shutterGroup, Shutter.values(),
@@ -201,17 +204,16 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         VBox shot = symbols("camera.dialog.shot", shotGroup, Shot.values(), (value) -> "camera.shot." + key(value),
                 SHOT_ICONS, settings.shot());
 
-        /*  Left the device with lens and exposure, right the preview with what it draws: perspective and shot size,
-            below them the example  */
+        /*  Left all settings in the order of the prompt, right the preview with the example below it  */
         VBox settingsBox = new VBox(6,
                 heading("camera.dialog.type"), bodyTiles, modelRow,
-                heading("camera.dialog.lens"), focalSlider, specialRow,
-                heading("camera.dialog.aperture"), apertureSlider,
-                new HBox(20, shutter, iso));
+                heading("camera.dialog.lens"), focalTrack, specialRow,
+                heading("camera.dialog.aperture"), apertureTrack,
+                new HBox(20, shutter, iso), perspective, shot);
         settingsBox.setMinWidth(SETTINGS_WIDTH);
         settingsBox.setPrefWidth(SETTINGS_WIDTH);
         bodyTiles.setPrefWrapLength(SETTINGS_WIDTH);
-        VBox previewBox = new VBox(10, preview, perspective, shot, example);
+        VBox previewBox = new VBox(10, preview, example);
 
         /*  Generated prompt, below both columns  */
         promptArea.setEditable(false);
@@ -228,8 +230,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         texts.put(helpLabel, "camera.dialog.help");
 
         HBox columns = new HBox(24, settingsBox, previewBox);
-        VBox content = new VBox(10, nameRow, validationLabel, columns, text(new Label(), "camera.dialog.prompt"),
-                promptArea, helpLabel);
+        VBox content = new VBox(10, nameRow, validationLabel, columns, heading("camera.dialog.prompt"), promptArea,
+                helpLabel);
         content.setPadding(new Insets(20, 20, 10, 20));
         content.setPrefWidth(SETTINGS_WIDTH + 24 + 300 + 40);
         dialogPane.setContent(content);
@@ -249,19 +251,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         for (ToggleGroup group : List.of(shutterGroup, isoGroup, perspectiveGroup, shotGroup))
             group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
         update();
-
-        /*  The example shows the stage chosen last, at first the first setting that is not "Any"  */
-        for (ToggleGroup group : List.of(bodyGroup, shutterGroup, isoGroup, perspectiveGroup, shotGroup))
-            group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
-                if (newVal != null)
-                    choose((Enum<?>) newVal.getUserData());
-            });
-        specialGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> choose(settings().lens()));
-        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> choose(settings().lens()));
-        apertureSlider.valueProperty().addListener((obs, oldVal, newVal) -> choose(settings().aperture()));
-        choose(Stream.<Enum<?>>of(settings.body(), settings.lens(), settings.aperture(), settings.shutter(),
-                settings.iso(), settings.perspective(), settings.shot()).filter(Objects::nonNull).findFirst()
-                .orElse(null));
 
         /*  a closed dialog no longer follows the language, so it and its pictures are released  */
         setOnHidden((event) -> I18nManager.removeChangeListener(this));
@@ -292,9 +281,34 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 selected(perspectiveGroup, Perspective.class), selected(shotGroup, Shot.class));
     }
 
-    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides  */
+    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides. A stage
+        blocked by the type or lens just chosen goes back to "Any" first, each reset updating anew.  */
     private void update() {
         CameraSettings settings = settings();
+        CameraSettings allowed = settings.withoutConflicts();
+        if (!allowed.equals(settings)) {
+            if (allowed.lens() != settings.lens()) {
+                specialGroup.selectToggle(null);
+                focalSlider.setValue(0);
+            }
+            if (allowed.aperture() != settings.aperture())
+                apertureSlider.setValue(0);
+            if (allowed.perspective() != settings.perspective())
+                selectAny(perspectiveGroup);
+            if (allowed.shot() != settings.shot())
+                selectAny(shotGroup);
+            return;
+        }
+        for (Blockable blockable : blockables) {
+            Enum<?> blocker = settings.blocker(blockable.stage());
+            blockable.control().setDisable(blocker != null);
+            if (blocker != null) {
+                blockable.reason().setText(I18nManager.getText("camera.dialog.blocked", CameraExample.name(blocker)));
+                Tooltip.install(blockable.wrapper(), blockable.reason());
+            }
+            else
+                Tooltip.uninstall(blockable.wrapper(), blockable.reason());
+        }
         String camera = CameraPromptBuilder.build(settings, true);
         preview.show(settings);
         promptArea.setText(camera.isEmpty() ? I18nManager.getText("camera.dialog.prompt.empty")
@@ -302,16 +316,22 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         focalSlider.setOpacity(specialGroup.getSelectedToggle() != null ? 0.5 : 1);
     }
 
-    /*  the stage chosen last, shown by the example  */
-    private void choose(Enum<?> stage) {
-        chosen = stage;
-        example.show(stage);
-    }
-
-    /*  while the mouse is over a control, the example shows the stage under it, afterwards the one chosen last  */
+    /*  while the mouse is over a control, the example shows the stage under it, afterwards the empty frame  */
     private void hover(Node node, Function<MouseEvent, Enum<?>> stage) {
         node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> example.show(stage.apply(event)));
-        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> example.show(chosen));
+        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> example.clear());
+    }
+
+    /*  a control of a stage that a chosen type or lens can block, wrapped for the reason  */
+    private StackPane blockable(Enum<?> stage, Control control) {
+        StackPane wrapper = new StackPane(control);
+        blockables.add(new Blockable(stage, control, wrapper, new Tooltip()));
+        return wrapper;
+    }
+
+    private static void selectAny(ToggleGroup group) {
+        group.getToggles().stream().filter((toggle) -> toggle.getUserData() == null).findFirst()
+                .ifPresent(group::selectToggle);
     }
 
     /*  "Generic" and the models of the type; no model without a type  */
@@ -351,21 +371,22 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         for (E value : choices) {
             String name = value == null ? "camera.dialog.any" : key != null ? key.apply(value) : null;
             ToggleButton button = new ToggleButton();
-            if (icons != null) {
+            if (value == null || icons != null) {
                 button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
                 button.setPrefSize(38, 34);
                 Tooltip tooltip = new Tooltip();
                 texts.put(tooltip, name);
                 button.setTooltip(tooltip);
             }
-            else if (name != null)
-                text(button, name);
-            else
+            else {
                 button.setText(((Iso) value).label().substring("ISO ".length()));
+                button.setPrefHeight(34);
+            }
             names.put(button, name);
             join(group, button, value, value == selected);
-            hover(button, (event) -> value);
-            row.getChildren().add(button);
+            StackPane wrapper = blockable(value, button);
+            hover(wrapper, (event) -> value);
+            row.getChildren().add(wrapper);
         }
 
         Label heading = heading(null);
@@ -396,34 +417,86 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         return toggle != null && type.isInstance(toggle.getUserData()) ? type.cast(toggle.getUserData()) : null;
     }
 
-    /*  a slider that stops on whole numbers only, labeled by the given names  */
-    private static void detents(Slider slider, Function<Integer, String> label) {
+    /*  A slider that stops on whole numbers only, "Any" first, then the stages, with its ticks and labels drawn below
+        it, as JavaFX loses the last tick at some widths; each label stays inside the slider. A blocked detent is
+        skipped: a step goes on to the next allowed detent in its direction, dragging takes the nearest allowed one.  */
+    private <E extends Enum<E>> VBox detents(Slider slider, List<E> stages, Function<E, String> label) {
         slider.setMajorTickUnit(1);
         slider.setMinorTickCount(0);
         slider.setSnapToTicks(true);
-        slider.setShowTickMarks(true);
-        slider.setShowTickLabels(true);
         slider.setBlockIncrement(1);
-        slider.setLabelFormatter(new StringConverter<>() {
+
+        List<Line> ticks = new ArrayList<>();
+        List<Node> labels = new ArrayList<>();
+        for (int index = 0; index <= stages.size(); index++) {
+            E stage = index > 0 ? stages.get(index - 1) : null;
+            Label name = stage != null ? new Label(label.apply(stage)) : text(new Label(), "camera.dialog.any");
+            name.getStyleClass().add("text-small");
+            labels.add(blockable(stage, name));
+            Line tick = new Line(0, 1, 0, 5);
+            tick.setStyle("-fx-stroke: -color-slider-tick;");
+            ticks.add(tick);
+        }
+        Pane scale = new Pane() {
             @Override
-            public String toString(Double value) {
-                return label.apply((int) Math.round(value));
+            protected double computePrefHeight(double width) {
+                return 7 + labels.getFirst().prefHeight(-1);
             }
 
             @Override
-            public Double fromString(String text) {
-                return 0.0;
+            protected void layoutChildren() {
+                for (int index = 0; index < labels.size(); index++) {
+                    double x = Math.round(position(slider, index)) + 0.5;
+                    ticks.get(index).setStartX(x);
+                    ticks.get(index).setEndX(x);
+                    Node name = labels.get(index);
+                    double width = name.prefWidth(-1);
+                    name.resizeRelocate(Math.clamp(x - width / 2, 0, Math.max(0, getWidth() - width)), 7, width,
+                            name.prefHeight(width));
+                }
             }
+        };
+        scale.getChildren().addAll(ticks);
+        scale.getChildren().addAll(labels);
+        scale.setMinHeight(Region.USE_PREF_SIZE);
+
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            CameraSettings settings = settings();
+            double value = newVal.doubleValue();
+            int index = (int) Math.round(value);
+            if (settings.blocker(index > 0 ? stages.get(index - 1) : null) == null)
+                return;
+            double step = value == index ? Math.signum(value - oldVal.doubleValue()) : 0;
+            IntToDoubleFunction distance = (i) -> Math.abs(i - value) + (step * (i - value) < 0 ? stages.size() : 0);
+            int target = 0;
+            for (int i = 1; i <= stages.size(); i++)
+                if (settings.blocker(stages.get(i - 1)) == null
+                        && distance.applyAsDouble(i) < distance.applyAsDouble(target))
+                    target = i;
+            slider.setValue(target);
         });
+
+        VBox track = new VBox(slider, scale);
+        hover(track, (event) -> {
+            int index = detent(slider, event);
+            return index > 0 ? stages.get(index - 1) : null;
+        });
+        return track;
     }
 
-    /*  the detent of a slider nearest to the mouse, along the track the skin lays out between the thumb halves  */
-    private static int detent(Slider slider, MouseEvent event) {
+    /*  the x of a detent within the slider, along the track the skin lays out between the thumb halves  */
+    private static double position(Slider slider, double value) {
         Node thumb = slider.lookup(".thumb");
         double thumbWidth = thumb != null ? thumb.getLayoutBounds().getWidth() : 0;
-        double start = slider.snappedLeftInset() + thumbWidth / 2;
         double length = slider.getWidth() - slider.snappedLeftInset() - slider.snappedRightInset() - thumbWidth;
-        double ratio = Math.clamp((event.getX() - start) / length, 0, 1);
+        return slider.snappedLeftInset() + thumbWidth / 2
+                + length * (value - slider.getMin()) / (slider.getMax() - slider.getMin());
+    }
+
+    /*  the detent of a slider nearest to the mouse  */
+    private static int detent(Slider slider, MouseEvent event) {
+        double start = position(slider, slider.getMin());
+        double ratio = Math.clamp((event.getX() - start) / (position(slider, slider.getMax()) - start), 0, 1);
         return (int) Math.round(slider.getMin() + ratio * (slider.getMax() - slider.getMin()));
     }
 
@@ -491,12 +564,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         preview.updateTexts();
         example.updateTexts();
 
-        /*  the labels of the detents and of "Generic" are drawn anew  */
-        for (Slider slider : List.of(focalSlider, apertureSlider)) {
-            StringConverter<Double> formatter = slider.getLabelFormatter();
-            slider.setLabelFormatter(null);
-            slider.setLabelFormatter(formatter);
-        }
+        /*  the label of "Generic" is drawn anew  */
         CameraPromptBuilder.Model model = modelBox.getValue();
         modelBox.setValue(null);
         modelBox.setValue(model);
