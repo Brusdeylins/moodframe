@@ -3,9 +3,9 @@ package art.moodframe.model;
 import java.time.LocalDateTime;
 
 /**
- * A named target aspect ratio of an image. A frame names no model, as several providers serve the images: choosing
- * it, and every later change of the model, takes the closest ratio the chosen model can do
- * ({@link AspectRatios#nearestForItem}).
+ * A named target aspect ratio and target resolution of an image. A frame names no model, as several providers serve
+ * the images: choosing it, and every later change of the model, takes the closest ratio and resolution the chosen
+ * model can do ({@link AspectRatios#nearestForItem}, {@link ModelFamilies#nearestForItem}).
  *
  * <p>The standard frames come from code with fixed ids starting with {@value PromptBlock#STANDARD_PREFIX}; a frame
  * of the user is stored in SQLite.</p>
@@ -17,6 +17,7 @@ public class Frame {
     private String id;
     private String name;
     private String aspectRatio;
+    private String resolution;
     private int sortOrder;
     private LocalDateTime deletedAt;
 
@@ -56,6 +57,15 @@ public class Frame {
         this.aspectRatio = aspectRatio;
     }
 
+    /** The target resolution, for example {@code 2K}, one of {@link ModelFamilies#RESOLUTIONS}; null to keep it. */
+    public String getResolution() {
+        return resolution;
+    }
+
+    public void setResolution(String resolution) {
+        this.resolution = resolution;
+    }
+
     public int getSortOrder() {
         return sortOrder;
     }
@@ -80,6 +90,7 @@ public class Frame {
 
     @Override
     public String toString() {
-        return String.format("Frame{id='%s', name='%s', aspectRatio='%s'}", id, name, aspectRatio);
+        return String.format("Frame{id='%s', name='%s', aspectRatio='%s', resolution='%s'}", id, name, aspectRatio,
+                resolution);
     }
 }

@@ -110,7 +110,7 @@
 .mood-incomplete .ikonli-font-icon {
     -fx-icon-color: -color-warning-fg;
 }
-/*  Below the aspect ratio, what the chosen model makes of the target: highlighted while it differs  */
+/*  Below aspect ratio and resolution, what the chosen model makes of the target: highlighted while it differs  */
 .aspect-ratio-hint {
     -fx-text-fill: -color-fg-muted;
 }

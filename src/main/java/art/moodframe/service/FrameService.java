@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.Frame;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FrameRepository;
 import org.json.JSONArray;
@@ -18,8 +19,9 @@ import java.util.Map;
 /**
  * Service for the frames: the standard frames from code with fixed ids, the frames of the user from SQLite.
  *
- * <p>A frame keeps a target aspect ratio only; the model of the main window makes the closest ratio it can do of it
- * ({@link art.moodframe.model.AspectRatios#nearestForItem}).</p>
+ * <p>A frame keeps a target aspect ratio and a target resolution only; the model of the main window makes the closest
+ * ratio and resolution it can do of them ({@link art.moodframe.model.AspectRatios#nearestForItem},
+ * {@link ModelFamilies#nearestForItem}).</p>
  *
  * @since 2.0.0
  */
@@ -41,23 +43,24 @@ public class FrameService {
     private static List<Frame> defaultFrames() {
         List<Frame> frames = new ArrayList<>();
 
-        /*  Id, name and target aspect ratio  */
-        frames.add(frame("social-post", "Social Post", "4:5"));
-        frames.add(frame("story-reel", "Story / Reel", "9:16"));
-        frames.add(frame("presentation", "Präsentation", "16:9"));
-        frames.add(frame("web-banner", "Web-Banner", "21:9"));
-        frames.add(frame("poster-print", "Poster / Druck", "2:3"));
-        frames.add(frame("text-in-image", "Text im Bild", "16:9"));
-        frames.add(frame("quick-sketches", "Schnelle Skizzen", "1:1"));
+        /*  Id, name, target aspect ratio and target resolution  */
+        frames.add(frame("social-post", "Social Post", "4:5", "2K"));
+        frames.add(frame("story-reel", "Story / Reel", "9:16", "2K"));
+        frames.add(frame("presentation", "Präsentation", "16:9", "2K"));
+        frames.add(frame("web-banner", "Web-Banner", "21:9", "2K"));
+        frames.add(frame("poster-print", "Poster / Druck", "2:3", "4K"));
+        frames.add(frame("text-in-image", "Text im Bild", "16:9", "2K"));
+        frames.add(frame("quick-sketches", "Schnelle Skizzen", "1:1", "1K"));
 
         for (int i = 0; i < frames.size(); i++)
             frames.get(i).setSortOrder(i);
         return frames;
     }
 
-    private static Frame frame(String slug, String name, String aspectRatio) {
+    private static Frame frame(String slug, String name, String aspectRatio, String resolution) {
         Frame frame = new Frame(PromptBlock.STANDARD_PREFIX + "frame:" + slug, name);
         frame.setAspectRatio(aspectRatio);
+        frame.setResolution(resolution);
         return frame;
     }
 
@@ -145,7 +148,7 @@ public class FrameService {
     /**
      * Stores a new frame of the user behind the existing ones.
      *
-     * @param frame the frame with an aspect ratio, without id or with an id no frame has
+     * @param frame the frame with an aspect ratio and maybe a resolution, without id or with an id no frame has
      * @return true if it was stored, false if the name is taken or the aspect ratio is missing
      */
     public boolean add(Frame frame) {
@@ -162,7 +165,7 @@ public class FrameService {
     }
 
     /**
-     * Updates a frame of the user: its name and its aspect ratio. Standard frames cannot be changed.
+     * Updates a frame of the user: its name, its aspect ratio and its resolution. Standard frames cannot be changed.
      *
      * @param frame the changed frame with its id
      * @return true if it was updated, false for a standard frame, an unknown id, a taken name or a missing aspect ratio
@@ -236,19 +239,20 @@ public class FrameService {
     }
 
     /**
-     * Names the setting of a frame, for example {@code "4:5"}.
+     * Names the setting of a frame, for example {@code "4:5 · 2K"}.
      *
      * @param frame the frame
-     * @return its target aspect ratio
+     * @return its target aspect ratio and, if it has one, its target resolution
      */
     public static String describe(Frame frame) {
-        return frame.getAspectRatio();
+        return frame.getResolution() != null ? frame.getAspectRatio() + " · " + frame.getResolution()
+                : frame.getAspectRatio();
     }
 
     /**
      * Returns the frames of the user as plain data, e.g. for the full backup ({@link ConfigurationExporter}).
      *
-     * @return per frame its id, name and aspect ratio
+     * @return per frame its id, name, aspect ratio and resolution (null without)
      */
     public List<Map<String, Object>> exportCustom() {
         List<Map<String, Object>> entries = new ArrayList<>();
@@ -257,6 +261,7 @@ public class FrameService {
             entry.put("id", frame.getId());
             entry.put("name", frame.getName());
             entry.put("aspectRatio", frame.getAspectRatio());
+            entry.put("resolution", frame.getResolution());
             entries.add(entry);
         }
         return entries;
@@ -264,8 +269,9 @@ public class FrameService {
 
     /**
      * Adds frames from plain data (see {@link #exportCustom()}) behind the frames of the user. A frame keeps its id
-     * unless a frame has it already, and its name unless a frame in use has it already; then it gets a new one. The
-     * model, resolution, image count, guidance and steps of an older export are passed over.
+     * unless a frame has it already, and its name unless a frame in use has it already; then it gets a new one. A
+     * resolution is kept as target if it is one of {@link ModelFamilies#RESOLUTIONS}, also from an older export; its
+     * model, image count, guidance and steps are passed over.
      *
      * @param entries the frames as maps
      * @return the number of imported frames
@@ -280,6 +286,8 @@ public class FrameService {
             Frame frame = new Frame(id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX) || repository.exists(id)
                     ? null : id, freeName(name));
             frame.setAspectRatio(entry.get("aspectRatio") instanceof String ratio ? ratio : null);
+            frame.setResolution(entry.get("resolution") instanceof String resolution
+                    && ModelFamilies.RESOLUTIONS.contains(resolution) ? resolution : null);
             if (add(frame))
                 imported++;
         }

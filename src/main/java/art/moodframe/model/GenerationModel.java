@@ -864,12 +864,13 @@ public enum GenerationModel implements UnifiedModel {
     /**
      * Gets the resolution of this variant, as shown in the resolution choice.
      *
-     * @return for example {@code 2K} or {@code 1080p}, null for a model without resolution variants
+     * @return for example {@code 2K} or {@code 1080p}, null for a model without resolution variants and without a
+     *         known fixed size
      */
     public String getResolutionLabel() {
         return switch (this) {
             case FLUX3_IMAGE_768, FLUX3_KLEIN_768 -> "768";
-            case FLUX3_IMAGE_1K, FLUX3_KLEIN_1K, GEMINI_FLASH_1K, NANO_BANANA2_1K -> "1K";
+            case FLUX3_IMAGE_1K, FLUX3_KLEIN_1K, GEMINI_FLASH_1K, NANO_BANANA2_1K, NANO_BANANA2_LITE -> "1K";
             case FLUX3_IMAGE_1_5K, FLUX3_KLEIN_1_5K -> "1.5K";
             case FLUX3_IMAGE_2K, FLUX3_KLEIN_2K -> "2K";
             case FLUX3_IMAGE_4K, FLUX3_KLEIN_4K -> "4K";

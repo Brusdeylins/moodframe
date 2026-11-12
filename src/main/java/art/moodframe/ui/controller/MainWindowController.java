@@ -164,6 +164,8 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label aspectRatioHintLabel;
     @FXML
+    private Label resolutionHintLabel;
+    @FXML
     private Label generationTitleLabel;
     @FXML
     private TitledPane moodGroupPane;
@@ -263,8 +265,6 @@ public class MainWindowController implements I18nChangeListener {
     private Label aspectRatioLabel;
     @FXML
     private ChoiceBox<String> modelFamilyChoiceBox;
-    @FXML
-    private VBox resolutionContainer;
     @FXML
     private Label resolutionLabel;
     @FXML
@@ -435,8 +435,8 @@ public class MainWindowController implements I18nChangeListener {
     private boolean moodChanged;
     private boolean updatingMood;
 
-    /*  The frames: whether the aspect ratio differs from the chosen frame, and a guard while the frame selection
-        sets the aspect ratio  */
+    /*  The frames: whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame
+        selection sets them  */
     private FrameService frameService;
     private boolean frameChanged;
     private boolean updatingFrame;
@@ -825,7 +825,7 @@ public class MainWindowController implements I18nChangeListener {
             java.util.Set<Mood.Field> locked = lockedMoodFields();
             Mood mood = moodService != null ? chosenMood() : null;
             String currentState = "Target model: " + modelComboBox.getValue()
-                    + (resolutionContainer.isVisible() ? "\nResolution: " + resolutionChoiceBox.getValue() : "")
+                    + (modelResolution() != null ? "\nResolution: " + modelResolution() : "")
                     + "\nMood: " + (mood != null ? mood.getName() + (moodChanged ? " (changed)" : "") : "None")
                     + fieldState("Style", stylePresetsComboBox.getValue(), locked.contains(Mood.Field.STYLE))
                     + fieldState("Atmosphere", atmosphereComboBox.getValue(), locked.contains(Mood.Field.ATMOSPHERE))
@@ -866,7 +866,8 @@ public class MainWindowController implements I18nChangeListener {
     private void applyBrainstormResult(art.moodframe.ui.dialog.BrainstormDialog.Result result) {
         modelComboBox.setValue(result.targetModel());
 
-        /*  The resolution of a model without resolution variants, and the remembered choice of the family  */
+        /*  The adopted resolution (or the one of a model without resolution variants) as remembered choice of the
+            family and as target, of which the model takes the same; any other leaves the target as it is  */
         String resolution = result.resolution() != null ? result.resolution()
                 : art.moodframe.model.ModelFamilies.resolutionOf(result.targetModel());
         if (resolution != null) {
@@ -1215,6 +1216,10 @@ public class MainWindowController implements I18nChangeListener {
         aspectRatioComboBox.getItems().addAll(art.moodframe.model.AspectRatios.ALL);
         aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> updateAspectRatioHint());
 
+        // Setup resolution selection: the sizes of all models, of which the chosen model takes its closest one
+        resolutionChoiceBox.getItems().addAll(art.moodframe.model.ModelFamilies.RESOLUTIONS);
+        resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> updateResolutionHint());
+
         // Configure image count slider
         imageCountSlider.setMin(1);
         imageCountSlider.setMax(4);
@@ -1307,9 +1312,9 @@ public class MainWindowController implements I18nChangeListener {
         // Optimize ScrollPane for smooth scrolling performance
         optimizeScrollPane();
 
-        // The model dropdown lists families, the resolution has its own choice
+        // The model dropdown lists families, the target resolution of the frame chooses the variant
         modelFamilySelector = new art.moodframe.ui.component.ModelFamilySelector(modelComboBox, modelFamilyChoiceBox,
-                resolutionChoiceBox, resolutionContainer, config);
+                resolutionChoiceBox, config);
 
         // Load saved values from configuration
         loadUISelections();
@@ -2586,8 +2591,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Sets up the frame selection: the actions "Save", "Save as..." and "Manage...", "No frame" and the frames.
-     * Choosing a frame sets its target aspect ratio, of which the model takes the closest one it can do; an aspect
-     * ratio changed afterwards shows the frame as changed until it is saved or chosen again.
+     * Choosing a frame sets its target aspect ratio and resolution, of which the model takes the closest ones it can
+     * do; either changed afterwards shows the frame as changed until it is saved or chosen again.
      */
     private void setupFrames() {
         frameService = art.moodframe.config.ServiceFactory.getInstance().getService(FrameService.class);
@@ -2600,6 +2605,10 @@ public class MainWindowController implements I18nChangeListener {
         frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged, this::isFrameSaveLocked));
         frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(oldVal, newVal));
         aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (!updatingFrame)
+                updateFrameState();
+        });
+        resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (!updatingFrame)
                 updateFrameState();
         });
@@ -2668,11 +2677,17 @@ public class MainWindowController implements I18nChangeListener {
         });
     }
 
-    /** Sets the aspect ratio to the target of a frame and shows it unchanged; "No frame" (null) leaves it as it is. */
+    /**
+     * Sets aspect ratio and resolution to the targets of a frame and shows it unchanged; a frame without resolution
+     * leaves the resolution, "No frame" (null) both as they are.
+     */
     private void chooseFrame(Frame frame) {
         updatingFrame = true;
-        if (frame != null)
+        if (frame != null) {
             aspectRatioComboBox.setValue(frame.getAspectRatio());
+            if (frame.getResolution() != null)
+                resolutionChoiceBox.setValue(frame.getResolution());
+        }
         frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
                 : item.frame() != null && item.frame().getId().equals(frame.getId()))
                 .findFirst().ifPresent(frameComboBox::setValue);
@@ -2680,19 +2695,20 @@ public class MainWindowController implements I18nChangeListener {
         updateFrameState();
     }
 
-    /** Marks the chosen frame as changed while the aspect ratio differs from it, and remembers the choice. */
+    /** Marks the chosen frame as changed while aspect ratio or resolution differ from it, and remembers the choice. */
     private void updateFrameState() {
         if (frameService == null)
             return;
         Frame frame = chosenFrame();
-        frameChanged = frame != null && !frame.getAspectRatio().equals(aspectRatioComboBox.getValue());
+        frameChanged = frame != null && (!frame.getAspectRatio().equals(aspectRatioComboBox.getValue())
+                || frame.getResolution() != null && !frame.getResolution().equals(resolutionChoiceBox.getValue()));
         String id = frame != null ? frame.getId() : "";
         if (config != null && !id.equals(config.getSelectedFrame()))
             config.setSelectedFrame(id);
         ((FrameListCell) frameComboBox.getButtonCell()).refresh();
     }
 
-    /** Saves the aspect ratio over the chosen frame of the user, or as a new frame under a name the user enters. */
+    /** Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame under a name entered. */
     private void saveFrame(boolean asNew) {
         Frame chosen = chosenFrame();
         Frame frame;
@@ -2707,6 +2723,7 @@ public class MainWindowController implements I18nChangeListener {
             frame = new Frame(null, name);
         }
         frame.setAspectRatio(aspectRatioComboBox.getValue());
+        frame.setResolution(resolutionChoiceBox.getValue());
 
         if (!(frame.getId() == null ? frameService.add(frame) : frameService.update(frame))) {
             showErrorMessage(I18nManager.getText("error.frame.save"));
@@ -2937,6 +2954,12 @@ public class MainWindowController implements I18nChangeListener {
                     modelComboBox.setValue(currentSelectedModel.getLocalizedDisplayName());
                 }
 
+                // Load the target resolution; before there was one, the one closest to the resolution of the model
+                String savedResolution = config.getDefaultResolution();
+                resolutionChoiceBox.setValue(savedResolution != null ? savedResolution
+                        : art.moodframe.model.ModelFamilies.nearest(art.moodframe.model.ModelFamilies.resolutionOf(
+                                modelComboBox.getValue()), art.moodframe.model.ModelFamilies.RESOLUTIONS));
+
                 // Load aspect ratio selection
                 String savedAspectRatio = config.getDefaultAspectRatio();
                 aspectRatioComboBox.setValue(savedAspectRatio);
@@ -3139,6 +3162,13 @@ public class MainWindowController implements I18nChangeListener {
                         config.setDefaultAspectRatio(newVal);
                     }
                     updateCostDisplay();
+                });
+
+                // Save target resolution changes
+                resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+                    if (newVal != null) {
+                        config.setDefaultResolution(newVal);
+                    }
                 });
 
                 // Save safety tolerance value changes
@@ -4973,9 +5003,12 @@ public class MainWindowController implements I18nChangeListener {
             request.setAspectRatio("1:1"); // Default square aspect ratio
         }
 
-        if (generationModel == art.moodframe.model.GenerationModel.OPENAI_IMAGE && resolutionContainer != null
-                && resolutionContainer.isVisible()) {
-            request.setImageSize(resolutionChoiceBox.getValue());
+        // A model of an OpenAI-compatible gateway takes the free size closest to the target resolution
+        java.util.List<String> freeResolutions =
+                art.moodframe.model.ModelFamilies.freeResolutions(chatEntry.getModel());
+        if (generationModel == art.moodframe.model.GenerationModel.OPENAI_IMAGE && freeResolutions != null) {
+            request.setImageSize(art.moodframe.model.ModelFamilies.nearest(resolutionChoiceBox.getValue(),
+                    freeResolutions));
         }
 
         // Set imageSize parameter for Gemini models based on model enum constant
@@ -6569,6 +6602,7 @@ public class MainWindowController implements I18nChangeListener {
         if (resolutionLabel != null) {
             resolutionLabel.setText(I18nManager.getText("params.resolution"));
         }
+        updateResolutionHint();
 
         if (seedLabel != null) {
             seedLabel.setText(I18nManager.getText("params.seed"));
@@ -7000,8 +7034,9 @@ public class MainWindowController implements I18nChangeListener {
         // - aspectRatioComboBox (always visible - the target, of which each model takes its closest ratio)
         // - stylePresetsComboBox (always visible - style appended to prompt for both providers)
 
-        // Show what the model makes of the target aspect ratio
+        // Show what the model makes of the target aspect ratio and resolution
         updateAspectRatioHint();
+        updateResolutionHint();
 
         // Gemini Advanced Features (Phase 2) - only visible for Gemini models
         if (geminiAdvancedFeaturesContainer != null && geminiAdvancedFeaturesSection != null) {
@@ -7104,8 +7139,8 @@ public class MainWindowController implements I18nChangeListener {
                      isFlux2, isFlux2Max, isFlux2Flex);
     }
 
-    /*  the hint below the aspect ratio while the chosen model cannot do the target  */
-    private static final javafx.css.PseudoClass RATIO_CHANGED = javafx.css.PseudoClass.getPseudoClass("changed");
+    /*  the hint below aspect ratio or resolution while the chosen model cannot do the target  */
+    private static final javafx.css.PseudoClass TARGET_CHANGED = javafx.css.PseudoClass.getPseudoClass("changed");
 
     /**
      * Shows below the aspect ratio what the chosen model makes of the target, for example "FLUX.2 [pro] → 5:4",
@@ -7117,7 +7152,7 @@ public class MainWindowController implements I18nChangeListener {
         if (aspectRatioHintLabel == null || item == null || ratio == null)
             return;
         aspectRatioHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → " + ratio);
-        aspectRatioHintLabel.pseudoClassStateChanged(RATIO_CHANGED, !ratio.equals(aspectRatioComboBox.getValue()));
+        aspectRatioHintLabel.pseudoClassStateChanged(TARGET_CHANGED, !ratio.equals(aspectRatioComboBox.getValue()));
     }
 
     /**
@@ -7129,6 +7164,34 @@ public class MainWindowController implements I18nChangeListener {
     private String modelAspectRatio() {
         String target = aspectRatioComboBox.getValue();
         return target != null ? art.moodframe.model.AspectRatios.nearestForItem(target, modelComboBox.getValue()) : null;
+    }
+
+    /**
+     * Shows below the resolution what the chosen model makes of the target, for example "Nano Banana 2 Lite → 1K",
+     * highlighted when it differs from the target; a model without resolution choice keeps its fixed size.
+     */
+    private void updateResolutionHint() {
+        String item = modelComboBox != null ? modelComboBox.getValue() : null;
+        if (resolutionHintLabel == null || item == null)
+            return;
+        String resolution = modelResolution();
+        resolutionHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → "
+                + (resolution != null ? resolution : I18nManager.getText("params.resolution.fixed")));
+        resolutionHintLabel.pseudoClassStateChanged(TARGET_CHANGED, resolution != null
+                && !resolution.equals(resolutionChoiceBox.getValue()));
+    }
+
+    /**
+     * The resolution the chosen model generates: of free sizes the one closest to the target, else the one of its
+     * variant, which the family took closest to the target unless it was set elsewhere (for example by brainstorm).
+     *
+     * @return the resolution, null for a model with a fixed size
+     */
+    private String modelResolution() {
+        String item = modelComboBox.getValue();
+        java.util.List<String> free = art.moodframe.model.ModelFamilies.freeResolutions(item);
+        return free != null ? art.moodframe.model.ModelFamilies.nearest(resolutionChoiceBox.getValue(), free)
+                : item != null ? art.moodframe.model.ModelFamilies.resolutionOf(item) : null;
     }
 
     /**

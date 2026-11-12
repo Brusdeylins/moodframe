@@ -4,12 +4,14 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ModelFamilies;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,15 +47,18 @@ class FrameServiceTest {
     }
 
     @Test
-    void offersSevenLockedStandardFramesWithATargetAspectRatio() {
+    void offersSevenLockedStandardFramesWithATargetAspectRatioAndResolution() {
         assertEquals(List.of("Social Post", "Story / Reel", "Präsentation", "Web-Banner", "Poster / Druck",
                 "Text im Bild", "Schnelle Skizzen"), frames.getDefaults().stream().map(Frame::getName).toList());
         assertEquals(List.of("4:5", "9:16", "16:9", "21:9", "2:3", "16:9", "1:1"),
                 frames.getDefaults().stream().map(Frame::getAspectRatio).toList());
+        assertEquals(List.of("2K", "2K", "2K", "2K", "4K", "2K", "1K"),
+                frames.getDefaults().stream().map(Frame::getResolution).toList());
         for (Frame frame : frames.getDefaults()) {
             assertTrue(frame.isDefault(), frame.getName());
             assertTrue(frame.getId().startsWith("std:frame:"), frame.getName());
             assertTrue(List.of(AspectRatios.ALL).contains(frame.getAspectRatio()), frame.getName());
+            assertTrue(ModelFamilies.RESOLUTIONS.contains(frame.getResolution()), frame.getName());
             assertFalse(frames.moveToTrash(frame.getId()), frame.getName() + " went to the trash");
             assertFalse(frames.update(frame), frame.getName() + " was changed");
         }
@@ -84,6 +89,24 @@ class FrameServiceTest {
     }
 
     @Test
+    void aFrameAppliedToDifferentModelsTakesTheClosestResolutionOfEach() {
+        List<String> items = Arrays.stream(GenerationModel.values())
+                .filter((GenerationModel model) -> model != GenerationModel.OPENAI_IMAGE).map(FrameServiceTest::item)
+                .toList();
+
+        String poster = standard("Poster / Druck").getResolution();
+        assertEquals("1K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.NANO_BANANA2_LITE)));
+        assertEquals("4K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.GEMINI_PRO_2K)));
+        assertEquals("4K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.FLUX3_IMAGE_1K)));
+        assertNull(ModelFamilies.nearestForItem(poster, items, item(GenerationModel.FLUX2_PRO)));
+
+        String sketches = standard("Schnelle Skizzen").getResolution();
+        assertEquals("2K", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.GEMINI_PRO_4K)));
+        assertEquals("1K", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.NANO_BANANA2_2K)));
+        assertEquals("720p", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.OMNI_4K)));
+    }
+
+    @Test
     void storesAFrameOnlyWithNameAndAspectRatio() {
         Frame frame = new Frame(null, "No Ratio");
         assertFalse(frames.add(frame), "the aspect ratio is missing");
@@ -92,8 +115,10 @@ class FrameServiceTest {
         assertEquals("5:4", FrameService.describe(frames.find(frame.getId())));
 
         frame.setAspectRatio("4:3");
+        frame.setResolution("2K");
         assertTrue(frames.update(frame));
         assertEquals("4:3", frames.find(frame.getId()).getAspectRatio());
+        assertEquals("4:3 · 2K", FrameService.describe(frames.find(frame.getId())));
         frame.setAspectRatio(null);
         assertFalse(frames.update(frame), "the aspect ratio is missing");
     }
@@ -121,6 +146,7 @@ class FrameServiceTest {
     void exportsAndImportsTheFramesOfTheUserAsJson() {
         Frame frame = new Frame(null, "Export Me");
         frame.setAspectRatio("3:2");
+        frame.setResolution("4K");
         assertTrue(frames.add(frame));
 
         File file = tempDir.resolve("frames.json").toFile();
@@ -130,12 +156,14 @@ class FrameServiceTest {
         Frame copy = frames.getCustom().stream().filter((Frame custom) -> custom.getName().equals("Export Me (1)"))
                 .findFirst().orElseThrow();
         assertEquals("3:2", copy.getAspectRatio());
-        assertEquals(List.of("id", "name", "aspectRatio"), List.copyOf(frames.exportCustom().get(0).keySet()));
+        assertEquals("4K", copy.getResolution());
+        assertEquals(List.of("id", "name", "aspectRatio", "resolution"),
+                List.copyOf(frames.exportCustom().get(0).keySet()));
         assertEquals(-1, frames.importFrames(tempDir.resolve("missing.json").toFile()));
     }
 
     @Test
-    void importsAnOlderExportWithModelAndKeepsItsAspectRatio() {
+    void importsAnOlderExportWithModelAndKeepsItsAspectRatioAndResolution() {
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("id", "older-export");
         entry.put("name", "Older Export");
@@ -146,10 +174,17 @@ class FrameServiceTest {
         entry.put("guidance", 3.5);
         entry.put("steps", 28);
 
-        assertEquals(1, frames.importCustom(List.of(entry)));
+        Map<String, Object> video = new LinkedHashMap<>(entry);
+        video.put("id", "older-video");
+        video.put("name", "Older Video");
+        video.put("resolution", "1080p");
+
+        assertEquals(2, frames.importCustom(List.of(entry, video)));
         Frame imported = frames.find("older-export");
         assertEquals("Older Export", imported.getName());
         assertEquals("16:9", imported.getAspectRatio());
+        assertEquals("2K", imported.getResolution());
+        assertNull(frames.find("older-video").getResolution(), "a video resolution is no target");
     }
 
     private static Frame copy(Frame frame, String name) {

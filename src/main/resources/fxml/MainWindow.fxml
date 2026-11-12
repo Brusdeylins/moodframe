@@ -359,7 +359,7 @@
                             </content>
                         </TitledPane>
 
-                        <!-- Frame: the target aspect ratio, of which the chosen model takes its closest one -->
+                        <!-- Frame: the target aspect ratio and resolution, of which the chosen model takes its closest ones -->
                         <TitledPane fx:id="frameGroupPane" contentDisplay="GRAPHIC_ONLY"
                                     styleClass="panel-group, panel-group-frame">
                             <graphic>
@@ -368,7 +368,7 @@
                                     <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-4" />
                                     <Region HBox.hgrow="ALWAYS" />
 
-                                    <!-- Saves the aspect ratio over the chosen frame of the user, or as a new frame -->
+                                    <!-- Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame -->
                                     <Button fx:id="saveFrameButton" styleClass="button-icon, flat" onAction="#onSaveFrameClicked">
                                         <graphic>
                                             <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
@@ -389,11 +389,18 @@
                                         <Label fx:id="aspectRatioHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true" />
                                     </VBox>
 
+                                    <!-- Resolution: the sizes of all models; below, what the chosen model makes of it -->
+                                    <VBox spacing="5.0">
+                                        <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
+                                        <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" />
+                                        <Label fx:id="resolutionHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true" />
+                                    </VBox>
+
                                 </VBox>
                             </content>
                         </TitledPane>
 
-                        <!-- Generation: model, resolution, count, the fields of the model and the attachment -->
+                        <!-- Generation: model, count, the fields of the model and the attachment -->
                         <TitledPane fx:id="generationGroupPane" contentDisplay="GRAPHIC_ONLY"
                                     styleClass="panel-group, panel-group-gen">
                             <graphic>
@@ -411,12 +418,6 @@
                                         <ChoiceBox fx:id="modelFamilyChoiceBox" maxWidth="Infinity" />
                                         <!-- Holds the selected variant (family and resolution), the model logic works on it -->
                                         <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
-                                    </VBox>
-
-                                    <!-- Resolution of the selected model -->
-                                    <VBox fx:id="resolutionContainer" spacing="5.0" visible="false" managed="false">
-                                        <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
-                                        <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" />
                                     </VBox>
 
                                     <!-- Image Count (General Parameter - works for both BFL and Gemini) -->

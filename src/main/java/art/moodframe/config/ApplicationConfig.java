@@ -422,6 +422,11 @@ public class ApplicationConfig {
     public String getDefaultAspectRatio() {
         return properties.getProperty("model.default_aspect_ratio", "16:9");
     }
+
+    /** The target resolution of the main window, for example {@code 2K}; null before one was chosen. */
+    public String getDefaultResolution() {
+        return properties.getProperty("model.default_resolution");
+    }
     
     public int getDefaultImageCount() {
         return Integer.parseInt(properties.getProperty("model.default_image_count", "2"));
@@ -807,6 +812,11 @@ public class ApplicationConfig {
     
     public void setDefaultAspectRatio(String aspectRatio) {
         properties.setProperty("model.default_aspect_ratio", aspectRatio);
+        saveConfiguration();
+    }
+
+    public void setDefaultResolution(String resolution) {
+        properties.setProperty("model.default_resolution", resolution);
         saveConfiguration();
     }
     

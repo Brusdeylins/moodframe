@@ -35,8 +35,8 @@ public class FrameRepository {
      */
     public boolean save(Frame frame) {
         String sql = """
-            INSERT INTO frames (name, aspect_ratio, sort_order, id)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO frames (name, aspect_ratio, resolution, sort_order, id)
+            VALUES (?, ?, ?, ?, ?)
             """;
         if (frame.getId() == null || frame.getId().isEmpty())
             frame.setId(UUID.randomUUID().toString());
@@ -52,7 +52,7 @@ public class FrameRepository {
     }
 
     /**
-     * Updates name, aspect ratio and sort order of a stored frame.
+     * Updates name, aspect ratio, resolution and sort order of a stored frame.
      *
      * @param frame the frame with its id
      * @return true if it was updated
@@ -60,7 +60,7 @@ public class FrameRepository {
     public boolean update(Frame frame) {
         String sql = """
             UPDATE frames
-            SET name = ?, aspect_ratio = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, aspect_ratio = ?, resolution = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """;
 
@@ -167,8 +167,9 @@ public class FrameRepository {
     private static void bind(PreparedStatement stmt, Frame frame) throws SQLException {
         stmt.setString(1, frame.getName());
         stmt.setString(2, frame.getAspectRatio());
-        stmt.setInt(3, frame.getSortOrder());
-        stmt.setString(4, frame.getId());
+        stmt.setString(3, frame.getResolution());
+        stmt.setInt(4, frame.getSortOrder());
+        stmt.setString(5, frame.getId());
     }
 
     private int execute(String sql, String value) {
@@ -202,6 +203,7 @@ public class FrameRepository {
     private static Frame map(ResultSet rs) throws SQLException {
         Frame frame = new Frame(rs.getString("id"), rs.getString("name"));
         frame.setAspectRatio(rs.getString("aspect_ratio"));
+        frame.setResolution(rs.getString("resolution"));
         frame.setSortOrder(rs.getInt("sort_order"));
         Timestamp deletedAt = rs.getTimestamp("deleted_at");
         frame.setDeletedAt(deletedAt != null ? deletedAt.toLocalDateTime() : null);

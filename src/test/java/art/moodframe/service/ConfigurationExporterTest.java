@@ -69,6 +69,7 @@ class ConfigurationExporterTest {
         FrameService frames = new FrameService();
         Frame frame = new Frame(null, "Druck A3");
         frame.setAspectRatio("2:3");
+        frame.setResolution("4K");
         assertTrue(frames.add(frame));
 
         ConfigurationExporter exporter = new ConfigurationExporter();
@@ -85,6 +86,7 @@ class ConfigurationExporterTest {
         assertNotNull(restored);
         assertEquals("Druck A3", restored.getName());
         assertEquals("2:3", restored.getAspectRatio());
+        assertEquals("4K", restored.getResolution());
     }
 
     @Test
@@ -108,6 +110,7 @@ class ConfigurationExporterTest {
         assertNotNull(imported);
         assertEquals("Older Backup", imported.getName());
         assertEquals("21:9", imported.getAspectRatio());
+        assertEquals("4K", imported.getResolution(), "the resolution of an older backup becomes the target");
     }
 
     @Test

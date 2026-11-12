@@ -24,12 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Runs against a fresh SQLite database, so migration V022 is applied together with all earlier ones. */
+/** Runs against a fresh SQLite database, so migration V023 is applied together with all earlier ones. */
 class FrameRepositoryTest {
 
-    /*  The columns of the frames table once V022 dropped model, resolution, image count, guidance and steps  */
+    /*  The columns of the frames table once V022 dropped model, resolution, image count, guidance and steps, and
+        V023 added the resolution again as target  */
     private static final List<String> COLUMNS = List.of("id", "name", "aspect_ratio", "sort_order", "deleted_at",
-            "created_at", "updated_at");
+            "created_at", "updated_at", "resolution");
 
     @TempDir
     static Path tempDir;
@@ -44,23 +45,31 @@ class FrameRepositoryTest {
     @Test
     void storesUpdatesAndDeletesFramesOfTheUser() {
         Frame frame = frame("Instagram Story", "9:16", 1000);
+        frame.setResolution("2K");
         assertTrue(repository.save(frame));
         assertNotNull(frame.getId());
 
         Frame stored = repository.findByName("Instagram Story");
         assertEquals("9:16", stored.getAspectRatio());
+        assertEquals("2K", stored.getResolution());
         assertEquals(1000, stored.getSortOrder());
         assertFalse(stored.isDefault());
 
         frame.setName("Druck A3");
         frame.setAspectRatio("2:3");
+        frame.setResolution("4K");
         frame.setSortOrder(1005);
         assertTrue(repository.update(frame));
 
         stored = repository.findById(frame.getId());
         assertEquals("Druck A3", stored.getName());
         assertEquals("2:3", stored.getAspectRatio());
+        assertEquals("4K", stored.getResolution());
         assertEquals(1005, stored.getSortOrder());
+
+        frame.setResolution(null);
+        assertTrue(repository.update(frame));
+        assertNull(repository.findById(frame.getId()).getResolution(), "a frame without resolution keeps it as is");
         assertNull(repository.findByName("Instagram Story"));
 
         assertTrue(repository.delete(frame.getId()));
@@ -100,14 +109,14 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void aFreshDatabaseHasNoModelColumns() throws Exception {
+    void aFreshDatabaseHasNoModelColumnsButATargetResolution() throws Exception {
         try (Connection conn = DatabaseConfig.getConnection()) {
             assertEquals(COLUMNS, columns(conn));
         }
     }
 
     @Test
-    void migrationV022DropsTheModelColumnsAndKeepsTheFrames() throws Exception {
+    void migrationsV022AndV023DropTheModelColumnsAndKeepTheFramesWithoutResolution() throws Exception {
         Path file = tempDir.resolve("v021").resolve("v021.db");
         Files.createDirectories(file.getParent());
         String url = "jdbc:sqlite:" + file;
@@ -134,11 +143,13 @@ class FrameRepositoryTest {
 
         try (Connection conn = DriverManager.getConnection(url);
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT name, aspect_ratio, sort_order FROM frames WHERE id = 'old'")) {
+             ResultSet rs = stmt.executeQuery("SELECT name, aspect_ratio, resolution, sort_order FROM frames "
+                     + "WHERE id = 'old'")) {
             assertEquals(COLUMNS, columns(conn));
             assertTrue(rs.next());
             assertEquals("Old Frame", rs.getString("name"));
             assertEquals("3:2", rs.getString("aspect_ratio"));
+            assertNull(rs.getString("resolution"), "the resolution of the model is not taken as target");
             assertEquals(1000, rs.getInt("sort_order"));
         }
     }

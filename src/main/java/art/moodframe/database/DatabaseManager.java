@@ -403,6 +403,8 @@ public class DatabaseManager {
                     "V021__Add_frames.sql"));
             migrations.add(new Migration("022", "Drop_frame_models",
                     "V022__Drop_frame_models.sql"));
+            migrations.add(new Migration("023", "Add_frame_resolution",
+                    "V023__Add_frame_resolution.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 
