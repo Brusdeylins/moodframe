@@ -1,9 +1,6 @@
 package art.moodframe.service;
 
-import art.moodframe.model.AspectRatios;
 import art.moodframe.model.Frame;
-import art.moodframe.model.GenerationModel;
-import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FrameRepository;
 import org.json.JSONArray;
@@ -21,38 +18,14 @@ import java.util.Map;
 /**
  * Service for the frames: the standard frames from code with fixed ids, the frames of the user from SQLite.
  *
- * <p>A frame is never resolved on its own: a model that is not available (shut down, provider without API key,
- * OpenAI model no longer listed) keeps the frame as it is and shows it with a warning. Availability is judged by
- * the items of the model dropdown of the main window, which list exactly the models that can be chosen.</p>
+ * <p>A frame keeps a target aspect ratio only; the model of the main window makes the closest ratio it can do of it
+ * ({@link art.moodframe.model.AspectRatios#nearestForItem}).</p>
  *
  * @since 2.0.0
  */
 public class FrameService {
 
     private static final Logger logger = LoggerFactory.getLogger(FrameService.class);
-
-    /*  The models of the standard frames, as API ids  */
-    private static final String NANO_BANANA_2 = GenerationModel.NANO_BANANA2_1K.getApiModelId();
-    private static final String NANO_BANANA_2_LITE = GenerationModel.NANO_BANANA2_LITE.getApiModelId();
-    private static final String NANO_BANANA_PRO = GenerationModel.GEMINI_PRO_2K.getApiModelId();
-    private static final String FLUX_3_IMAGE = GenerationModel.FLUX3_IMAGE_1K.getApiModelId();
-    private static final String FLUX_3_KLEIN = GenerationModel.FLUX3_KLEIN_1K.getApiModelId();
-    private static final String FLUX_2_FLEX = GenerationModel.FLUX2_FLEX.getApiModelId();
-
-    /**
-     * The fields a frame sets when it is chosen.
-     *
-     * @param item        the model dropdown item, the current one if the model of the frame is not available
-     * @param resolution  the resolution of a model with free resolution choice, else null to keep it
-     * @param aspectRatio the aspect ratio, valid for the model
-     * @param imageCount  the image count, 1 for a video model
-     * @param guidance    the guidance of FLUX.2 [flex], null to keep it
-     * @param steps       the steps of FLUX.2 [flex], null to keep them
-     * @param available   false if no model of the frame is available, so the model stays as it is
-     */
-    public record Fields(String item, String resolution, String aspectRatio, int imageCount, Double guidance,
-            Integer steps, boolean available) {
-    }
 
     private final FrameRepository repository;
     private final List<Frame> defaultFrames;
@@ -68,32 +41,23 @@ public class FrameService {
     private static List<Frame> defaultFrames() {
         List<Frame> frames = new ArrayList<>();
 
-        /*  Id, name, aspect ratio, resolution, image count and the models in the order of preference  */
-        frames.add(frame("social-post", "Social Post", "4:5", "2K", 4, NANO_BANANA_2, FLUX_3_IMAGE,
-                Frame.OPENAI_MODEL));
-        frames.add(frame("story-reel", "Story / Reel", "9:16", "2K", 4, NANO_BANANA_2, FLUX_3_IMAGE,
-                Frame.OPENAI_MODEL));
-        frames.add(frame("presentation", "Präsentation", "16:9", "2K", 2, FLUX_3_IMAGE, NANO_BANANA_2,
-                Frame.OPENAI_MODEL));
-        frames.add(frame("web-banner", "Web-Banner", "21:9", "2K", 1, FLUX_3_IMAGE, NANO_BANANA_2));
-        frames.add(frame("poster-print", "Poster / Druck", "2:3", "4K", 1, FLUX_3_IMAGE, NANO_BANANA_PRO));
-        frames.add(frame("text-in-image", "Text im Bild", "16:9", "2K", 2, NANO_BANANA_PRO, FLUX_2_FLEX,
-                Frame.OPENAI_MODEL));
-        frames.add(frame("quick-sketches", "Schnelle Skizzen", "1:1", "1K", 4, FLUX_3_KLEIN, NANO_BANANA_2_LITE,
-                Frame.OPENAI_MODEL));
+        /*  Id, name and target aspect ratio  */
+        frames.add(frame("social-post", "Social Post", "4:5"));
+        frames.add(frame("story-reel", "Story / Reel", "9:16"));
+        frames.add(frame("presentation", "Präsentation", "16:9"));
+        frames.add(frame("web-banner", "Web-Banner", "21:9"));
+        frames.add(frame("poster-print", "Poster / Druck", "2:3"));
+        frames.add(frame("text-in-image", "Text im Bild", "16:9"));
+        frames.add(frame("quick-sketches", "Schnelle Skizzen", "1:1"));
 
         for (int i = 0; i < frames.size(); i++)
             frames.get(i).setSortOrder(i);
         return frames;
     }
 
-    private static Frame frame(String slug, String name, String aspectRatio, String resolution, int imageCount,
-            String... models) {
+    private static Frame frame(String slug, String name, String aspectRatio) {
         Frame frame = new Frame(PromptBlock.STANDARD_PREFIX + "frame:" + slug, name);
-        frame.setModels(List.of(models));
-        frame.setResolution(resolution);
         frame.setAspectRatio(aspectRatio);
-        frame.setImageCount(imageCount);
         return frame;
     }
 
@@ -181,14 +145,13 @@ public class FrameService {
     /**
      * Stores a new frame of the user behind the existing ones.
      *
-     * @param frame the frame with a model, without id or with an id no frame has
-     * @return true if it was stored, false if the name is taken or the model or aspect ratio is missing
+     * @param frame the frame with an aspect ratio, without id or with an id no frame has
+     * @return true if it was stored, false if the name is taken or the aspect ratio is missing
      */
     public boolean add(Frame frame) {
         if (frame.getName() == null || frame.getName().isBlank() || exists(frame.getName())
-                || frame.getModel() == null || frame.getAspectRatio() == null) {
-            logger.warn("Cannot add frame '{}' - name is empty or taken, or model or aspect ratio is missing",
-                    frame.getName());
+                || frame.getAspectRatio() == null) {
+            logger.warn("Cannot add frame '{}' - name is empty or taken, or aspect ratio is missing", frame.getName());
             return false;
         }
 
@@ -199,16 +162,15 @@ public class FrameService {
     }
 
     /**
-     * Updates a frame of the user: its name and its settings. Standard frames cannot be changed.
+     * Updates a frame of the user: its name and its aspect ratio. Standard frames cannot be changed.
      *
      * @param frame the changed frame with its id
-     * @return true if it was updated, false for a standard frame, an unknown id, a taken name or a missing model
+     * @return true if it was updated, false for a standard frame, an unknown id, a taken name or a missing aspect ratio
      */
     public boolean update(Frame frame) {
         Frame existing = frame.isDefault() ? null : repository.findById(frame.getId());
-        if (existing == null || frame.getModel() == null || frame.getAspectRatio() == null) {
-            logger.warn("Cannot update frame '{}' - no frame of the user, or model or aspect ratio is missing",
-                    frame.getName());
+        if (existing == null || frame.getAspectRatio() == null) {
+            logger.warn("Cannot update frame '{}' - no frame of the user, or aspect ratio is missing", frame.getName());
             return false;
         }
         if (frame.getName() == null || frame.getName().isBlank()
@@ -274,125 +236,19 @@ public class FrameService {
     }
 
     /**
-     * The model id of an item of the model dropdown, as a frame keeps it.
-     *
-     * @param item the dropdown item (may be null)
-     * @return the API id of the model, {@value Frame#OPENAI_MODEL} plus the id for an OpenAI model, null if unknown
-     */
-    public static String modelId(String item) {
-        String openAiId = GenerationModel.openAiModelId(item);
-        if (openAiId != null)
-            return Frame.OPENAI_MODEL + openAiId;
-        GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
-        return model != null ? model.getApiModelId() : null;
-    }
-
-    /**
-     * Finds the dropdown item a frame chooses: the first of its models that is available, in the resolution of the
-     * frame if the model has it, else in 1K or its first one.
+     * Names the setting of a frame, for example {@code "4:5"}.
      *
      * @param frame the frame
-     * @param items the items of the model dropdown, the models that can be chosen now
-     * @return the item, null if no model of the frame is available
-     */
-    public String resolve(Frame frame, List<String> items) {
-        for (String model : frame.getModels()) {
-            String item = item(model, frame.getResolution(), items);
-            if (item != null)
-                return item;
-        }
-        return null;
-    }
-
-    /** The item of one model of a frame, null if it is not listed. */
-    private static String item(String model, String resolution, List<String> items) {
-        if (model.startsWith(Frame.OPENAI_MODEL)) {
-            String openAiId = model.substring(Frame.OPENAI_MODEL.length());
-            return items.stream().filter((String item) -> openAiId.isEmpty()
-                    ? GenerationModel.openAiModelId(item) != null : item.equals(GenerationModel.OPENAI_PREFIX + openAiId))
-                    .findFirst().orElse(null);
-        }
-
-        /*  All variants of a family share the API id, the resolution picks one of them  */
-        GenerationModel generationModel = GenerationModel.fromApiModelId(model);
-        return generationModel != null
-                ? ModelFamilies.variantFor(items, generationModel.getFamilyName(), resolution, null) : null;
-    }
-
-    /**
-     * The fields a chosen frame sets. A frame whose models are all unavailable leaves the model as it is and sets
-     * the other fields; the aspect ratio then is the closest one the current model can do.
-     *
-     * @param frame the chosen frame
-     * @param items the items of the model dropdown, the models that can be chosen now
-     * @param current the item of the model dropdown now (may be null)
-     * @return the fields to set
-     */
-    public Fields apply(Frame frame, List<String> items, String current) {
-        String resolved = resolve(frame, items);
-        String item = resolved != null ? resolved : current;
-        List<String> free = resolved != null ? ModelFamilies.freeResolutions(resolved) : null;
-        GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
-        return new Fields(item, free != null && free.contains(frame.getResolution()) ? frame.getResolution() : null,
-                AspectRatios.nearest(frame.getAspectRatio(), AspectRatios.forItem(item)),
-                model != null && model.isVideoModel() ? 1 : frame.getImageCount(), frame.getGuidance(),
-                frame.getSteps(), resolved != null);
-    }
-
-    /**
-     * Takes the fields of the main window into a frame to save. Guidance and steps are kept only for FLUX.2 [flex],
-     * the only model that shows them.
-     *
-     * @param frame the frame to fill
-     * @param item the item of the model dropdown
-     * @param resolution the chosen resolution, null for a model without resolution choice
-     * @param aspectRatio the aspect ratio
-     * @param imageCount the image count
-     * @param guidance the guidance of FLUX.2 [flex]
-     * @param steps the steps of FLUX.2 [flex]
-     */
-    public static void capture(Frame frame, String item, String resolution, String aspectRatio, int imageCount,
-            double guidance, int steps) {
-        GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
-        boolean flex = model != null && model.isFlux2Flex();
-        frame.setModel(modelId(item));
-        frame.setResolution(ModelFamilies.freeResolutions(item) != null ? resolution : ModelFamilies.resolutionOf(item));
-        frame.setAspectRatio(aspectRatio);
-        frame.setImageCount(imageCount);
-        frame.setGuidance(flex ? guidance : null);
-        frame.setSteps(flex ? steps : null);
-    }
-
-    /**
-     * Names the settings of a frame, for example {@code "Nano Banana 2 → FLUX 3 Image · 2K · 4:5 · 4×"}.
-     *
-     * @param frame the frame
-     * @return the models, resolution, aspect ratio and image count joined by a middle dot
+     * @return its target aspect ratio
      */
     public static String describe(Frame frame) {
-        List<String> parts = new ArrayList<>();
-        parts.add(String.join(" → ", frame.getModels().stream().map(FrameService::modelName).toList()));
-        if (frame.getResolution() != null)
-            parts.add(frame.getResolution());
-        parts.add(frame.getAspectRatio());
-        parts.add(frame.getImageCount() + "×");
-        return String.join(" · ", parts);
-    }
-
-    /** The family name of a model id, "OpenAI" for any OpenAI model, the id itself if the model is unknown. */
-    private static String modelName(String model) {
-        if (model.startsWith(Frame.OPENAI_MODEL)) {
-            String openAiId = model.substring(Frame.OPENAI_MODEL.length());
-            return openAiId.isEmpty() ? "OpenAI" : GenerationModel.OPENAI_PREFIX + openAiId;
-        }
-        GenerationModel generationModel = GenerationModel.fromApiModelId(model);
-        return generationModel != null ? generationModel.getFamilyName() : model;
+        return frame.getAspectRatio();
     }
 
     /**
      * Returns the frames of the user as plain data, e.g. for the full backup ({@link ConfigurationExporter}).
      *
-     * @return per frame its id, name, model, resolution, aspect ratio, image count, guidance and steps
+     * @return per frame its id, name and aspect ratio
      */
     public List<Map<String, Object>> exportCustom() {
         List<Map<String, Object>> entries = new ArrayList<>();
@@ -400,15 +256,7 @@ public class FrameService {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("id", frame.getId());
             entry.put("name", frame.getName());
-            entry.put("model", frame.getModel());
-            if (frame.getResolution() != null)
-                entry.put("resolution", frame.getResolution());
             entry.put("aspectRatio", frame.getAspectRatio());
-            entry.put("imageCount", frame.getImageCount());
-            if (frame.getGuidance() != null)
-                entry.put("guidance", frame.getGuidance());
-            if (frame.getSteps() != null)
-                entry.put("steps", frame.getSteps());
             entries.add(entry);
         }
         return entries;
@@ -416,7 +264,8 @@ public class FrameService {
 
     /**
      * Adds frames from plain data (see {@link #exportCustom()}) behind the frames of the user. A frame keeps its id
-     * unless a frame has it already, and its name unless a frame in use has it already; then it gets a new one.
+     * unless a frame has it already, and its name unless a frame in use has it already; then it gets a new one. The
+     * model, resolution, image count, guidance and steps of an older export are passed over.
      *
      * @param entries the frames as maps
      * @return the number of imported frames
@@ -430,12 +279,7 @@ public class FrameService {
             String id = entry.get("id") instanceof String text ? text : "";
             Frame frame = new Frame(id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX) || repository.exists(id)
                     ? null : id, freeName(name));
-            frame.setModel(entry.get("model") instanceof String model ? model : null);
-            frame.setResolution(entry.get("resolution") instanceof String resolution ? resolution : null);
             frame.setAspectRatio(entry.get("aspectRatio") instanceof String ratio ? ratio : null);
-            frame.setImageCount(entry.get("imageCount") instanceof Number count ? count.intValue() : 1);
-            frame.setGuidance(entry.get("guidance") instanceof Number guidance ? guidance.doubleValue() : null);
-            frame.setSteps(entry.get("steps") instanceof Number steps ? steps.intValue() : null);
             if (add(frame))
                 imported++;
         }

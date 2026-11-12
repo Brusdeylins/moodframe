@@ -671,23 +671,33 @@ public class ApplicationConfig {
     }
 
     /**
-     * Whether a field was changed after the remembered frame was chosen.
+     * Remembers the frame selection.
      *
-     * @return true if the frame shows as changed (default: unchanged)
+     * @param frameId the id of the frame, empty for "No frame"
      */
-    public boolean isSelectedFrameChanged() {
-        return Boolean.parseBoolean(properties.getProperty("frame.selected.changed", "false"));
+    public void setSelectedFrame(String frameId) {
+        properties.setProperty("frame.selected", frameId);
+        saveConfiguration();
     }
 
     /**
-     * Remembers the frame selection and whether a field was changed after it.
+     * Whether a group of the right panel is unfolded.
      *
-     * @param frameId the id of the frame, empty for "No frame"
-     * @param changed true if a field was changed after the frame was chosen
+     * @param group the group: {@code mood}, {@code frame} or {@code generation}
+     * @return true unless the user folded it (default: unfolded)
      */
-    public void setSelectedFrame(String frameId, boolean changed) {
-        properties.setProperty("frame.selected", frameId);
-        properties.setProperty("frame.selected.changed", String.valueOf(changed));
+    public boolean isPanelGroupExpanded(String group) {
+        return Boolean.parseBoolean(properties.getProperty("ui.panel." + group + ".expanded", "true"));
+    }
+
+    /**
+     * Remembers whether a group of the right panel is unfolded.
+     *
+     * @param group the group: {@code mood}, {@code frame} or {@code generation}
+     * @param expanded true if it is unfolded
+     */
+    public void setPanelGroupExpanded(String group, boolean expanded) {
+        properties.setProperty("ui.panel." + group + ".expanded", String.valueOf(expanded));
         saveConfiguration();
     }
 

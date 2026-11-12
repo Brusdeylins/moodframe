@@ -10,7 +10,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,13 +30,13 @@ public class FrameRepository {
     /**
      * Stores a new frame; a frame without id gets a random one.
      *
-     * @param frame the frame to store, with a model
+     * @param frame the frame to store, with an aspect ratio
      * @return true if it was stored
      */
     public boolean save(Frame frame) {
         String sql = """
-            INSERT INTO frames (name, model_id, resolution, aspect_ratio, image_count, guidance, steps, sort_order, id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO frames (name, aspect_ratio, sort_order, id)
+            VALUES (?, ?, ?, ?)
             """;
         if (frame.getId() == null || frame.getId().isEmpty())
             frame.setId(UUID.randomUUID().toString());
@@ -53,7 +52,7 @@ public class FrameRepository {
     }
 
     /**
-     * Updates name, settings and sort order of a stored frame.
+     * Updates name, aspect ratio and sort order of a stored frame.
      *
      * @param frame the frame with its id
      * @return true if it was updated
@@ -61,8 +60,7 @@ public class FrameRepository {
     public boolean update(Frame frame) {
         String sql = """
             UPDATE frames
-            SET name = ?, model_id = ?, resolution = ?, aspect_ratio = ?, image_count = ?, guidance = ?, steps = ?,
-                sort_order = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, aspect_ratio = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """;
 
@@ -168,20 +166,9 @@ public class FrameRepository {
     /** Binds the columns of a frame in the order of {@link #save} and {@link #update}, the id last. */
     private static void bind(PreparedStatement stmt, Frame frame) throws SQLException {
         stmt.setString(1, frame.getName());
-        stmt.setString(2, frame.getModel());
-        stmt.setString(3, frame.getResolution());
-        stmt.setString(4, frame.getAspectRatio());
-        stmt.setInt(5, frame.getImageCount());
-        if (frame.getGuidance() != null)
-            stmt.setDouble(6, frame.getGuidance());
-        else
-            stmt.setNull(6, Types.REAL);
-        if (frame.getSteps() != null)
-            stmt.setInt(7, frame.getSteps());
-        else
-            stmt.setNull(7, Types.INTEGER);
-        stmt.setInt(8, frame.getSortOrder());
-        stmt.setString(9, frame.getId());
+        stmt.setString(2, frame.getAspectRatio());
+        stmt.setInt(3, frame.getSortOrder());
+        stmt.setString(4, frame.getId());
     }
 
     private int execute(String sql, String value) {
@@ -214,14 +201,7 @@ public class FrameRepository {
 
     private static Frame map(ResultSet rs) throws SQLException {
         Frame frame = new Frame(rs.getString("id"), rs.getString("name"));
-        frame.setModel(rs.getString("model_id"));
-        frame.setResolution(rs.getString("resolution"));
         frame.setAspectRatio(rs.getString("aspect_ratio"));
-        frame.setImageCount(rs.getInt("image_count"));
-        double guidance = rs.getDouble("guidance");
-        frame.setGuidance(rs.wasNull() ? null : guidance);
-        int steps = rs.getInt("steps");
-        frame.setSteps(rs.wasNull() ? null : steps);
         frame.setSortOrder(rs.getInt("sort_order"));
         Timestamp deletedAt = rs.getTimestamp("deleted_at");
         frame.setDeletedAt(deletedAt != null ? deletedAt.toLocalDateTime() : null);

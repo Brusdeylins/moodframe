@@ -20,7 +20,8 @@ a rough idea into a finished prompt.
 - **Mood:** how an image feels, combined from building blocks: style, atmosphere, light, color palette and camera
   (a visual settings dialog for camera type, focal length, aperture, perspective and shot size); built in and your
   own, each field lockable, saved as named moods; "from image" derives a mood from any picture
-- **Frame:** how an image is rendered: model, resolution, aspect ratio and count, saved as named frames
+- **Frame:** the format of an image: a target aspect ratio, saved as named frames, of which every model takes its
+  closest one; model, resolution and count are chosen under Generation
 - **Brainstorm:** a guided chat with Gemini or an OpenAI-compatible model, with web research and fact checks, that
   builds the setting and hands over prompt, mood, model and resolution; several images per chat in rounds
 - **Reference images:** up to 10 per request (depending on the model), from file, drag and drop or clipboard,

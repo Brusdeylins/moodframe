@@ -110,9 +110,59 @@
 .mood-incomplete .ikonli-font-icon {
     -fx-icon-color: -color-warning-fg;
 }
-/*  The warning next to the frame selection: no model of the chosen frame is available  */
-.frame-unavailable .ikonli-font-icon {
-    -fx-icon-color: -color-warning-fg;
+/*  Below the aspect ratio, what the chosen model makes of the target: highlighted while it differs  */
+.aspect-ratio-hint {
+    -fx-text-fill: -color-fg-muted;
+}
+.aspect-ratio-hint:changed {
+    -fx-text-fill: -color-warning-fg;
+    -fx-font-weight: bold;
+    -fx-background-color: -color-warning-muted;
+    -fx-background-radius: 3px;
+    -fx-padding: 1px 4px 1px 4px;
+}
+
+/*  The groups of the right panel: foldable cards tinted in the color of their group, with a mark of that color
+    left in the header  */
+.panel-group-mood {
+    -panel-group-color: -color-chart-6;
+    -panel-group-tint: -color-chart-6-alpha20;
+}
+.panel-group-frame {
+    -panel-group-color: -color-chart-4;
+    -panel-group-tint: -color-chart-4-alpha20;
+}
+.panel-group-gen {
+    -panel-group-color: -color-chart-8;
+    -panel-group-tint: -color-chart-8-alpha20;
+}
+.panel-group {
+    -fx-background-color: -panel-group-tint;
+    -fx-background-radius: 6px;
+}
+.panel-group > .title,
+.panel-group:expanded > .title,
+.panel-group:collapsed > .title {
+    -fx-background-color: transparent;
+    -fx-padding: 4px 4px 4px 8px;
+}
+.panel-group > .title > .arrow-button {
+    -fx-padding: 0 4px 0 0;
+}
+.panel-group > .content {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4px 10px 12px 10px;
+}
+.panel-group-mark {
+    -fx-background-color: -panel-group-color;
+    -fx-background-radius: 2px;
+    -fx-min-width: 4px;
+    -fx-pref-width: 4px;
+    -fx-max-width: 4px;
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
 }
 
 /*  The fold of the final prompt below the input field: a muted line of text with a chevron  */

@@ -78,6 +78,33 @@ class AspectRatiosTest {
         }
     }
 
+    @Test
+    void allHoldsEveryRatioOfEveryModelOnceFromTheWidestToTheTallest() {
+        List<String> all = List.of(AspectRatios.ALL);
+        assertEquals(all.size(), all.stream().distinct().count(), "a ratio is listed twice");
+        for (String[] ratios : List.of(AspectRatios.BFL, AspectRatios.FLUX_3, AspectRatios.GEMINI,
+                AspectRatios.NANO_BANANA_2, AspectRatios.OPENAI, AspectRatios.OPENAI_COMPATIBLE, AspectRatios.VIDEO)) {
+            for (String ratio : ratios)
+                assertTrue(all.contains(ratio), ratio + " is missing");
+        }
+        assertEquals("8:1", all.get(0));
+        assertEquals("1:8", all.get(all.size() - 1));
+        for (int i = 1; i < all.size(); i++)
+            assertTrue(width(all.get(i - 1)) > width(all.get(i)), all.get(i - 1) + " before " + all.get(i));
+    }
+
+    @Test
+    void aTargetTakesTheClosestRatioOfTheModelOfADropdownItem() {
+        assertEquals("5:4", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX2_PRO.getLocalizedDisplayName()));
+        assertEquals("4:3", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX3_IMAGE_1K.getLocalizedDisplayName()));
+        assertEquals("1:1", AspectRatios.nearestForItem("1:1", GenerationModel.OPENAI_PREFIX + "gpt-image-1"));
+    }
+
+    private static double width(String ratio) {
+        String[] parts = ratio.split(":");
+        return Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]);
+    }
+
     private static boolean portrait(String ratio) {
         String[] parts = ratio.split(":");
         return Integer.parseInt(parts[0]) < Integer.parseInt(parts[1]);

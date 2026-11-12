@@ -3,6 +3,10 @@ package art.moodframe.model;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
 /**
  * The aspect ratios the providers accept, as the single source for the parameter panel and the
  * brainstorm assistant.
@@ -22,6 +26,10 @@ public final class AspectRatios {
     /** Models behind an OpenAI-compatible gateway, whose image sizes are free text. */
     public static final String[] OPENAI_COMPATIBLE = {"16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"};
     public static final String[] VIDEO = {"16:9", "9:16"};
+    /** Every ratio of every model once, from the widest to the tallest: the targets a frame can choose from. */
+    public static final String[] ALL = Stream.of(BFL, FLUX_3, GEMINI, NANO_BANANA_2, OPENAI, OPENAI_COMPATIBLE, VIDEO)
+            .flatMap(Arrays::stream).distinct().sorted(Comparator.comparingDouble(AspectRatios::value).reversed())
+            .toArray(String[]::new);
 
     private AspectRatios() {
     }
@@ -88,6 +96,18 @@ public final class AspectRatios {
             }
         }
         return nearest;
+    }
+
+    /**
+     * Picks the ratio a model makes of a target ratio, for example of a frame: the target itself if the model can do
+     * it, else its closest one (see {@link #nearest(String, String[])}).
+     *
+     * @param target the target ratio
+     * @param item the item of the model dropdown (may be null)
+     * @return the ratio for the model
+     */
+    public static String nearestForItem(String target, String item) {
+        return nearest(target, forItem(item));
     }
 
     /** Width by height of a ratio like {@code 16:9}, 1 for a ratio that cannot be read. */

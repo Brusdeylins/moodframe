@@ -162,7 +162,15 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private javafx.scene.control.ComboBox<FrameChoice> frameComboBox;
     @FXML
-    private Label frameUnavailableLabel;
+    private Label aspectRatioHintLabel;
+    @FXML
+    private Label generationTitleLabel;
+    @FXML
+    private TitledPane moodGroupPane;
+    @FXML
+    private TitledPane frameGroupPane;
+    @FXML
+    private TitledPane generationGroupPane;
     @FXML
     private CheckBox bflPromptUpsamplingCheckBox;
     @FXML
@@ -427,14 +435,11 @@ public class MainWindowController implements I18nChangeListener {
     private boolean moodChanged;
     private boolean updatingMood;
 
-    /*  The frames: the fields right after the chosen frame was applied or saved (a field that differs marks the
-        frame as changed), whether it is changed, a guard while the frame selection sets the fields, and a pending
-        refresh once the model list changed  */
+    /*  The frames: whether the aspect ratio differs from the chosen frame, and a guard while the frame selection
+        sets the aspect ratio  */
     private FrameService frameService;
-    private List<Object> frameSnapshot;
     private boolean frameChanged;
     private boolean updatingFrame;
-    private boolean frameRefreshPending;
 
     /*  The left sidebar by mood: the group whose entries are shown (null while a chat is shown, which keeps taking
         the new prompts as the last active one) and a guard while the list is filled again  */
@@ -473,6 +478,7 @@ public class MainWindowController implements I18nChangeListener {
 
         setupChatSystem();
         setupUI();
+        setupPanelGroups();
         setupSidebarMode();
         setupCornerCloud();
         setupImagePreviewOverlay();
@@ -826,7 +832,7 @@ public class MainWindowController implements I18nChangeListener {
                     + fieldState("Light", lightComboBox.getValue(), locked.contains(Mood.Field.LIGHT))
                     + fieldState("Color", colorStyleComboBox.getValue(), locked.contains(Mood.Field.COLOR))
                     + fieldState("Camera", cameraComboBox.getValue(), locked.contains(Mood.Field.CAMERA))
-                    + "\nAspect ratio: " + aspectRatioComboBox.getValue()
+                    + "\nAspect ratio: " + modelAspectRatio()
                     + "\nText currently in the input field: "
                     + (promptTextArea.getText().isBlank() ? "(empty)" : promptTextArea.getText().trim());
 
@@ -1205,9 +1211,9 @@ public class MainWindowController implements I18nChangeListener {
         // Setup model selection based on enabled providers
         populateAvailableModels();
 
-        // Setup aspect ratio selection
-        aspectRatioComboBox.getItems().addAll(
-                "21:9", "16:9", "3:2", "5:4", "1:1", "4:5", "2:3", "9:16", "9:21");
+        // Setup aspect ratio selection: the targets of all models, of which the chosen model takes its closest one
+        aspectRatioComboBox.getItems().addAll(art.moodframe.model.AspectRatios.ALL);
+        aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> updateAspectRatioHint());
 
         // Configure image count slider
         imageCountSlider.setMin(1);
@@ -2556,11 +2562,32 @@ public class MainWindowController implements I18nChangeListener {
             refreshMoods();
     }
 
+    /*  the fold arrow and the paddings beside the header of a group of the right panel  */
+    private static final double PANEL_GROUP_HEADER_INSETS = 28.0;
+
+    /**
+     * Folds the groups of the right panel (Mood, Frame, Generation) as the user left them. The header of a group spans
+     * its width, so that its actions sit on the right.
+     */
+    private void setupPanelGroups() {
+        java.util.Map<String, TitledPane> groups = java.util.Map.of("mood", moodGroupPane, "frame", frameGroupPane,
+                "generation", generationGroupPane);
+        groups.forEach((group, pane) -> {
+            if (config != null)
+                pane.setExpanded(config.isPanelGroupExpanded(group));
+            pane.expandedProperty().addListener((obs, oldVal, newVal) -> {
+                if (config != null)
+                    config.setPanelGroupExpanded(group, newVal);
+            });
+            ((javafx.scene.layout.Region) pane.getGraphic()).prefWidthProperty()
+                    .bind(pane.widthProperty().subtract(PANEL_GROUP_HEADER_INSETS));
+        });
+    }
+
     /**
      * Sets up the frame selection: the actions "Save", "Save as..." and "Manage...", "No frame" and the frames.
-     * Choosing a frame sets model, resolution, aspect ratio, image count and, if the frame has them, guidance and
-     * steps; a field changed afterwards shows the frame as changed until it is saved or chosen again. A frame none of
-     * whose models is in the model list shows a warning, also once the list changes (API keys, reference images).
+     * Choosing a frame sets its target aspect ratio, of which the model takes the closest one it can do; an aspect
+     * ratio changed afterwards shows the frame as changed until it is saved or chosen again.
      */
     private void setupFrames() {
         frameService = art.moodframe.config.ServiceFactory.getInstance().getService(FrameService.class);
@@ -2569,33 +2596,15 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        frameComboBox.setCellFactory((listView) -> new FrameListCell(this::isFrameUnavailable, null,
-                this::isFrameSaveLocked));
-        frameComboBox.setButtonCell(new FrameListCell(this::isFrameUnavailable, () -> frameChanged,
-                this::isFrameSaveLocked));
+        frameComboBox.setCellFactory((listView) -> new FrameListCell(null, this::isFrameSaveLocked));
+        frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged, this::isFrameSaveLocked));
         frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(oldVal, newVal));
-        for (javafx.beans.value.ObservableValue<?> field : List.of(modelComboBox.valueProperty(),
-                resolutionChoiceBox.valueProperty(), aspectRatioComboBox.valueProperty(),
-                imageCountSlider.valueProperty(), flux2GuidanceSlider.valueProperty(), flux2StepsSlider.valueProperty()))
-            field.addListener((obs, oldVal, newVal) -> {
-                if (!updatingFrame)
-                    updateFrameState();
-            });
-
-        /*  The model list is refilled item by item, so the frames are shown again once it is complete  */
-        modelComboBox.getItems().addListener((javafx.collections.ListChangeListener<String>) (change) -> {
-            if (!frameRefreshPending) {
-                frameRefreshPending = true;
-                Platform.runLater(() -> {
-                    frameRefreshPending = false;
-                    refreshFrames();
-                });
-            }
+        aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (!updatingFrame)
+                updateFrameState();
         });
 
         reloadFrames(config != null ? config.getSelectedFrame() : "");
-        frameSnapshot = currentFrameFields();
-        frameChanged = config != null && config.isSelectedFrameChanged();
         updateFrameState();
     }
 
@@ -2603,11 +2612,6 @@ public class MainWindowController implements I18nChangeListener {
     private Frame chosenFrame() {
         FrameChoice choice = frameComboBox != null ? frameComboBox.getValue() : null;
         return choice != null ? choice.frame() : null;
-    }
-
-    /** True if no model of a frame is in the model list now. */
-    private boolean isFrameUnavailable(Frame frame) {
-        return frameService.resolve(frame, modelComboBox.getItems()) == null;
     }
 
     /** "Save" is not available for a standard frame, which can only be saved as a new one. */
@@ -2631,7 +2635,7 @@ public class MainWindowController implements I18nChangeListener {
         updatingFrame = false;
     }
 
-    /** Lists the frames again, keeping the choice, for example once the model list changed or a frame left the trash. */
+    /** Lists the frames again, keeping the choice, for example once a frame left the trash. */
     private void refreshFrames() {
         if (frameService == null)
             return;
@@ -2664,87 +2668,31 @@ public class MainWindowController implements I18nChangeListener {
         });
     }
 
-    /**
-     * Sets the fields to a frame and shows it unchanged; "No frame" (null) leaves them as they are. Without an
-     * available model of the frame, the model stays and the aspect ratio is the closest one it can do.
-     */
+    /** Sets the aspect ratio to the target of a frame and shows it unchanged; "No frame" (null) leaves it as it is. */
     private void chooseFrame(Frame frame) {
         updatingFrame = true;
-        if (frame != null) {
-            FrameService.Fields fields = frameService.apply(frame, modelComboBox.getItems(), modelComboBox.getValue());
-            if (fields.available()) {
-                modelComboBox.setValue(fields.item());
-
-                /*  The resolution of a model with free choice, and the remembered choice of the family  */
-                String resolution = fields.resolution() != null ? fields.resolution()
-                        : art.moodframe.model.ModelFamilies.resolutionOf(fields.item());
-                if (resolution != null) {
-                    modelFamilySelector.remember(fields.item(), resolution);
-                    if (resolutionChoiceBox.getItems().contains(resolution))
-                        resolutionChoiceBox.setValue(resolution);
-                }
-            }
-            aspectRatioComboBox.setValue(fields.aspectRatio());
-            imageCountSlider.setValue(fields.imageCount());
-            if (fields.guidance() != null)
-                flux2GuidanceSlider.setValue(fields.guidance());
-            if (fields.steps() != null)
-                flux2StepsSlider.setValue(fields.steps());
-        }
+        if (frame != null)
+            aspectRatioComboBox.setValue(frame.getAspectRatio());
         frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
                 : item.frame() != null && item.frame().getId().equals(frame.getId()))
                 .findFirst().ifPresent(frameComboBox::setValue);
         updatingFrame = false;
-
-        frameSnapshot = currentFrameFields();
-        frameChanged = false;
         updateFrameState();
     }
 
-    /**
-     * The fields a frame sets: model, the resolution of a model with free choice, aspect ratio, image count, guidance
-     * and steps. Null while the model list or the aspect ratios are refilled, which leaves a field without value.
-     */
-    private List<Object> currentFrameFields() {
-        String item = modelComboBox.getValue();
-        String aspectRatio = aspectRatioComboBox.getValue();
-        String resolution = art.moodframe.model.ModelFamilies.freeResolutions(item) != null
-                ? resolutionChoiceBox.getValue() : "";
-        if (item == null || aspectRatio == null || resolution == null)
-            return null;
-        return List.of(item, resolution, aspectRatio, (int) Math.round(imageCountSlider.getValue()),
-                flux2Guidance(), (int) Math.round(flux2StepsSlider.getValue()));
-    }
-
-    /** The guidance of FLUX.2 [flex], to one decimal place as its label shows it. */
-    private double flux2Guidance() {
-        return Math.round(flux2GuidanceSlider.getValue() * 10) / 10.0;
-    }
-
-    /**
-     * Marks the chosen frame as changed once a field differs from it, remembers the choice and shows the warning of
-     * a frame whose models are not available. A field without value is about to be set again and changes nothing.
-     */
+    /** Marks the chosen frame as changed while the aspect ratio differs from it, and remembers the choice. */
     private void updateFrameState() {
         if (frameService == null)
             return;
         Frame frame = chosenFrame();
-        List<Object> fields = currentFrameFields();
-        if (frameSnapshot == null)
-            frameSnapshot = fields;
-        frameChanged = frame != null && (frameChanged || fields != null && !fields.equals(frameSnapshot));
+        frameChanged = frame != null && !frame.getAspectRatio().equals(aspectRatioComboBox.getValue());
         String id = frame != null ? frame.getId() : "";
-        if (config != null && (!id.equals(config.getSelectedFrame()) || frameChanged != config.isSelectedFrameChanged()))
-            config.setSelectedFrame(id, frameChanged);
-
-        boolean unavailable = frame != null && isFrameUnavailable(frame);
-        frameUnavailableLabel.setVisible(unavailable);
-        frameUnavailableLabel.setManaged(unavailable);
-        frameUnavailableLabel.setTooltip(unavailable ? new Tooltip(I18nManager.getText("params.frame.unavailable")) : null);
+        if (config != null && !id.equals(config.getSelectedFrame()))
+            config.setSelectedFrame(id);
         ((FrameListCell) frameComboBox.getButtonCell()).refresh();
     }
 
-    /** Saves the fields over the chosen frame of the user, or as a new frame under a name the user enters. */
+    /** Saves the aspect ratio over the chosen frame of the user, or as a new frame under a name the user enters. */
     private void saveFrame(boolean asNew) {
         Frame chosen = chosenFrame();
         Frame frame;
@@ -2758,17 +2706,13 @@ public class MainWindowController implements I18nChangeListener {
                 return;
             frame = new Frame(null, name);
         }
-        FrameService.capture(frame, modelComboBox.getValue(), resolutionChoiceBox.getValue(),
-                aspectRatioComboBox.getValue(), (int) Math.round(imageCountSlider.getValue()), flux2Guidance(),
-                (int) Math.round(flux2StepsSlider.getValue()));
+        frame.setAspectRatio(aspectRatioComboBox.getValue());
 
         if (!(frame.getId() == null ? frameService.add(frame) : frameService.update(frame))) {
             showErrorMessage(I18nManager.getText("error.frame.save"));
             return;
         }
         reloadFrames(frame.getId());
-        frameSnapshot = currentFrameFields();
-        frameChanged = false;
         updateFrameState();
         setStatus(I18nManager.getText("status.frame.saved", frame.getName()));
     }
@@ -4804,7 +4748,7 @@ public class MainWindowController implements I18nChangeListener {
         if (art.moodframe.model.GenerationModel.openAiModelId(modelDisplayLocalized) != null) {
             modelDisplay = modelDisplayLocalized; // the chat entry keeps the OpenAI model id
         }
-        String aspectRatio = aspectRatioComboBox.getValue() != null ? aspectRatioComboBox.getValue() : "16:9";
+        String aspectRatio = java.util.Objects.requireNonNullElse(modelAspectRatio(), "16:9");
         Integer imageCount = (int) imageCountSlider.getValue();
 
         double baseCost = art.moodframe.model.GenerationCost.estimate(model, selectedVideoSeconds());
@@ -5013,7 +4957,7 @@ public class MainWindowController implements I18nChangeListener {
             request.setStylePreset(style.getName());
 
         // Convert aspect ratio to width/height based on model capabilities
-        String aspectRatio = aspectRatioComboBox.getValue();
+        String aspectRatio = modelAspectRatio();
         if (aspectRatio != null) {
             setDimensionsFromAspectRatio(request, aspectRatio, generationModel);
             // Also set the aspect ratio parameter itself for models that require it
@@ -5353,8 +5297,8 @@ public class MainWindowController implements I18nChangeListener {
             int height = image.getHeight();
             double imageRatio = (double) width / height;
 
-            // Use the currently available aspect ratios from the combo box
-            // (already filtered by provider via updateAspectRatioOptions)
+            // Use the aspect ratios of the combo box, the targets of all models
+            // (the chosen model takes the closest one it can do)
             var availableItems = aspectRatioComboBox.getItems();
             if (availableItems.isEmpty()) {
                 return;
@@ -6549,11 +6493,13 @@ public class MainWindowController implements I18nChangeListener {
      * Updates FXML hardcoded texts that need to be replaced programmatically.
      */
     private void updateFXMLTexts() {
-        // Update the titles of the mood and frame sections, the "Apply mood" switch and the final prompt fold
+        // Update the titles of the mood, frame and generation groups, the "Apply mood" switch and the final prompt fold
         if (moodTitleLabel != null)
             moodTitleLabel.setText(I18nManager.getText("params.mood.title"));
         if (frameTitleLabel != null)
             frameTitleLabel.setText(I18nManager.getText("params.frame.title"));
+        if (generationTitleLabel != null)
+            generationTitleLabel.setText(I18nManager.getText("params.generation.title"));
         if (moodApplyCheckBox != null) {
             moodApplyCheckBox.setText(I18nManager.getText("params.mood.apply"));
             moodApplyCheckBox.setTooltip(new Tooltip(I18nManager.getText("params.mood.apply.tooltip")));
@@ -7051,11 +6997,11 @@ public class MainWindowController implements I18nChangeListener {
 
         // Common parameters (always visible for both BFL and Gemini)
         // - modelComboBox (always visible)
-        // - aspectRatioComboBox (always visible - but with different options per provider)
+        // - aspectRatioComboBox (always visible - the target, of which each model takes its closest ratio)
         // - stylePresetsComboBox (always visible - style appended to prompt for both providers)
 
-        // Update aspect ratio options based on provider
-        updateAspectRatioOptions(provider);
+        // Show what the model makes of the target aspect ratio
+        updateAspectRatioHint();
 
         // Gemini Advanced Features (Phase 2) - only visible for Gemini models
         if (geminiAdvancedFeaturesContainer != null && geminiAdvancedFeaturesSection != null) {
@@ -7158,74 +7104,31 @@ public class MainWindowController implements I18nChangeListener {
                      isFlux2, isFlux2Max, isFlux2Flex);
     }
 
+    /*  the hint below the aspect ratio while the chosen model cannot do the target  */
+    private static final javafx.css.PseudoClass RATIO_CHANGED = javafx.css.PseudoClass.getPseudoClass("changed");
+
     /**
-     * Updates the aspect ratio options based on the selected API provider.
-     * <p>
-     * FLUX.2 supports: 21:9, 16:9, 3:2, 5:4, 1:1, 4:5, 2:3, 9:16, 9:21; FLUX 3 adds 2:1, 7:5, 4:3, 3:4, 5:7, 1:2
-     * Gemini supports: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
-     * </p>
-     * <p>
-     * When switching to Gemini with unsupported ratio selected:
-     * - 9:21 → 9:16 (closest vertical alternative)
-     * </p>
-     *
-     * @param provider the selected API provider
+     * Shows below the aspect ratio what the chosen model makes of the target, for example "FLUX.2 [pro] → 5:4",
+     * highlighted when it differs from the target.
      */
-    private void updateAspectRatioOptions(ApiProvider provider) {
-        if (aspectRatioComboBox == null) {
+    private void updateAspectRatioHint() {
+        String item = modelComboBox.getValue();
+        String ratio = modelAspectRatio();
+        if (aspectRatioHintLabel == null || item == null || ratio == null)
             return;
-        }
+        aspectRatioHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → " + ratio);
+        aspectRatioHintLabel.pseudoClassStateChanged(RATIO_CHANGED, !ratio.equals(aspectRatioComboBox.getValue()));
+    }
 
-        String currentSelection = aspectRatioComboBox.getValue();
-
-        // Define aspect ratios per provider
-        // FLUX.2: 21:9, 16:9, 3:2, 5:4, 1:1, 4:5, 2:3, 9:16, 9:21 (FLUX 3: AspectRatios.FLUX_3)
-        // Gemini standard: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
-        // Nano Banana 2 adds: 1:4, 4:1, 1:8, 8:1
-        String[] bflRatios = art.moodframe.model.AspectRatios.BFL;
-        String[] geminiRatios = art.moodframe.model.AspectRatios.GEMINI;
-        String[] nanoBanana2Ratios = art.moodframe.model.AspectRatios.NANO_BANANA_2;
-
-        String[] videoRatios = art.moodframe.model.AspectRatios.VIDEO;
-
-        String[] ratiosToUse;
-        if (currentSelectedModel != null && currentSelectedModel.isVideoModel()) {
-            // Video models (Omni): Only landscape and portrait
-            ratiosToUse = videoRatios;
-        } else if (provider == ApiProvider.OPENAI) {
-            ratiosToUse = art.moodframe.model.AspectRatios.forOpenAiModel(
-                    art.moodframe.model.GenerationModel.openAiModelId(modelComboBox.getValue()));
-        } else if (provider == ApiProvider.GOOGLE_GEMINI) {
-            // Check if current model is Nano Banana 2 (extended ratios)
-            ratiosToUse = (currentSelectedModel != null && currentSelectedModel.supportsExtendedAspectRatios())
-                    ? nanoBanana2Ratios : geminiRatios;
-        } else {
-            ratiosToUse = currentSelectedModel != null && currentSelectedModel.isFlux3Model()
-                    ? art.moodframe.model.AspectRatios.FLUX_3 : bflRatios;
-        }
-
-        // Update the combo box items
-        aspectRatioComboBox.getItems().clear();
-        aspectRatioComboBox.getItems().addAll(ratiosToUse);
-
-        // Determine which value to select
-        String newSelection = currentSelection;
-
-        if (provider == ApiProvider.GOOGLE_GEMINI && currentSelection != null) {
-            // Map unsupported BFL ratios to closest Gemini alternatives
-            if ("9:21".equals(currentSelection)) {
-                newSelection = "9:16"; // Closest vertical alternative
-                logger.info("Aspect ratio 9:21 not supported by Gemini, switching to 9:16");
-            }
-        }
-
-        // If the current selection is still valid, keep it; otherwise use default
-        if (newSelection != null && aspectRatioComboBox.getItems().contains(newSelection)) {
-            aspectRatioComboBox.setValue(newSelection);
-        } else {
-            // Default to 16:9 if previous selection not available
-            aspectRatioComboBox.setValue("16:9");
-        }
+    /**
+     * The aspect ratio the chosen model makes of the target: the target itself if the model can do it, else its
+     * closest one.
+     *
+     * @return the aspect ratio, null without target
+     */
+    private String modelAspectRatio() {
+        String target = aspectRatioComboBox.getValue();
+        return target != null ? art.moodframe.model.AspectRatios.nearestForItem(target, modelComboBox.getValue()) : null;
     }
 
     /**

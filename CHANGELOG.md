@@ -10,7 +10,8 @@ All notable changes to this project will be documented in this file.
   with 14 base moods
 - Camera building block with a visual settings dialog
 - Mood from image: colors, atmosphere, style, light and camera derived from a picture
-- Frames: model, resolution, aspect ratio and count saved as named frames, with 7 base frames
+- Frames: target aspect ratios saved as named frames, with 7 base frames; every model takes its closest format
+- Right panel in foldable groups Mood, Frame and Generation; the chat and mood list shows the cloud through
 - Each chat entry remembers its mood; "Apply mood" from an entry
 - Sidebar shows chats or moods; a mood lists all its images across chats
 - Brainstorm knows moods and blocks, builds the setting and defines several images per chat in rounds

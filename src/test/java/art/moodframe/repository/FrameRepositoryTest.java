@@ -1,12 +1,21 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Frame;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,8 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Runs against a fresh SQLite database, so migration V021 is applied together with all earlier ones. */
+/** Runs against a fresh SQLite database, so migration V022 is applied together with all earlier ones. */
 class FrameRepositoryTest {
+
+    /*  The columns of the frames table once V022 dropped model, resolution, image count, guidance and steps  */
+    private static final List<String> COLUMNS = List.of("id", "name", "aspect_ratio", "sort_order", "deleted_at",
+            "created_at", "updated_at");
 
     @TempDir
     static Path tempDir;
@@ -30,36 +43,24 @@ class FrameRepositoryTest {
 
     @Test
     void storesUpdatesAndDeletesFramesOfTheUser() {
-        Frame frame = frame("Instagram Story", "gemini-3.1-flash-image", "2K", "9:16", 4, 1000);
+        Frame frame = frame("Instagram Story", "9:16", 1000);
         assertTrue(repository.save(frame));
         assertNotNull(frame.getId());
 
         Frame stored = repository.findByName("Instagram Story");
-        assertEquals(List.of("gemini-3.1-flash-image"), stored.getModels());
-        assertEquals("2K", stored.getResolution());
         assertEquals("9:16", stored.getAspectRatio());
-        assertEquals(4, stored.getImageCount());
-        assertNull(stored.getGuidance());
-        assertNull(stored.getSteps());
+        assertEquals(1000, stored.getSortOrder());
         assertFalse(stored.isDefault());
 
         frame.setName("Druck A3");
-        frame.setModel("flux.2-flex");
-        frame.setResolution(null);
         frame.setAspectRatio("2:3");
-        frame.setImageCount(1);
-        frame.setGuidance(3.5);
-        frame.setSteps(28);
+        frame.setSortOrder(1005);
         assertTrue(repository.update(frame));
 
         stored = repository.findById(frame.getId());
         assertEquals("Druck A3", stored.getName());
-        assertEquals("flux.2-flex", stored.getModel());
-        assertNull(stored.getResolution());
         assertEquals("2:3", stored.getAspectRatio());
-        assertEquals(1, stored.getImageCount());
-        assertEquals(3.5, stored.getGuidance());
-        assertEquals(28, stored.getSteps());
+        assertEquals(1005, stored.getSortOrder());
         assertNull(repository.findByName("Instagram Story"));
 
         assertTrue(repository.delete(frame.getId()));
@@ -68,16 +69,9 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void keepsAnOpenAiModelWithItsId() {
-        Frame frame = frame("OpenAI Square", "openai:gpt-image-1", null, "1:1", 2, 1001);
-        assertTrue(repository.save(frame));
-        assertEquals("openai:gpt-image-1", repository.findById(frame.getId()).getModel());
-    }
-
-    @Test
     void movesFramesToTheTrashAndBack() {
-        Frame kept = frame("Kept Frame", "flux.3-image", "1K", "1:1", 1, 1002);
-        Frame trashed = frame("Trashed Frame", "flux.3-image", "2K", "16:9", 2, 1003);
+        Frame kept = frame("Kept Frame", "1:1", 1002);
+        Frame trashed = frame("Trashed Frame", "16:9", 1003);
         assertTrue(repository.save(kept));
         assertTrue(repository.save(trashed));
 
@@ -99,19 +93,70 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void doesNotStoreAFrameWithoutModel() {
-        Frame frame = frame("No Model", null, null, "1:1", 1, 1004);
+    void doesNotStoreAFrameWithoutAspectRatio() {
+        Frame frame = frame("No Ratio", null, 1004);
         assertFalse(repository.save(frame));
-        assertNull(repository.findByName("No Model"));
+        assertNull(repository.findByName("No Ratio"));
     }
 
-    private static Frame frame(String name, String model, String resolution, String aspectRatio, int imageCount,
-            int sortOrder) {
+    @Test
+    void aFreshDatabaseHasNoModelColumns() throws Exception {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            assertEquals(COLUMNS, columns(conn));
+        }
+    }
+
+    @Test
+    void migrationV022DropsTheModelColumnsAndKeepsTheFrames() throws Exception {
+        Path file = tempDir.resolve("v021").resolve("v021.db");
+        Files.createDirectories(file.getParent());
+        String url = "jdbc:sqlite:" + file;
+
+        /*  A database as V021 left it: all migrations up to V021 recorded, a frame with its model  */
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();
+             InputStream v021 = FrameRepositoryTest.class.getResourceAsStream("/db/migration/V021__Add_frames.sql")) {
+            stmt.execute("CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, description TEXT NOT NULL, "
+                    + "applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+            for (int version = 1; version <= 21; version++)
+                stmt.execute(String.format("INSERT INTO schema_migrations (version, description) VALUES ('%03d', 'x')",
+                        version));
+            for (String sql : new String(v021.readAllBytes(), StandardCharsets.UTF_8).replaceAll("--[^\n]*", "")
+                    .split(";")) {
+                if (!sql.isBlank())
+                    stmt.execute(sql);
+            }
+            stmt.execute("INSERT INTO frames (id, name, model_id, resolution, aspect_ratio, image_count, guidance, "
+                    + "steps, sort_order) VALUES ('old', 'Old Frame', 'flux.2-flex', '2K', '3:2', 4, 3.5, 28, 1000)");
+        }
+
+        new DatabaseManager(file).initialize();
+
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT name, aspect_ratio, sort_order FROM frames WHERE id = 'old'")) {
+            assertEquals(COLUMNS, columns(conn));
+            assertTrue(rs.next());
+            assertEquals("Old Frame", rs.getString("name"));
+            assertEquals("3:2", rs.getString("aspect_ratio"));
+            assertEquals(1000, rs.getInt("sort_order"));
+        }
+    }
+
+    /** The column names of the frames table in their order. */
+    private static List<String> columns(Connection conn) throws Exception {
+        List<String> columns = new ArrayList<>();
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("PRAGMA table_info(frames)")) {
+            while (rs.next())
+                columns.add(rs.getString("name"));
+        }
+        return columns;
+    }
+
+    private static Frame frame(String name, String aspectRatio, int sortOrder) {
         Frame frame = new Frame(null, name);
-        frame.setModel(model);
-        frame.setResolution(resolution);
         frame.setAspectRatio(aspectRatio);
-        frame.setImageCount(imageCount);
         frame.setSortOrder(sortOrder);
         return frame;
     }

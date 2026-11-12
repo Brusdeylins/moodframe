@@ -59,7 +59,7 @@ public class ConfigurationExporter {
         ADVANCED_SETTINGS("Advanced Settings", "Logging, development mode, SSL bypass"),
         CUSTOM_STYLES("Custom Building Blocks", "User-created styles, atmospheres, lights and palettes"),
         MOODS("Moods", "User-created moods, the saved combinations of building blocks"),
-        FRAMES("Frames", "User-created frames, the saved settings of model, aspect ratio and image count"),
+        FRAMES("Frames", "User-created frames, the saved target aspect ratios"),
         ALL("All Settings", "Complete configuration export");
         
         private final String displayName;
@@ -217,7 +217,7 @@ public class ConfigurationExporter {
 
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.FRAMES)) {
 
-            /*  The frames of the user with their IDs, their model as API ID plus resolution  */
+            /*  The frames of the user with their IDs and target aspect ratios  */
             configData.put("frames", frameService.exportCustom());
         }
 

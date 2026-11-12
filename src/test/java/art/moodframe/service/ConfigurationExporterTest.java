@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 
@@ -67,10 +68,7 @@ class ConfigurationExporterTest {
     void exportsAndImportsTheFramesOfTheUser() throws Exception {
         FrameService frames = new FrameService();
         Frame frame = new Frame(null, "Druck A3");
-        frame.setModel("flux.3-image");
-        frame.setResolution("4K");
         frame.setAspectRatio("2:3");
-        frame.setImageCount(1);
         assertTrue(frames.add(frame));
 
         ConfigurationExporter exporter = new ConfigurationExporter();
@@ -86,11 +84,30 @@ class ConfigurationExporterTest {
         Frame restored = frames.find(frame.getId());
         assertNotNull(restored);
         assertEquals("Druck A3", restored.getName());
-        assertEquals("flux.3-image", restored.getModel());
-        assertEquals("4K", restored.getResolution());
         assertEquals("2:3", restored.getAspectRatio());
-        assertEquals(1, restored.getImageCount());
-        assertEquals(null, restored.getGuidance());
+    }
+
+    @Test
+    void importsAFrameOfAnOlderBackupWithModel() throws Exception {
+        File file = tempDir.resolve("older-backup.json").toFile();
+        Files.writeString(file.toPath(), """
+                {
+                  "metadata": { "exportVersion": "1.0", "applicationVersion": "2.0.0" },
+                  "configuration": {
+                    "frames": [ { "id": "older-backup", "name": "Older Backup", "model": "flux.3-image",
+                      "resolution": "4K", "aspectRatio": "21:9", "imageCount": 2, "guidance": 3.5, "steps": 28 } ]
+                  }
+                }
+                """);
+
+        ConfigurationExporter.ImportResult result = new ConfigurationExporter().importConfiguration(file,
+                mock(ApplicationConfig.class));
+        assertTrue(result.isSuccess(), result.getMessage());
+        assertEquals("1 frames imported", result.getChanges().get("Frames"));
+        Frame imported = new FrameService().find("older-backup");
+        assertNotNull(imported);
+        assertEquals("Older Backup", imported.getName());
+        assertEquals("21:9", imported.getAspectRatio());
     }
 
     @Test
