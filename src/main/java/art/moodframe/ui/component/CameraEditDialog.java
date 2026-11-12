@@ -3,7 +3,9 @@ package art.moodframe.ui.component;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -32,16 +34,18 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Dialog for creating and editing a camera: no free text, but settings from which the app builds the fragment.
  *
  * <p>
  * Left the settings (tiles for the camera type with its model, sliders with detents for focal length and aperture,
- * symbol rows for shutter, ISO, perspective and shot size), right a schematic preview, below the generated prompt,
- * all live. Every setting starts at "Any". A camera of the user is saved in place or as a new one, a standard camera
- * only as a new one.
+ * symbol rows for shutter, ISO, perspective and shot size), right a schematic preview and an example picture of the
+ * stage chosen last or under the mouse, below the generated prompt, all live. Every setting starts at "Any". A camera
+ * of the user is saved in place or as a new one, a standard camera only as a new one.
  * </p>
  *
  * @since 2.0.0
@@ -98,9 +102,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final ToggleGroup perspectiveGroup = new ToggleGroup();
     private final ToggleGroup shotGroup = new ToggleGroup();
     private final CameraPreview preview = new CameraPreview();
+    private final CameraExample example = new CameraExample();
     private final TextArea promptArea = new TextArea();
     private final Label validationLabel = new Label();
     private final Label helpLabel = new Label();
+    private Enum<?> chosen;
 
     /**
      * Creates the dialog.
@@ -165,17 +171,26 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             button.setToggleGroup(specialGroup);
             button.setUserData(lens);
             button.setSelected(lens == settings.lens());
+            hover(button, (event) -> lens);
             specialRow.getChildren().add(button);
         }
         focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (specialGroup.getSelectedToggle() != null && oldVal.intValue() != newVal.intValue())
                 specialGroup.selectToggle(null);
         });
+        hover(focalSlider, (event) -> {
+            int index = detent(focalSlider, event);
+            return index > 0 ? FOCAL_LENGTHS.get(index - 1) : null;
+        });
 
         /*  Aperture: a slider with detents from open to closed  */
         detents(apertureSlider, (index) -> index == 0 ? I18nManager.getText("camera.dialog.any")
                 : Aperture.values()[index - 1].label());
         apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
+        hover(apertureSlider, (event) -> {
+            int index = detent(apertureSlider, event);
+            return index > 0 ? Aperture.values()[index - 1] : null;
+        });
 
         /*  Shutter, ISO, perspective and shot size: rows of symbols  */
         VBox shutter = symbols("camera.dialog.shutter", shutterGroup, Shutter.values(),
@@ -186,7 +201,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         VBox shot = symbols("camera.dialog.shot", shotGroup, Shot.values(), (value) -> "camera.shot." + key(value),
                 SHOT_ICONS, settings.shot());
 
-        /*  Left the device with lens and exposure, right the preview with what it draws: perspective and shot size  */
+        /*  Left the device with lens and exposure, right the preview with what it draws: perspective and shot size,
+            below them the example  */
         VBox settingsBox = new VBox(6,
                 heading("camera.dialog.type"), bodyTiles, modelRow,
                 heading("camera.dialog.lens"), focalSlider, specialRow,
@@ -195,7 +211,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         settingsBox.setMinWidth(SETTINGS_WIDTH);
         settingsBox.setPrefWidth(SETTINGS_WIDTH);
         bodyTiles.setPrefWrapLength(SETTINGS_WIDTH);
-        VBox previewBox = new VBox(10, preview, perspective, shot);
+        VBox previewBox = new VBox(10, preview, perspective, shot, example);
 
         /*  Generated prompt, below both columns  */
         promptArea.setEditable(false);
@@ -234,6 +250,22 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
         update();
 
+        /*  The example shows the stage chosen last, at first the first setting that is not "Any"  */
+        for (ToggleGroup group : List.of(bodyGroup, shutterGroup, isoGroup, perspectiveGroup, shotGroup))
+            group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null)
+                    choose((Enum<?>) newVal.getUserData());
+            });
+        specialGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> choose(settings().lens()));
+        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> choose(settings().lens()));
+        apertureSlider.valueProperty().addListener((obs, oldVal, newVal) -> choose(settings().aperture()));
+        choose(Stream.<Enum<?>>of(settings.body(), settings.lens(), settings.aperture(), settings.shutter(),
+                settings.iso(), settings.perspective(), settings.shot()).filter(Objects::nonNull).findFirst()
+                .orElse(null));
+
+        /*  a closed dialog no longer follows the language, so it and its pictures are released  */
+        setOnHidden((event) -> I18nManager.removeChangeListener(this));
+
         validateName(nameField.getText().trim());
         nameField.textProperty().addListener((obs, oldText, newText) -> validateName(newText.trim()));
         Platform.runLater(nameField::requestFocus);
@@ -270,6 +302,18 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         focalSlider.setOpacity(specialGroup.getSelectedToggle() != null ? 0.5 : 1);
     }
 
+    /*  the stage chosen last, shown by the example  */
+    private void choose(Enum<?> stage) {
+        chosen = stage;
+        example.show(stage);
+    }
+
+    /*  while the mouse is over a control, the example shows the stage under it, afterwards the one chosen last  */
+    private void hover(Node node, Function<MouseEvent, Enum<?>> stage) {
+        node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> example.show(stage.apply(event)));
+        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> example.show(chosen));
+    }
+
     /*  "Generic" and the models of the type; no model without a type  */
     private void fillModels(Body body, String model) {
         CameraPromptBuilder.Model generic = new CameraPromptBuilder.Model(body, "", false);
@@ -282,7 +326,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     }
 
     /*  A tile of the camera type: symbol over name  */
-    private <E> ToggleButton tile(ToggleGroup group, E value, String key, String icon, E selected) {
+    private <E extends Enum<E>> ToggleButton tile(ToggleGroup group, E value, String key, String icon, E selected) {
         ToggleButton tile = text(new ToggleButton(), key);
         tile.setGraphic(icon(icon, 20));
         tile.setContentDisplay(ContentDisplay.TOP);
@@ -291,6 +335,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         tile.setWrapText(true);
         tile.setTextAlignment(TextAlignment.CENTER);
         join(group, tile, value, value == selected);
+        hover(tile, (event) -> value);
         return tile;
     }
 
@@ -319,6 +364,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 button.setText(((Iso) value).label().substring("ISO ".length()));
             names.put(button, name);
             join(group, button, value, value == selected);
+            hover(button, (event) -> value);
             row.getChildren().add(button);
         }
 
@@ -369,6 +415,16 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 return 0.0;
             }
         });
+    }
+
+    /*  the detent of a slider nearest to the mouse, along the track the skin lays out between the thumb halves  */
+    private static int detent(Slider slider, MouseEvent event) {
+        Node thumb = slider.lookup(".thumb");
+        double thumbWidth = thumb != null ? thumb.getLayoutBounds().getWidth() : 0;
+        double start = slider.snappedLeftInset() + thumbWidth / 2;
+        double length = slider.getWidth() - slider.snappedLeftInset() - slider.snappedRightInset() - thumbWidth;
+        double ratio = Math.clamp((event.getX() - start) / length, 0, 1);
+        return (int) Math.round(slider.getMin() + ratio * (slider.getMax() - slider.getMin()));
     }
 
     /*  a bold heading; without key, its text is set by the caller  */
@@ -433,6 +489,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         headings.forEach(Runnable::run);
         nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
         preview.updateTexts();
+        example.updateTexts();
 
         /*  the labels of the detents and of "Generic" are drawn anew  */
         for (Slider slider : List.of(focalSlider, apertureSlider)) {
