@@ -40,6 +40,9 @@ import java.util.Map;
  * does; a color temperature only where it belongs to the situation (golden and blue hour), otherwise no
  * colors, no medium and no mood.</p>
  *
+ * <p>No standard text suggests a place, a setting or scene content: a block describes its own task only,
+ * the place comes from the motif.</p>
+ *
  * <p>The standard cameras carry settings only ({@link CameraSettings}); their fragment comes from
  * {@link CameraPromptBuilder}. Exposure stays with the light, film stock with the style.</p>
  *
@@ -110,7 +113,7 @@ public class PromptBlockService {
         styles.add(style("Portrait Photography", photo, true,
                 "portrait photograph, natural skin texture, catchlights in the eyes"));
         styles.add(style("Street Photography", photo, true,
-                "candid street photograph, an unposed moment in an urban environment, documentary style"));
+                "candid street photograph, an unposed fleeting moment, documentary style"));
         styles.add(style("Documentary", photo, true,
                 "documentary photograph, photojournalistic style, raw unposed moment, environmental context, "
                 + "storytelling composition"));
@@ -151,7 +154,7 @@ public class PromptBlockService {
                 "anime illustration, clean sharp lineart, cel shading, detailed expressive eyes, "
                 + "Japanese animation style"));
         styles.add(style("Fantasy Art", art, false,
-                "detailed fantasy illustration, painterly concept art, mythical elements"));
+                "detailed fantasy illustration, painterly concept art, richly rendered textures"));
         styles.add(style("Pop Art", art, false,
                 "pop art silkscreen print, flat color blocks, Ben-Day halftone dots, bold graphic outlines, "
                 + "1960s commercial art"));
@@ -159,7 +162,7 @@ public class PromptBlockService {
                 "surrealist painting, dreamlike impossible scene rendered with photorealistic precision, "
                 + "bizarre juxtapositions, distorted objects"));
         styles.add(style("Synthwave", art, false,
-                "1980s retro-futuristic synthwave illustration, perspective grid floor, VHS scan lines, CRT bloom, "
+                "1980s retro-futuristic synthwave illustration, airbrushed gradients, VHS scan lines, CRT bloom, "
                 + "chrome surfaces"));
         styles.add(style("Graphic Novel", art, false,
                 "graphic novel illustration, heavy black inks, detailed crosshatching, mature cinematic panels"));
@@ -229,17 +232,18 @@ public class PromptBlockService {
         atmospheres.add(atmosphere("Melancholic",
                 "quiet, melancholic mood, a sense of stillness and gentle sadness, subdued and unhurried"));
         atmospheres.add(atmosphere("Euphoric",
-                "euphoric, energetic mood, full of movement and celebration, vibrant and alive"));
+                "elated, ecstatic mood, overflowing happiness, buoyant and carefree"));
         atmospheres.add(atmosphere("Longing",
-                "wistful mood of longing, a feeling of distance and waiting, wide open space around the subject"));
+                "wistful mood of longing, a quiet feeling of waiting and missing something, much empty space around "
+                + "the subject"));
         atmospheres.add(atmosphere("Menacing",
-                "tense, menacing mood, a sense of threat just outside the frame, oppressive and close"));
+                "tense, suspenseful mood, a quiet unease, guarded and watchful"));
         atmospheres.add(atmosphere("Calm",
                 "calm, serene mood, peaceful and balanced, plenty of breathing room"));
         atmospheres.add(atmosphere("Playful",
                 "playful, lighthearted mood, cheerful and a little cheeky"));
         atmospheres.add(atmosphere("Epic",
-                "epic, awe-inspiring mood, monumental scale, grand and dramatic"));
+                "awe-inspiring, uplifting mood, powerful and dramatic, a sense of grandeur"));
         atmospheres.add(atmosphere("Intimate",
                 "intimate, tender mood, close and private, quiet warmth"));
         atmospheres.add(atmosphere("Nostalgic",
@@ -255,7 +259,7 @@ public class PromptBlockService {
         atmospheres.add(atmosphere("Glamorous",
                 "glamorous, elegant mood, confident and luxurious"));
         atmospheres.add(atmosphere("Futuristic",
-                "futuristic, high-tech mood, a dense advanced world, sleek and artificial"));
+                "futuristic mood, sleek, clean and precise, a cool artificial perfection"));
 
         /*  The person and mood parts of the former style "Business Photography", word for word  */
         atmospheres.add(atmosphere("Open Business",
@@ -288,7 +292,7 @@ public class PromptBlockService {
                 + "a gentle glow on edges"));
         lights.add(light("Blue Hour",
                 "twilight just after sunset, soft cool ambient skylight without direct sun, "
-                + "the first artificial lights glowing"));
+                + "low contrast and faint shadows"));
         lights.add(light("Overcast",
                 "overcast sky acting as a giant diffuser, flat even light, soft shadow-free illumination"));
         lights.add(light("Hard Noon Sun",
@@ -307,8 +311,8 @@ public class PromptBlockService {
         lights.add(light("Backlit Silhouette",
                 "light source directly behind the subject, the subject a dark silhouette against a bright background"));
         lights.add(light("Chiaroscuro",
-                "a single hard light source from the side, deep black shadows, strong chiaroscuro contrast, "
-                + "large areas falling into darkness"));
+                "hard low-key light from one side, deep black shadows and bright highlights, strong chiaroscuro "
+                + "contrast"));
         lights.add(light("Neon Practicals",
                 "lit only by neon signs and practical lights visible in the scene, their glow reflecting on nearby "
                 + "surfaces, dark surroundings"));

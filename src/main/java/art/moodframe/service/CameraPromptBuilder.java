@@ -108,7 +108,7 @@ public final class CameraPromptBuilder {
             Shutter.FROZEN, "fast shutter speed, motion frozen crisply",
             Shutter.NORMAL, "",
             Shutter.MOTION_BLUR, "slow shutter speed, moving elements streaked with motion blur, static elements sharp",
-            Shutter.LONG_EXPOSURE, "long exposure, moving water and clouds smoothed to silk, light trails");
+            Shutter.LONG_EXPOSURE, "long exposure, anything in motion smoothed into a silky veil or drawn into trails");
 
     private static final Map<Iso, String> ISOS = Map.of(
             Iso.ISO_100, "ISO 100, clean image without visible grain or noise",
