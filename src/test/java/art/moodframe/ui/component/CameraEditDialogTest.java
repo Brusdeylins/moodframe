@@ -46,7 +46,7 @@ class CameraEditDialogTest {
     @Test
     void showsTheSettingsOfAStandardCameraAndSavesThemOnlyAsANewOne() throws Exception {
         CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, "Hasselblad 500C/M",
-                CameraSettings.Lens.TILT_SHIFT, CameraSettings.Aperture.F_16, CameraSettings.Shutter.MOTION_BLUR,
+                CameraSettings.Lens.TILT_SHIFT, CameraSettings.Aperture.F_11, CameraSettings.Shutter.MOTION_BLUR,
                 CameraSettings.Iso.ISO_3200, CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.DETAIL);
         PromptBlock tabletop = PromptBlockService.camera("std:camera:product-tabletop", "Product Tabletop", settings);
 

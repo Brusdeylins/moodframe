@@ -60,13 +60,13 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
     /*  The detents of the focal length slider: "Any", then the focal lengths from wide to long  */
     private static final List<Lens> FOCAL_LENGTHS = List.of(Lens.MM_14, Lens.MM_24, Lens.MM_35, Lens.MM_50,
-            Lens.MM_85, Lens.MM_135, Lens.MM_200, Lens.MM_400);
+            Lens.MM_85, Lens.MM_135, Lens.MM_400);
     private static final List<Lens> SPECIAL_LENSES = List.of(Lens.MACRO, Lens.FISHEYE, Lens.TILT_SHIFT,
             Lens.ANAMORPHIC);
     private static final double SETTINGS_WIDTH = 484;
 
     private static final Map<Body, String> BODY_ICONS = Map.of(Body.SMARTPHONE, "mdi2c-cellphone",
-            Body.COMPACT_35MM, "mdi2f-film", Body.FULL_FRAME, "mdi2c-camera", Body.APS_C, "mdi2c-camera-outline",
+            Body.COMPACT_35MM, "mdi2f-film", Body.FULL_FRAME, "mdi2c-camera",
             Body.MEDIUM_FORMAT, "mdi2c-camera-iris", Body.LARGE_FORMAT, "mdi2c-crop-free",
             Body.CINEMA, "mdi2m-movie-open-outline", Body.INSTANT, "mdi2i-image-frame", Body.DRONE, "mdi2q-quadcopter",
             Body.ACTION_CAM, "mdi2c-camera-gopro");

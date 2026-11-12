@@ -104,9 +104,9 @@ class BrainstormDialogTest {
             {"prompt": "A lighthouse", "mood": "Quiet Morning",
              "style": {"name": "Ink Wash", "text": "ink wash on rice paper", "is_new": true},
              "color": {"name": "Sea", "colors": ["#112233"], "is_new": true},
-             "camera": {"name": "Harbor Tele", "settings": {"body": "FULL_FRAME", "lens": "MM_200"}, "is_new": true}}
+             "camera": {"name": "Harbor Tele", "settings": {"body": "FULL_FRAME", "lens": "MM_135"}, "is_new": true}}
             """))));
-        CameraSettings tele = new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200,
+        CameraSettings tele = new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_135,
                 null, null, null, null, null);
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
 

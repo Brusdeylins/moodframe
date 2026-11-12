@@ -200,12 +200,12 @@ class BrainstormReplyTest {
         BrainstormDraft draft = BrainstormReply.parse("""
             {"step": 7, "message": "m", "draft": {"prompt": "A harbor",
               "camera": {"name": "Harbor Tele", "is_new": true,
-                "settings": {"body": "FULL_FRAME", "lens": "MM_200", "shot": "WIDE", "iso": "ISO_9"}}}}
+                "settings": {"body": "FULL_FRAME", "lens": "MM_135", "shot": "WIDE", "iso": "ISO_9"}}}}
             """).getDraft();
 
         BrainstormDraft.Block camera = draft.getBlock(Mood.Field.CAMERA);
         assertTrue(camera.isNew());
-        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200, null, null,
+        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_135, null, null,
                 null, null, CameraSettings.Shot.WIDE), camera.settings(), "an unknown value counts as any");
         assertEquals(camera, BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()))
                 .getBlock(Mood.Field.CAMERA));

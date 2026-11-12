@@ -42,7 +42,7 @@ class PromptComposerTest {
                 a lighthouse on a cliff
                 Atmosphere: quiet morning fog.
                 Lighting: soft daylight from a large window.
-                Camera: shot at eye level, wide shot, the full subject with its surroundings.
+                Camera: shot at eye level, wide shot, the full figure in frame.
                 Color palette: the image is composed predominantly of these colors: color 1 hex #48BDFF, \
                 color 2 hex #0096C7. The palette takes precedence over the color of the light. The colors appear \
                 only as colors of objects, surfaces and light; the image contains no written color codes, \

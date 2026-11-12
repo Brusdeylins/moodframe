@@ -108,11 +108,11 @@ class MoodAnalysisServiceTest {
     void aCameraIsAnEntryOrANewCameraWithTheSettingsFromTheImage() {
         Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply("{\"camera\": {\"name\": "
                 + "\"Classic Portrait\", \"is_new\": true, \"settings\": {\"body\": \"DRONE\", \"lens\": \"MM_24\", "
-                + "\"aperture\": \"F_8\", \"perspective\": \"TOP_DOWN\", \"shot\": \"EXTREME_WIDE\"}}}",
+                + "\"aperture\": \"F_11\", \"perspective\": \"TOP_DOWN\", \"shot\": \"EXTREME_WIDE\"}}}",
                 context, List.of());
 
         assertEquals(new BrainstormDraft.Block(null, "Classic Portrait (1)", null, List.of(), new CameraSettings(
-                CameraSettings.Body.DRONE, null, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_8, null, null,
+                CameraSettings.Body.DRONE, null, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_11, null, null,
                 CameraSettings.Perspective.TOP_DOWN, CameraSettings.Shot.EXTREME_WIDE), true),
                 blocks.get(Mood.Field.CAMERA));
         assertEquals("std:camera:classic-portrait", MoodAnalysisService.parseReply(

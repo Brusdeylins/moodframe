@@ -94,7 +94,7 @@ class PromptBlockServiceTest {
                 Image style: realistic photograph, sharp focus, natural detail and texture.
                 a market at dawn
                 Camera: shot on Leica M6, a 35mm compact film camera, candid analog snapshot look, 35mm lens, natural \
-                documentary perspective, f/8, deep depth of field, sharp from foreground to background, shot at eye \
+                documentary perspective, f/11, deep depth of field, front and back in sharp focus, shot at eye \
                 level.""", new PromptComposer(2000).compose("a market at dawn", null, new PromptComposer.Selection(
                 service.find(PromptBlock.Type.STYLE, "Photography"), null, null, street, null)));
     }

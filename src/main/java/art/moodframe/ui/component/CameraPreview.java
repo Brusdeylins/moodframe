@@ -194,10 +194,8 @@ public class CameraPreview extends VBox {
             return null;
         return switch (aperture) {
             case F_1_4 -> new double[] { 0.02, 0.03 };
-            case F_2 -> new double[] { 0.04, 0.06 };
             case F_4 -> new double[] { 0.07, 0.12 };
-            case F_8 -> new double[] { 0.15, 0.3 };
-            case F_16 -> new double[] { 1, 2 };
+            case F_11 -> new double[] { 1, 2 };
         };
     }
 }

@@ -51,8 +51,8 @@ public final class CameraPromptBuilder {
             new Model(Body.FULL_FRAME, "Canon EOS R5", false),
             new Model(Body.FULL_FRAME, "Nikon Z8", false),
             new Model(Body.FULL_FRAME, "Leica Q3", false),
-            new Model(Body.APS_C, "Fujifilm X-T5", false),
-            new Model(Body.APS_C, "Fujifilm X100VI", false),
+            new Model(Body.FULL_FRAME, "Fujifilm X-T5", false),
+            new Model(Body.FULL_FRAME, "Fujifilm X100VI", false),
             new Model(Body.MEDIUM_FORMAT, "Hasselblad X2D", false),
             new Model(Body.MEDIUM_FORMAT, "Fujifilm GFX 100S", false),
             new Model(Body.MEDIUM_FORMAT, "Hasselblad 500C/M", true),
@@ -68,26 +68,25 @@ public final class CameraPromptBuilder {
 
     /** "Generic": the device class and its effect. */
     private static final Map<Body, String> BODIES = Map.of(
-            Body.SMARTPHONE, "shot on a smartphone, deep focus, casual snapshot look",
+            Body.SMARTPHONE, "shot on a smartphone, deep focus, natural unstaged look",
             Body.COMPACT_35MM, "shot on a 35mm compact film camera, candid analog snapshot look",
             Body.FULL_FRAME, "shot on a full-frame digital camera, clean sharp detail, high dynamic range",
-            Body.APS_C, "shot on an APS-C mirrorless camera, crisp detail",
             Body.MEDIUM_FORMAT, "shot on a medium format camera, exceptional detail, smooth tonal transitions",
             Body.LARGE_FORMAT, "shot on a 4x5 large format view camera, extreme detail, "
                     + "precisely corrected vertical lines",
             Body.CINEMA, "shot on a digital cinema camera, motion-picture look",
             Body.INSTANT, "instant film photo, soft detail, slightly imperfect exposure",
-            Body.DRONE, "aerial drone photograph",
+            Body.DRONE, "aerial photograph from high above",
             Body.ACTION_CAM, "action camera look, ultra-wide view with barrel distortion");
 
     private static final Map<Lens, String> LENSES = Map.ofEntries(
-            Map.entry(Lens.MM_14, "14mm ultra-wide lens, sweeping field of view, dramatically stretched perspective"),
-            Map.entry(Lens.MM_24, "24mm wide-angle lens, showing much of the surroundings, pronounced depth"),
+            Map.entry(Lens.MM_14, "14mm ultra-wide lens, an extremely wide field of view, "
+                    + "dramatically stretched perspective"),
+            Map.entry(Lens.MM_24, "24mm wide-angle lens, a wide field of view, pronounced depth"),
             Map.entry(Lens.MM_35, "35mm lens, natural documentary perspective"),
             Map.entry(Lens.MM_50, "50mm lens, neutral perspective close to human vision"),
             Map.entry(Lens.MM_85, "85mm portrait lens, flattering proportions, slight background compression"),
             Map.entry(Lens.MM_135, "135mm telephoto lens, strong background compression, the subject isolated"),
-            Map.entry(Lens.MM_200, "200mm telephoto lens, distant viewpoint, heavily compressed layers"),
             Map.entry(Lens.MM_400, "400mm super-telephoto lens, very narrow field of view, "
                     + "the background stacked close behind the subject"),
             Map.entry(Lens.MACRO, "macro lens, extreme close-up revealing fine detail"),
@@ -98,10 +97,8 @@ public final class CameraPromptBuilder {
 
     private static final Map<Aperture, String> APERTURES = Map.of(
             Aperture.F_1_4, "f/1.4, very shallow depth of field, the background melted into soft blur",
-            Aperture.F_2, "f/2, shallow depth of field, softly blurred background",
             Aperture.F_4, "f/4, moderate depth of field, the background gently soft",
-            Aperture.F_8, "f/8, deep depth of field, sharp from foreground to background",
-            Aperture.F_16, "f/16, everything in sharp focus from front to back");
+            Aperture.F_11, "f/11, deep depth of field, front and back in sharp focus");
 
     /** "Normal" has no text. */
     private static final Map<Shutter, String> SHUTTERS = Map.of(
@@ -112,7 +109,6 @@ public final class CameraPromptBuilder {
 
     private static final Map<Iso, String> ISOS = Map.of(
             Iso.ISO_100, "ISO 100, clean image without visible grain or noise",
-            Iso.ISO_800, "ISO 800, subtle fine grain",
             Iso.ISO_3200, "ISO 3200, pronounced grain and high-ISO noise");
 
     private static final Map<Perspective, String> PERSPECTIVES = Map.of(
@@ -123,8 +119,8 @@ public final class CameraPromptBuilder {
             Perspective.DUTCH_ANGLE, "dutch angle with a tilted horizon");
 
     private static final Map<Shot, String> SHOTS = Map.of(
-            Shot.EXTREME_WIDE, "extreme wide shot, the subject small in a vast setting",
-            Shot.WIDE, "wide shot, the full subject with its surroundings",
+            Shot.EXTREME_WIDE, "extreme wide shot, the subject small in the frame",
+            Shot.WIDE, "wide shot, the full figure in frame",
             Shot.MEDIUM, "medium shot",
             Shot.CLOSE_UP, "close-up framing",
             Shot.DETAIL, "extreme close-up on a single detail");

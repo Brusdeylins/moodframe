@@ -21,16 +21,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The camera fragment from its settings, and the settings as JSON. */
 class CameraPromptBuilderTest {
 
-    private static final CameraSettings FULL = new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_2,
-            Shutter.FROZEN, Iso.ISO_800, Perspective.LOW_ANGLE, Shot.CLOSE_UP);
+    private static final CameraSettings FULL = new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_4,
+            Shutter.FROZEN, Iso.ISO_3200, Perspective.LOW_ANGLE, Shot.CLOSE_UP);
 
     @Test
     void writesEverySettingInTheFixedOrder() {
         assertEquals("shot on a full-frame digital camera, clean sharp detail, high dynamic range, "
                 + "85mm portrait lens, flattering proportions, slight background compression, "
-                + "f/2, shallow depth of field, softly blurred background, "
+                + "f/4, moderate depth of field, the background gently soft, "
                 + "fast shutter speed, motion frozen crisply, "
-                + "ISO 800, subtle fine grain, "
+                + "ISO 3200, pronounced grain and high-ISO noise, "
                 + "low-angle shot from below, looking up, "
                 + "close-up framing", CameraPromptBuilder.build(FULL, true));
     }
@@ -40,8 +40,8 @@ class CameraPromptBuilderTest {
         assertEquals("", CameraPromptBuilder.build(CameraSettings.ANY, true));
         assertEquals("", CameraPromptBuilder.build(new CameraSettings(null, null, null, null, Shutter.NORMAL, null,
                 null, null), true), "\"Normal\" has no text");
-        assertEquals("f/16, everything in sharp focus from front to back, top-down view from directly above",
-                CameraPromptBuilder.build(new CameraSettings(null, null, null, Aperture.F_16, Shutter.NORMAL, null,
+        assertEquals("f/11, deep depth of field, front and back in sharp focus, top-down view from directly above",
+                CameraPromptBuilder.build(new CameraSettings(null, null, null, Aperture.F_11, Shutter.NORMAL, null,
                         Perspective.TOP_DOWN, null), true));
     }
 
@@ -71,7 +71,7 @@ class CameraPromptBuilderTest {
         for (Shot shot : Shot.values())
             values += add(texts, new CameraSettings(null, null, null, null, null, null, null, shot));
 
-        assertEquals(10 + 12 + 5 + 3 + 3 + 5 + 5, values);
+        assertEquals(9 + 11 + 3 + 3 + 2 + 5 + 5, values);
         assertEquals(values, texts.size(), "two values share a text");
     }
 
@@ -92,7 +92,7 @@ class CameraPromptBuilderTest {
     void keepsOnlyPerspectiveAndShotSizeForAStyleThatIsNotPhotographic() {
         assertEquals("low-angle shot from below, looking up, close-up framing", CameraPromptBuilder.build(FULL, false));
         assertEquals("", CameraPromptBuilder.build(new CameraSettings(Body.DRONE, "DJI Mavic 3", Lens.MM_24,
-                Aperture.F_8, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, null), false));
+                Aperture.F_11, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, null), false));
     }
 
     @Test
@@ -108,8 +108,8 @@ class CameraPromptBuilderTest {
 
     @Test
     void readsTheSettingsBackFromJson() {
-        CameraSettings settings = new CameraSettings(Body.CINEMA, "ARRI Alexa 35", Lens.ANAMORPHIC, Aperture.F_2, null,
-                null, null, Shot.MEDIUM);
+        CameraSettings settings = new CameraSettings(Body.CINEMA, "ARRI Alexa 35", Lens.ANAMORPHIC, Aperture.F_1_4,
+                null, null, null, Shot.MEDIUM);
 
         assertEquals(settings, CameraSettings.fromJson(settings.toJson()));
         assertEquals(CameraSettings.ANY, CameraSettings.fromJson(CameraSettings.ANY.toJson()));
@@ -118,6 +118,16 @@ class CameraPromptBuilderTest {
                 "an unknown value counts as \"any\"");
         assertEquals(CameraSettings.ANY, CameraSettings.fromJson("no json"));
         assertEquals(CameraSettings.ANY, CameraSettings.fromJson(null));
+    }
+
+    @Test
+    void readsARemovedValueAsTheValueReplacingIt() {
+        assertEquals(new CameraSettings(Body.FULL_FRAME, "Fujifilm X-T5", Lens.MM_135, Aperture.F_1_4, null,
+                Iso.ISO_100, null, null), CameraSettings.fromJson("{\"body\": \"APS_C\", "
+                + "\"model\": \"Fujifilm X-T5\", \"lens\": \"MM_200\", \"aperture\": \"F_2\", "
+                + "\"iso\": \"ISO_800\"}"));
+        assertEquals(Aperture.F_11, CameraSettings.fromJson("{\"aperture\": \"F_8\"}").aperture());
+        assertEquals(Aperture.F_11, CameraSettings.fromJson("{\"aperture\": \"F_16\"}").aperture());
     }
 
     private static int add(Set<String> texts, CameraSettings settings) {

@@ -3,6 +3,8 @@ package art.moodframe.model;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Map;
+
 /**
  * The settings of a camera building block, from which the app builds its prompt fragment.
  *
@@ -25,14 +27,18 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     /** Every setting "any". */
     public static final CameraSettings ANY = new CameraSettings(null, null, null, null, null, null, null, null);
 
+    /*  Removed values and the value that replaces them, so stored settings keep loading  */
+    private static final Map<String, String> REMOVED = Map.of("APS_C", "FULL_FRAME", "MM_200", "MM_135",
+            "F_2", "F_1_4", "F_8", "F_11", "F_16", "F_11", "ISO_800", "ISO_100");
+
     /** The camera type. */
     public enum Body {
-        SMARTPHONE, COMPACT_35MM, FULL_FRAME, APS_C, MEDIUM_FORMAT, LARGE_FORMAT, CINEMA, INSTANT, DRONE, ACTION_CAM
+        SMARTPHONE, COMPACT_35MM, FULL_FRAME, MEDIUM_FORMAT, LARGE_FORMAT, CINEMA, INSTANT, DRONE, ACTION_CAM
     }
 
     /** The focal lengths from wide to long, followed by the special lenses. */
     public enum Lens {
-        MM_14(14), MM_24(24), MM_35(35), MM_50(50), MM_85(85), MM_135(135), MM_200(200), MM_400(400),
+        MM_14(14), MM_24(24), MM_35(35), MM_50(50), MM_85(85), MM_135(135), MM_400(400),
         MACRO(0), FISHEYE(0), TILT_SHIFT(0), ANAMORPHIC(0);
 
         private final int millimeters;
@@ -54,7 +60,7 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
 
     /** The aperture, from open to closed. */
     public enum Aperture {
-        F_1_4("f/1.4"), F_2("f/2"), F_4("f/4"), F_8("f/8"), F_16("f/16");
+        F_1_4("f/1.4"), F_4("f/4"), F_11("f/11");
 
         private final String label;
 
@@ -75,7 +81,7 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
 
     /** The ISO, from clean to grainy. */
     public enum Iso {
-        ISO_100("ISO 100"), ISO_800("ISO 800"), ISO_3200("ISO 3200");
+        ISO_100("ISO 100"), ISO_3200("ISO 3200");
 
         private final String label;
 
@@ -118,7 +124,8 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     }
 
     /**
-     * Reads the settings from JSON text written by {@link #toJson()}; a missing or unknown value counts as "any".
+     * Reads the settings from JSON text written by {@link #toJson()}; a removed value counts as the value replacing
+     * it, a missing or unknown value as "any".
      *
      * @param json the JSON text, null or empty for none
      * @return the settings, {@link #ANY} for text that is no JSON object
@@ -140,7 +147,8 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
 
     private static <E extends Enum<E>> E value(JSONObject object, String key, Class<E> type) {
         try {
-            return Enum.valueOf(type, object.optString(key, ""));
+            String name = object.optString(key, "");
+            return Enum.valueOf(type, REMOVED.getOrDefault(name, name));
         } catch (IllegalArgumentException e) {
             return null;
         }

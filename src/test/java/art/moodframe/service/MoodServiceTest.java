@@ -286,7 +286,7 @@ class MoodServiceTest {
     @Test
     void copiesTheCameraOfAnEntryWithItsSettingsTakesItOverAndCreatesItAnew() throws Exception {
         PromptBlock camera = PromptBlockService.camera(null, "Harbor Tele", new CameraSettings(
-                CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_200, CameraSettings.Aperture.F_4, null,
+                CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_135, CameraSettings.Aperture.F_4, null,
                 null, null, null));
         assertTrue(blocks.addCustom(camera));
         Mood product = moods.find("std:mood:clean-product");
