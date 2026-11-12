@@ -648,21 +648,24 @@ public class ApplicationConfig {
     }
 
     /**
-     * Whether the left sidebar lists the moods instead of the chats.
+     * What the left sidebar lists: the chats, the moods or the frames images were generated with.
      *
-     * @return true for the list by mood (default: the chats)
+     * @return {@code chat} (default), {@code mood} or {@code frame}
      */
-    public boolean isSidebarByMood() {
-        return Boolean.parseBoolean(properties.getProperty("sidebar.by.mood", "false"));
+    public String getSidebarMode() {
+        /*  The former switch between chats and moods counts until a mode is remembered  */
+        return properties.getProperty("sidebar.mode",
+                Boolean.parseBoolean(properties.getProperty("sidebar.by.mood", "false")) ? "mood" : "chat");
     }
 
     /**
-     * Remembers whether the left sidebar lists the moods instead of the chats.
+     * Remembers what the left sidebar lists.
      *
-     * @param byMood true for the list by mood
+     * @param mode {@code chat}, {@code mood} or {@code frame}
      */
-    public void setSidebarByMood(boolean byMood) {
-        properties.setProperty("sidebar.by.mood", String.valueOf(byMood));
+    public void setSidebarMode(String mode) {
+        properties.setProperty("sidebar.mode", mode);
+        properties.remove("sidebar.by.mood");
         saveConfiguration();
     }
 

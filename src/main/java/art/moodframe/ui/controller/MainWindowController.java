@@ -3,7 +3,10 @@ package art.moodframe.ui.controller;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.EntryFrame;
+import art.moodframe.model.EntryGroup;
 import art.moodframe.model.EntryMood;
+import art.moodframe.model.FrameGroup;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
@@ -19,6 +22,7 @@ import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.MoodListCell;
 import art.moodframe.ui.cell.ChatListCell;
+import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -122,7 +126,11 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private RadioMenuItem byMoodMenuItem;
     @FXML
+    private RadioMenuItem byFrameMenuItem;
+    @FXML
     private ListView<MoodGroup> moodGroupListView;
+    @FXML
+    private ListView<FrameGroup> frameGroupListView;
 
     // Chat Area Controls
     @FXML
@@ -445,10 +453,10 @@ public class MainWindowController implements I18nChangeListener {
     private boolean frameChanged;
     private boolean updatingFrame;
 
-    /*  The left sidebar by mood: the group whose entries are shown (null while a chat is shown, which keeps taking
-        the new prompts as the last active one) and a guard while the list is filled again  */
-    private MoodGroup shownMoodGroup;
-    private boolean updatingMoodGroups;
+    /*  The left sidebar by mood or by frame: the group whose entries are shown (null while a chat is shown, which
+        keeps taking the new prompts as the last active one) and a guard while the list is filled again  */
+    private EntryGroup shownGroup;
+    private boolean updatingGroups;
 
     /**
      * Initializes the controller after FXML loading.
@@ -1490,11 +1498,11 @@ public class MainWindowController implements I18nChangeListener {
         // Refresh filter to show the restored chat in active list
         filteredChatList.setPredicate(this::shouldShowChat);
 
-        // If this was the current chat, reload it to show images from active directory; an open mood shows it again
-        if (currentChat == chat || shownMoodGroup != null) {
+        // If this was the current chat, reload it to show images from active directory; an open group shows it again
+        if (currentChat == chat || shownGroup != null) {
             updateChatView(currentChat);
         }
-        refreshMoodGroups();
+        refreshGroups();
 
         // Update UI state as input area should be enabled for restored chats
         updateUIState();
@@ -1557,8 +1565,8 @@ public class MainWindowController implements I18nChangeListener {
             chatListView.getSelectionModel().clearSelection();
             currentChat = null;
 
-            /*  An open mood stays, it held no entry of a chat in the trash  */
-            if (shownMoodGroup == null) {
+            /*  An open group stays, it held no entry of a chat in the trash  */
+            if (shownGroup == null) {
                 chatEntriesListView.setItems(null);
                 welcomeContainer.setVisible(true);
             }
@@ -1596,8 +1604,8 @@ public class MainWindowController implements I18nChangeListener {
     private void onChatEntryUpdated(art.moodframe.model.ChatEntry chatEntry) {
         javafx.application.Platform.runLater(() -> {
             try {
-                // Only update if this is the currently displayed chat and entry exists (an open mood shows all chats)
-                java.util.List<ChatEntry> shown = shownMoodGroup != null ? chatEntriesListView.getItems()
+                // Only update if this is the currently displayed chat and entry exists (an open group shows all chats)
+                java.util.List<ChatEntry> shown = shownGroup != null ? chatEntriesListView.getItems()
                         : currentChat != null ? currentChat.getEntries() : null;
                 if (shown != null && shown.contains(chatEntry)) {
                     // Find and update only the specific ChatEntryCard instead of reloading entire
@@ -1608,10 +1616,10 @@ public class MainWindowController implements I18nChangeListener {
                     // Entry not in current chat, no UI update needed
                 }
 
-                /*  A finished entry changes the image counts of the moods  */
+                /*  A finished entry changes the image counts of the groups  */
                 if (chatEntry.getStatus() != ChatEntry.Status.PENDING
                         && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
-                    refreshMoodGroups();
+                    refreshGroups();
             } catch (Exception e) {
                 logger.error("Error updating UI for ChatEntry", e);
             }
@@ -1624,8 +1632,8 @@ public class MainWindowController implements I18nChangeListener {
     private void onImageUpdated(art.moodframe.model.GeneratedImage image) {
         javafx.application.Platform.runLater(() -> {
             try {
-                // Only update if this image belongs to the currently displayed chat (an open mood shows all chats)
-                java.util.List<ChatEntry> shown = shownMoodGroup != null ? chatEntriesListView.getItems()
+                // Only update if this image belongs to the currently displayed chat (an open group shows all chats)
+                java.util.List<ChatEntry> shown = shownGroup != null ? chatEntriesListView.getItems()
                         : currentChat != null ? currentChat.getEntries() : null;
                 if (shown != null) {
                     // Find the ChatEntry that contains this image
@@ -1678,10 +1686,10 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void addNewChatEntryToUI(art.moodframe.model.ChatEntry chatEntry) {
         try {
-            /*  An open mood shows the entry if it belongs to it, the chat takes it in any case  */
-            if (shownMoodGroup != null) {
-                refreshMoodGroups();
-                if (shownMoodGroup.holds(chatEntry.getMood())) {
+            /*  An open group shows the entry if it belongs to it, the chat takes it in any case  */
+            if (shownGroup != null) {
+                refreshGroups();
+                if (shownGroup.holds(chatEntry)) {
                     chatEntriesListView.getItems().add(chatEntry);
                     scrollToBottom("new entry added");
                 }
@@ -2257,7 +2265,7 @@ public class MainWindowController implements I18nChangeListener {
         Mood chosen = chosenMood();
         reloadMoods(chosen != null ? chosen.getId() : "");
         updateMoodState();
-        refreshMoodGroups();
+        refreshGroups();
     }
 
     /** Applies a chosen mood, or runs an action and leaves the choice as it was. */
@@ -2648,13 +2656,14 @@ public class MainWindowController implements I18nChangeListener {
         updatingFrame = false;
     }
 
-    /** Lists the frames again, keeping the choice, for example once a frame left the trash. */
+    /** Lists the frames again, keeping the choice, for example once a frame left the trash or was renamed. */
     private void refreshFrames() {
         if (frameService == null)
             return;
         Frame chosen = chosenFrame();
         reloadFrames(chosen != null ? chosen.getId() : "");
         updateFrameState();
+        refreshGroups();
     }
 
     /** Applies a chosen frame, or runs an action and leaves the choice as it was. */
@@ -3356,7 +3365,7 @@ public class MainWindowController implements I18nChangeListener {
                 } else {
                     // Create new ChatEntryCard for this entry
                     // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
-                    boolean isChatDeleted = shownMoodGroup == null && currentChat != null && currentChat.isDeleted();
+                    boolean isChatDeleted = shownGroup == null && currentChat != null && currentChat.isDeleted();
                     java.util.function.Supplier<Boolean> fluxModelSupplier = () ->
                         modelComboBox != null &&
                         modelComboBox.getValue() != null &&
@@ -3402,8 +3411,8 @@ public class MainWindowController implements I18nChangeListener {
                     currentCard.setOnMoodTakeOver((takenEntry, save) -> takeOverEntryMood(takenEntry, save));
                     currentCard.setOnMoodFromImage((imageFile) -> openMoodFromImage(imageFile));
 
-                    /*  The entries of a mood name their chat and lead to it  */
-                    Chat origin = shownMoodGroup != null ? getCurrentChatFromEntry(entry) : null;
+                    /*  The entries of a group name their chat and lead to it  */
+                    Chat origin = shownGroup != null ? getCurrentChatFromEntry(entry) : null;
                     if (origin != null)
                         currentCard.showOrigin(origin.getName(), () -> openOriginChat(entry));
 
@@ -3453,9 +3462,9 @@ public class MainWindowController implements I18nChangeListener {
      * @param chat the chat to display, or null to show welcome message
      */
     private void updateChatView(Chat chat) {
-        /*  An open mood stays in front, the chat only takes the new prompts  */
-        if (shownMoodGroup != null) {
-            showMoodGroup();
+        /*  An open group stays in front, the chat only takes the new prompts  */
+        if (shownGroup != null) {
+            showGroup();
             return;
         }
 
@@ -3605,8 +3614,8 @@ public class MainWindowController implements I18nChangeListener {
      * entire chat. With virtualized ListView, we just update the title label and cost.
      */
     private void updateChatHeader() {
-        if (shownMoodGroup != null)
-            updateMoodGroupHeader();
+        if (shownGroup != null)
+            updateGroupHeader();
         else if (currentChat != null) {
             // Update title label if present
             if (chatTitleLabel != null) {
@@ -3694,9 +3703,9 @@ public class MainWindowController implements I18nChangeListener {
      * @param chat the chat to calculate cost for
      */
     private void updateChatTotalCost(Chat chat) {
-        /*  An open mood names the chat of the new prompts there instead  */
-        if (shownMoodGroup != null)
-            updateMoodGroupHeader();
+        /*  An open group names the chat of the new prompts there instead  */
+        if (shownGroup != null)
+            updateGroupHeader();
         else if (chatTotalCostLabel != null && chat != null) {
             // TOTAL COST OF ALL ENTRIES = Sum of all entry costs (each entry cost includes
             // its active + deleted images)
@@ -3880,57 +3889,71 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the menu of the left sidebar that switches between the chats and the moods images were generated with;
-     * the choice is remembered. Opening a mood shows its entries from all chats on the right.
+     * Sets up the menu of the left sidebar that switches between the chats and the moods or frames images were
+     * generated with; the choice is remembered. Opening a mood or frame shows its entries from all chats on the right.
      */
     private void setupSidebarMode() {
         ToggleGroup modes = new ToggleGroup();
         byChatMenuItem.setToggleGroup(modes);
         byMoodMenuItem.setToggleGroup(modes);
+        byFrameMenuItem.setToggleGroup(modes);
+        byChatMenuItem.setUserData("chat");
+        byMoodMenuItem.setUserData("mood");
+        byFrameMenuItem.setUserData("frame");
 
         /*  One of the entries stays selected  */
         modes.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
             if (newToggle == null)
                 oldToggle.setSelected(true);
             else
-                showSidebarMode(newToggle == byMoodMenuItem);
+                showSidebarMode(newToggle);
         });
 
         moodGroupListView.setCellFactory((listView) -> new MoodGroupListCell());
         moodGroupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldGroup, newGroup) -> {
-            if (!updatingMoodGroups && newGroup != null)
+            if (!updatingGroups && newGroup != null)
                 openMoodGroup(newGroup);
         });
+        frameGroupListView.setCellFactory((listView) -> new FrameGroupListCell());
+        frameGroupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldGroup, newGroup) -> {
+            if (!updatingGroups && newGroup != null)
+                openFrameGroup(newGroup);
+        });
 
-        if (config != null && config.isSidebarByMood())
-            byMoodMenuItem.setSelected(true);
+        String mode = config != null ? config.getSidebarMode() : "chat";
+        modes.getToggles().stream().filter((toggle) -> mode.equals(toggle.getUserData())).findFirst()
+                .ifPresent((toggle) -> toggle.setSelected(true));
     }
 
-    /** Lists the chats or the moods in the left sidebar and remembers the choice; leaving the moods shows the chat. */
-    private void showSidebarMode(boolean byMood) {
-        if (moodGroupListView.isVisible() == byMood)
+    /** Lists the chats, the moods or the frames in the left sidebar and remembers the choice; an open group closes. */
+    private void showSidebarMode(Toggle mode) {
+        ListView<?> shownList = mode == byMoodMenuItem ? moodGroupListView
+                : mode == byFrameMenuItem ? frameGroupListView : chatListView;
+        if (shownList.isVisible())
             return;
-        chatListView.setVisible(!byMood);
-        chatListView.setManaged(!byMood);
-        moodGroupListView.setVisible(byMood);
-        moodGroupListView.setManaged(byMood);
+        for (ListView<?> list : List.of(chatListView, moodGroupListView, frameGroupListView)) {
+            list.setVisible(list == shownList);
+            list.setManaged(list == shownList);
+        }
         updateSidebarTitle();
         if (config != null)
-            config.setSidebarByMood(byMood);
+            config.setSidebarMode((String) mode.getUserData());
 
-        if (byMood)
-            refreshMoodGroups();
-        else if (shownMoodGroup != null) {
-            shownMoodGroup = null;
+        /*  The chat shows again, the other list holds the open group no more  */
+        if (shownGroup != null) {
+            shownGroup = null;
             moodGroupListView.getSelectionModel().clearSelection();
+            frameGroupListView.getSelectionModel().clearSelection();
             updateChatView(currentChat);
             updateUIState();
         }
+        refreshGroups();
     }
 
     /** Names the current view of the left sidebar in its header. */
     private void updateSidebarTitle() {
-        sidebarTitleLabel.setText(I18nManager.getText(moodGroupListView.isVisible() ? "sidebar.moods" : "sidebar.chats"));
+        sidebarTitleLabel.setText(I18nManager.getText(moodGroupListView.isVisible() ? "sidebar.moods"
+                : frameGroupListView.isVisible() ? "sidebar.frames" : "sidebar.chats"));
     }
 
     /**
@@ -3941,31 +3964,45 @@ public class MainWindowController implements I18nChangeListener {
         Mood mood = group.kind() == MoodGroup.Kind.MOOD && moodService != null ? moodService.find(group.moodId()) : null;
         if (mood != null)
             chooseMood(mood);
-        shownMoodGroup = group;
+        shownGroup = group;
         updateChatView(currentChat);
         updateUIState();
     }
 
     /**
-     * Shows the entries of the open mood, the oldest first as in a chat. They are the entries of the loaded chats, so
+     * Opens a group of the list by frame: a frame in use is chosen, and the entries of the group from all chats are
+     * shown. The last active chat keeps taking the new prompts.
+     */
+    private void openFrameGroup(FrameGroup group) {
+        Frame frame = group.kind() == FrameGroup.Kind.FRAME && frameService != null
+                ? frameService.find(group.frameId()) : null;
+        if (frame != null)
+            chooseFrame(frame);
+        shownGroup = group;
+        updateChatView(currentChat);
+        updateUIState();
+    }
+
+    /**
+     * Shows the entries of the open group, the oldest first as in a chat. They are the entries of the loaded chats, so
      * running requests keep updating them.
      */
-    private void showMoodGroup() {
+    private void showGroup() {
         java.util.Map<String, ChatEntry> loaded = new java.util.HashMap<>();
         chatList.stream().filter(this::shouldShowChat)
                 .forEach((chat) -> chat.getEntries().forEach((entry) -> loaded.put(entry.getId(), entry)));
         ObservableList<ChatEntry> entries = FXCollections.observableArrayList();
         try {
             if (chatHistory != null)
-                chatHistory.findChatEntryIdsByMood(shownMoodGroup).stream().map(loaded::get)
+                chatHistory.findChatEntryIds(shownGroup).stream().map(loaded::get)
                         .filter(java.util.Objects::nonNull).forEach(entries::add);
         } catch (Exception e) {
-            logger.error("Failed to load the entries of the mood {}", shownMoodGroup.moodId(), e);
+            logger.error("Failed to load the entries of the group {}", shownGroup, e);
         }
 
         /*  Back in a chat, the view scrolls to its latest entry  */
         lastChatEntriesCount = 0;
-        updateMoodGroupHeader();
+        updateGroupHeader();
         welcomeContainer.setVisible(false);
         chatEntriesListView.setVisible(true);
         chatEntriesListView.setItems(entries);
@@ -3973,41 +4010,49 @@ public class MainWindowController implements I18nChangeListener {
             Platform.runLater(() -> chatEntriesListView.scrollTo(entries.size() - 1));
     }
 
-    /** Shows the name of the open mood above its entries and the chat that takes the new prompts. */
-    private void updateMoodGroupHeader() {
-        chatTitleLabel.setText(MoodGroupListCell.nameOf(shownMoodGroup));
+    /** Shows the name of the open group above its entries and the chat that takes the new prompts. */
+    private void updateGroupHeader() {
+        chatTitleLabel.setText(switch (shownGroup) {
+            case MoodGroup group -> MoodGroupListCell.nameOf(group);
+            case FrameGroup group -> FrameGroupListCell.nameOf(group);
+        });
         chatTotalCostLabel.setText(currentChat != null && !currentChat.isDeleted()
-                ? I18nManager.getText("sidebar.moods.target", currentChat.getName())
-                : I18nManager.getText("sidebar.moods.target.none"));
+                ? I18nManager.getText("sidebar.group.target", currentChat.getName())
+                : I18nManager.getText("sidebar.group.target.none"));
     }
 
     /**
-     * Lists the moods again while the sidebar shows them, keeping the open one selected without opening it again; the
-     * open one takes over its new name, for example once it was renamed or deleted.
+     * Lists the moods or the frames again while the sidebar shows them, keeping the open group selected without opening
+     * it again; the open group takes over its new name, for example once it was renamed or deleted.
      */
-    private void refreshMoodGroups() {
-        if (chatHistory == null || !moodGroupListView.isVisible())
+    private void refreshGroups() {
+        if (chatHistory == null)
             return;
-        List<MoodGroup> groups;
         try {
-            groups = chatHistory.findMoodGroups();
+            if (moodGroupListView.isVisible())
+                refreshGroups(moodGroupListView, chatHistory.findMoodGroups());
+            else if (frameGroupListView.isVisible())
+                refreshGroups(frameGroupListView, chatHistory.findFrameGroups());
         } catch (Exception e) {
-            logger.error("Failed to load the moods of the entries", e);
+            logger.error("Failed to load the groups of the entries", e);
             return;
         }
-
-        updatingMoodGroups = true;
-        moodGroupListView.getItems().setAll(groups);
-        groups.stream().filter((group) -> group.sameAs(shownMoodGroup)).findFirst().ifPresent((group) -> {
-            shownMoodGroup = group;
-            moodGroupListView.getSelectionModel().select(group);
-        });
-        updatingMoodGroups = false;
-        if (shownMoodGroup != null)
-            updateMoodGroupHeader();
+        if (shownGroup != null)
+            updateGroupHeader();
     }
 
-    /** Opens the chat an entry of the open mood was generated in, with the entry in view. */
+    /** Fills a list of groups, keeping the open one selected without opening it again. */
+    private <T extends EntryGroup> void refreshGroups(ListView<T> listView, List<T> groups) {
+        updatingGroups = true;
+        listView.getItems().setAll(groups);
+        groups.stream().filter((group) -> group.sameAs(shownGroup)).findFirst().ifPresent((group) -> {
+            shownGroup = group;
+            listView.getSelectionModel().select(group);
+        });
+        updatingGroups = false;
+    }
+
+    /** Opens the chat an entry of the open group was generated in, with the entry in view. */
     private void openOriginChat(ChatEntry entry) {
         Chat chat = getCurrentChatFromEntry(entry);
         if (chat == null)
@@ -4836,6 +4881,8 @@ public class MainWindowController implements I18nChangeListener {
                 .size(aspectRatio)
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .mood(moodService != null ? moodService.snapshot(moodChanged ? null : chosenMood(), blocks) : null)
+                .frame(EntryFrame.of(frameChanged ? null : chosenFrame(), aspectRatioComboBox.getValue(),
+                        resolutionChoiceBox.getValue()))
                 .safetyTolerance(safetyToleranceValue)
                 .seed(seedValue != null ? seedValue : 0) // 0 indicates random generation
                 .cost(totalCost)
@@ -5673,7 +5720,7 @@ public class MainWindowController implements I18nChangeListener {
      * Opens the first image of that chat entry in the preview.
      */
     private void navigateToPreviousChatWithImages() {
-        if (currentChat == null && shownMoodGroup == null) {
+        if (currentChat == null && shownGroup == null) {
             return;
         }
 
@@ -5683,9 +5730,9 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        // Work directly with chat entries from the current chat, or with those of an open mood
+        // Work directly with chat entries from the current chat, or with those of an open group
         // The issue is not with deleted chat entries, but with the index calculation
-        java.util.List<ChatEntry> chatEntries = shownMoodGroup != null ? chatEntriesListView.getItems()
+        java.util.List<ChatEntry> chatEntries = shownGroup != null ? chatEntriesListView.getItems()
                 : currentChat.getEntries();
 
         int currentIndex = -1;
@@ -5722,7 +5769,7 @@ public class MainWindowController implements I18nChangeListener {
      * Opens the first image of that chat entry in the preview.
      */
     private void navigateToNextChatWithImages() {
-        if (currentChat == null && shownMoodGroup == null) {
+        if (currentChat == null && shownGroup == null) {
             return;
         }
 
@@ -5732,8 +5779,8 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        // Work directly with chat entries from the current chat, or with those of an open mood
-        java.util.List<ChatEntry> chatEntries = shownMoodGroup != null ? chatEntriesListView.getItems()
+        // Work directly with chat entries from the current chat, or with those of an open group
+        java.util.List<ChatEntry> chatEntries = shownGroup != null ? chatEntriesListView.getItems()
                 : currentChat.getEntries();
         int currentIndex = -1;
 
@@ -5867,7 +5914,7 @@ public class MainWindowController implements I18nChangeListener {
      * @return true if there's a previous chat entry with images
      */
     private boolean hasPreviousChatWithImages() {
-        if ((currentChat == null && shownMoodGroup == null) || chatEntriesListView == null
+        if ((currentChat == null && shownGroup == null) || chatEntriesListView == null
                 || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
             return false;
         }
@@ -5891,7 +5938,7 @@ public class MainWindowController implements I18nChangeListener {
      * @return true if there's a next chat entry with images
      */
     private boolean hasNextChatWithImages() {
-        if ((currentChat == null && shownMoodGroup == null) || chatEntriesListView == null
+        if ((currentChat == null && shownGroup == null) || chatEntriesListView == null
                 || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
             return false;
         }
@@ -6069,9 +6116,9 @@ public class MainWindowController implements I18nChangeListener {
             // Update dynamic labels if they exist
             updateDynamicLabels();
 
-            /*  An open mood keeps its name in the header  */
-            if (shownMoodGroup != null)
-                updateMoodGroupHeader();
+            /*  An open group keeps its name in the header  */
+            if (shownGroup != null)
+                updateGroupHeader();
 
         } catch (Exception e) {
             logger.error("Failed to update MainWindow UI texts", e);
@@ -6674,6 +6721,7 @@ public class MainWindowController implements I18nChangeListener {
             sidebarModeTooltip.setText(I18nManager.getText("sidebar.mode.tooltip"));
             byChatMenuItem.setText(I18nManager.getText("sidebar.by.chat"));
             byMoodMenuItem.setText(I18nManager.getText("sidebar.by.mood"));
+            byFrameMenuItem.setText(I18nManager.getText("sidebar.by.frame"));
             updateSidebarTitle();
         }
 
@@ -6810,7 +6858,7 @@ public class MainWindowController implements I18nChangeListener {
                             updateChatTotalCost(currentChat); // Updates the top header
                         }
 
-                        refreshMoodGroups();
+                        refreshGroups();
 
                         // Show success notification
                         showNotification(I18nManager.getText("delete.entry.success"));
@@ -6944,7 +6992,7 @@ public class MainWindowController implements I18nChangeListener {
                             updateChatTotalCost(currentChat); // Updates the top header
                         }
 
-                        refreshMoodGroups();
+                        refreshGroups();
 
                         // Show success notification
                         showNotification(I18nManager.getText("delete.image.success"));

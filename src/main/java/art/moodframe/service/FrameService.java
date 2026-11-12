@@ -245,8 +245,18 @@ public class FrameService {
      * @return its target aspect ratio and, if it has one, its target resolution
      */
     public static String describe(Frame frame) {
-        return frame.getResolution() != null ? frame.getAspectRatio() + " · " + frame.getResolution()
-                : frame.getAspectRatio();
+        return describe(frame.getAspectRatio(), frame.getResolution());
+    }
+
+    /**
+     * Names a target aspect ratio and resolution, for example {@code "4:5 · 2K"}, like {@link #describe(Frame)}.
+     *
+     * @param aspectRatio the target aspect ratio
+     * @param resolution the target resolution, null for none
+     * @return the aspect ratio and, if there is one, the resolution
+     */
+    public static String describe(String aspectRatio, String resolution) {
+        return resolution != null ? aspectRatio + " · " + resolution : aspectRatio;
     }
 
     /**

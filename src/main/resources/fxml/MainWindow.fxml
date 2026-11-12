@@ -73,11 +73,11 @@
 
                 <!-- Chat Controls Row -->
                 <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
-                    <!-- The current view of the list: chats or moods -->
+                    <!-- The current view of the list: chats, moods or frames -->
                     <Label fx:id="sidebarTitleLabel" text="Chats" styleClass="title-4" />
                     <Region HBox.hgrow="ALWAYS" />
 
-                    <!-- Switch of the list: by chat or by mood, the active one checked -->
+                    <!-- Switch of the list: by chat, by mood or by frame, the active one checked -->
                     <MenuButton fx:id="sidebarModeButton" styleClass="button-icon, flat, no-arrow">
                         <graphic>
                             <FontIcon iconLiteral="mdi2s-sort" iconSize="20" styleClass="ikonli-font-icon" />
@@ -85,6 +85,7 @@
                         <items>
                             <RadioMenuItem fx:id="byChatMenuItem" text="By chat" selected="true" />
                             <RadioMenuItem fx:id="byMoodMenuItem" text="By mood" />
+                            <RadioMenuItem fx:id="byFrameMenuItem" text="By frame" />
                         </items>
                         <tooltip>
                             <Tooltip fx:id="sidebarModeTooltip" text="Group the list" />
@@ -121,6 +122,9 @@
                 
                 <!-- Mood List: the moods images were generated with, shown instead of the chats -->
                 <ListView fx:id="moodGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
+
+                <!-- Frame List: the frames images were generated with, shown instead of the chats -->
+                <ListView fx:id="frameGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
 
             </VBox>
             

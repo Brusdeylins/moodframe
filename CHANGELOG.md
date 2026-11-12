@@ -16,8 +16,8 @@ All notable changes to this project will be documented in this file.
 - Frames: target aspect ratios and resolutions saved as named frames, with 7 base frames; every model takes its
   closest format and resolution
 - Right panel in foldable groups Mood, Frame and Generation; the chat and mood list shows the cloud through
-- Each chat entry remembers its mood; "Apply mood" from an entry
-- Sidebar shows chats or moods; a mood lists all its images across chats
+- Each chat entry remembers its mood and frame; "Apply mood" from an entry
+- Sidebar shows chats, moods or frames; a mood or frame lists all its images across chats
 - Brainstorm knows moods and blocks, builds the setting and defines several images per chat in rounds
 - One trash for chats, images, building blocks, moods and frames
 - Installers from https://moodframe.art/download, updates are checked on every launch

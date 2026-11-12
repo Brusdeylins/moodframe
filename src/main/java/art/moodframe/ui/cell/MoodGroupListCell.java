@@ -54,7 +54,7 @@ public class MoodGroupListCell extends ListCell<MoodGroup> {
      */
     public static String nameOf(MoodGroup group) {
         return switch (group.kind()) {
-            case MOOD -> group.deleted() ? I18nManager.getText("sidebar.moods.deleted", group.name()) : group.name();
+            case MOOD -> group.deleted() ? I18nManager.getText("sidebar.group.deleted", group.name()) : group.name();
             case CUSTOM -> I18nManager.getText("sidebar.moods.custom");
             case NONE -> I18nManager.getText("sidebar.moods.none");
         };

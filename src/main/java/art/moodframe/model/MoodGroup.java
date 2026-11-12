@@ -20,20 +20,16 @@ import java.util.Objects;
  * @since 2.0.0
  */
 public record MoodGroup(Kind kind, String moodId, String name, boolean deleted, List<String> colors, int imageCount,
-        LocalDateTime lastUsed) {
+        LocalDateTime lastUsed) implements EntryGroup {
 
     /** The kinds of groups, in the order of the list. */
     public enum Kind {
         MOOD, CUSTOM, NONE
     }
 
-    /**
-     * Checks if an entry belongs to the group by the mood stored at it.
-     *
-     * @param mood the mood stored at the entry, null for none
-     * @return true if the entry belongs to the group
-     */
-    public boolean holds(EntryMood mood) {
+    @Override
+    public boolean holds(ChatEntry entry) {
+        EntryMood mood = entry.getMood();
         return switch (kind) {
             case MOOD -> mood != null && moodId.equals(mood.moodId());
             case CUSTOM -> mood != null && mood.moodId() == null;
@@ -41,13 +37,8 @@ public record MoodGroup(Kind kind, String moodId, String name, boolean deleted, 
         };
     }
 
-    /**
-     * Checks if another group stands for the same entries, whatever its name, count or time.
-     *
-     * @param other the other group, may be null
-     * @return true if kind and mood id match
-     */
-    public boolean sameAs(MoodGroup other) {
-        return other != null && kind == other.kind && Objects.equals(moodId, other.moodId);
+    @Override
+    public boolean sameAs(EntryGroup other) {
+        return other instanceof MoodGroup group && kind == group.kind && Objects.equals(moodId, group.moodId);
     }
 }

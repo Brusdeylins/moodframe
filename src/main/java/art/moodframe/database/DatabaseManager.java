@@ -405,6 +405,8 @@ public class DatabaseManager {
                     "V022__Drop_frame_models.sql"));
             migrations.add(new Migration("023", "Add_frame_resolution",
                     "V023__Add_frame_resolution.sql"));
+            migrations.add(new Migration("024", "Add_frame_to_chat_entries",
+                    "V024__Add_frame_to_chat_entries.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

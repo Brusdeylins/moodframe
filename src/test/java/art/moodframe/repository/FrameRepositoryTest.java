@@ -137,6 +137,9 @@ class FrameRepositoryTest {
             }
             stmt.execute("INSERT INTO frames (id, name, model_id, resolution, aspect_ratio, image_count, guidance, "
                     + "steps, sort_order) VALUES ('old', 'Old Frame', 'flux.2-flex', '2K', '3:2', 4, 3.5, 28, 1000)");
+
+            /*  The table of the chat entries, which V024 extends  */
+            stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY)");
         }
 
         new DatabaseManager(file).initialize();

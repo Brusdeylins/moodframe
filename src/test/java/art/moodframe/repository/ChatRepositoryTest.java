@@ -163,10 +163,10 @@ class ChatRepositoryTest {
         assertEquals(List.of(first.getId(), second.getId()), repository.findChatEntryIdsByMood(renamed));
         assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 2)).contains(combination.getId()));
         assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 1)).contains(plain.getId()));
-        assertTrue(renamed.holds(first.getMood()));
-        assertTrue(groups.get(groups.size() - 2).holds(combination.getMood()));
-        assertTrue(groups.get(groups.size() - 1).holds(null));
-        assertFalse(renamed.holds(combination.getMood()));
+        assertTrue(renamed.holds(first));
+        assertTrue(groups.get(groups.size() - 2).holds(combination));
+        assertTrue(groups.get(groups.size() - 1).holds(plain));
+        assertFalse(renamed.holds(combination));
     }
 
     private Chat chat() throws Exception {

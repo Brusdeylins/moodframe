@@ -2,6 +2,8 @@ package art.moodframe.service;
 
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.EntryGroup;
+import art.moodframe.model.FrameGroup;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.repository.ChatFiles;
@@ -377,9 +379,17 @@ public class ChatHistoryService {
         return chatRepository.findMoodGroups();
     }
 
-    /** Lists the ids of the entries of a mood group, in the order of their creation. */
-    public List<String> findChatEntryIdsByMood(MoodGroup group) throws SQLException {
-        return chatRepository.findChatEntryIdsByMood(group);
+    /** Groups the entries of the active chats by their frame, for the left sidebar by frame. */
+    public List<FrameGroup> findFrameGroups() throws SQLException {
+        return chatRepository.findFrameGroups();
+    }
+
+    /** Lists the ids of the entries of a group by mood or by frame, in the order of their creation. */
+    public List<String> findChatEntryIds(EntryGroup group) throws SQLException {
+        return switch (group) {
+            case MoodGroup mood -> chatRepository.findChatEntryIdsByMood(mood);
+            case FrameGroup frame -> chatRepository.findChatEntryIdsByFrame(frame);
+        };
     }
 
     public List<GeneratedImage> findGeneratedImagesByEntry(String entryId) throws SQLException {
