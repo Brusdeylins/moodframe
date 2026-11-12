@@ -68,17 +68,28 @@
             <!-- Left Sidebar: Chat List, translucent over the cloud like the fields on the right -->
             <VBox spacing="5.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
                 <padding>
-                    <Insets bottom="10.0" left="10.0" right="5.0" top="0.0" />
+                    <Insets bottom="0.0" left="10.0" right="5.0" top="0.0" />
                 </padding>
-                
+
                 <!-- Chat Controls Row -->
                 <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
-                    <!-- Switch of the list: by chat or by mood -->
-                    <HBox alignment="CENTER_LEFT">
-                        <ToggleButton fx:id="chatsModeButton" text="Chats" styleClass="left-pill" selected="true" />
-                        <ToggleButton fx:id="moodsModeButton" text="Moods" styleClass="right-pill" />
-                    </HBox>
+                    <!-- The current view of the list: chats or moods -->
+                    <Label fx:id="sidebarTitleLabel" text="Chats" styleClass="title-4" />
                     <Region HBox.hgrow="ALWAYS" />
+
+                    <!-- Switch of the list: by chat or by mood, the active one checked -->
+                    <MenuButton fx:id="sidebarModeButton" styleClass="button-icon, flat, no-arrow">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2s-sort" iconSize="20" styleClass="ikonli-font-icon" />
+                        </graphic>
+                        <items>
+                            <RadioMenuItem fx:id="byChatMenuItem" text="By chat" selected="true" />
+                            <RadioMenuItem fx:id="byMoodMenuItem" text="By mood" />
+                        </items>
+                        <tooltip>
+                            <Tooltip fx:id="sidebarModeTooltip" text="Group the list" />
+                        </tooltip>
+                    </MenuButton>
 
                     <!-- New Chat Button -->
                     <Button fx:id="newChatButton" styleClass="button-icon, flat"
@@ -123,7 +134,7 @@
                     <top>
                         <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>
-                                <Insets left="20.0" right="20.0" top="10.0" bottom="15.0" />
+                                <Insets left="5.0" right="20.0" top="10.0" bottom="15.0" />
                             </padding>
                             <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-3" />
                             <Region HBox.hgrow="ALWAYS" />
@@ -135,8 +146,11 @@
                     <center>
                         <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84">
 
-                            <!-- Top: Chat Messages Area with Overlay Support -->
+                            <!-- Top: Chat Messages Area with Overlay Support, 5 px off the divider like the chat list -->
                             <StackPane fx:id="chatAreaStackPane" styleClass="glass">
+                                <padding>
+                                    <Insets left="5.0" />
+                                </padding>
 
                                 <!-- Main Chat Content -->
                                 <!-- Virtualized ListView for ChatEntries (replaces ScrollPane+VBox) -->
@@ -158,7 +172,7 @@
                             <!-- Bottom: Input Area - resizable via SplitPane divider -->
                             <VBox spacing="10.0" styleClass="bg-inset, see-through">
                                 <padding>
-                                    <Insets bottom="10.0" left="20.0" right="20.0" top="15.0" />
+                                    <Insets bottom="10.0" left="5.0" right="20.0" top="15.0" />
                                 </padding>
 
                                 <!-- Main Input Row -->
@@ -221,18 +235,21 @@
                     
                 </BorderPane>
                 
-                <!-- Right: Parameters Panel - Full Height with Scroll -->
-                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" 
-                            prefWidth="250.0" maxWidth="250.0" minWidth="250.0" 
+                <!-- Right: Parameters Panel with Scroll, starting at the top of the chat area below the 45 px chat header -->
+                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                            prefWidth="250.0" maxWidth="250.0" minWidth="250.0"
                             styleClass="see-through"
                             style="-fx-background: transparent; -fx-background-color: transparent;">
+                    <HBox.margin>
+                        <Insets top="45.0" />
+                    </HBox.margin>
                     <VBox spacing="10.0" styleClass="see-through">
                         <padding>
-                            <Insets bottom="20.0" left="10.0" right="10.0" top="7.0" />
+                            <Insets bottom="20.0" left="10.0" right="10.0" top="0.0" />
                         </padding>
 
-                        <!-- The groups of the panel: foldable cards tinted in the color of the group, with the actions
-                             of the group in the header; the controller remembers which are folded -->
+                        <!-- The groups of the panel: foldable cards like the chat list, with a mark in the color of the
+                             group and its actions in the header; the controller remembers which are folded -->
 
                         <!-- Mood: the building blocks that decide how the image looks -->
                         <TitledPane fx:id="moodGroupPane" contentDisplay="GRAPHIC_ONLY"

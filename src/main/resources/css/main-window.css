@@ -122,23 +122,23 @@
     -fx-padding: 1px 4px 1px 4px;
 }
 
-/*  The groups of the right panel: foldable cards tinted in the color of their group, with a mark of that color
-    left in the header  */
+/*  The groups of the right panel: foldable cards with the translucent background and the border of the chat list
+    and the chat area, the color of their group only in the mark left in the header  */
 .panel-group-mood {
     -panel-group-color: -color-chart-6;
-    -panel-group-tint: -color-chart-6-alpha20;
 }
 .panel-group-frame {
     -panel-group-color: -color-chart-4;
-    -panel-group-tint: -color-chart-4-alpha20;
 }
 .panel-group-gen {
     -panel-group-color: -color-chart-8;
-    -panel-group-tint: -color-chart-8-alpha20;
 }
 .panel-group {
-    -fx-background-color: -panel-group-tint;
+    -fx-background-color: -color-bg-default;
     -fx-background-radius: 6px;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
 }
 .panel-group > .title,
 .panel-group:expanded > .title,
@@ -149,10 +149,13 @@
 .panel-group > .title > .arrow-button {
     -fx-padding: 0 4px 0 0;
 }
+
+/*  The content starts below the text of the header: 8 px title padding, 10 px arrow, 4 px gap, 4 px mark, 6 px
+    spacing  */
 .panel-group > .content {
     -fx-background-color: transparent;
     -fx-border-width: 0;
-    -fx-padding: 4px 10px 12px 10px;
+    -fx-padding: 4px 10px 12px 32px;
 }
 .panel-group-mark {
     -fx-background-color: -panel-group-color;
@@ -163,6 +166,12 @@
     -fx-min-height: 18px;
     -fx-pref-height: 18px;
     -fx-max-height: 18px;
+}
+
+/*  The menu of the left sidebar as wide as the icon buttons next to it: the theme pads the label of a menu button
+    wider than a button  */
+.menu-button.button-icon > .label {
+    -fx-padding: 8px;
 }
 
 /*  The fold of the final prompt below the input field: a muted line of text with a chevron  */

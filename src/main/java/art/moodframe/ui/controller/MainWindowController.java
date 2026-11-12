@@ -114,9 +114,13 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ListView<Chat> chatListView;
     @FXML
-    private ToggleButton chatsModeButton;
+    private Label sidebarTitleLabel;
     @FXML
-    private ToggleButton moodsModeButton;
+    private Tooltip sidebarModeTooltip;
+    @FXML
+    private RadioMenuItem byChatMenuItem;
+    @FXML
+    private RadioMenuItem byMoodMenuItem;
     @FXML
     private ListView<MoodGroup> moodGroupListView;
 
@@ -3876,20 +3880,20 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the switch of the left sidebar between the chats and the moods images were generated with; the choice
-     * is remembered. Opening a mood shows its entries from all chats on the right.
+     * Sets up the menu of the left sidebar that switches between the chats and the moods images were generated with;
+     * the choice is remembered. Opening a mood shows its entries from all chats on the right.
      */
     private void setupSidebarMode() {
         ToggleGroup modes = new ToggleGroup();
-        chatsModeButton.setToggleGroup(modes);
-        moodsModeButton.setToggleGroup(modes);
+        byChatMenuItem.setToggleGroup(modes);
+        byMoodMenuItem.setToggleGroup(modes);
 
-        /*  One of both stays selected  */
+        /*  One of the entries stays selected  */
         modes.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
             if (newToggle == null)
                 oldToggle.setSelected(true);
             else
-                showSidebarMode(newToggle == moodsModeButton);
+                showSidebarMode(newToggle == byMoodMenuItem);
         });
 
         moodGroupListView.setCellFactory((listView) -> new MoodGroupListCell());
@@ -3899,7 +3903,7 @@ public class MainWindowController implements I18nChangeListener {
         });
 
         if (config != null && config.isSidebarByMood())
-            moodsModeButton.setSelected(true);
+            byMoodMenuItem.setSelected(true);
     }
 
     /** Lists the chats or the moods in the left sidebar and remembers the choice; leaving the moods shows the chat. */
@@ -3910,6 +3914,7 @@ public class MainWindowController implements I18nChangeListener {
         chatListView.setManaged(!byMood);
         moodGroupListView.setVisible(byMood);
         moodGroupListView.setManaged(byMood);
+        updateSidebarTitle();
         if (config != null)
             config.setSidebarByMood(byMood);
 
@@ -3921,6 +3926,11 @@ public class MainWindowController implements I18nChangeListener {
             updateChatView(currentChat);
             updateUIState();
         }
+    }
+
+    /** Names the current view of the left sidebar in its header. */
+    private void updateSidebarTitle() {
+        sidebarTitleLabel.setText(I18nManager.getText(moodGroupListView.isVisible() ? "sidebar.moods" : "sidebar.chats"));
     }
 
     /**
@@ -4002,7 +4012,7 @@ public class MainWindowController implements I18nChangeListener {
         Chat chat = getCurrentChatFromEntry(entry);
         if (chat == null)
             return;
-        chatsModeButton.setSelected(true);
+        byChatMenuItem.setSelected(true);
         chatListView.getSelectionModel().select(chat);
         chatListView.scrollTo(chat);
         Platform.runLater(() -> chatEntriesListView.scrollTo(entry));
@@ -4682,7 +4692,7 @@ public class MainWindowController implements I18nChangeListener {
         setStatus(I18nManager.getText("status.creating.chat"));
 
         /*  The new chat shows in the list of chats  */
-        chatsModeButton.setSelected(true);
+        byChatMenuItem.setSelected(true);
 
         // Create new chat
         Chat newChat = new Chat.Builder()
@@ -6660,9 +6670,11 @@ public class MainWindowController implements I18nChangeListener {
             trashTooltip.setText(I18nManager.getText("chat.trash.tooltip"));
         }
 
-        if (chatsModeButton != null) {
-            chatsModeButton.setText(I18nManager.getText("sidebar.chats"));
-            moodsModeButton.setText(I18nManager.getText("sidebar.moods"));
+        if (sidebarModeTooltip != null) {
+            sidebarModeTooltip.setText(I18nManager.getText("sidebar.mode.tooltip"));
+            byChatMenuItem.setText(I18nManager.getText("sidebar.by.chat"));
+            byMoodMenuItem.setText(I18nManager.getText("sidebar.by.mood"));
+            updateSidebarTitle();
         }
 
         if (sendTooltip != null) {
