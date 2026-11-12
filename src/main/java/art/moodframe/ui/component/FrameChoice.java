@@ -2,8 +2,11 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.Frame;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * One row of the frame selection: an action, the separator line, "No frame" or a frame.
+ * One row of the frame selection: "No frame" or a frame. The actions sit as icons in the header of the frame group.
  *
  * @param kind what the row stands for
  * @param frame the frame of a {@link Kind#FRAME} row, else null
@@ -13,7 +16,7 @@ public record FrameChoice(Kind kind, Frame frame) {
 
     /** What a row of the frame selection stands for, in the order of the list. */
     public enum Kind {
-        SAVE, SAVE_AS, MANAGE, SEPARATOR, NONE, FRAME
+        NONE, FRAME
     }
 
     /**
@@ -26,8 +29,16 @@ public record FrameChoice(Kind kind, Frame frame) {
         return new FrameChoice(kind, null);
     }
 
-    /** True for the actions and the separator, which run something instead of being chosen. */
-    public boolean isAction() {
-        return kind != Kind.NONE && kind != Kind.FRAME;
+    /**
+     * Lists the rows of the frame selection: "No frame" first, then the frames.
+     *
+     * @param frames the frames in the order to show
+     * @return the rows
+     */
+    public static List<FrameChoice> listOf(List<Frame> frames) {
+        List<FrameChoice> rows = new ArrayList<>();
+        rows.add(of(Kind.NONE));
+        frames.forEach((frame) -> rows.add(new FrameChoice(Kind.FRAME, frame)));
+        return rows;
     }
 }

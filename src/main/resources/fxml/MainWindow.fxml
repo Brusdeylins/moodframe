@@ -261,22 +261,40 @@
                             <graphic>
                                 <HBox alignment="CENTER_LEFT" spacing="6.0" prefHeight="36.0">
                                     <Region styleClass="panel-group-mark" />
-                                    <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-4" />
+                                    <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-4" minWidth="-Infinity" />
                                     <Region HBox.hgrow="ALWAYS" />
 
-                                    <!-- Finds atmosphere, style, light and colors in an image -->
-                                    <Button fx:id="moodFromImageButton" styleClass="button-icon, flat" onAction="#onMoodFromImageClicked">
-                                        <graphic>
-                                            <FontIcon iconLiteral="mdi2i-image-search-outline" iconSize="16" styleClass="ikonli-font-icon" />
-                                        </graphic>
-                                    </Button>
+                                    <!-- The actions of the mood group, also usable while it is folded -->
+                                    <HBox alignment="CENTER_RIGHT" spacing="2.0">
 
-                                    <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
-                                    <Button fx:id="saveMoodButton" styleClass="button-icon, flat" onAction="#onSaveMoodClicked">
-                                        <graphic>
-                                            <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
-                                        </graphic>
-                                    </Button>
+                                        <!-- Finds atmosphere, style, light and colors in an image -->
+                                        <Button fx:id="moodFromImageButton" styleClass="button-icon, flat, panel-group-action" onAction="#onMoodFromImageClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2i-image-search-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
+                                        <Button fx:id="saveMoodButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveMoodClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Saves the fields as a new mood under a name the user enters -->
+                                        <Button fx:id="saveMoodAsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveMoodAsClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Opens the window for the moods of the user -->
+                                        <Button fx:id="manageMoodsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onManageMoodsClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+                                    </HBox>
                                 </HBox>
                             </graphic>
                             <content>
@@ -285,7 +303,7 @@
                                     <!-- Only with a reference image: whether the building blocks go into the prompt -->
                                     <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
 
-                                    <!-- The actions, "No mood" and the moods; the warning leads to a block of the mood in the trash -->
+                                    <!-- "No mood" and the moods; the warning leads to a block of the mood in the trash -->
                                     <HBox alignment="CENTER_LEFT" spacing="4.0">
                                         <ComboBox fx:id="moodComboBox" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
                                         <Button fx:id="moodIncompleteButton" styleClass="button-icon, flat, mood-incomplete"
@@ -386,21 +404,39 @@
                             <graphic>
                                 <HBox alignment="CENTER_LEFT" spacing="6.0" prefHeight="36.0">
                                     <Region styleClass="panel-group-mark" />
-                                    <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-4" />
+                                    <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-4" minWidth="-Infinity" />
                                     <Region HBox.hgrow="ALWAYS" />
 
-                                    <!-- Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame -->
-                                    <Button fx:id="saveFrameButton" styleClass="button-icon, flat" onAction="#onSaveFrameClicked">
-                                        <graphic>
-                                            <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
-                                        </graphic>
-                                    </Button>
+                                    <!-- The actions of the frame group, also usable while it is folded -->
+                                    <HBox alignment="CENTER_RIGHT" spacing="2.0">
+
+                                        <!-- Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame -->
+                                        <Button fx:id="saveFrameButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveFrameClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Saves aspect ratio and resolution as a new frame under a name the user enters -->
+                                        <Button fx:id="saveFrameAsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveFrameAsClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+
+                                        <!-- Opens the window for the frames of the user -->
+                                        <Button fx:id="manageFramesButton" styleClass="button-icon, flat, panel-group-action" onAction="#onManageFramesClicked">
+                                            <graphic>
+                                                <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                            </graphic>
+                                        </Button>
+                                    </HBox>
                                 </HBox>
                             </graphic>
                             <content>
                                 <VBox spacing="15.0">
 
-                                    <!-- The actions, "No frame" and the frames -->
+                                    <!-- "No frame" and the frames -->
                                     <ComboBox fx:id="frameComboBox" maxWidth="Infinity" />
 
                                     <!-- Aspect Ratio: the formats of all models; below, what the chosen model makes of it -->

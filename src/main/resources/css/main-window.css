@@ -168,6 +168,12 @@
     -fx-max-height: 18px;
 }
 
+/*  The actions in the header of a group: tighter than the icon buttons of the theme, so that the title keeps its
+    width beside four of them at the 250 px of the panel  */
+.panel-group .panel-group-action {
+    -fx-padding: 4px;
+}
+
 /*  The menu of the left sidebar as wide as the icon buttons next to it: the theme pads the label of a menu button
     wider than a button  */
 .menu-button.button-icon > .label {

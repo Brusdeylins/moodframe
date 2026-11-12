@@ -6,7 +6,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -15,9 +14,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Row of the mood selection: the actions "Save", "Save as..." and "Manage...", a separator line, "No mood" and the
- * moods. A standard mood shows a lock, a mood of the user a brush, an incomplete mood a warning. As the button
- * cell, it shows the chosen mood in italics with a dot once a field was changed after choosing it.
+ * Row of the mood selection: "No mood" and the moods. A standard mood shows a lock, a mood of the user a brush, an
+ * incomplete mood a warning. As the button cell, it shows the chosen mood in italics with a dot once a field was
+ * changed after choosing it.
  *
  * @since 2.0.0
  */
@@ -25,25 +24,21 @@ public class MoodListCell extends ListCell<MoodChoice> {
 
     private final Predicate<Mood> incomplete;
     private final BooleanSupplier changed;
-    private final BooleanSupplier saveLocked;
 
     private final FontIcon icon = new FontIcon();
     private final Label nameLabel = new Label();
     private final FontIcon warning = new FontIcon("mdi2a-alert-circle-outline");
     private final HBox content = new HBox(6, icon, nameLabel, warning);
-    private final Separator separator = new Separator();
 
     /**
      * Creates a row.
      *
      * @param incomplete tells if a block of a mood lies in the trash
      * @param changed tells if a field was changed after the mood was chosen; null for a row of the list
-     * @param saveLocked tells if "Save" is not available, as a standard mood is chosen
      */
-    public MoodListCell(Predicate<Mood> incomplete, BooleanSupplier changed, BooleanSupplier saveLocked) {
+    public MoodListCell(Predicate<Mood> incomplete, BooleanSupplier changed) {
         this.incomplete = incomplete;
         this.changed = changed;
-        this.saveLocked = saveLocked;
 
         icon.getStyleClass().add("ikonli-font-icon");
         icon.setIconSize(14);
@@ -63,7 +58,6 @@ public class MoodListCell extends ListCell<MoodChoice> {
     protected void updateItem(MoodChoice item, boolean empty) {
         super.updateItem(item, empty);
         setText(null);
-        setDisable(false);
         setTooltip(null);
         if (empty || item == null) {
             setGraphic(null);
@@ -75,17 +69,6 @@ public class MoodListCell extends ListCell<MoodChoice> {
         warning.setVisible(false);
         warning.setManaged(false);
         switch (item.kind()) {
-            case SEPARATOR -> {
-                setGraphic(separator);
-                setDisable(true);
-                return;
-            }
-            case SAVE -> {
-                show("mdi2c-content-save-outline", I18nManager.getText("params.mood.save"));
-                setDisable(saveLocked.getAsBoolean());
-            }
-            case SAVE_AS -> show("mdi2c-content-save-edit-outline", I18nManager.getText("params.mood.save.as"));
-            case MANAGE -> show("mdi2c-cog-outline", I18nManager.getText("params.mood.manage"));
             case NONE -> {
                 show(null, I18nManager.getText("params.mood.none"));
                 nameLabel.setStyle("-fx-text-fill: -color-fg-muted;");

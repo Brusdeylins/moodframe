@@ -2,8 +2,11 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.Mood;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * One row of the mood selection: an action, the separator line, "No mood" or a mood.
+ * One row of the mood selection: "No mood" or a mood. The actions sit as icons in the header of the mood group.
  *
  * @param kind what the row stands for
  * @param mood the mood of a {@link Kind#MOOD} row, else null
@@ -13,7 +16,7 @@ public record MoodChoice(Kind kind, Mood mood) {
 
     /** What a row of the mood selection stands for, in the order of the list. */
     public enum Kind {
-        SAVE, SAVE_AS, MANAGE, SEPARATOR, NONE, MOOD
+        NONE, MOOD
     }
 
     /**
@@ -26,8 +29,16 @@ public record MoodChoice(Kind kind, Mood mood) {
         return new MoodChoice(kind, null);
     }
 
-    /** True for the actions and the separator, which run something instead of being chosen. */
-    public boolean isAction() {
-        return kind != Kind.NONE && kind != Kind.MOOD;
+    /**
+     * Lists the rows of the mood selection: "No mood" first, then the moods.
+     *
+     * @param moods the moods in the order to show
+     * @return the rows
+     */
+    public static List<MoodChoice> listOf(List<Mood> moods) {
+        List<MoodChoice> rows = new ArrayList<>();
+        rows.add(of(Kind.NONE));
+        moods.forEach((mood) -> rows.add(new MoodChoice(Kind.MOOD, mood)));
+        return rows;
     }
 }

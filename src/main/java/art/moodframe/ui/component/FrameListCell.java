@@ -7,7 +7,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -15,31 +14,27 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import java.util.function.BooleanSupplier;
 
 /**
- * Row of the frame selection: the actions "Save", "Save as..." and "Manage...", a separator line, "No frame" and the
- * frames. A standard frame shows a lock, a frame of the user a brush; the tooltip names its aspect ratio. As the button
- * cell, it shows the chosen frame in italics with a dot once the aspect ratio differs from it.
+ * Row of the frame selection: "No frame" and the frames. A standard frame shows a lock, a frame of the user a brush;
+ * the tooltip names its aspect ratio. As the button cell, it shows the chosen frame in italics with a dot once the
+ * aspect ratio differs from it.
  *
  * @since 2.0.0
  */
 public class FrameListCell extends ListCell<FrameChoice> {
 
     private final BooleanSupplier changed;
-    private final BooleanSupplier saveLocked;
 
     private final FontIcon icon = new FontIcon();
     private final Label nameLabel = new Label();
     private final HBox content = new HBox(6, icon, nameLabel);
-    private final Separator separator = new Separator();
 
     /**
      * Creates a row.
      *
      * @param changed tells if the aspect ratio differs from the chosen frame; null for a row of the list
-     * @param saveLocked tells if "Save" is not available, as a standard frame is chosen
      */
-    public FrameListCell(BooleanSupplier changed, BooleanSupplier saveLocked) {
+    public FrameListCell(BooleanSupplier changed) {
         this.changed = changed;
-        this.saveLocked = saveLocked;
 
         icon.getStyleClass().add("ikonli-font-icon");
         icon.setIconSize(14);
@@ -56,7 +51,6 @@ public class FrameListCell extends ListCell<FrameChoice> {
     protected void updateItem(FrameChoice item, boolean empty) {
         super.updateItem(item, empty);
         setText(null);
-        setDisable(false);
         setTooltip(null);
         if (empty || item == null) {
             setGraphic(null);
@@ -66,17 +60,6 @@ public class FrameListCell extends ListCell<FrameChoice> {
         icon.getStyleClass().removeAll("accent", "success");
         nameLabel.setStyle("");
         switch (item.kind()) {
-            case SEPARATOR -> {
-                setGraphic(separator);
-                setDisable(true);
-                return;
-            }
-            case SAVE -> {
-                show("mdi2c-content-save-outline", I18nManager.getText("params.frame.save"));
-                setDisable(saveLocked.getAsBoolean());
-            }
-            case SAVE_AS -> show("mdi2c-content-save-edit-outline", I18nManager.getText("params.frame.save.as"));
-            case MANAGE -> show("mdi2c-cog-outline", I18nManager.getText("params.frame.manage"));
             case NONE -> {
                 show(null, I18nManager.getText("params.frame.none"));
                 nameLabel.setStyle("-fx-text-fill: -color-fg-muted;");

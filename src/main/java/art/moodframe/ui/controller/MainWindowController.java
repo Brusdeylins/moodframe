@@ -164,6 +164,10 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Button saveMoodButton;
     @FXML
+    private Button saveMoodAsButton;
+    @FXML
+    private Button manageMoodsButton;
+    @FXML
     private javafx.scene.control.ComboBox<MoodChoice> moodComboBox;
     @FXML
     private Button moodIncompleteButton;
@@ -171,6 +175,10 @@ public class MainWindowController implements I18nChangeListener {
     private Label frameTitleLabel;
     @FXML
     private Button saveFrameButton;
+    @FXML
+    private Button saveFrameAsButton;
+    @FXML
+    private Button manageFramesButton;
     @FXML
     private javafx.scene.control.ComboBox<FrameChoice> frameComboBox;
     @FXML
@@ -2187,9 +2195,10 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the mood selection: the actions "Save", "Save as..." and "Manage...", "No mood" and the moods. Choosing a
-     * mood sets the fields that are not locked; a field changed afterwards shows the mood as changed until it is
-     * saved or chosen again. A remembered former look style (1.x) is chosen as the standard mood of the same name.
+     * Sets up the mood selection: "No mood" and the moods; the actions sit as icons in the header of the group.
+     * Choosing a mood sets the fields that are not locked; a field changed afterwards shows the mood as changed until
+     * it is saved or chosen again. A remembered former look style (1.x) is chosen as the standard mood of the same
+     * name.
      */
     private void setupMoods() {
         moodService = art.moodframe.config.ServiceFactory.getInstance().getService(MoodService.class);
@@ -2198,9 +2207,9 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, null, this::isMoodSaveLocked));
-        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, () -> moodChanged, this::isMoodSaveLocked));
-        moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(oldVal, newVal));
+        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, null));
+        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, () -> moodChanged));
+        moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
         for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
                 colorStyleComboBox, lightComboBox, cameraComboBox))
             field.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -2243,18 +2252,14 @@ public class MainWindowController implements I18nChangeListener {
         return mood != null && mood.isDefault();
     }
 
-    /** Lists the actions, "No mood" and the moods, and shows the mood with this id as chosen, without applying it. */
+    /** Lists "No mood" and the moods, and shows the mood with this id as chosen, without applying it. */
     private void reloadMoods(String selectId) {
-        MoodChoice none = MoodChoice.of(MoodChoice.Kind.NONE);
-        List<MoodChoice> items = new java.util.ArrayList<>(List.of(MoodChoice.of(MoodChoice.Kind.SAVE),
-                MoodChoice.of(MoodChoice.Kind.SAVE_AS), MoodChoice.of(MoodChoice.Kind.MANAGE),
-                MoodChoice.of(MoodChoice.Kind.SEPARATOR), none));
-        moodService.getAll().forEach((mood) -> items.add(new MoodChoice(MoodChoice.Kind.MOOD, mood)));
+        List<MoodChoice> items = MoodChoice.listOf(moodService.getAll());
 
         updatingMood = true;
         moodComboBox.getItems().setAll(items);
         moodComboBox.setValue(items.stream().filter((item) -> item.mood() != null && item.mood().getId().equals(selectId))
-                .findFirst().orElse(none));
+                .findFirst().orElse(items.get(0)));
         updatingMood = false;
     }
 
@@ -2268,28 +2273,10 @@ public class MainWindowController implements I18nChangeListener {
         refreshGroups();
     }
 
-    /** Applies a chosen mood, or runs an action and leaves the choice as it was. */
-    private void onMoodChoice(MoodChoice oldVal, MoodChoice newVal) {
-        if (updatingMood || newVal == null)
-            return;
-        if (!newVal.isAction()) {
+    /** Applies a chosen mood. */
+    private void onMoodChoice(MoodChoice newVal) {
+        if (!updatingMood && newVal != null)
             chooseMood(newVal.mood());
-            return;
-        }
-
-        /*  Once the list has closed  */
-        Platform.runLater(() -> {
-            updatingMood = true;
-            moodComboBox.setValue(oldVal);
-            updatingMood = false;
-            switch (newVal.kind()) {
-                case SAVE -> saveMood(false);
-                case SAVE_AS -> saveMood(true);
-                case MANAGE -> manageMoods();
-                default -> {
-                }
-            }
-        });
     }
 
     /** Sets the fields that are not locked to the blocks of a mood, null for "No mood", and shows it unchanged. */
@@ -2447,8 +2434,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Marks the chosen mood as changed once a field differs from it, remembers the choice and shows the warning of a
-     * mood with a block in the trash.
+     * Marks the chosen mood as changed once a field differs from it, remembers the choice, shows the warning of a
+     * mood with a block in the trash and locks "Save" for a standard mood.
      */
     private void updateMoodState() {
         if (moodService == null)
@@ -2462,6 +2449,7 @@ public class MainWindowController implements I18nChangeListener {
         moodIncompleteButton.setVisible(incomplete);
         moodIncompleteButton.setManaged(incomplete);
         moodIncompleteButton.setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete")) : null);
+        saveMoodButton.setDisable(moodComboBox.isDisable() || isMoodSaveLocked());
         ((MoodListCell) moodComboBox.getButtonCell()).refresh();
     }
 
@@ -2504,6 +2492,18 @@ public class MainWindowController implements I18nChangeListener {
     private void onSaveMoodClicked() {
         if (moodService != null)
             saveMood(false);
+    }
+
+    @FXML
+    private void onSaveMoodAsClicked() {
+        if (moodService != null)
+            saveMood(true);
+    }
+
+    @FXML
+    private void onManageMoodsClicked() {
+        if (moodService != null)
+            manageMoods();
     }
 
     @FXML
@@ -2602,7 +2602,7 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the frame selection: the actions "Save", "Save as..." and "Manage...", "No frame" and the frames.
+     * Sets up the frame selection: "No frame" and the frames; the actions sit as icons in the header of the group.
      * Choosing a frame sets its target aspect ratio and resolution, of which the model takes the closest ones it can
      * do; either changed afterwards shows the frame as changed until it is saved or chosen again.
      */
@@ -2613,9 +2613,9 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        frameComboBox.setCellFactory((listView) -> new FrameListCell(null, this::isFrameSaveLocked));
-        frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged, this::isFrameSaveLocked));
-        frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(oldVal, newVal));
+        frameComboBox.setCellFactory((listView) -> new FrameListCell(null));
+        frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged));
+        frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(newVal));
         aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (!updatingFrame)
                 updateFrameState();
@@ -2641,18 +2641,14 @@ public class MainWindowController implements I18nChangeListener {
         return frame != null && frame.isDefault();
     }
 
-    /** Lists the actions, "No frame" and the frames, and shows the frame with this id as chosen, without applying it. */
+    /** Lists "No frame" and the frames, and shows the frame with this id as chosen, without applying it. */
     private void reloadFrames(String selectId) {
-        FrameChoice none = FrameChoice.of(FrameChoice.Kind.NONE);
-        List<FrameChoice> items = new java.util.ArrayList<>(List.of(FrameChoice.of(FrameChoice.Kind.SAVE),
-                FrameChoice.of(FrameChoice.Kind.SAVE_AS), FrameChoice.of(FrameChoice.Kind.MANAGE),
-                FrameChoice.of(FrameChoice.Kind.SEPARATOR), none));
-        frameService.getAll().forEach((frame) -> items.add(new FrameChoice(FrameChoice.Kind.FRAME, frame)));
+        List<FrameChoice> items = FrameChoice.listOf(frameService.getAll());
 
         updatingFrame = true;
         frameComboBox.getItems().setAll(items);
         frameComboBox.setValue(items.stream().filter((item) -> item.frame() != null
-                && item.frame().getId().equals(selectId)).findFirst().orElse(none));
+                && item.frame().getId().equals(selectId)).findFirst().orElse(items.get(0)));
         updatingFrame = false;
     }
 
@@ -2666,28 +2662,10 @@ public class MainWindowController implements I18nChangeListener {
         refreshGroups();
     }
 
-    /** Applies a chosen frame, or runs an action and leaves the choice as it was. */
-    private void onFrameChoice(FrameChoice oldVal, FrameChoice newVal) {
-        if (updatingFrame || newVal == null)
-            return;
-        if (!newVal.isAction()) {
+    /** Applies a chosen frame. */
+    private void onFrameChoice(FrameChoice newVal) {
+        if (!updatingFrame && newVal != null)
             chooseFrame(newVal.frame());
-            return;
-        }
-
-        /*  Once the list has closed  */
-        Platform.runLater(() -> {
-            updatingFrame = true;
-            frameComboBox.setValue(oldVal);
-            updatingFrame = false;
-            switch (newVal.kind()) {
-                case SAVE -> saveFrame(false);
-                case SAVE_AS -> saveFrame(true);
-                case MANAGE -> manageFrames();
-                default -> {
-                }
-            }
-        });
     }
 
     /**
@@ -2708,7 +2686,10 @@ public class MainWindowController implements I18nChangeListener {
         updateFrameState();
     }
 
-    /** Marks the chosen frame as changed while aspect ratio or resolution differ from it, and remembers the choice. */
+    /**
+     * Marks the chosen frame as changed while aspect ratio or resolution differ from it, remembers the choice and locks
+     * "Save" for a standard frame.
+     */
     private void updateFrameState() {
         if (frameService == null)
             return;
@@ -2718,6 +2699,7 @@ public class MainWindowController implements I18nChangeListener {
         String id = frame != null ? frame.getId() : "";
         if (config != null && !id.equals(config.getSelectedFrame()))
             config.setSelectedFrame(id);
+        saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
         ((FrameListCell) frameComboBox.getButtonCell()).refresh();
     }
 
@@ -2757,6 +2739,18 @@ public class MainWindowController implements I18nChangeListener {
     private void onSaveFrameClicked() {
         if (frameService != null)
             saveFrame(false);
+    }
+
+    @FXML
+    private void onSaveFrameAsClicked() {
+        if (frameService != null)
+            saveFrame(true);
+    }
+
+    @FXML
+    private void onManageFramesClicked() {
+        if (frameService != null)
+            manageFrames();
     }
 
     /**
@@ -4318,7 +4312,9 @@ public class MainWindowController implements I18nChangeListener {
         if (aspectRatioLabel != null)
             aspectRatioLabel.setDisable(!enableInput);
         frameComboBox.setDisable(!enableInput);
-        saveFrameButton.setDisable(!enableInput);
+        saveFrameAsButton.setDisable(!enableInput);
+        manageFramesButton.setDisable(!enableInput);
+        saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
 
         /*  The mood fields are greyed while a reference image is attached without "Apply mood"; the light also for
             a layout style, keeping its choice (the composer leaves it out)  */
@@ -4328,9 +4324,11 @@ public class MainWindowController implements I18nChangeListener {
         moodApplyCheckBox.setVisible(hasAttachment);
         moodApplyCheckBox.setManaged(hasAttachment);
         moodApplyCheckBox.setDisable(!enableInput);
-        for (Node field : List.of(moodComboBox, moodFromImageButton, saveMoodButton, atmosphereLabel,
-                atmosphereComboBox, styleLabel, stylePresetsComboBox, colorStyleLabel, colorStyleComboBox))
+        for (Node field : List.of(moodComboBox, moodFromImageButton, saveMoodAsButton, manageMoodsButton,
+                atmosphereLabel, atmosphereComboBox, styleLabel, stylePresetsComboBox, colorStyleLabel,
+                colorStyleComboBox))
             field.setDisable(!moodApplies);
+        saveMoodButton.setDisable(moodComboBox.isDisable() || isMoodSaveLocked());
         lightLabel.setDisable(!moodApplies || layoutStyle);
         lightComboBox.setDisable(!moodApplies || layoutStyle);
         lightLayoutHint.setVisible(layoutStyle);
@@ -6598,9 +6596,17 @@ public class MainWindowController implements I18nChangeListener {
             moodFromImageButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.from.image.tooltip")));
         if (saveMoodButton != null)
             saveMoodButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.save.tooltip")));
+        if (saveMoodAsButton != null)
+            saveMoodAsButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.save.as.tooltip")));
+        if (manageMoodsButton != null)
+            manageMoodsButton.setTooltip(new Tooltip(I18nManager.getText("params.mood.manage.tooltip")));
         refreshMoods();
         if (saveFrameButton != null)
             saveFrameButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.save.tooltip")));
+        if (saveFrameAsButton != null)
+            saveFrameAsButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.save.as.tooltip")));
+        if (manageFramesButton != null)
+            manageFramesButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.manage.tooltip")));
         refreshFrames();
         if (promptPreviewToggle != null)
             promptPreviewToggle.setText(I18nManager.getText("input.prompt.preview"));
