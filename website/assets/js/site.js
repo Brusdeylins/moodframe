@@ -47,7 +47,7 @@ const TEXT = {
         "frame.title": "Say the format once",
         "frame.lead": "A frame is a target aspect ratio and resolution, saved by name.",
         "frame.text": "Every model takes its closest aspect ratio and resolution, and the app shows which one before you generate.",
-        "frame.target": "Frame: Panorama · 8:1 · 2K", "frame.model": "Model", "frame.gets": "Gets",
+        "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Model", "frame.gets": "Gets",
         "frame.exact": "exact", "frame.closest": "closest",
         "frame.point.saved": "Saved frames for your recurring formats", "frame.point.group": "Group your library by frame",
         "models.title": "Bring your own API key",
@@ -109,7 +109,7 @@ const TEXT = {
         "frame.title": "Format einmal festlegen",
         "frame.lead": "Ein Frame ist Seitenverhältnis plus Auflösung, gespeichert unter einem Namen.",
         "frame.text": "Jedes Modell nimmt das nächstliegende Seitenverhältnis und die nächstliegende Auflösung, die App zeigt beides vor dem Generieren an.",
-        "frame.target": "Frame: Panorama · 8:1 · 2K", "frame.model": "Modell", "frame.gets": "Ergebnis",
+        "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Modell", "frame.gets": "Ergebnis",
         "frame.exact": "exakt", "frame.closest": "nächstliegend",
         "frame.point.saved": "Gespeicherte Frames für wiederkehrende Formate", "frame.point.group": "Bibliothek nach Frame gruppieren",
         "models.title": "Mit deinem eigenen API-Schlüssel",
@@ -194,7 +194,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261113d`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261113c`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
