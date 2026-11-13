@@ -52,8 +52,10 @@ public class ThumbnailManager implements ThumbnailService {
 
     private static final Logger logger = LoggerFactory.getLogger(ThumbnailManager.class);
 
+    /** The longer side of the stored thumbnails in pixels, which also limits the size of the images in the chat area */
+    public static final int MAX_THUMBNAIL_SIZE = 400;
+
     // Thumbnail configuration constants
-    private static final int MAX_THUMBNAIL_SIZE = 400;
     private static final String THUMBNAIL_FORMAT = "jpg";
     private static final String THUMBNAIL_SUFFIX = "_thumb";
     private static final int MAX_CACHE_SIZE = 300; // LRU cache limit (increased for large chats with 200+ images)

@@ -61,6 +61,38 @@ public record EntryBadge(String text, boolean mixture) {
     }
 
     /**
+     * The short mood of an entry for the dot line of the images view: the name of a saved mood, of a mixture the
+     * mood it started from if known.
+     *
+     * @param mood the copy of the mood at the entry, null for none
+     * @param style the style name of the entry, "None" or null for none
+     * @return the short badge, null for an entry without mood
+     */
+    public static EntryBadge moodName(EntryMood mood, String style) {
+        EntryBadge badge = mood(mood, style);
+        if (badge == null || !badge.mixture() || mood == null || mood.baseName() == null)
+            return badge;
+        return new EntryBadge(mood.baseName(), true);
+    }
+
+    /**
+     * The short frame of an entry for the dot line of the images view: the name of a saved frame, of a setting of its
+     * own the aspect ratio.
+     *
+     * @param frame the copy of the frame at the entry, null for none
+     * @param size the aspect ratio the model generated with, null for none
+     * @return the short badge, null for an entry without either
+     */
+    public static EntryBadge frameName(EntryFrame frame, String size) {
+        if (frame != null && frame.frameId() != null)
+            return new EntryBadge(frame.frameName(), false);
+        String ratio = frame != null && frame.aspectRatio() != null ? frame.aspectRatio() : size;
+        if (ratio != null)
+            return new EntryBadge(ratio, true);
+        return frame != null ? new EntryBadge(I18nManager.getText("entry.badge.frame.custom"), true) : null;
+    }
+
+    /**
      * The badge of the model of an entry, under its localized name.
      *
      * @param model the model name stored at the entry (its display name or an OpenAI model id), null for none

@@ -673,6 +673,45 @@ public class ApplicationConfig {
     }
 
     /**
+     * How the chat area shows a chat or a group of the sidebar: as chat or as images only.
+     *
+     * @return {@code chat} (default) or {@code images}
+     */
+    public String getChatView() {
+        return properties.getProperty("chat.view", "chat");
+    }
+
+    /**
+     * Remembers how the chat area shows a chat or a group, for all of them.
+     *
+     * @param view {@code chat} or {@code images}
+     */
+    public void setChatView(String view) {
+        properties.setProperty("chat.view", view);
+        saveConfiguration();
+    }
+
+    /**
+     * The size of the images in the chat area: the target width of the tiles of the images view and the largest
+     * width of the images of a chat entry.
+     *
+     * @return the size in screen pixels (default 180)
+     */
+    public double getImageTileSize() {
+        return Double.parseDouble(properties.getProperty("chat.image.size", "180"));
+    }
+
+    /**
+     * Remembers the size of the images in the chat area.
+     *
+     * @param size the size in screen pixels
+     */
+    public void setImageTileSize(double size) {
+        properties.setProperty("chat.image.size", String.valueOf(Math.round(size)));
+        saveConfiguration();
+    }
+
+    /**
      * Gets the remembered frame selection.
      *
      * @return the id of the frame, empty for "No frame" (default)

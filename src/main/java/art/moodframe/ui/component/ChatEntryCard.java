@@ -18,6 +18,7 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.value.ObservableNumberValue;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.geometry.Insets;
@@ -87,8 +88,8 @@ public class ChatEntryCard extends ManagedComponent {
     private static final Logger logger = LoggerFactory.getLogger(ChatEntryCard.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("MMM dd, HH:mm:ss");
 
-    /*  The images of an entry share one row at the same width, each at most 400 px wide and high; four of them fit
-        the chat area of the default window, the action bar needs about 120 px  */
+    /*  The images of an entry share one row at the same width, each at most as wide and high as the image size of
+        the chat header (400 px until bound), the action bar needs about 120 px  */
     private static final double IMAGE_GAP = 12.0;
     private static final double MAX_TILE_SIZE = 400.0;
     private static final double MIN_TILE_WIDTH = 96.0;
@@ -117,6 +118,7 @@ public class ChatEntryCard extends ManagedComponent {
 
     /*  The width the images of the entry share: the width of the card, or of the list holding it once bound  */
     private final DoubleProperty availableWidth = new SimpleDoubleProperty();
+    private final DoubleProperty maxTileSize = new SimpleDoubleProperty(MAX_TILE_SIZE);
     private final DoubleBinding tileWidth;
 
     // Image loading state
@@ -291,8 +293,8 @@ public class ChatEntryCard extends ManagedComponent {
             int count = Math.max(1, chatEntry.getImages().size());
             double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
                     - IMAGE_GAP * (count - 1);
-            return Math.max(MIN_TILE_WIDTH, Math.min(MAX_TILE_SIZE, space / count));
-        }, availableWidth, chatEntry.getImages());
+            return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
+        }, availableWidth, maxTileSize, chatEntry.getImages());
 
         /*  The context menu takes over the mood of the entry; on an image it offers "Mood from image"  */
         promptContainer.setOnContextMenuRequested(this::showMoodMenu);
@@ -704,7 +706,7 @@ public class ChatEntryCard extends ManagedComponent {
     private StackPane createImageTile(GeneratedImage generatedImage, int imageIndex) {
         ImageView imageView = new ImageView();
         imageView.fitWidthProperty().bind(tileWidth);
-        imageView.setFitHeight(MAX_TILE_SIZE);
+        imageView.fitHeightProperty().bind(maxTileSize);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
 
@@ -809,7 +811,7 @@ public class ChatEntryCard extends ManagedComponent {
      * @param generatedImage the generated image
      * @return the details
      */
-    private static String imageDetails(GeneratedImage generatedImage) {
+    static String imageDetails(GeneratedImage generatedImage) {
         StringBuilder details = new StringBuilder();
         if (generatedImage.isVideo()) {
             String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
@@ -1442,6 +1444,15 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
+     * Limits the width and height of the images to the image size chosen in the chat header.
+     *
+     * @param size the largest size of an image in screen pixels
+     */
+    public void bindTileSize(ObservableNumberValue size) {
+        maxTileSize.bind(size);
+    }
+
+    /**
      * Sets the callback for when an image is clicked.
      * 
      * @param onImageClick the callback that receives the ChatEntry and image index
@@ -1645,9 +1656,10 @@ public class ChatEntryCard extends ManagedComponent {
         // This ensures image counter is decremented even if images were never marked as loaded
         forceUnloadAllImages();
 
-        /*  The shared width listens to the list of images of the entry and to the list holding the card  */
+        /*  The shared width listens to the images of the entry, the list holding the card and the image size  */
         tileWidth.dispose();
         availableWidth.unbind();
+        maxTileSize.unbind();
 
         // Clear callback references to prevent potential memory leaks
         onSeedCopy = null;

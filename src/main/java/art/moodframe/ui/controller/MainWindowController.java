@@ -14,11 +14,13 @@ import art.moodframe.model.MoodGroup;
 import art.moodframe.service.ChatHistoryService;
 import art.moodframe.service.FrameService;
 import art.moodframe.service.MoodService;
+import art.moodframe.service.ThumbnailManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.FrameListCell;
+import art.moodframe.ui.component.ImageGrid;
 import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.MoodListCell;
@@ -27,6 +29,7 @@ import art.moodframe.ui.cell.ChatListReorder;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -45,6 +48,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.Node;
 import javafx.stage.FileChooser;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
@@ -149,6 +153,21 @@ public class MainWindowController implements I18nChangeListener {
     private HBox welcomeContainer;
     @FXML
     private Label welcomeLabel;
+
+    /*  The images view beside the chat, the switch between them and the size of the images both share  */
+    @FXML
+    private Slider imageSizeSlider;
+    @FXML
+    private Tooltip imageSizeTooltip;
+    @FXML
+    private ToggleButton chatViewButton;
+    @FXML
+    private Tooltip chatViewTooltip;
+    @FXML
+    private ToggleButton imagesViewButton;
+    @FXML
+    private Tooltip imagesViewTooltip;
+    private ImageGrid imageGrid;
 
     // Input Area Controls
     @FXML
@@ -1720,7 +1739,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Hide welcome if visible
                 welcomeContainer.setVisible(false);
-                chatEntriesListView.setVisible(true);
+                showEntries(true);
 
                 // Add new entry to the ListView items
                 chatEntriesListView.getItems().add(chatEntry);
@@ -3411,6 +3430,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Setup virtualized ListView for ChatEntries (replaces VBox for performance)
         setupChatEntriesListView();
+        setupImagesView();
 
         // Initialize repository and load real chat data
         initializeChatRepository();
@@ -3497,8 +3517,10 @@ public class MainWindowController implements I18nChangeListener {
 
                     currentCard.setOnReuse((reusedEntry, part) -> reuseEntry(reusedEntry, part));
 
-                    /*  The images share the width of the cell, which a reused cell knows from the start  */
+                    /*  The images share the width of the cell, which a reused cell knows from the start, each at most
+                        as large as the image size of the chat header  */
                     currentCard.bindAvailableWidth(this);
+                    currentCard.bindTileSize(imageSizeSlider.valueProperty());
 
                     currentCard.setOnImageClick((clickedEntry, imageIndex) -> {
                         showImagePreview(clickedEntry, imageIndex);
@@ -3534,6 +3556,140 @@ public class MainWindowController implements I18nChangeListener {
                 }
             }
         });
+    }
+
+    /*  The image size reaches from 100 px to the size of the thumbnails in screen pixels, so the images stay sharp;
+        Cmd/Ctrl + and - change it in steps  */
+    private static final double MIN_IMAGE_SIZE = 100.0;
+    private static final double IMAGE_SIZE_STEP = 20.0;
+
+    /**
+     * Sets up the images view of the chat area, the switch between it and the chat in the chat header and the size
+     * of the images both views share; view and size are remembered for all chats and groups.
+     */
+    private void setupImagesView() {
+        imageGrid = new ImageGrid(this::shownImagePath);
+        imageGrid.setVisible(false);
+        chatAreaStackPane.getChildren().add(chatAreaStackPane.getChildren().indexOf(chatEntriesListView) + 1,
+                imageGrid);
+        chatEntriesListView.itemsProperty().addListener((obs, oldEntries, entries) -> imageGrid.setEntries(entries));
+
+        imageGrid.setOnOpen(this::showGallery);
+        imageGrid.setOnAction((item, action) -> {
+            String path = shownImagePath(item.image());
+            switch (action) {
+                case VIEW -> showGallery(item);
+                case EDIT -> editImageFromPath(path);
+                case DOWNLOAD -> downloadImageFromPath(path);
+                case MOOD -> {
+                    if (path != null && new File(path).exists())
+                        openMoodFromImage(new File(path));
+                }
+                case DELETE -> handleDeleteImage(item.entry().getId(), item.image().getId());
+            }
+        });
+        imageGrid.setOnReuse((entry) -> reuseEntry(entry, ChatEntryCard.Reuse.ALL));
+        imageGrid.setOnSeedCopy((seed) -> {
+            if (seedTextField != null)
+                seedTextField.setText(String.valueOf(seed));
+        }, () -> modelComboBox != null && modelComboBox.getValue() != null
+                && !modelComboBox.getValue().toLowerCase().contains("gemini"));
+
+        /*  The largest size follows the scale of the screen the window is on  */
+        imageSizeSlider.setMin(MIN_IMAGE_SIZE);
+        imageSizeSlider.setMax(ThumbnailManager.MAX_THUMBNAIL_SIZE / Screen.getPrimary().getOutputScaleX());
+        imageSizeSlider.setValue(config != null ? config.getImageTileSize() : 180.0);
+        imageGrid.tileSizeProperty().bind(imageSizeSlider.valueProperty());
+        imageGrid.maxTileSizeProperty().bind(imageSizeSlider.maxProperty());
+        imageSizeSlider.valueProperty().addListener((obs, oldSize, size) -> {
+            if (!imageSizeSlider.isValueChanging() && config != null)
+                config.setImageTileSize(size.doubleValue());
+        });
+        imageSizeSlider.valueChangingProperty().addListener((obs, wasChanging, changing) -> {
+            if (!changing && config != null)
+                config.setImageTileSize(imageSizeSlider.getValue());
+        });
+        chatAreaStackPane.sceneProperty().addListener((obs, oldScene, scene) -> {
+            if (scene == null)
+                return;
+            scene.addEventFilter(KeyEvent.KEY_PRESSED, this::changeImageSize);
+            scene.windowProperty().addListener((windowObs, oldWindow, window) -> {
+                if (window != null)
+                    imageSizeSlider.maxProperty().bind(Bindings.createDoubleBinding(
+                            () -> ThumbnailManager.MAX_THUMBNAIL_SIZE / window.getOutputScaleX(),
+                            window.outputScaleXProperty()));
+            });
+        });
+
+        /*  One of the views stays chosen  */
+        ToggleGroup views = new ToggleGroup();
+        chatViewButton.setToggleGroup(views);
+        imagesViewButton.setToggleGroup(views);
+        imagesViewButton.setSelected(config != null && "images".equals(config.getChatView()));
+        views.selectedToggleProperty().addListener((obs, oldView, view) -> {
+            if (view == null) {
+                oldView.setSelected(true);
+                return;
+            }
+            if (config != null)
+                config.setChatView(view == imagesViewButton ? "images" : "chat");
+            showEntries(chatEntriesListView.isVisible() || imageGrid.isVisible());
+        });
+    }
+
+    /**
+     * Shows the entries of the chat or of the open group as chat or as images, as chosen in the chat header, or hides
+     * both views.
+     *
+     * @param shown whether entries are shown
+     */
+    private void showEntries(boolean shown) {
+        boolean images = imagesViewButton.isSelected();
+        chatEntriesListView.setVisible(shown && !images);
+        imageGrid.setVisible(shown && images);
+    }
+
+    /** Cmd/Ctrl + and - change the image size in steps, but not in the full view, where + and - zoom. */
+    private void changeImageSize(KeyEvent event) {
+        if (!event.isShortcutDown() || imagePreviewOverlay != null && imagePreviewOverlay.isVisible())
+            return;
+        switch (event.getCode()) {
+            case PLUS, ADD, EQUALS -> imageSizeSlider.setValue(imageSizeSlider.getValue() + IMAGE_SIZE_STEP);
+            case MINUS, SUBTRACT -> imageSizeSlider.setValue(imageSizeSlider.getValue() - IMAGE_SIZE_STEP);
+            default -> {
+                return;
+            }
+        }
+        event.consume();
+    }
+
+    /** The file of an image of the shown entries, in the trash for a chat there. */
+    private String shownImagePath(GeneratedImage image) {
+        return getActualImagePath(image, shownGroup == null && currentChat != null && currentChat.isDeleted());
+    }
+
+    /**
+     * Opens the full view on an image of the images view, paging through all images of the grid whose file is there,
+     * each with its mood, frame and model.
+     *
+     * @param item the image to start with
+     */
+    private void showGallery(ImageGrid.Item item) {
+        List<String> paths = new java.util.ArrayList<>();
+        List<String> captions = new java.util.ArrayList<>();
+        int start = -1;
+        for (ImageGrid.Item image : imageGrid.getImages()) {
+            String path = image.image().getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
+                    ? shownImagePath(image.image()) : null;
+            if (path == null || !new File(path).exists())
+                continue;
+            if (image.equals(item))
+                start = paths.size();
+            paths.add(path);
+            captions.add(ImageGrid.caption(image.entry()));
+        }
+        if (imagePreviewOverlay != null && start >= 0)
+            imagePreviewOverlay.showGallery(paths, captions, start);
     }
 
     /**
@@ -3618,13 +3774,13 @@ public class MainWindowController implements I18nChangeListener {
             // Show welcome message, hide ListView
             welcomeContainer.setVisible(true);
             welcomeLabel.setText(I18nManager.getText("app.welcome"));
-            chatEntriesListView.setVisible(false);
+            showEntries(false);
             chatEntriesListView.setItems(null);
             lastChatEntriesCount = 0;
         } else {
             // Hide welcome, show ListView with chat entries
             welcomeContainer.setVisible(false);
-            chatEntriesListView.setVisible(true);
+            showEntries(true);
 
             // Create ObservableList from chat entries for virtualized ListView
             javafx.collections.ObservableList<ChatEntry> entries =
@@ -4138,7 +4294,7 @@ public class MainWindowController implements I18nChangeListener {
         lastChatEntriesCount = 0;
         updateGroupHeader();
         welcomeContainer.setVisible(false);
-        chatEntriesListView.setVisible(true);
+        showEntries(true);
         chatEntriesListView.setItems(entries);
         if (!entries.isEmpty())
             Platform.runLater(() -> chatEntriesListView.scrollTo(entries.size() - 1));
@@ -6866,6 +7022,16 @@ public class MainWindowController implements I18nChangeListener {
         if (sendTooltip != null) {
             sendTooltip.setText(I18nManager.getText("input.send.tooltip"));
         }
+
+        if (chatViewTooltip != null) {
+            chatViewTooltip.setText(I18nManager.getText("chat.view.chat"));
+            imagesViewTooltip.setText(I18nManager.getText("chat.view.images"));
+            imageSizeTooltip.setText(I18nManager.getText("chat.image.size.tooltip"));
+        }
+
+        /*  The tiles of the images view carry texts of their own  */
+        if (imageGrid != null)
+            imageGrid.refresh();
 
         if (brainstormButton != null) {
             brainstormButton.setText(I18nManager.getText("brainstorm.button"));

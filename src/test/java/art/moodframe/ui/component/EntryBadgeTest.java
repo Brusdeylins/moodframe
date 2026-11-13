@@ -66,6 +66,29 @@ class EntryBadgeTest {
     }
 
     @Test
+    void theDotLineShowsTheMoodByNameAndAMixtureByTheMoodItStartedFrom() {
+        assertEquals(new EntryBadge("Film Noir", false),
+                EntryBadge.moodName(new EntryMood("std:mood:film-noir", "Film Noir", BLOCKS), "None"));
+        assertEquals(new EntryBadge("Golden Coast", true), EntryBadge.moodName(
+                new EntryMood(null, null, BLOCKS, "std:mood:golden-coast", "Golden Coast", Set.of(Mood.Field.LIGHT)),
+                "None"));
+        assertEquals(new EntryBadge(mixture, true), EntryBadge.moodName(new EntryMood(null, null, BLOCKS), "None"));
+        assertNull(EntryBadge.moodName(null, null));
+    }
+
+    @Test
+    void theDotLineShowsTheFrameByNameAndASettingOfItsOwnByItsAspectRatio() {
+        assertEquals(new EntryBadge("Landscape print", false), EntryBadge.frameName(
+                new EntryFrame("std:frame:landscape-print", "Landscape print", "3:2", "2K"), "3:2"));
+        assertEquals(new EntryBadge("16:9", true), EntryBadge.frameName(
+                new EntryFrame(null, null, "16:9", "4K", "std:frame:landscape-print", "Landscape print"), "16:9"));
+        assertEquals(new EntryBadge("16:9", true), EntryBadge.frameName(null, "16:9"));
+        assertEquals(new EntryBadge(customFrame, true), EntryBadge.frameName(new EntryFrame(null, null, null, "2K"),
+                null));
+        assertNull(EntryBadge.frameName(null, null));
+    }
+
+    @Test
     void theModelShowsUnderItsLocalizedName() {
         GenerationModel model = GenerationModel.getDefault();
         assertEquals(new EntryBadge(model.getLocalizedDisplayName(), false), EntryBadge.model(model.getDisplayName()));

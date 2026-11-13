@@ -1,0 +1,66 @@
+/*  The images view: rows without background, border or selection, the horizontal scroll bar hidden  */
+.image-grid {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.image-grid .scroll-bar:horizontal {
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+    -fx-min-height: 0;
+    -fx-opacity: 0;
+}
+.image-grid .scroll-bar:vertical {
+    -fx-unit-increment: 40;
+    -fx-block-increment: 200;
+}
+.image-grid .list-cell,
+.image-grid .list-cell:selected,
+.image-grid .list-cell:focused,
+.image-grid .list-cell:selected:focused {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/*  An image in generation or without its file  */
+.image-grid-placeholder {
+    -fx-background-color: -color-bg-subtle;
+}
+.image-grid-placeholder .ikonli-font-icon {
+    -fx-icon-color: -color-fg-muted;
+}
+.image-grid-play {
+    -fx-icon-color: white;
+}
+
+/*  The mood and the frame of the entry of an image: a dark, rounded line with colored dots like the badges of the
+    chat view, hollow and in italics for a mixture or a setting of its own  */
+.image-dots {
+    -fx-background-color: rgba(0, 0, 0, 0.72);
+    -fx-background-radius: 8px;
+    -fx-padding: 2px 6px 2px 6px;
+    -fx-spacing: 7px;
+    -fx-alignment: center;
+}
+.image-dots .label {
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-graphic-text-gap: 3px;
+}
+.image-dot {
+    -fx-stroke-width: 1.5px;
+}
+.image-dot-mood {
+    -fx-fill: -logo-orange;
+    -fx-stroke: -logo-orange;
+}
+.image-dot-frame {
+    -fx-fill: -logo-green;
+    -fx-stroke: -logo-green;
+}
+.image-dots .image-dot-mixture {
+    -fx-font-style: italic;
+}
+.image-dot-mixture .image-dot {
+    -fx-fill: transparent;
+}

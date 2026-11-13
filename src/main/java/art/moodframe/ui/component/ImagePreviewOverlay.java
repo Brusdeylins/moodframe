@@ -7,6 +7,7 @@ import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -53,15 +54,21 @@ import java.util.function.Consumer;
  * <ul>
  * <li>ESC - Close overlay</li>
  * <li>Left/Right arrows - Navigate between images</li>
- * <li>Up/Down arrows - Navigate between chat entries</li>
+ * <li>Up/Down arrows - Navigate between chat entries (not from the images view)</li>
  * <li>+/- - Zoom in/out</li>
  * <li>F - Toggle zoom (100% ↔ Fit to screen)</li>
  * <li>D - Download current image</li>
  * <li>E - Edit this image (create new prompt)</li>
  * </ul>
  *
+ * <p>
+ * Opened from the images view, it pages through all images of the grid only, with a counter and the mood, frame
+ * and model of each image below.
+ * </p>
+ *
  * @since 1.0.0
  * @updated 1.3.17 - Added I18n tooltip support with manual listener management
+ * @updated 2.0.0 - Gallery of the images view
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -90,6 +97,11 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     // Zoom control buttons
     private Button zoom100Button; // 100% zoom (1:1 pixel ratio)
 
+    /*  The counter and the line of the current image in the gallery of the images view  */
+    private HBox galleryInfo;
+    private Label counterLabel;
+    private Label captionLabel;
+
     // Video playback components
     private MediaView mediaView;
     private MediaPlayer mediaPlayer;
@@ -98,6 +110,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
     // State
     private List<String> imagePaths;
+    private List<String> captions; // the line of each image in the gallery, null when opened from a chat
     private int currentImageIndex = 0;
     private double currentZoom = 1.0;
     private double maxZoomForCurrentImage = 1.0;
@@ -395,13 +408,28 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
                         "-ikonli-icon-color: white;");
         playPauseButton.setVisible(false);
 
+        /*  The gallery shows the counter and the line of the image at the bottom center  */
+        counterLabel = new Label();
+        counterLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold;");
+        captionLabel = new Label();
+        captionLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
+        VBox galleryBox = new VBox(2.0, counterLabel, captionLabel);
+        galleryBox.setAlignment(Pos.CENTER);
+        galleryBox.setMaxWidth(Region.USE_PREF_SIZE);
+        galleryBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 12; "
+                + "-fx-padding: 6 14 6 14;");
+        galleryInfo = new HBox(galleryBox);
+        galleryInfo.setAlignment(Pos.CENTER);
+        galleryInfo.setMouseTransparent(true);
+        galleryInfo.setVisible(false);
+
         // Add all buttons to navigation anchor with absolute positioning
         navigationAnchor.getChildren().addAll(
                 closeButton,
                 prevImageButton, nextImageButton,
                 prevChatButton, nextChatButton,
                 downloadButton, editThisButton,
-                zoom100Button, playPauseButton);
+                zoom100Button, playPauseButton, galleryInfo);
 
         // Set absolute positions using AnchorPane constraints
         setAbsoluteButtonPositions();
@@ -451,6 +479,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
         // Play/Pause button - bottom center (positioned via layout listener)
         AnchorPane.setBottomAnchor(playPauseButton, 80.0);
+
+        AnchorPane.setLeftAnchor(galleryInfo, 0.0);
+        AnchorPane.setRightAnchor(galleryInfo, 0.0);
+        AnchorPane.setBottomAnchor(galleryInfo, 20.0);
 
         // Center play button horizontally via layout listener
         navigationAnchor.layoutBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
@@ -577,8 +609,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             case ESCAPE -> closeOverlay();
             case LEFT -> showPreviousImage();
             case RIGHT -> showNextImage();
-            case UP -> showPreviousChat();
-            case DOWN -> showNextChat();
+            case UP -> { if (captions == null) showPreviousChat(); }
+            case DOWN -> { if (captions == null) showNextChat(); }
             case PLUS, ADD -> zoomIn();
             case MINUS, SUBTRACT -> zoomOut();
             case F -> toggleZoom(); // F key for toggle zoom
@@ -1333,6 +1365,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Enable/disable buttons instead of hiding for single image
         prevImageButton.setDisable(currentImageIndex <= 0);
         nextImageButton.setDisable(currentImageIndex >= imagePaths.size() - 1);
+
+        galleryInfo.setVisible(captions != null);
+        if (captions != null) {
+            counterLabel.setText((currentImageIndex + 1) + " / " + imagePaths.size());
+            captionLabel.setText(captions.get(currentImageIndex));
+        }
     }
 
     // Image info label removed - navigation is now via buttons only
@@ -1344,7 +1382,24 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * @param startIndex index of the image to start with
      */
     public void showImages(List<String> imagePaths, int startIndex) {
+        open(imagePaths, null, startIndex);
+    }
+
+    /**
+     * Shows the overlay with the images of the images view, which it pages through only left and right, with a
+     * counter and the line of each image.
+     *
+     * @param imagePaths the image file paths in the order of the grid
+     * @param captions the line of each image: mood, frame and model
+     * @param startIndex index of the image to start with
+     */
+    public void showGallery(List<String> imagePaths, List<String> captions, int startIndex) {
+        open(imagePaths, captions, startIndex);
+    }
+
+    private void open(List<String> imagePaths, List<String> captions, int startIndex) {
         this.imagePaths = imagePaths;
+        this.captions = captions;
         this.currentImageIndex = Math.max(0, Math.min(startIndex, imagePaths.size() - 1));
 
         if (!imagePaths.isEmpty()) {
@@ -1401,6 +1456,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Clear image to free memory
         imageView.setImage(null);
         imagePaths = null;
+        captions = null;
+        galleryInfo.setVisible(false);
         currentImageIndex = 0;
 
         // Notify callback

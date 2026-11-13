@@ -151,6 +151,42 @@
                                 <Region HBox.hgrow="ALWAYS" />
                                 <Label fx:id="chatTotalCostLabel" text="" styleClass="text-muted" />
                             </HBox>
+
+                            <!-- The size of the images, shared by both views, and the view of all chats and groups:
+                                 as chat or as images only -->
+                            <HBox alignment="CENTER_LEFT" spacing="4.0" maxHeight="-Infinity">
+                                <padding>
+                                    <Insets left="16.0" />
+                                </padding>
+                                <FontIcon iconLiteral="mdi2i-image-outline" iconSize="12" styleClass="ikonli-font-icon, text-muted" />
+                                <Slider fx:id="imageSizeSlider" prefWidth="80.0">
+                                    <tooltip>
+                                        <Tooltip fx:id="imageSizeTooltip" text="Image size" />
+                                    </tooltip>
+                                </Slider>
+                                <FontIcon iconLiteral="mdi2i-image-outline" iconSize="18" styleClass="ikonli-font-icon, text-muted" />
+                                <HBox alignment="CENTER_LEFT">
+                                    <padding>
+                                        <Insets left="12.0" />
+                                    </padding>
+                                    <ToggleButton fx:id="chatViewButton" styleClass="button-icon, left-pill" selected="true">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2f-format-list-bulleted" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                        <tooltip>
+                                            <Tooltip fx:id="chatViewTooltip" text="Chat" />
+                                        </tooltip>
+                                    </ToggleButton>
+                                    <ToggleButton fx:id="imagesViewButton" styleClass="button-icon, right-pill">
+                                        <graphic>
+                                            <FontIcon iconLiteral="mdi2v-view-grid-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                                        </graphic>
+                                        <tooltip>
+                                            <Tooltip fx:id="imagesViewTooltip" text="Images" />
+                                        </tooltip>
+                                    </ToggleButton>
+                                </HBox>
+                            </HBox>
                         </HBox>
                     </top>
                     
