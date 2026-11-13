@@ -544,7 +544,7 @@ public class ChatEntryCard extends ManagedComponent {
 
     /**
      * Updates the badges of mood, frame and model. The tooltip of a badge shows its details: the building blocks of the
-     * mood, target and result of the frame, the safety level of a BFL model.
+     * mood, target and result of the frame, the full name and price of the model with the safety level of a BFL model.
      */
     private void updateBadgesDisplay() {
         badgesBox.getChildren().clear();
@@ -565,7 +565,7 @@ public class ChatEntryCard extends ManagedComponent {
         }
         EntryBadge model = EntryBadge.model(chatEntry.getModel());
         if (model != null)
-            badgesBox.getChildren().add(createBadge(model, "model", new Tooltip(modelDetails(model))));
+            badgesBox.getChildren().add(createBadge(model, "model", new Tooltip(modelDetails())));
     }
 
     /**
@@ -649,13 +649,14 @@ public class ChatEntryCard extends ManagedComponent {
                 + I18nManager.getText("entry.badge.frame.result", result);
     }
 
-    /** The model under its full name, a BFL model with its safety level. */
-    private String modelDetails(EntryBadge model) {
+    /** The model under its full name with its price per image, a BFL model with its safety level. */
+    private String modelDetails() {
         GenerationModel known = GenerationModel.fromDisplayName(chatEntry.getModel());
+        String name = known != null ? known.getLocalizedDisplayName() : chatEntry.getModel();
         if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
-            return model.text() + "\n" + I18nManager.getText("params.safety",
+            return name + "\n" + I18nManager.getText("params.safety",
                     getSafetyToleranceDescription(chatEntry.getSafetyTolerance()));
-        return model.text();
+        return name;
     }
 
     /**

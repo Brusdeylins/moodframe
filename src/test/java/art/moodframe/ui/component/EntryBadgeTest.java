@@ -89,9 +89,15 @@ class EntryBadgeTest {
     }
 
     @Test
-    void theModelShowsUnderItsLocalizedName() {
-        GenerationModel model = GenerationModel.getDefault();
-        assertEquals(new EntryBadge(model.getLocalizedDisplayName(), false), EntryBadge.model(model.getDisplayName()));
+    void theModelShowsShortByFamilyAndResolution() {
+        assertEquals(new EntryBadge("Nano Banana Pro · 2K", false),
+                EntryBadge.model(GenerationModel.GEMINI_PRO_2K.getDisplayName()));
+        assertEquals(new EntryBadge("FLUX 3 Image · 1K", false),
+                EntryBadge.model(GenerationModel.FLUX3_IMAGE_1K.getDisplayName()));
+        assertEquals(new EntryBadge("FLUX.2 [pro]", false),
+                EntryBadge.model(GenerationModel.FLUX2_PRO.getDisplayName()));
+        assertEquals(new EntryBadge("OpenAI · gpt-image-1", false),
+                EntryBadge.model(GenerationModel.OPENAI_PREFIX + "gpt-image-1"));
         assertEquals(new EntryBadge("gpt-image-1", false), EntryBadge.model("gpt-image-1"));
         assertNull(EntryBadge.model(null));
     }

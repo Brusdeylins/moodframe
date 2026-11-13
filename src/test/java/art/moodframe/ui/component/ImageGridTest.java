@@ -57,7 +57,8 @@ class ImageGridTest {
                 .mood(new EntryMood("std:mood:golden-coast", "Golden Coast", Map.of()))
                 .frame(new EntryFrame("std:frame:landscape-print", "Landscape print", "3:2", "2K"))
                 .model(model.getDisplayName()).build();
-        assertEquals("Golden Coast · Landscape print · " + model.getLocalizedDisplayName(), ImageGrid.caption(entry));
+        assertEquals("Golden Coast · Landscape print · " + model.getFamilyName() + " · " + model.getResolutionLabel(),
+                ImageGrid.caption(entry));
     }
 
     @Test

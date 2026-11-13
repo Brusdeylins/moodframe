@@ -2,7 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
-import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nManager;
 
@@ -93,7 +93,8 @@ public record EntryBadge(String text, boolean mixture) {
     }
 
     /**
-     * The badge of the model of an entry, under its localized name.
+     * The badge of the model of an entry, short as family and resolution, for example "Nano Banana Pro · 2K"; the full
+     * name with its price stays for the tooltip.
      *
      * @param model the model name stored at the entry (its display name or an OpenAI model id), null for none
      * @return the badge, null for an entry without model
@@ -101,8 +102,7 @@ public record EntryBadge(String text, boolean mixture) {
     public static EntryBadge model(String model) {
         if (model == null)
             return null;
-        GenerationModel known = GenerationModel.fromDisplayName(model);
-        return new EntryBadge(known != null ? known.getLocalizedDisplayName() : model, false);
+        return new EntryBadge(join(ModelFamilies.familyOf(model), ModelFamilies.resolutionOf(model)), false);
     }
 
     /** Joins the parts that are given with a middle dot. */
