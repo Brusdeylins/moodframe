@@ -3384,7 +3384,7 @@ public class MainWindowController implements I18nChangeListener {
         imageGrid.setVisible(false);
         chatAreaStackPane.getChildren().add(chatAreaStackPane.getChildren().indexOf(chatEntriesListView) + 1,
                 imageGrid);
-        chatEntriesListView.itemsProperty().addListener((obs, oldEntries, entries) -> imageGrid.setEntries(entries));
+        imageGrid.entriesProperty().bind(chatEntriesListView.itemsProperty());
 
         imageGrid.setOnOpen(this::showGallery);
         imageGrid.setOnAction((item, action) -> {

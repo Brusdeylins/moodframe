@@ -9,7 +9,9 @@ import art.moodframe.util.I18nManager;
 import art.moodframe.util.VideoPoster;
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -83,11 +85,12 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     private final DoubleProperty tileSize = new SimpleDoubleProperty(180.0);
     private final DoubleProperty maxTileSize = new SimpleDoubleProperty(ThumbnailManager.MAX_THUMBNAIL_SIZE);
     private final DoubleProperty cellSize = new SimpleDoubleProperty(180.0);
+    private final ObjectProperty<ObservableList<ChatEntry>> entries = new SimpleObjectProperty<>();
     private final List<Item> images = new ArrayList<>();
     private final List<ObservableList<GeneratedImage>> watched = new ArrayList<>();
     private final ListChangeListener<ChatEntry> onEntriesChange = (change) -> requestRebuild();
     private final ListChangeListener<GeneratedImage> onImagesChange = (change) -> requestRebuild();
-    private ObservableList<ChatEntry> entries;
+    private ObservableList<ChatEntry> followed;
     private int columns = 0;
 
     private Consumer<Item> onOpen;
@@ -108,6 +111,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         setFocusTraversable(false);
         setCellFactory((listView) -> new Row());
 
+        /*  Every new list counts, also one equal to the last, like the empty lists of two new chats  */
+        entries.addListener((obs) -> followEntries());
         widthProperty().addListener((obs) -> layoutRows(false));
         tileSize.addListener((obs) -> layoutRows(false));
         maxTileSize.addListener((obs) -> layoutRows(false));
@@ -129,16 +134,22 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     }
 
     /**
-     * Shows the images of these entries, the newest first, and follows their changes.
+     * The entries of the chat or the group, the oldest first, null for none; the grid shows their images, the newest
+     * first, and follows their changes.
      *
-     * @param entries the entries of the chat or the group, the oldest first, null for none
+     * @return the entries
      */
-    public void setEntries(ObservableList<ChatEntry> entries) {
-        if (this.entries != null)
-            this.entries.removeListener(onEntriesChange);
-        this.entries = entries;
-        if (entries != null)
-            entries.addListener(onEntriesChange);
+    public ObjectProperty<ObservableList<ChatEntry>> entriesProperty() {
+        return entries;
+    }
+
+    /** Shows the images of the new entries and follows their changes instead of those of the last ones. */
+    private void followEntries() {
+        if (followed != null)
+            followed.removeListener(onEntriesChange);
+        followed = entries.get();
+        if (followed != null)
+            followed.addListener(onEntriesChange);
         rebuild();
         scrollTo(0);
     }
@@ -183,9 +194,9 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         watched.forEach((list) -> list.removeListener(onImagesChange));
         watched.clear();
         images.clear();
-        if (entries != null) {
-            for (int i = entries.size() - 1; i >= 0; i--) {
-                ChatEntry entry = entries.get(i);
+        if (followed != null) {
+            for (int i = followed.size() - 1; i >= 0; i--) {
+                ChatEntry entry = followed.get(i);
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
                 for (GeneratedImage image : entry.getImages()) {
