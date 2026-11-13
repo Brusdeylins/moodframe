@@ -55,7 +55,9 @@ public class FrameGroupListCell extends ListCell<FrameGroup> {
         detailRow.setAlignment(Pos.CENTER_LEFT);
         detailRow.managedProperty().bind(detailRow.visibleProperty());
         content = new VBox(3, headerRow, detailRow);
-        content.setPadding(new Insets(4, 12, 4, 12));
+
+        /*  The name starts on the line of the chat names, behind the space of their grip  */
+        content.setPadding(new Insets(4, 12, 4, 28));
     }
 
     /**

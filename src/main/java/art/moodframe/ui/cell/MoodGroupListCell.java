@@ -43,7 +43,9 @@ public class MoodGroupListCell extends ListCell<MoodGroup> {
         headerRow.setAlignment(Pos.CENTER_LEFT);
         colorStrip.managedProperty().bind(colorStrip.visibleProperty());
         content = new VBox(3, headerRow, colorStrip);
-        content.setPadding(new Insets(4, 12, 4, 12));
+
+        /*  The name starts on the line of the chat names, behind the space of their grip  */
+        content.setPadding(new Insets(4, 12, 4, 28));
     }
 
     /**

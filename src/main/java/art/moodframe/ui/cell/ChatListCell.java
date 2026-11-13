@@ -73,13 +73,14 @@ public class ChatListCell extends ListCell<Chat> {
         statusLabel.getStyleClass().addAll("text-muted", "text-small");
         statusLabel.setVisible(false);
 
-        /*  The grip shows on hover only, like the trash button, but keeps its space, so the name does not move;
-            pressing it does not select the chat  */
+        /*  The grip shows on hover only, like the trash button, but keeps its fixed space, so the name does not move
+            and starts 28 px in like the names by mood and frame; pressing it does not select the chat  */
         FontIcon gripIcon = new FontIcon("mdi2d-drag-vertical");
         gripIcon.setIconSize(14);
         grip = new Label(null, gripIcon);
         grip.getStyleClass().add("text-muted");
-        grip.setMinWidth(14);
+        grip.setMinWidth(18);
+        grip.setMaxWidth(18);
         grip.setMaxHeight(Double.MAX_VALUE);
         grip.setCursor(Cursor.OPEN_HAND);
         grip.setVisible(false);

@@ -22,13 +22,15 @@ import java.util.regex.Pattern;
 /**
  * The MoodFrame wordmark, drawn from the paths of {@code /images/wordmark.svg}: "Mood" as a color gradient, cut in
  * its lower third, "FRAME" and two corners below in the text color of the theme. Its baseline is the baseline of
- * "FRAME", so a label next to it in a baseline-aligned row (the version number) sits on the same line.
+ * "FRAME", so a label next to it in a baseline-aligned row (the version number) sits on the same line. Its left edge
+ * is the stroke of the "M", without the empty margin of the drawing, so it lines up with text above or below it.
  */
 public class Wordmark extends Region {
 
-    /*  geometry of the drawing: view box, where "Mood" is cut, the baseline of "FRAME"  */
+    /*  geometry of the drawing: view box, its empty left margin, where "Mood" is cut, the baseline of "FRAME"  */
     private static final double BOX_WIDTH = 1600.0;
     private static final double BOX_HEIGHT = 560.0;
+    private static final double MARGIN = 96.0;
     private static final double CUT = 339.0;
     private static final double BASELINE = 492.0;
 
@@ -54,11 +56,12 @@ public class Wordmark extends Region {
 
         Group drawing = new Group(mood, frame, corners);
         drawing.getTransforms().add(new Scale(scale, scale, 0.0, 0.0));
+        drawing.setLayoutX(-MARGIN * scale);
         drawing.setManaged(false);
         getChildren().add(drawing);
         setAccessibleText("MoodFrame");
 
-        double width = Math.ceil(BOX_WIDTH * scale);
+        double width = Math.ceil((BOX_WIDTH - MARGIN) * scale);
         double height = Math.ceil(BOX_HEIGHT * scale);
         setMinSize(width, height);
         setPrefSize(width, height);
