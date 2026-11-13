@@ -3295,7 +3295,8 @@ public class MainWindowController implements I18nChangeListener {
         chatEntriesListView.addEventFilter(MouseEvent.MOUSE_RELEASED,
                 (event) -> Platform.runLater(() -> wasScrolledToBottom = isChatAtEnd()));
 
-        /*  Shortcut+C over an entry reuses it ("Reuse"), unless a text field has a selection to copy  */
+        /*  Shortcut+C over an entry or over an image of the images view reuses the entry ("Reuse"), unless a text
+            field has a selection to copy  */
         KeyCombination reuseKey = new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN);
         mainBorderPane.addEventFilter(KeyEvent.KEY_PRESSED, (event) -> {
             if (!reuseKey.match(event)
@@ -3308,6 +3309,11 @@ public class MainWindowController implements I18nChangeListener {
                     event.consume();
                     return;
                 }
+            ChatEntry imageEntry = imageGrid.isVisible() ? imageGrid.getHoveredEntry() : null;
+            if (imageEntry != null) {
+                reuseEntry(imageEntry, ChatEntryCard.Reuse.ALL);
+                event.consume();
+            }
         });
 
         // CellFactory creates ChatEntryCard for each visible cell
@@ -3421,6 +3427,7 @@ public class MainWindowController implements I18nChangeListener {
         imageGrid.setOnAction((item, action) -> {
             String path = shownImagePath(item.image());
             switch (action) {
+                case REUSE -> reuseEntry(item.entry(), ChatEntryCard.Reuse.ALL);
                 case VIEW -> showGallery(item);
                 case EDIT -> editImageFromPath(path);
                 case DOWNLOAD -> downloadImageFromPath(path);

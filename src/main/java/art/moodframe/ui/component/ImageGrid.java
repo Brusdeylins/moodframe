@@ -231,6 +231,18 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     }
 
     /**
+     * The entry of the image under the pointer, which Shortcut+C takes over like "Use all" of its action bar.
+     *
+     * @return the entry, null if the pointer is over no image
+     */
+    public ChatEntry getHoveredEntry() {
+        for (Node tile : lookupAll(".image-grid-tile"))
+            if (tile.isHover() && tile.getUserData() instanceof Item item)
+                return item.entry();
+        return null;
+    }
+
+    /**
      * The chosen size of a tile, which the columns follow.
      *
      * @return the size in screen pixels
@@ -368,8 +380,10 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         view.setPreserveRatio(true);
         view.setSmooth(true);
 
-        /*  The tile is as large as the image, its corners rounded by a clip  */
+        /*  The tile is as large as the image, its corners rounded by a clip; it knows its image for Shortcut+C  */
         StackPane tile = new StackPane(view);
+        tile.getStyleClass().add("image-grid-tile");
+        tile.setUserData(item);
         tile.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         Rectangle clip = new Rectangle();
         clip.setArcWidth(2 * TILE_RADIUS);
@@ -387,7 +401,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         ImageActionBar actionBar = new ImageActionBar((action) -> {
             if (onAction != null)
                 onAction.accept(item, action);
-        });
+        }, true);
         actionBar.setAvailable(true, image.isVideo());
         actionBar.attachTo(tile);
         HBox dots = createDots(item.entry());
@@ -563,7 +577,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /** The context menu of an image: "Reuse" its entry and, for a FLUX image with a seed, "Copy seed". */
     private ContextMenu createMenu(Item item) {
-        MenuItem reuse = new MenuItem(I18nManager.getText("entry.reuse"));
+        MenuItem reuse = new MenuItem(I18nManager.getText("entry.reuse.all"));
         reuse.setOnAction((action) -> {
             if (onReuse != null)
                 onReuse.accept(item.entry());

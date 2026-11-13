@@ -14,7 +14,8 @@ import java.util.function.Consumer;
 
 /**
  * The actions of an image as a dark, rounded bar at the top center of the image, shown while the pointer is over it:
- * view, edit, download, mood from image and delete. Used by the chat entries and the compact view alike.
+ * view, edit, download, mood from image and delete. Used by the chat entries and the compact view alike; the compact
+ * view leads with "Use all" of the entry of the image, which the chat entries show at the entry itself.
  *
  * @since 2.0.0
  */
@@ -22,6 +23,7 @@ public class ImageActionBar extends HBox {
 
     /** The actions of the bar, in their order, each with its icon and the key of its tooltip. */
     public enum Action {
+        REUSE("mdi2c-content-copy", "entry.reuse.all"),
         VIEW("mdi2e-eye", "tooltip.preview.image"),
         EDIT("mdi2p-pencil", "tooltip.edit.image"),
         DOWNLOAD("mdi2d-download", "tooltip.download.image"),
@@ -43,17 +45,29 @@ public class ImageActionBar extends HBox {
     private final Map<Action, Button> buttons = new EnumMap<>(Action.class);
 
     /**
-     * Creates the bar, hidden until it is attached to an image.
+     * Creates the bar without "Use all", hidden until it is attached to an image.
      *
      * @param onAction called with the action the user chose
      */
     public ImageActionBar(Consumer<Action> onAction) {
+        this(onAction, false);
+    }
+
+    /**
+     * Creates the bar, hidden until it is attached to an image.
+     *
+     * @param onAction called with the action the user chose
+     * @param reuse whether the bar leads with "Use all"
+     */
+    public ImageActionBar(Consumer<Action> onAction, boolean reuse) {
         getStyleClass().add("image-action-bar");
         getStylesheets().add(ImageActionBar.class.getResource("/css/image-action-bar.css").toExternalForm());
         setAlignment(Pos.CENTER);
         setVisible(false);
 
         for (Action action : Action.values()) {
+            if (action == Action.REUSE && !reuse)
+                continue;
             FontIcon icon = new FontIcon(action.icon);
             icon.setIconSize(14);
             Button button = new Button(null, icon);
@@ -69,7 +83,7 @@ public class ImageActionBar extends HBox {
 
     /**
      * Shows the bar at the top center of an image while the pointer is over the image. The pane does not lay out the
-     * bar, so that it never widens a narrow image.
+     * bar, so that it never widens a narrow image; on a narrow image the bar shrinks to fit, so no action is cut off.
      *
      * @param tile the pane holding the image
      */
@@ -80,20 +94,25 @@ public class ImageActionBar extends HBox {
         visibleProperty().addListener((obs, wasVisible, isVisible) -> {
             if (isVisible) {
                 autosize();
-                relocate(Math.round((tile.getWidth() - getWidth()) / 2), MARGIN);
+
+                /*  The bar scales around its center, so its top edge moves down by half of what it loses  */
+                double scale = Math.min(1.0, (tile.getWidth() - 2 * MARGIN) / getWidth());
+                setScaleX(scale);
+                setScaleY(scale);
+                relocate(Math.round((tile.getWidth() - getWidth()) / 2), MARGIN - (1.0 - scale) * getHeight() / 2);
             }
         });
     }
 
     /**
-     * Enables the actions that need the file only once it is there; "Mood from image" needs a still image, "Delete"
-     * is always available.
+     * Enables the actions that need the file only once it is there; "Mood from image" needs a still image, "Use all"
+     * and "Delete" are always available.
      *
      * @param available whether the file of the image is there
      * @param video whether it is a video
      */
     public void setAvailable(boolean available, boolean video) {
-        buttons.forEach((action, button) -> button.setDisable(action != Action.DELETE
+        buttons.forEach((action, button) -> button.setDisable(action != Action.DELETE && action != Action.REUSE
                 && (!available || action == Action.MOOD && video)));
     }
 

@@ -6,6 +6,7 @@ import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.ui.BoxInset;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.binding.DoubleBinding;
 import javafx.beans.binding.NumberBinding;
@@ -18,6 +19,7 @@ import javafx.geometry.Bounds;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.IndexedCell;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -25,10 +27,13 @@ import javafx.scene.control.ScrollBar;
 import javafx.scene.control.skin.VirtualFlow;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import org.junit.jupiter.api.BeforeAll;
+import org.kordamp.ikonli.javafx.FontIcon;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -45,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The columns of the images view and their largest sizes on screens of different scale, the images it shows in their
- * order and the line of an image in its full view.
+ * order, the action bar of an image and the line of an image in its full view.
  */
 class ImageGridTest {
 
@@ -311,6 +316,84 @@ class ImageGridTest {
         assertTrue(opened);
         assertTrue(followed);
         assertFalse(left);
+    }
+
+    @Test
+    void theActionBarOfAnImageLeadsWithUseAllOfItsEntry() throws Exception {
+        ChatEntry first = entry("a lighthouse at dusk");
+        ChatEntry second = entry("a lighthouse in fog");
+        List<ChatEntry> reused = new ArrayList<>();
+        List<String> leading = onFxThread(() -> {
+            /*  A path keeps the tiles; without one, loading puts a placeholder in their place  */
+            ImageGrid grid = new ImageGrid((image) -> "lighthouse.png");
+            grid.setOnAction((item, action) -> {
+                if (action == ImageActionBar.Action.REUSE)
+                    reused.add(item.entry());
+            });
+            new Scene(new StackPane(grid), 900, 600);
+            grid.entriesProperty().set(FXCollections.observableArrayList(first, second));
+            tiles(grid);
+            List<String> shown = new ArrayList<>();
+            for (Node bar : grid.lookupAll(".image-action-bar")) {
+                Button reuse = (Button) ((HBox) bar).getChildren().get(0);
+                shown.add(((FontIcon) reuse.getGraphic()).getIconLiteral() + " " + reuse.getTooltip().getText()
+                        + " " + ((HBox) bar).getChildren().size() + " " + reuse.isDisabled());
+                reuse.fire();
+            }
+            return shown;
+        });
+        String expected = "mdi2c-content-copy " + I18nManager.getText("entry.reuse.all") + " 6 false";
+        assertEquals(List.of(expected, expected), leading);
+        assertEquals(List.of(first, second), reused.stream().sorted(Comparator.comparing(ChatEntry::getUserPrompt))
+                .toList());
+    }
+
+    @Test
+    void theActionBarOfTheChatLeavesOutUseAll() throws Exception {
+        String leading = onFxThread(() -> {
+            ImageActionBar bar = new ImageActionBar((action) -> {
+            });
+            Button view = (Button) bar.getChildren().get(0);
+            return ((FontIcon) view.getGraphic()).getIconLiteral() + " " + bar.getChildren().size();
+        });
+        assertEquals("mdi2e-eye 5", leading);
+    }
+
+    @Test
+    void theActionBarShrinksToFitANarrowImage() throws Exception {
+        Bounds[] shown = onFxThread(() -> {
+            Bounds[] bars = new Bounds[2];
+            double[] widths = { 400, 100 };
+            for (int i = 0; i < widths.length; i++) {
+                Pane tile = new Pane();
+                tile.setMinSize(widths[i], 150);
+                tile.setMaxSize(widths[i], 150);
+                new Scene(new StackPane(tile), 600, 300);
+                ImageActionBar bar = new ImageActionBar((action) -> {
+                }, true);
+                bar.attachTo(tile);
+                tile.getScene().getRoot().applyCss();
+                tile.getScene().getRoot().layout();
+                try {
+                    Method setHover = Node.class.getDeclaredMethod("setHover", boolean.class);
+                    setHover.setAccessible(true);
+                    setHover.invoke(tile, true);
+                }
+                catch (ReflectiveOperationException e) {
+                    throw new IllegalStateException(e);
+                }
+                bars[i] = bar.localToParent(bar.getLayoutBounds());
+            }
+            return bars;
+        });
+
+        /*  On a wide image the bar keeps its size, on a narrow one it fits within the margins at the same top  */
+        assertTrue(shown[0].getWidth() > 84.0);
+        assertEquals(400.0 - shown[0].getMaxX(), shown[0].getMinX(), 1.0);
+        assertEquals(8.0, shown[0].getMinY(), 0.5);
+        assertEquals(8.0, shown[1].getMinX(), 0.5);
+        assertEquals(92.0, shown[1].getMaxX(), 0.5);
+        assertEquals(8.0, shown[1].getMinY(), 0.5);
     }
 
     @Test
