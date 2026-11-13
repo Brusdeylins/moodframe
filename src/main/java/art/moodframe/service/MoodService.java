@@ -14,10 +14,12 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -386,13 +388,15 @@ public class MoodService implements BlockUsage {
 
     /**
      * Copies the mood and the building blocks that go into the prompt of a chat entry, so the entry stays traceable
-     * when a block is changed or deleted later; a camera keeps its settings.
+     * when a block is changed or deleted later; a camera keeps its settings. A changed mood becomes the base of a
+     * combination of its own, with the fields whose block differs from it.
      *
-     * @param mood the chosen mood, null for a combination of its own (no mood, or the chosen one changed)
+     * @param mood the chosen mood, null for "No mood"
+     * @param changed whether the fields differ from the chosen mood
      * @param selection the blocks that go into the prompt
      * @return the copy, null if no block goes into the prompt
      */
-    public EntryMood snapshot(Mood mood, PromptComposer.Selection selection) {
+    public EntryMood snapshot(Mood mood, boolean changed, PromptComposer.Selection selection) {
         Map<Mood.Field, EntryMood.Block> copies = new EnumMap<>(Mood.Field.class);
         copy(copies, Mood.Field.ATMOSPHERE, selection.atmosphere());
         copy(copies, Mood.Field.STYLE, selection.style());
@@ -407,8 +411,17 @@ public class MoodService implements BlockUsage {
                     null, null, false, palette.getColors().stream()
                             .filter((String color) -> color != null && !color.isEmpty()).toList(), null));
         }
-        return copies.isEmpty() ? null
-                : new EntryMood(mood != null ? mood.getId() : null, mood != null ? mood.getName() : null, copies);
+        if (copies.isEmpty())
+            return null;
+        if (mood == null || !changed)
+            return new EntryMood(mood != null ? mood.getId() : null, mood != null ? mood.getName() : null, copies);
+        Set<Mood.Field> differing = EnumSet.noneOf(Mood.Field.class);
+        for (Mood.Field field : Mood.Field.values()) {
+            EntryMood.Block copy = copies.get(field);
+            if (!Objects.equals(mood.getReference(field), copy != null ? copy.id() : null))
+                differing.add(field);
+        }
+        return new EntryMood(null, null, copies, mood.getId(), mood.getName(), differing);
     }
 
     /**

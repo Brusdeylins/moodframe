@@ -222,3 +222,34 @@
 .menu-button.button-icon > .label {
     -fx-padding: 8px;
 }
+
+/*  The badges below the prompt of a chat entry, in the colors of the groups of the right panel: filled for a saved
+    mood or frame and for the model, dashed and in italics for a combination or setting of its own  */
+.entry-badge {
+    -entry-badge-color: -logo-blue;
+    -fx-background-color: -entry-badge-color;
+    -fx-background-radius: 10px;
+    -fx-border-color: -entry-badge-color;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-padding: 1px 8px 1px 8px;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+.entry-badge-mood {
+    -entry-badge-color: -logo-orange;
+}
+.entry-badge-frame {
+    -entry-badge-color: -logo-green;
+}
+.entry-badge-model {
+    -entry-badge-color: -logo-blue;
+}
+.entry-badge-mixture {
+    -fx-background-color: transparent;
+    -fx-border-style: dashed;
+    -fx-text-fill: -color-fg-default;
+    -fx-font-style: italic;
+    -fx-font-weight: normal;
+}

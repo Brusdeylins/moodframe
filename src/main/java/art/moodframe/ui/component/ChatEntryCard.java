@@ -1,7 +1,12 @@
 package art.moodframe.ui.component;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.EntryFrame;
+import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.model.Mood;
 import art.moodframe.service.ThumbnailManager;
 import art.moodframe.service.ImageDragExporter;
 import art.moodframe.config.ApplicationConfig;
@@ -9,26 +14,38 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Subscription;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.DoubleBinding;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
-import javafx.scene.control.Separator;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.concurrent.CompletableFuture;
 import java.io.File;
@@ -37,8 +54,10 @@ import java.io.File;
  * Custom component for displaying a ChatEntry in the chat content area.
  *
  * <p>
- * This component shows the user prompt, status, timestamps, generation
- * parameters, and generated images in a card-like layout.
+ * This component shows the user prompt with "Reuse" and a menu, below it the
+ * badges of mood, frame and model with status, date, number of images and cost
+ * beside them, and the generated images in one row, each with an action bar
+ * at its top while the pointer is over it.
  * </p>
  *
  * <p>
@@ -61,22 +80,44 @@ import java.io.File;
  * @since 1.0.0
  * @updated 1.2.0 - Converted to ManagedComponent for memory leak prevention
  * @updated 1.3.5 - Performance optimizations for large chats (200+ images)
+ * @updated 2.0.0 - Badges for mood, frame and model, "Reuse", action bar over the images
  */
 public class ChatEntryCard extends ManagedComponent {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatEntryCard.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("MMM dd, HH:mm:ss");
 
+    /*  The images of an entry share one row at the same width, each at most 400 px wide and high; four of them fit
+        the chat area of the default window, the action bar needs about 120 px  */
+    private static final double IMAGE_GAP = 12.0;
+    private static final double MAX_TILE_SIZE = 400.0;
+    private static final double MIN_TILE_WIDTH = 96.0;
+    private static final double TILE_RADIUS = 8.0;
+
+    /*  The fields of a mood in the order of the tooltip of the mood badge  */
+    private static final List<Mood.Field> BADGE_FIELDS = List.of(Mood.Field.STYLE, Mood.Field.ATMOSPHERE,
+            Mood.Field.LIGHT, Mood.Field.COLOR, Mood.Field.CAMERA);
+
+    /** What "Reuse" and the menu of an entry take over into the input and the right panel. */
+    public enum Reuse {
+        ALL, PROMPT, MOOD, FRAME
+    }
+
     private final ChatEntry chatEntry;
     private final boolean isChatDeleted;
     private final Label promptLabel;
-    private final Label statusLabel;
-    private final Label errorDetailsLabel; // Multiline label for detailed error messages with solution hints
-    private final Label timestampLabel;
-    private final Label parametersLabel;
+    private final Button reuseButton;
+    private final MenuButton moreButton;
+    private final HBox badgesBox;
     private final HBox statusIcon;
-    private final VBox imagesContainer;
+    private final Label infoLabel;
+    private final Label errorDetailsLabel; // Multiline label for detailed error messages with solution hints
+    private final HBox imagesContainer;
     private final ProgressIndicator progressIndicator;
+
+    /*  The width the images of the entry share: the width of the card, or of the list holding it once bound  */
+    private final DoubleProperty availableWidth = new SimpleDoubleProperty();
+    private final DoubleBinding tileWidth;
 
     // Image loading state
     private boolean imagesCurrentlyLoaded = false;
@@ -84,28 +125,12 @@ public class ChatEntryCard extends ManagedComponent {
     // Static counter for total loaded images across all cards
     private static final java.util.concurrent.atomic.AtomicInteger totalLoadedImages = new java.util.concurrent.atomic.AtomicInteger(0);
 
-    // Buttons for tooltip updates (stored for I18n language changes)
-    private Button deleteEntryButton;
-    private Button copyPromptButton;
-    private final java.util.List<Button> imageButtons = new java.util.ArrayList<>(); // Dynamically created per image
-
-    // Button references per image for state updates
-    private final java.util.Map<String, ImageCardButtons> imageButtonsMap = new java.util.HashMap<>();
-
-    /**
-     * Helper class to store button references for a single image card.
-     * Used to enable/disable buttons when image download status changes.
-     */
-    private static class ImageCardButtons {
-        Button downloadButton;
-        Button editButton;
-        Button previewButton;
-        Button copySeedButton;
-    }
+    /*  The action bar of each image by image id, to enable its actions once the file is there  */
+    private final java.util.Map<String, ImageActionBar> imageBars = new java.util.HashMap<>();
 
     // Callback functions
     private Consumer<Long> onSeedCopy;
-    private Consumer<String> onPromptCopy;
+    private java.util.function.BiConsumer<ChatEntry, Reuse> onReuse;
     private java.util.function.BiConsumer<ChatEntry, Integer> onImageClick;
     private Consumer<String> onImageDownload; // Callback for downloading image by file path
     private Consumer<String> onImageEdit; // Callback for editing image by file path
@@ -182,9 +207,8 @@ public class ChatEntryCard extends ManagedComponent {
         setCache(true);
         setCacheHint(javafx.scene.CacheHint.SPEED);
 
-        // Create prompt container with HBox for proper text ellipsis and button
-        // positioning
-        HBox promptContainer = new HBox(3); // 3px spacing between elements
+        /*  The prompt row: the prompt, "Reuse" and the menu with the single parts and "Delete entry"  */
+        HBox promptContainer = new HBox(4);
         promptContainer.setAlignment(Pos.CENTER_LEFT);
 
         this.promptLabel = new Label();
@@ -196,51 +220,43 @@ public class ChatEntryCard extends ManagedComponent {
         promptLabel.setMaxHeight(javafx.scene.control.Control.USE_PREF_SIZE); // Force single line
         HBox.setHgrow(promptLabel, Priority.ALWAYS);
 
-        // Create delete entry button (store reference for I18n updates)
-        this.deleteEntryButton = new Button();
-        this.deleteEntryButton.getStyleClass().addAll("button-icon", "flat");
-        FontIcon deleteIcon = new FontIcon("mdi2t-trash-can-outline");
-        deleteIcon.setIconSize(12);
-        deleteIcon.getStyleClass().add("text-danger-hover");
-        this.deleteEntryButton.setGraphic(deleteIcon);
-        this.deleteEntryButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.delete.entry")));
-        this.deleteEntryButton.setPadding(new Insets(0, 2, 0, 2));
-        this.deleteEntryButton.setMaxHeight(18);
-        this.deleteEntryButton.setMinWidth(20);
+        FontIcon reuseIcon = new FontIcon("mdi2r-replay");
+        reuseIcon.setIconSize(14);
+        this.reuseButton = new Button(null, reuseIcon);
+        reuseButton.getStyleClass().addAll("flat", "small");
+        reuseButton.setMinWidth(Region.USE_PREF_SIZE);
+        reuseButton.setOnAction((event) -> reuse(Reuse.ALL));
 
-        this.deleteEntryButton.setOnAction(e -> {
-            if (onEntryDelete != null) {
-                onEntryDelete.accept(chatEntry);
-            }
-        });
+        FontIcon moreIcon = new FontIcon("mdi2d-dots-horizontal");
+        moreIcon.setIconSize(14);
+        this.moreButton = new MenuButton(null, moreIcon, menuItem("entry.reuse.prompt", () -> reuse(Reuse.PROMPT)),
+                menuItem("entry.reuse.mood", () -> reuse(Reuse.MOOD)),
+                menuItem("entry.reuse.frame", () -> reuse(Reuse.FRAME)), new SeparatorMenuItem(),
+                menuItem("entry.delete", () -> {
+                    if (onEntryDelete != null)
+                        onEntryDelete.accept(chatEntry);
+                }));
+        moreButton.getStyleClass().addAll("button-icon", "flat", "no-arrow");
+        moreButton.setMinWidth(Region.USE_PREF_SIZE);
 
-        // Create copy prompt button (store reference for I18n updates)
-        this.copyPromptButton = new Button();
-        this.copyPromptButton.getStyleClass().addAll("button-icon", "flat");
-        FontIcon copyPromptIcon = new FontIcon("mdi2c-content-copy");
-        copyPromptIcon.setIconSize(12);
-        copyPromptIcon.getStyleClass().add("text-muted");
-        this.copyPromptButton.setGraphic(copyPromptIcon);
-        this.copyPromptButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.copy.prompt")));
-        this.copyPromptButton.setPadding(new Insets(0, 2, 0, 2));
-        this.copyPromptButton.setMaxHeight(18); // Match text line height
-        this.copyPromptButton.setMinWidth(20); // Ensure button stays visible
+        promptContainer.getChildren().addAll(promptLabel, reuseButton, moreButton);
 
-        this.copyPromptButton.setOnAction(e -> {
-            if (onPromptCopy != null) {
-                onPromptCopy.accept(chatEntry.getUserPrompt());
-            }
-        });
+        /*  Below the prompt the badges of mood, frame and model, beside them quietly status, date, images and cost  */
+        this.badgesBox = new HBox(6);
+        badgesBox.setAlignment(Pos.CENTER_LEFT);
 
-        promptContainer.getChildren().addAll(promptLabel, deleteEntryButton, copyPromptButton);
+        this.progressIndicator = new ProgressIndicator();
+        progressIndicator.setMaxSize(14.0, 14.0);
 
-        // Compact status row with icon, status, timestamp and parameters all in one
-        // line
-        this.statusIcon = new HBox(8.0);
-        statusIcon.setAlignment(Pos.CENTER_LEFT);
+        this.statusIcon = new HBox();
+        statusIcon.setAlignment(Pos.CENTER);
+        statusIcon.setMinWidth(Region.USE_PREF_SIZE);
 
-        this.statusLabel = new Label();
-        statusLabel.getStyleClass().addAll("text-small", "text-bold");
+        this.infoLabel = new Label();
+        infoLabel.getStyleClass().addAll("text-muted", "text-small");
+
+        HBox badgeRow = new HBox(8, badgesBox, statusIcon, infoLabel);
+        badgeRow.setAlignment(Pos.CENTER_LEFT);
 
         // Error details label for multiline error messages with solution hints
         this.errorDetailsLabel = new Label();
@@ -250,39 +266,48 @@ public class ChatEntryCard extends ManagedComponent {
         errorDetailsLabel.managedProperty().bind(errorDetailsLabel.visibleProperty());
         errorDetailsLabel.setStyle("-fx-padding: 8 0 0 0;"); // Top padding to separate from status row
 
-        this.progressIndicator = new ProgressIndicator();
-        progressIndicator.setMaxSize(16.0, 16.0);
-        progressIndicator.setVisible(false);
-
-        this.timestampLabel = new Label();
-        timestampLabel.getStyleClass().addAll("text-muted", "text-small");
-
-        this.parametersLabel = new Label();
-        parametersLabel.getStyleClass().addAll("text-muted", "text-small");
-
-        // Combine status, timestamp, and parameters in one compact row (left-aligned)
-        statusIcon.getChildren().addAll(progressIndicator, statusLabel,
-                createVerticalSeparator(), timestampLabel,
-                createVerticalSeparator(), parametersLabel);
-
-        // Images container
-        this.imagesContainer = new VBox(8.0);
+        /*  The images in one row of the same width, without a card of their own; the row claims no minimum width,
+            else it would keep the cell from shrinking to the width the images are sized for  */
+        this.imagesContainer = new HBox(IMAGE_GAP);
+        imagesContainer.setAlignment(Pos.TOP_LEFT);
+        imagesContainer.setMinWidth(0);
         imagesContainer.setVisible(false);
         imagesContainer.managedProperty().bind(imagesContainer.visibleProperty());
 
+        availableWidth.bind(widthProperty());
+        this.tileWidth = Bindings.createDoubleBinding(() -> {
+            int count = Math.max(1, chatEntry.getImages().size());
+            double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
+                    - IMAGE_GAP * (count - 1);
+            return Math.max(MIN_TILE_WIDTH, Math.min(MAX_TILE_SIZE, space / count));
+        }, availableWidth, chatEntry.getImages());
+
         /*  The context menu takes over the mood of the entry; on an image it offers "Mood from image"  */
         promptContainer.setOnContextMenuRequested(this::showMoodMenu);
-        statusIcon.setOnContextMenuRequested(this::showMoodMenu);
+        badgeRow.setOnContextMenuRequested(this::showMoodMenu);
 
-        // Assemble the layout (metadataRow is now integrated into statusIcon)
-        // errorDetailsLabel is shown below statusIcon when there's a detailed error message
-        getChildren().addAll(promptContainer, statusIcon, errorDetailsLabel, imagesContainer);
+        getChildren().addAll(promptContainer, badgeRow, errorDetailsLabel, imagesContainer);
+        updateTooltips();
 
         // Bind to the ChatEntry data
         updateContent();
 
         // Listen for changes in the ChatEntry
         setupBindings();
+    }
+
+    /** Hands the entry to "Reuse" or to one of its single parts. */
+    private void reuse(Reuse part) {
+        if (onReuse != null)
+            onReuse.accept(chatEntry, part);
+    }
+
+    /** An item of the menu of the entry, which keeps the key of its text for a change of the language. */
+    private static MenuItem menuItem(String key, Runnable action) {
+        MenuItem item = new MenuItem(I18nManager.getText(key));
+        item.setUserData(key);
+        item.setOnAction((event) -> action.run());
+        return item;
     }
 
     /**
@@ -366,11 +391,13 @@ public class ChatEntryCard extends ManagedComponent {
                         if (change.getFrom() > 0 || imagesCurrentlyLoaded) {
                             // Real runtime change - rebuild display
                             updateImagesDisplay();
-                            updateParametersDisplay(); // Update parameters to show style if first image was added
+                            updateBadgesDisplay();
+                            updateInfoDisplay();
                         }
                     } else if (change.wasRemoved()) {
                         updateImagesDisplay();
-                        updateParametersDisplay(); // Update parameters in case style was removed
+                        updateBadgesDisplay();
+                        updateInfoDisplay();
                     }
                 }
             });
@@ -419,8 +446,8 @@ public class ChatEntryCard extends ManagedComponent {
     private void updateContent() {
         updatePromptDisplay();
         updateStatusDisplay();
-        updateTimestampDisplay();
-        updateParametersDisplay();
+        updateBadgesDisplay();
+        updateInfoDisplay();
         updateImagesDisplay();
     }
 
@@ -440,7 +467,8 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Updates the status display with appropriate styling and icons.
+     * Updates the status icon beside the badges, with the status in its tooltip; a failed entry shows its detailed
+     * message with the solution hints below the row.
      */
     private void updateStatusDisplay() {
         // Ensure this runs on the FX Application Thread
@@ -450,155 +478,161 @@ public class ChatEntryCard extends ManagedComponent {
         }
 
         ChatEntry.Status status = chatEntry.getStatus();
+        Node icon = switch (status) {
+            case PENDING -> statusGlyph("mdi2c-clock-outline", "text-muted");
+            case PROCESSING -> progressIndicator;
+            case COMPLETED -> statusGlyph("mdi2c-check-circle", "text-success");
+            case FAILED -> statusGlyph("mdi2a-alert-circle", "text-danger");
+            case CANCELLED -> statusGlyph("mdi2c-cancel", "text-muted");
+        };
+        statusIcon.getChildren().setAll(icon);
+        Tooltip.install(statusIcon, new Tooltip(I18nManager.getText(switch (status) {
+            case PENDING -> "entry.status.pending";
+            case PROCESSING -> "status.generating";
+            case COMPLETED -> "entry.status.completed";
+            case FAILED -> "entry.status.failed";
+            case CANCELLED -> "entry.status.cancelled";
+        })));
 
-        // Clear existing style classes
-        statusLabel.getStyleClass().removeAll("text-success", "text-danger", "text-warning", "text-muted");
+        String errorMsg = chatEntry.getErrorMessage();
+        boolean showError = status == ChatEntry.Status.FAILED && errorMsg != null && !errorMsg.isEmpty();
+        errorDetailsLabel.setText(showError ? errorMsg : "");
+        errorDetailsLabel.setVisible(showError);
+    }
 
-        // Clear and rebuild the complete status row
-        statusIcon.getChildren().clear();
+    /** An icon of the status row. */
+    private static FontIcon statusGlyph(String iconCode, String styleClass) {
+        FontIcon icon = new FontIcon(iconCode);
+        icon.setIconSize(14);
+        icon.getStyleClass().add(styleClass);
+        return icon;
+    }
 
-        // Hide error details by default (will be shown for FAILED status with details)
-        errorDetailsLabel.setVisible(false);
+    /**
+     * Updates the quiet info beside the badges: date, number of images and cost.
+     */
+    private void updateInfoDisplay() {
+        List<String> parts = new ArrayList<>();
+        parts.add(chatEntry.getCreatedAt() != null ? chatEntry.getCreatedAt().format(TIME_FORMATTER)
+                : I18nManager.getText("chat.timestamp.none"));
+        if (!chatEntry.getImages().isEmpty())
+            parts.add(I18nManager.getText("params.image.count", chatEntry.getImages().size()));
+        if (chatEntry.getCost() > 0)
+            parts.add(String.format("%s $%.2f", I18nManager.getText("params.cost"), chatEntry.getCost()));
+        infoLabel.setText(String.join(" · ", parts));
+    }
 
-        switch (status) {
-            case PENDING -> {
-                FontIcon icon = new FontIcon("mdi2c-clock-outline");
-                icon.setIconSize(16);
-                icon.getStyleClass().add("text-muted");
-                statusIcon.getChildren().add(icon);
-                statusLabel.setText("Pending");
-                statusLabel.getStyleClass().add("text-muted");
-                progressIndicator.setVisible(false);
-            }
-            case PROCESSING -> {
-                progressIndicator.setVisible(true);
-                statusIcon.getChildren().add(progressIndicator);
-                statusLabel.setText(I18nManager.getText("status.generating"));
-                statusLabel.getStyleClass().add("text-warning");
-            }
-            case COMPLETED -> {
-                FontIcon icon = new FontIcon("mdi2c-check-circle");
-                icon.setIconSize(16);
-                icon.getStyleClass().add("text-success");
-                statusIcon.getChildren().add(icon);
-                statusLabel.setText(I18nManager.getText("entry.status.completed"));
-                statusLabel.getStyleClass().add("text-success");
-                progressIndicator.setVisible(false);
-            }
-            case FAILED -> {
-                FontIcon icon = new FontIcon("mdi2a-alert-circle");
-                icon.setIconSize(16);
-                icon.getStyleClass().add("text-danger");
-                statusIcon.getChildren().add(icon);
-                String errorMsg = chatEntry.getErrorMessage();
+    /**
+     * Updates the badges of mood, frame and model. The tooltip of a badge shows its details: the building blocks of the
+     * mood, target and result of the frame, the safety level of a BFL model.
+     */
+    private void updateBadgesDisplay() {
+        badgesBox.getChildren().clear();
 
-                // Show short status in the status row, detailed message in errorDetailsLabel
-                statusLabel.setText(I18nManager.getText("entry.status.failed"));
-                statusLabel.getStyleClass().add("text-danger");
+        /*  An entry from before 2.0 may carry its style at its first image only (BFL)  */
+        String style = chatEntry.getStyle();
+        if (style == null && !chatEntry.getImages().isEmpty())
+            style = chatEntry.getImages().get(0).getStylePreset();
 
-                // Show full error message with solution hints in a separate multiline label
-                if (errorMsg != null && !errorMsg.isEmpty()) {
-                    errorDetailsLabel.setText(errorMsg);
-                    errorDetailsLabel.setVisible(true);
+        EntryBadge mood = EntryBadge.mood(chatEntry.getMood(), style);
+        if (mood != null)
+            badgesBox.getChildren().add(createBadge(mood, "mood", moodTooltip(chatEntry.getMood(), style)));
+        EntryBadge frame = EntryBadge.frame(chatEntry.getFrame(), chatEntry.getSize());
+        if (frame != null)
+            badgesBox.getChildren().add(createBadge(frame, "frame", new Tooltip(frameDetails())));
+        EntryBadge model = EntryBadge.model(chatEntry.getModel());
+        if (model != null)
+            badgesBox.getChildren().add(createBadge(model, "model", new Tooltip(modelDetails(model))));
+    }
+
+    /**
+     * A badge in the color of its group of the right panel: filled, or dashed and in italics for a mixture. Mood and
+     * frame keep their full text; the model and the info beside them give way in a narrow window.
+     */
+    private static Label createBadge(EntryBadge badge, String kind, Tooltip tooltip) {
+        Label label = new Label(badge.text());
+        label.getStyleClass().addAll("entry-badge", "entry-badge-" + kind);
+        if (badge.mixture())
+            label.getStyleClass().add("entry-badge-mixture");
+        if (!"model".equals(kind))
+            label.setMinWidth(Region.USE_PREF_SIZE);
+        tooltip.setShowDelay(Duration.millis(300));
+        label.setTooltip(tooltip);
+        return label;
+    }
+
+    /**
+     * The building blocks of the mood of an entry, one row per field, a palette with its colors; a mixture names the
+     * mood it started from and marks the changed fields. An entry from before 2.0 names its style.
+     */
+    private static Tooltip moodTooltip(EntryMood mood, String style) {
+        VBox rows = new VBox(3);
+        if (mood == null)
+            rows.getChildren().add(new Label(I18nManager.getText("params.style") + " " + style));
+        else {
+            if (mood.baseName() != null)
+                rows.getChildren().add(new Label(I18nManager.getText("entry.badge.mood.base", mood.baseName())));
+            for (Mood.Field field : BADGE_FIELDS) {
+                EntryMood.Block block = mood.blocks().get(field);
+                boolean changed = mood.changed().contains(field);
+                if (block == null && !changed)
+                    continue;
+                Label row = new Label(fieldLabel(field) + " " + (block != null ? block.name() : "–")
+                        + (changed ? " •" : ""));
+                if (changed)
+                    row.setStyle("-fx-font-weight: bold;");
+                if (block != null && !block.colors().isEmpty()) {
+                    HBox swatches = new HBox(2);
+                    for (String hex : block.colors()) {
+                        try {
+                            swatches.getChildren().add(new Rectangle(10, 10, Color.web(hex)));
+                        }
+                        catch (IllegalArgumentException e) {
+
+                            /*  a color that is no valid hex code is left out  */
+                        }
+                    }
+                    row.setGraphic(swatches);
+                    row.setContentDisplay(ContentDisplay.RIGHT);
                 }
-
-                progressIndicator.setVisible(false);
-            }
-            case CANCELLED -> {
-                FontIcon icon = new FontIcon("mdi2c-cancel");
-                icon.setIconSize(16);
-                icon.getStyleClass().add("text-muted");
-                statusIcon.getChildren().add(icon);
-                statusLabel.setText(I18nManager.getText("entry.status.cancelled"));
-                statusLabel.getStyleClass().add("text-muted");
-                progressIndicator.setVisible(false);
+                rows.getChildren().add(row);
             }
         }
-
-        // Add all elements back to the status row: icon/progress, status, separator,
-        // timestamp, parameters (left-aligned)
-        statusIcon.getChildren().addAll(statusLabel, createVerticalSeparator(), timestampLabel,
-                createVerticalSeparator(), parametersLabel);
+        Tooltip tooltip = new Tooltip();
+        tooltip.setGraphic(rows);
+        return tooltip;
     }
 
-    /**
-     * Updates the timestamp display.
-     */
-    private void updateTimestampDisplay() {
-        if (chatEntry.getCreatedAt() != null) {
-            String timestamp = chatEntry.getCreatedAt().format(TIME_FORMATTER);
-            timestampLabel.setText(timestamp);
-        } else {
-            timestampLabel.setText(I18nManager.getText("chat.timestamp.none"));
-        }
+    /** The label of a mood field, for example "Style:". */
+    private static String fieldLabel(Mood.Field field) {
+        return I18nManager.getText(switch (field) {
+            case STYLE -> "params.style";
+            case ATMOSPHERE -> "params.atmosphere";
+            case LIGHT -> "params.light";
+            case COLOR -> "params.colorstyle";
+            case CAMERA -> "params.camera";
+        });
     }
 
-    /**
-     * Updates the parameters display.
-     */
-    private void updateParametersDisplay() {
-        StringBuilder params = new StringBuilder();
+    /** The target of the frame and what the model made of it: its aspect ratio and the pixel size of the images. */
+    private String frameDetails() {
+        EntryFrame frame = chatEntry.getFrame();
+        String target = frame != null ? EntryBadge.join(frame.aspectRatio(), frame.resolution()) : chatEntry.getSize();
+        GeneratedImage sized = chatEntry.getImages().stream()
+                .filter((image) -> image.getWidth() > 0 && image.getHeight() > 0).findFirst().orElse(null);
+        String result = EntryBadge.join(chatEntry.getSize(),
+                sized != null ? sized.getWidth() + " × " + sized.getHeight() : null);
+        return I18nManager.getText("entry.badge.frame.target", target) + "\n"
+                + I18nManager.getText("entry.badge.frame.result", result);
+    }
 
-        // Get model for display name and provider checks
-        art.moodframe.model.GenerationModel model = null;
-        if (chatEntry.getModel() != null) {
-            // Convert stored model name to localized display name if possible
-            model = art.moodframe.model.GenerationModel.fromDisplayName(chatEntry.getModel());
-            String modelDisplayName = (model != null) ? model.getLocalizedDisplayName() : chatEntry.getModel();
-            params.append(I18nManager.getText("params.model")).append(" ").append(modelDisplayName);
-        }
-
-        if (chatEntry.getSize() != null) {
-            if (params.length() > 0)
-                params.append(" • ");
-            params.append(I18nManager.getText("params.aspect.ratio")).append(" ").append(chatEntry.getSize());
-        }
-
-        // Safety tolerance is only for BFL models, not Gemini
-        if (chatEntry.getSafetyTolerance() >= 0 && model != null &&
-            model.getProvider() == art.moodframe.model.ApiProvider.BFL) {
-            if (params.length() > 0)
-                params.append(" • ");
-            params.append(I18nManager.getText("params.safety",
-                    getSafetyToleranceDescription(chatEntry.getSafetyTolerance())));
-        }
-
-        // Display style preset - check ChatEntry first (for all providers), fallback to GeneratedImage (legacy BFL)
-        String stylePreset = chatEntry.getStyle();
-        if (stylePreset == null && !chatEntry.getImages().isEmpty()) {
-            // Fallback: Check if any image has a style preset (legacy BFL entries)
-            GeneratedImage firstImage = chatEntry.getImages().get(0);
-            stylePreset = firstImage.getStylePreset();
-        }
-
-        /*  An entry generated with a mood shows the mood instead of the style  */
-        String moodName = chatEntry.getMood() != null ? chatEntry.getMood().moodName() : null;
-        if (moodName != null) {
-            if (params.length() > 0)
-                params.append(" • ");
-            params.append(I18nManager.getText("params.mood")).append(" ").append(moodName);
-        }
-        else if (stylePreset != null && !stylePreset.trim().isEmpty() && !"None".equals(stylePreset)) {
-            if (params.length() > 0)
-                params.append(" • ");
-
-            /*  A former look style (1.x) lives on as the standard mood of the same name  */
-            params.append(I18nManager.getText(art.moodframe.service.MoodService.isLegacyLook(stylePreset)
-                    ? "params.mood" : "params.style")).append(" ").append(stylePreset);
-        }
-
-        // Add cost to the parameters line
-        double cost = chatEntry.getCost();
-        if (cost > 0) {
-            if (params.length() > 0)
-                params.append(" • ");
-            params.append(String.format("%s $%.2f", I18nManager.getText("params.cost"), cost));
-        }
-
-        // Note: Seed is not shown here as each image has its own unique seed
-        // Seeds are displayed per image in the image metadata
-
-        parametersLabel.setText(params.length() > 0 ? params.toString() : "No parameters");
+    /** The model under its full name, a BFL model with its safety level. */
+    private String modelDetails(EntryBadge model) {
+        GenerationModel known = GenerationModel.fromDisplayName(chatEntry.getModel());
+        if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
+            return model.text() + "\n" + I18nManager.getText("params.safety",
+                    getSafetyToleranceDescription(chatEntry.getSafetyTolerance()));
+        return model.text();
     }
 
     /**
@@ -617,13 +651,11 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Updates the images display.
+     * Updates the images display: one row of tiles of the same width.
      */
     private void updateImagesDisplay() {
-        // Clear image buttons list when rebuilding (for I18n tooltip updates)
-        imageButtons.clear();
-
         imagesContainer.getChildren().clear();
+        imageBars.clear();
         imagesCurrentlyLoaded = false;
 
         if (chatEntry.getImages().isEmpty()) {
@@ -632,83 +664,28 @@ public class ChatEntryCard extends ManagedComponent {
         }
 
         imagesContainer.setVisible(true);
-
-        // Add images title
-        Label imagesTitle = new Label(
-                String.format("%s (%d)", I18nManager.getText("entry.images.title"), chatEntry.getImages().size()));
-        imagesTitle.getStyleClass().addAll("text-default", "text-bold");
-        imagesContainer.getChildren().add(imagesTitle);
-
-        // Create responsive image grid using FlowPane
-        FlowPane imageGrid = new FlowPane(12.0, 12.0);
-        imageGrid.setAlignment(Pos.CENTER_LEFT);
-        imageGrid.setPrefWrapLength(850.0); // Wrap after ~850px (2 images at 400px + spacing)
-        imageGrid.setMaxWidth(Double.MAX_VALUE);
-
-        for (int i = 0; i < chatEntry.getImages().size(); i++) {
-            GeneratedImage generatedImage = chatEntry.getImages().get(i);
-            VBox imageCard = createImageCard(generatedImage, i);
-            imageGrid.getChildren().add(imageCard);
-        }
-
-        imagesContainer.getChildren().add(imageGrid);
+        for (int i = 0; i < chatEntry.getImages().size(); i++)
+            imagesContainer.getChildren().add(createImageTile(chatEntry.getImages().get(i), i));
 
         // Mark as loaded
         imagesCurrentlyLoaded = true;
     }
 
     /**
-     * Updates only the images title text for I18n changes.
-     * Does NOT rebuild the entire images display to avoid listener leaks.
-     */
-    private void updateImagesTitleOnly() {
-        if (imagesContainer == null || imagesContainer.getChildren().isEmpty()) {
-            return;
-        }
-
-        // First child is the title label
-        if (imagesContainer.getChildren().get(0) instanceof Label) {
-            Label titleLabel = (Label) imagesContainer.getChildren().get(0);
-            titleLabel.setText(String.format("%s (%d)",
-                I18nManager.getText("entry.images.title"),
-                chatEntry.getImages().size()));
-        }
-    }
-
-    /**
-     * Creates an image card for a GeneratedImage with loading animation support.
+     * Creates the tile of an image: the image with rounded corners, a loading overlay while it is generated or
+     * downloaded, and the action bar at its top while the pointer is over it. Size, format and seed show in its
+     * tooltip, "Mood from image" and "Copy seed" in its context menu.
      *
      * @param generatedImage the generated image
      * @param imageIndex     the index of this image in the chat entry
-     * @return the image card
+     * @return the tile
      */
-    private VBox createImageCard(GeneratedImage generatedImage, int imageIndex) {
-        VBox imageCard = new VBox(4.0);
-        imageCard.setAlignment(Pos.CENTER);
-        imageCard.setPadding(new Insets(8.0));
-        imageCard.setStyle("-fx-background-color: black; " +
-                "-fx-background-radius: 4px; " +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 3, 10);");
-        // Add style class to override icon colors for black background
-        imageCard.getStyleClass().add("black-image-card");
-
-        // Create image container with loading support
-        StackPane imageContainer = new StackPane();
-        imageContainer.setPrefSize(400, 400);
-        imageContainer.setMaxSize(400, 400);
-        imageContainer.setMinSize(400, 400);
-        imageContainer.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 4, 0, 0, 2);");
-
+    private StackPane createImageTile(GeneratedImage generatedImage, int imageIndex) {
         ImageView imageView = new ImageView();
-        imageView.setFitWidth(400);
-        imageView.setFitHeight(400);
+        imageView.fitWidthProperty().bind(tileWidth);
+        imageView.setFitHeight(MAX_TILE_SIZE);
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
-        // Add background to ensure shadow is visible
-        imageView.setStyle("-fx-background-color: -color-bg-default;");
-
-        // Add click handler for image preview only if image is available
-        // This will be set conditionally in updateImageDisplay
 
         // Create loading indicator for each image
         ProgressIndicator imageProgressIndicator = new ProgressIndicator();
@@ -728,16 +705,28 @@ public class ChatEntryCard extends ManagedComponent {
 
         loadingOverlay.getChildren().addAll(imageProgressIndicator, loadingLabel);
 
-        // Set up image based on download status
-        updateImageDisplay(generatedImage, imageView, loadingOverlay, imageProgressIndicator);
-
-        // Stack only the image and loading overlay (no buttons over the image)
-        imageContainer.getChildren().addAll(imageView, loadingOverlay);
-
         // Check if image is available for actions
         boolean imageAvailable = generatedImage.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED &&
                 generatedImage.getLocalFilePath() != null &&
                 !generatedImage.getLocalFilePath().isEmpty();
+
+        ImageActionBar actionBar = new ImageActionBar((action) -> onImageAction(action, generatedImage, imageIndex));
+        actionBar.setAvailable(imageAvailable, generatedImage.isVideo());
+        imageBars.put(generatedImage.getId(), actionBar);
+
+        // Set up image based on download status
+        updateImageDisplay(generatedImage, imageView, loadingOverlay, imageProgressIndicator);
+
+        /*  The tile is as large as the image, its corners rounded by a clip  */
+        StackPane tile = new StackPane(imageView, loadingOverlay);
+        tile.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        Rectangle clip = new Rectangle();
+        clip.setArcWidth(2 * TILE_RADIUS);
+        clip.setArcHeight(2 * TILE_RADIUS);
+        clip.widthProperty().bind(tile.widthProperty());
+        clip.heightProperty().bind(tile.heightProperty());
+        tile.setClip(clip);
+        actionBar.attachTo(tile);
 
         // Enable dragging the finished image out of the app (to Finder/Explorer or PowerPoint)
         if (imageAvailable) {
@@ -753,149 +742,102 @@ public class ChatEntryCard extends ManagedComponent {
             });
         }
 
+        Tooltip details = new Tooltip(imageDetails(generatedImage));
+        details.setShowDelay(Duration.millis(500));
+        Tooltip.install(imageView, details);
+
         /*  The menu checks for the file itself, as the image may still be loading  */
         if (!generatedImage.isVideo())
             imageView.setOnContextMenuRequested((event) -> showImageMenu(generatedImage, event));
 
-        // Create action buttons area (left side)
-        HBox actionButtonsArea = new HBox(4);
-        actionButtonsArea.setAlignment(Pos.CENTER_LEFT);
-        actionButtonsArea.setStyle("-fx-padding: 4; -fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 4;");
+        return tile;
+    }
 
-        // Create preview button area (right side)
-        HBox previewButtonArea = new HBox();
-        previewButtonArea.setAlignment(Pos.CENTER_RIGHT);
-        previewButtonArea.setStyle("-fx-padding: 4; -fx-background-color: rgba(0, 0, 0, 0.8); -fx-background-radius: 4;");
-
-        // Create image metadata container (label + copy seed button, centered as group)
-        HBox imageMetadataContainer = new HBox(4);
-        imageMetadataContainer.setAlignment(Pos.CENTER);
-
-        Label imageInfo = new Label();
-        imageInfo.setStyle("-fx-text-fill: white; -fx-font-size: 11px;");
-
-        imageMetadataContainer.getChildren().add(imageInfo);
-
-        // Create buttons immediately (simpler, stable layout)
-        // copySeedButton is created inside createImageButtons and added to imageMetadataContainer
-        createImageButtons(actionButtonsArea, previewButtonArea, imageMetadataContainer, generatedImage, imageIndex, imageAvailable);
-
-        // Update metadata display
-        updateImageMetadata(generatedImage, imageInfo);
-
-        // Get reference to copySeedButton for hover effect (it's the last child if present)
-        Button copySeedBtn = null;
-        if (imageMetadataContainer.getChildren().size() > 1 &&
-            imageMetadataContainer.getChildren().get(1) instanceof Button) {
-            copySeedBtn = (Button) imageMetadataContainer.getChildren().get(1);
-            copySeedBtn.setOpacity(0); // Initially hidden
-        }
-        final Button copySeedBtnFinal = copySeedBtn;
-
-        // Button row - always visible, opacity changes on hover
-        HBox buttonRowContainer = new HBox();
-        buttonRowContainer.setAlignment(Pos.CENTER);
-        buttonRowContainer.setOpacity(0); // Hidden but takes space
-
-        // Create spacer for layout
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        buttonRowContainer.getChildren().addAll(actionButtonsArea, spacer, previewButtonArea);
-
-        // Show/hide buttons on hover (including seed copy button)
-        imageCard.setOnMouseEntered(e -> {
-            buttonRowContainer.setOpacity(1);
-            if (copySeedBtnFinal != null && copySeedBtnFinal.isVisible()) {
-                copySeedBtnFinal.setOpacity(1);
+    /** Carries out an action of the action bar of an image. */
+    private void onImageAction(ImageActionBar.Action action, GeneratedImage generatedImage, int imageIndex) {
+        String path = action == ImageActionBar.Action.VIEW || action == ImageActionBar.Action.DELETE ? null
+                : getActualImagePath(generatedImage, false);
+        switch (action) {
+            case VIEW -> {
+                if (onImageClick != null)
+                    onImageClick.accept(chatEntry, imageIndex);
             }
-        });
-        imageCard.setOnMouseExited(e -> {
-            buttonRowContainer.setOpacity(0);
-            if (copySeedBtnFinal != null) {
-                copySeedBtnFinal.setOpacity(0);
+            case EDIT -> {
+                if (onImageEdit != null && path != null)
+                    onImageEdit.accept(path);
             }
-        });
-
-        imageCard.getChildren().addAll(buttonRowContainer, imageContainer, imageMetadataContainer);
-
-        // Gemini Phase 2: Add cost breakdown if applicable
-        VBox costBreakdownBox = createCostBreakdownBox(generatedImage);
-        if (costBreakdownBox != null) {
-            imageCard.getChildren().add(costBreakdownBox);
+            case DOWNLOAD -> {
+                if (onImageDownload != null && path != null)
+                    onImageDownload.accept(path);
+            }
+            case MOOD -> {
+                if (onMoodFromImage != null && path != null && new File(path).exists())
+                    onMoodFromImage.accept(new File(path));
+            }
+            case DELETE -> {
+                if (onImageDelete != null)
+                    onImageDelete.accept(generatedImage);
+            }
         }
-
-        return imageCard;
     }
 
     /**
-     * Creates a cost breakdown display box for Gemini Phase 2 advanced features.
-     * Shows base cost, search cost, and reasoning cost if applicable.
+     * The details of an image for its tooltip: size, format and seed, of a video its resolution, duration and audio;
+     * below the cost of a Gemini image with web search or reasoning.
      *
-     * @param generatedImage the generated image with cost data
-     * @return VBox with cost breakdown, or null if no additional costs
+     * @param generatedImage the generated image
+     * @return the details
      */
-    private VBox createCostBreakdownBox(GeneratedImage generatedImage) {
-        // Only show cost breakdown if there are additional costs (search or reasoning)
+    private static String imageDetails(GeneratedImage generatedImage) {
+        StringBuilder details = new StringBuilder();
+        if (generatedImage.isVideo()) {
+            String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
+            details.append(String.format("MP4 • %s • %ds%s", resolution, generatedImage.getVideoDurationSeconds(),
+                    generatedImage.hasAudio() ? " • Audio" : ""));
+        } else {
+            // Hide seed information for Gemini images (seed = 0)
+            // FLUX seeds can be negative (XOR of random longs), so check != 0
+            long seed = generatedImage.getSeed();
+            String seedInfo = seed != 0 ? String.format(" • Seed: %d", seed) : "";
+
+            // Use stored values from GeneratedImage - NO disk I/O here for performance!
+            String format = generatedImage.getFormat();
+
+            // Determine format from file extension if not stored
+            if (format == null || format.isEmpty() || "UNKNOWN".equals(format)) {
+                String localPath = generatedImage.getLocalFilePath();
+                String fileName = localPath != null ? localPath.toLowerCase() : "";
+                if (fileName.endsWith(".png"))
+                    format = "PNG";
+                else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg"))
+                    format = "JPEG";
+                else if (fileName.endsWith(".webp"))
+                    format = "WEBP";
+                else
+                    format = "IMG";
+            }
+            details.append(String.format("%dx%d • %s%s", generatedImage.getWidth(), generatedImage.getHeight(),
+                    format.toUpperCase(), seedInfo));
+        }
+
+        /*  Gemini: the cost of web search and reasoning beside the base cost, if any  */
         double searchCost = generatedImage.getSearchCost() != null ? generatedImage.getSearchCost() : 0.0;
         double reasoningCost = generatedImage.getReasoningCost() != null ? generatedImage.getReasoningCost() : 0.0;
-
-        if (searchCost == 0.0 && reasoningCost == 0.0) {
-            return null; // No additional costs to display
+        if (searchCost > 0 || reasoningCost > 0) {
+            double baseCost = generatedImage.getBaseCost() != null ? generatedImage.getBaseCost() : 0.0;
+            if (baseCost > 0)
+                details.append(String.format("%nBase Generation: $%.2f", baseCost));
+            if (searchCost > 0)
+                details.append(String.format("%nGoogle Search: $%.2f", searchCost));
+            if (reasoningCost > 0) {
+                Integer thinkingTokens = generatedImage.getThinkingTokens();
+                details.append(String.format("%nReasoning: $%.2f%s", reasoningCost,
+                        thinkingTokens != null && thinkingTokens > 0 ? String.format(" (%,d tokens)", thinkingTokens)
+                                : ""));
+            }
+            details.append(String.format("%nTotal: $%.2f", baseCost + searchCost + reasoningCost));
         }
-
-        VBox costBox = new VBox(3);
-        costBox.setAlignment(Pos.CENTER_LEFT);
-        costBox.setPadding(new Insets(4, 8, 4, 8));
-        costBox.setStyle("-fx-background-color: rgba(74, 144, 226, 0.15); " +
-                        "-fx-background-radius: 4px; " +
-                        "-fx-border-color: rgba(74, 144, 226, 0.3); " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-border-radius: 4px;");
-
-        Label costTitle = new Label("💰 Cost Breakdown");
-        costTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 10px; -fx-text-fill: #4a90e2;");
-
-        VBox costDetails = new VBox(2);
-
-        // Get base generation cost from stored value
-        // Note: We use the stored baseCost instead of looking up from GenerationModel
-        // because some models (e.g., Gemini 3 Pro 2K/4K) share the same API ID
-        // but have different costs depending on imageSize parameter
-        double baseCost = generatedImage.getBaseCost() != null ? generatedImage.getBaseCost() : 0.0;
-
-        // Show base generation cost
-        if (baseCost > 0) {
-            Label baseLabel = new Label(String.format("  Base Generation: $%.2f", baseCost));
-            baseLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: white;");
-            costDetails.getChildren().add(baseLabel);
-        }
-
-        // Show Google Search cost if applicable
-        if (searchCost > 0) {
-            Label searchLabel = new Label(String.format("  Google Search: $%.2f", searchCost));
-            searchLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: white;");
-            costDetails.getChildren().add(searchLabel);
-        }
-
-        // Show reasoning cost if applicable
-        if (reasoningCost > 0) {
-            Integer thinkingTokens = generatedImage.getThinkingTokens();
-            String tokenInfo = thinkingTokens != null && thinkingTokens > 0
-                ? String.format(" (%,d tokens)", thinkingTokens)
-                : "";
-            Label reasoningLabel = new Label(String.format("  Reasoning: $%.2f%s", reasoningCost, tokenInfo));
-            reasoningLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: white;");
-            costDetails.getChildren().add(reasoningLabel);
-        }
-
-        // Show grand total
-        double grandTotal = baseCost + searchCost + reasoningCost;
-        Label totalLabel = new Label(String.format("  Total: $%.2f", grandTotal));
-        totalLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 10px; -fx-text-fill: #4a90e2;");
-        costDetails.getChildren().add(totalLabel);
-
-        costBox.getChildren().addAll(costTitle, costDetails);
-        return costBox;
+        return details.toString();
     }
 
     /**
@@ -1255,44 +1197,18 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Updates button enabled/disabled states based on image availability.
-     * Called when image status changes to CACHED or when buttons need refresh.
+     * Enables the actions of an image once its file is there.
      *
      * @param generatedImage the generated image to check availability for
      */
     private void updateImageButtonStates(GeneratedImage generatedImage) {
-        ImageCardButtons buttons = imageButtonsMap.get(generatedImage.getId());
-        if (buttons == null) {
-            return; // No buttons stored yet
-        }
-
+        ImageActionBar actionBar = imageBars.get(generatedImage.getId());
+        if (actionBar == null)
+            return;
         boolean imageAvailable = generatedImage.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
                 && generatedImage.getLocalFilePath() != null
                 && !generatedImage.getLocalFilePath().isEmpty();
-
-        Platform.runLater(() -> {
-            buttons.downloadButton.setDisable(!imageAvailable);
-            buttons.editButton.setDisable(!imageAvailable);
-            buttons.previewButton.setDisable(!imageAvailable);
-
-            // Update seed copy button visibility - seed may have arrived from API response
-            // Check if this image was generated with a FLUX model (not Gemini)
-            // Note: For Gemini images, the button is not added to the container at all
-            if (buttons.copySeedButton != null) {
-                boolean hasSeed = generatedImage.getSeed() != 0;
-                String imageModel = generatedImage.getModel();
-                boolean isFluxGeneratedImage = imageModel != null &&
-                    !imageModel.toLowerCase().contains("gemini");
-                // Check if a FLUX model is currently selected
-                boolean fluxModelSelected = isFluxModelSelected != null && isFluxModelSelected.get();
-                // Button visible only when: FLUX image + has seed + FLUX model selected
-                boolean showSeedButton = hasSeed && isFluxGeneratedImage && fluxModelSelected;
-                buttons.copySeedButton.setVisible(showSeedButton);
-                buttons.copySeedButton.setManaged(showSeedButton);
-                buttons.copySeedButton.setOpacity(0); // Hidden until hover
-                buttons.copySeedButton.setDisable(!imageAvailable || !hasSeed);
-            }
-        });
+        actionBar.setAvailable(imageAvailable, generatedImage.isVideo());
     }
 
     /**
@@ -1474,261 +1390,6 @@ public class ChatEntryCard extends ManagedComponent {
         return result;
     }
 
-    private void updateImageMetadata(GeneratedImage generatedImage, Label imageInfo) {
-        if (generatedImage.isVideo()) {
-            // Video metadata: resolution, duration, audio, format
-            String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
-            int duration = generatedImage.getVideoDurationSeconds();
-            boolean audio = generatedImage.hasAudio();
-            imageInfo.setText(String.format("MP4 • %s • %ds%s",
-                    resolution, duration, audio ? " • Audio" : ""));
-        } else {
-            // Hide seed information for Gemini images (seed = 0)
-            // FLUX seeds can be negative (XOR of random longs), so check != 0
-            long seed = generatedImage.getSeed();
-            boolean hasSeed = seed != 0;
-
-            String seedInfo = hasSeed ? String.format(" • Seed: %d", seed) : "";
-
-            // Use stored values from GeneratedImage - NO disk I/O here for performance!
-            int width = generatedImage.getWidth();
-            int height = generatedImage.getHeight();
-            String format = generatedImage.getFormat();
-
-            // Determine format from file extension if not stored
-            if (format == null || format.isEmpty() || "UNKNOWN".equals(format)) {
-                String localPath = generatedImage.getLocalFilePath();
-                if (localPath != null) {
-                    String fileName = localPath.toLowerCase();
-                    if (fileName.endsWith(".png")) {
-                        format = "PNG";
-                    } else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
-                        format = "JPEG";
-                    } else if (fileName.endsWith(".webp")) {
-                        format = "WEBP";
-                    } else {
-                        format = "IMG";
-                    }
-                } else {
-                    format = "IMG";
-                }
-            }
-
-            // Show size, format, and optionally seed in metadata
-            imageInfo.setText(String.format("%dx%d • %s%s",
-                    width, height,
-                    format.toUpperCase(), seedInfo));
-        }
-
-        // Update styling based on status
-        if (generatedImage.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED) {
-            // Use red for failed status
-            imageInfo.setStyle("-fx-text-fill: #ff6b6b; -fx-font-size: 11px;");
-        } else {
-            // Normal white text on black background
-            imageInfo.setStyle("-fx-text-fill: white; -fx-font-size: 11px;");
-        }
-    }
-
-    /**
-     * Creates image action buttons for the image card.
-     */
-    private void createImageButtons(HBox actionButtonsArea, HBox previewButtonArea, HBox imageMetadataContainer,
-                                    GeneratedImage generatedImage, int imageIndex, boolean imageAvailable) {
-        // Download button
-        Button downloadBtn = new Button();
-        downloadBtn.getStyleClass().addAll("button-icon", "flat");
-        FontIcon downloadIcon = new FontIcon("mdi2d-download");
-        downloadIcon.setIconSize(12);
-        downloadIcon.setIconColor(javafx.scene.paint.Color.WHITE);
-        downloadBtn.setGraphic(downloadIcon);
-        downloadBtn.setTooltip(new Tooltip(I18nManager.getText("tooltip.download.image")));
-        downloadBtn.setPadding(new Insets(2, 2, 2, 2));
-        downloadBtn.setDisable(!imageAvailable);
-        downloadBtn.setOnAction(e -> {
-            String actualPath = getActualImagePath(generatedImage, false);
-            if (onImageDownload != null && actualPath != null) {
-                onImageDownload.accept(actualPath);
-            }
-        });
-
-        // Edit button
-        Button editBtn = new Button();
-        editBtn.getStyleClass().addAll("button-icon", "flat");
-        FontIcon editIcon = new FontIcon("mdi2p-pencil");
-        editIcon.setIconSize(12);
-        editIcon.setIconColor(javafx.scene.paint.Color.WHITE);
-        editBtn.setGraphic(editIcon);
-        editBtn.setTooltip(new Tooltip(I18nManager.getText("tooltip.edit.image")));
-        editBtn.setPadding(new Insets(2, 2, 2, 2));
-        editBtn.setDisable(!imageAvailable);
-        editBtn.setOnAction(e -> {
-            String actualPath = getActualImagePath(generatedImage, false);
-            if (onImageEdit != null && actualPath != null) {
-                onImageEdit.accept(actualPath);
-            }
-        });
-
-        actionButtonsArea.getChildren().addAll(downloadBtn, editBtn);
-
-        // Delete button
-        Button deleteBtn = new Button();
-        deleteBtn.getStyleClass().addAll("button-icon", "flat");
-        FontIcon deleteIcon = new FontIcon("mdi2t-trash-can-outline");
-        deleteIcon.setIconSize(12);
-        deleteIcon.setIconColor(javafx.scene.paint.Color.rgb(255, 100, 100));
-        deleteBtn.setGraphic(deleteIcon);
-        deleteBtn.setTooltip(new Tooltip(I18nManager.getText("tooltip.delete.image")));
-        deleteBtn.setPadding(new Insets(2, 2, 2, 2));
-        deleteBtn.setOnAction(e -> {
-            if (onImageDelete != null) {
-                onImageDelete.accept(generatedImage);
-            }
-        });
-
-        // Preview button
-        Button previewBtn = new Button();
-        previewBtn.getStyleClass().addAll("button-icon", "flat");
-        FontIcon previewIcon = new FontIcon("mdi2e-eye");
-        previewIcon.setIconSize(12);
-        previewIcon.setIconColor(javafx.scene.paint.Color.WHITE);
-        previewBtn.setGraphic(previewIcon);
-        previewBtn.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.image")));
-        previewBtn.setPadding(new Insets(2, 2, 2, 2));
-        previewBtn.setDisable(!imageAvailable);
-        previewBtn.setOnAction(e -> {
-            if (onImageClick != null) {
-                onImageClick.accept(chatEntry, imageIndex);
-            }
-        });
-
-        previewButtonArea.getChildren().addAll(deleteBtn, previewBtn);
-
-        // Seed copy button (icon only) - only visible for FLUX images with seed > 0
-        // Added to imageMetadataContainer (bottom right, after seed text) for better UX
-        Button copySeedBtn = new Button();
-        copySeedBtn.getStyleClass().addAll("button-icon", "flat");
-        FontIcon copySeedIcon = new FontIcon("mdi2c-content-copy");
-        copySeedIcon.setIconSize(10);
-        copySeedIcon.getStyleClass().add("text-muted");
-        copySeedBtn.setGraphic(copySeedIcon);
-        copySeedBtn.setTooltip(new Tooltip(I18nManager.getText("tooltip.copy.seed")));
-        copySeedBtn.setPadding(new Insets(0, 2, 0, 2));
-        copySeedBtn.setOnAction(e -> {
-            if (onSeedCopy != null) {
-                onSeedCopy.accept(generatedImage.getSeed());
-            }
-        });
-
-        // Add to metadata container ONLY for FLUX-generated images with a seed AND when FLUX model is selected
-        // FLUX seeds can be negative (XOR of random longs), so check != 0
-        boolean hasSeed = generatedImage.getSeed() != 0;
-        // Check if this image was generated with a FLUX model (not Gemini)
-        String imageModel = generatedImage.getModel();
-        boolean isFluxGeneratedImage = imageModel != null &&
-            !imageModel.toLowerCase().contains("gemini");
-        // Check if a FLUX model is currently selected (not Gemini)
-        boolean fluxModelSelected = isFluxModelSelected != null && isFluxModelSelected.get();
-        // Button visible only when: FLUX image + has seed + FLUX model selected
-        boolean showSeedButton = hasSeed && isFluxGeneratedImage && fluxModelSelected;
-        copySeedBtn.setVisible(showSeedButton);
-        copySeedBtn.setManaged(showSeedButton);
-        // Only add button to container if it's a FLUX image with seed (button may be hidden based on model selection)
-        if (hasSeed && isFluxGeneratedImage) {
-            imageMetadataContainer.getChildren().add(copySeedBtn);
-        }
-
-        // Store references for I18n updates
-        imageButtons.add(downloadBtn);
-        imageButtons.add(editBtn);
-        imageButtons.add(deleteBtn);
-        imageButtons.add(previewBtn);
-        imageButtons.add(copySeedBtn);
-
-        // Store button references for state updates when image becomes available
-        ImageCardButtons buttons = new ImageCardButtons();
-        buttons.downloadButton = downloadBtn;
-        buttons.editButton = editBtn;
-        buttons.previewButton = previewBtn;
-        buttons.copySeedButton = copySeedBtn;
-        imageButtonsMap.put(generatedImage.getId(), buttons);
-    }
-
-    /**
-     * Updates the metadata (dimensions and format) for a specific image card.
-     * This is called when the image status changes to CACHED to refresh the display.
-     *
-     * @param imageCard the VBox containing the image card UI elements
-     * @param generatedImage the generated image with updated metadata
-     */
-    private void updateMetadataForImageCard(VBox imageCard, GeneratedImage generatedImage) {
-        try {
-            // Image card structure (from createImageCard):
-            // children[0] = buttonRowContainer
-            // children[1] = imageContainer (StackPane)
-            // children[2] = imageMetadataContainer (HBox with imageInfo Label + copySeedButton)
-            // children[3] = costBreakdownBox (optional)
-
-            if (imageCard.getChildren().size() < 3) {
-                logger.warn("Image card has unexpected structure, cannot update metadata");
-                return;
-            }
-
-            javafx.scene.Node metadataNode = imageCard.getChildren().get(2);
-            if (!(metadataNode instanceof HBox)) {
-                logger.warn("Image metadata container is not an HBox, cannot update metadata");
-                return;
-            }
-
-            HBox imageMetadataContainer = (HBox) metadataNode;
-            if (imageMetadataContainer.getChildren().isEmpty()) {
-                logger.warn("Image metadata container is empty, cannot update metadata");
-                return;
-            }
-
-            // First child should be the imageInfo Label
-            javafx.scene.Node labelNode = imageMetadataContainer.getChildren().get(0);
-            if (!(labelNode instanceof Label)) {
-                logger.warn("First child of metadata container is not a Label, cannot update metadata");
-                return;
-            }
-
-            Label imageInfo = (Label) labelNode;
-
-            // Now update the metadata using the existing method
-            updateImageMetadata(generatedImage, imageInfo);
-
-            // Update or add cost breakdown box if needed
-            VBox costBreakdownBox = createCostBreakdownBox(generatedImage);
-
-            // Check if cost breakdown already exists (children[3])
-            if (imageCard.getChildren().size() > 3) {
-                // Replace existing cost breakdown
-                if (costBreakdownBox != null) {
-                    imageCard.getChildren().set(3, costBreakdownBox);
-                } else {
-                    // Remove cost breakdown if no longer needed
-                    imageCard.getChildren().remove(3);
-                }
-            } else {
-                // Add cost breakdown if it doesn't exist yet
-                if (costBreakdownBox != null) {
-                    imageCard.getChildren().add(costBreakdownBox);
-                }
-            }
-
-            logger.debug("Updated metadata for image {}: {}x{} {} (cost breakdown: {})",
-                        generatedImage.getId().substring(0, Math.min(8, generatedImage.getId().length())),
-                        generatedImage.getWidth(),
-                        generatedImage.getHeight(),
-                        generatedImage.getFormat(),
-                        costBreakdownBox != null ? "added" : "none");
-
-        } catch (Exception e) {
-            logger.error("Failed to update metadata for image card", e);
-        }
-    }
-
     /**
      * Sets the callback for when a seed copy button is clicked.
      *
@@ -1739,12 +1400,24 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Sets the callback for when the prompt copy button is clicked.
-     * 
-     * @param onPromptCopy the callback that receives the prompt text
+     * Sets the callback of "Reuse" and of the single parts in the menu of the entry.
+     *
+     * @param onReuse the callback that receives the entry and what to take over
      */
-    public void setOnPromptCopy(Consumer<String> onPromptCopy) {
-        this.onPromptCopy = onPromptCopy;
+    public void setOnReuse(java.util.function.BiConsumer<ChatEntry, Reuse> onReuse) {
+        this.onReuse = onReuse;
+    }
+
+    /**
+     * Lets the images share the width of the cell holding the card, less its insets, which a reused cell knows before
+     * the card is laid out, so that the card has its height from the start.
+     *
+     * @param cell the cell holding the card
+     */
+    public void bindAvailableWidth(Region cell) {
+        availableWidth.bind(Bindings.createDoubleBinding(
+                () -> cell.getWidth() - cell.getInsets().getLeft() - cell.getInsets().getRight(),
+                cell.widthProperty(), cell.insetsProperty()));
     }
 
     /**
@@ -1843,14 +1516,31 @@ public class ChatEntryCard extends ManagedComponent {
         this.onMoodFromImage = onMoodFromImage;
     }
 
-    /** Shows the context menu of an image with "Mood from image...". */
+    /**
+     * Shows the context menu of an image with "Mood from image..." and, for a FLUX image with a seed, "Copy seed",
+     * which takes effect while a FLUX model is chosen.
+     */
     private void showImageMenu(GeneratedImage generatedImage, ContextMenuEvent event) {
+        ContextMenu menu = new ContextMenu();
         String path = getActualImagePath(generatedImage, false);
-        if (onMoodFromImage == null || path == null || !new File(path).exists())
+        if (onMoodFromImage != null && path != null && new File(path).exists()) {
+            MenuItem fromImage = new MenuItem(I18nManager.getText("mood.image.menu"));
+            fromImage.setOnAction((action) -> onMoodFromImage.accept(new File(path)));
+            menu.getItems().add(fromImage);
+        }
+
+        /*  FLUX seeds can be negative (XOR of random longs), so check != 0  */
+        String imageModel = generatedImage.getModel();
+        if (onSeedCopy != null && generatedImage.getSeed() != 0 && imageModel != null
+                && !imageModel.toLowerCase().contains("gemini")) {
+            MenuItem copySeed = new MenuItem(I18nManager.getText("tooltip.copy.seed"));
+            copySeed.setOnAction((action) -> onSeedCopy.accept(generatedImage.getSeed()));
+            copySeed.setDisable(isFluxModelSelected == null || !isFluxModelSelected.get());
+            menu.getItems().add(copySeed);
+        }
+        if (menu.getItems().isEmpty())
             return;
-        MenuItem fromImage = new MenuItem(I18nManager.getText("mood.image.menu"));
-        fromImage.setOnAction((action) -> onMoodFromImage.accept(new File(path)));
-        new ContextMenu(fromImage).show(this, event.getScreenX(), event.getScreenY());
+        menu.show(this, event.getScreenX(), event.getScreenY());
         event.consume();
     }
 
@@ -1901,29 +1591,19 @@ public class ChatEntryCard extends ManagedComponent {
         return totalLoadedImages.get();
     }
 
-    /**
-     * Creates a vertical separator for inline metadata.
-     * 
-     * @return a vertical separator
-     */
-    private Separator createVerticalSeparator() {
-        Separator separator = new Separator();
-        separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
-        separator.setMaxHeight(12.0);
-        separator.setPrefHeight(12.0);
-        separator.getStyleClass().add("text-muted");
-        return separator;
-    }
-
     @Override
     protected void onDispose() {
         // CRITICAL: Force unload all images regardless of tracking state
         // This ensures image counter is decremented even if images were never marked as loaded
         forceUnloadAllImages();
 
+        /*  The shared width listens to the list of images of the entry and to the list holding the card  */
+        tileWidth.dispose();
+        availableWidth.unbind();
+
         // Clear callback references to prevent potential memory leaks
         onSeedCopy = null;
-        onPromptCopy = null;
+        onReuse = null;
         onImageClick = null;
         onImageDownload = null;
         onImageEdit = null;
@@ -1936,42 +1616,20 @@ public class ChatEntryCard extends ManagedComponent {
      * Used during disposal to ensure image counter is always accurate.
      */
     private void forceUnloadAllImages() {
-        // Force unload all image views
-        if (imagesContainer != null && imagesContainer.getChildren().size() > 1) {
-            if (imagesContainer.getChildren().get(1) instanceof FlowPane) {
-                FlowPane imageGrid = (FlowPane) imagesContainer.getChildren().get(1);
-
-                for (int i = 0; i < imageGrid.getChildren().size(); i++) {
-                    if (imageGrid.getChildren().get(i) instanceof VBox) {
-                        VBox imageCard = (VBox) imageGrid.getChildren().get(i);
-                        // Inline unload logic - find ImageView and clear it
-                        for (javafx.scene.Node node : imageCard.getChildren()) {
-                            if (node instanceof StackPane stackPane) {
-                                for (javafx.scene.Node child : stackPane.getChildren()) {
-                                    if (child instanceof ImageView imageView) {
-                                        javafx.scene.image.Image oldImage = imageView.getImage();
-                                        if (oldImage != null) {
-                                            imageView.setImage(null);
-                                            int currentCount = totalLoadedImages.get();
-                                            if (currentCount > 0) {
-                                                totalLoadedImages.decrementAndGet();
-                                            }
-                                        }
-                                        imageView.setOnMouseClicked(null);
-                                        imageView.setCursor(javafx.scene.Cursor.DEFAULT);
-                                        break;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
+        for (Node tile : imagesContainer.getChildren()) {
+            if (tile instanceof StackPane stackPane && stackPane.getChildren().get(0) instanceof ImageView imageView) {
+                if (imageView.getImage() != null) {
+                    imageView.setImage(null);
+                    if (totalLoadedImages.get() > 0)
+                        totalLoadedImages.decrementAndGet();
                 }
+                imageView.setOnMouseClicked(null);
+                imageView.setCursor(javafx.scene.Cursor.DEFAULT);
             }
         }
 
-        // Clear button references map to prevent memory leaks
-        imageButtonsMap.clear();
+        // Clear action bar references map to prevent memory leaks
+        imageBars.clear();
 
         imagesCurrentlyLoaded = false;
     }
@@ -1983,53 +1641,27 @@ public class ChatEntryCard extends ManagedComponent {
         }
 
         try {
-            // Update status display
             updateStatusDisplay();
-
-            // Update parameters display
-            updateParametersDisplay();
-
-            // Update only the images title, not the entire display
-            updateImagesTitleOnly();
-
-            // Update timestamp display (for "No timestamp" text)
-            updateTimestampDisplay();
-
-            // Update all button tooltips
+            updateBadgesDisplay();
+            updateInfoDisplay();
             updateTooltips();
-
         } catch (Exception e) {
             logger.warn("Error during language change update for ChatEntryCard", e);
         }
     }
 
     /**
-     * Updates all button tooltips with current language translations.
-     * Called when language changes via onLanguageChanged().
+     * Sets "Reuse", the menu of the entry and the action bars of the images in the current language.
      */
     private void updateTooltips() {
-        // Update entry-level button tooltips
-        if (deleteEntryButton != null) {
-            deleteEntryButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.delete.entry")));
-        }
-        if (copyPromptButton != null) {
-            copyPromptButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.copy.prompt")));
-        }
-
-        // Update image button tooltips
-        // Note: imageButtons list contains buttons in order: download, edit, delete, preview, copySeed (per image)
-        int buttonIndex = 0;
-        for (Button button : imageButtons) {
-            int type = buttonIndex % 5; // 5 buttons per image
-            switch (type) {
-                case 0 -> button.setTooltip(new Tooltip(I18nManager.getText("tooltip.download.image")));
-                case 1 -> button.setTooltip(new Tooltip(I18nManager.getText("tooltip.edit.image")));
-                case 2 -> button.setTooltip(new Tooltip(I18nManager.getText("tooltip.delete.image")));
-                case 3 -> button.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.image")));
-                case 4 -> button.setTooltip(new Tooltip(I18nManager.getText("tooltip.copy.seed")));
-            }
-            buttonIndex++;
-        }
+        reuseButton.setText(I18nManager.getText("entry.reuse"));
+        reuseButton.setTooltip(new Tooltip(I18nManager.getText("entry.reuse.tooltip")));
+        moreButton.setTooltip(new Tooltip(I18nManager.getText("entry.more.tooltip")));
+        moreButton.getItems().forEach((item) -> {
+            if (item.getUserData() instanceof String key)
+                item.setText(I18nManager.getText(key));
+        });
+        imageBars.values().forEach(ImageActionBar::updateTexts);
     }
 
 }

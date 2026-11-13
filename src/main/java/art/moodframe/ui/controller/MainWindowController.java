@@ -16,6 +16,7 @@ import art.moodframe.service.FrameService;
 import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.FrameListCell;
 import art.moodframe.ui.component.MemoryStatusComponent;
@@ -2348,7 +2349,8 @@ public class MainWindowController implements I18nChangeListener {
                 refreshBlockChoices();
         }
 
-        Mood mood = moodService.find(combination.getId());
+        /*  A combination of its own shows the mood it started from as chosen and changed  */
+        Mood mood = moodService.find(copy != null && copy.moodId() == null ? copy.baseId() : combination.getId());
         if (save) {
             String name = art.moodframe.ui.dialog.MoodManageDialog.askName(mainBorderPane.getScene().getWindow(),
                     moodService, I18nManager.getText("mood.name.new"),
@@ -2367,6 +2369,72 @@ public class MainWindowController implements I18nChangeListener {
         chooseMood(combination, mood);
         setStatus(save ? I18nManager.getText("status.mood.saved", mood.getName())
                 : I18nManager.getText("status.entry.mood"));
+    }
+
+    /**
+     * Takes over prompt, model, frame and mood of a chat entry ("Reuse"), or one of them from the menu of the entry. The
+     * model comes first, as it decides the aspect ratios and resolutions the frame can take.
+     *
+     * @param entry the chat entry
+     * @param part  what to take over
+     */
+    private void reuseEntry(ChatEntry entry, ChatEntryCard.Reuse part) {
+        boolean all = part == ChatEntryCard.Reuse.ALL;
+        if (all || part == ChatEntryCard.Reuse.PROMPT)
+            promptTextArea.setText(entry.getUserPrompt());
+        if (all)
+            reuseModel(entry);
+        if (all || part == ChatEntryCard.Reuse.FRAME)
+            reuseFrame(entry);
+        if (all || part == ChatEntryCard.Reuse.MOOD)
+            reuseMood(entry);
+        if (all)
+            setStatus(I18nManager.getText("status.entry.reused"));
+        promptTextArea.requestFocus();
+    }
+
+    /** Chooses the model of a chat entry, as long as it is offered. */
+    private void reuseModel(ChatEntry entry) {
+        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromDisplayName(entry.getModel());
+        String name = model != null ? model.getLocalizedDisplayName() : entry.getModel();
+        if (name != null && modelComboBox.getItems().contains(name))
+            modelComboBox.setValue(name);
+    }
+
+    /**
+     * Sets aspect ratio and resolution to the targets of a chat entry and shows its frame as chosen; a setting of its
+     * own shows the frame it started from as changed. An entry from before the frames were copied takes the aspect
+     * ratio of its model.
+     */
+    private void reuseFrame(ChatEntry entry) {
+        if (frameService == null)
+            return;
+        EntryFrame copy = entry.getFrame();
+        String aspectRatio = copy != null ? copy.aspectRatio() : entry.getSize();
+        String resolution = copy != null ? copy.resolution() : null;
+        Frame frame = copy != null ? frameService.find(copy.frameId() != null ? copy.frameId() : copy.baseId()) : null;
+
+        updatingFrame = true;
+        if (aspectRatio != null && aspectRatioComboBox.getItems().contains(aspectRatio))
+            aspectRatioComboBox.setValue(aspectRatio);
+        if (resolution != null && resolutionChoiceBox.getItems().contains(resolution))
+            resolutionChoiceBox.setValue(resolution);
+        frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
+                : item.frame() != null && item.frame().getId().equals(frame.getId()))
+                .findFirst().ifPresent(frameComboBox::setValue);
+        updatingFrame = false;
+        updateFrameState();
+        setStatus(I18nManager.getText("status.entry.frame"));
+    }
+
+    /** Takes over the mood of a chat entry; an entry without building blocks sets "No mood". */
+    private void reuseMood(ChatEntry entry) {
+        if (moodService == null)
+            return;
+        if (entry.getMood() != null || moodService.findForLegacyStyle(entry.getStyle()) != null)
+            takeOverEntryMood(entry, false);
+        else
+            chooseMood(null);
     }
 
     /**
@@ -3382,11 +3450,10 @@ public class MainWindowController implements I18nChangeListener {
                         }
                     });
 
-                    currentCard.setOnPromptCopy(prompt -> {
-                        if (promptTextArea != null) {
-                            promptTextArea.setText(prompt);
-                        }
-                    });
+                    currentCard.setOnReuse((reusedEntry, part) -> reuseEntry(reusedEntry, part));
+
+                    /*  The images share the width of the cell, which a reused cell knows from the start  */
+                    currentCard.bindAvailableWidth(this);
 
                     currentCard.setOnImageClick((clickedEntry, imageIndex) -> {
                         showImagePreview(clickedEntry, imageIndex);
@@ -4899,8 +4966,8 @@ public class MainWindowController implements I18nChangeListener {
                 .model(modelDisplay)
                 .size(aspectRatio)
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
-                .mood(moodService != null ? moodService.snapshot(moodChanged ? null : chosenMood(), blocks) : null)
-                .frame(EntryFrame.of(frameChanged ? null : chosenFrame(), aspectRatioComboBox.getValue(),
+                .mood(moodService != null ? moodService.snapshot(chosenMood(), moodChanged, blocks) : null)
+                .frame(EntryFrame.of(chosenFrame(), frameChanged, aspectRatioComboBox.getValue(),
                         resolutionChoiceBox.getValue()))
                 .safetyTolerance(safetyToleranceValue)
                 .seed(seedValue != null ? seedValue : 0) // 0 indicates random generation

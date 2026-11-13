@@ -253,15 +253,27 @@ class MoodServiceTest {
         /*  The main window hands over its palette without id  */
         PromptComposer.Selection selection = new PromptComposer.Selection(style, null, light, null,
                 new ColorStyle("Harbor Night", List.of("#0A1A2A", "#FFAA00"), false));
-        EntryMood copy = moods.snapshot(noir, selection);
+        EntryMood copy = moods.snapshot(noir, false, selection);
         assertEquals("std:mood:film-noir", copy.moodId());
         assertEquals("Film Noir", copy.moodName());
         assertEquals(Set.of(Mood.Field.STYLE, Mood.Field.LIGHT, Mood.Field.COLOR), copy.blocks().keySet());
         assertEquals(palette.getId(), copy.blocks().get(Mood.Field.COLOR).id());
         assertEquals("a single sodium lamp", copy.blocks().get(Mood.Field.LIGHT).text());
-        assertNull(moods.snapshot(null, selection).moodId(), "a combination of its own has no mood");
-        assertNull(moods.snapshot(noir, new PromptComposer.Selection(null, null, null, null, null)),
+        assertNull(moods.snapshot(null, false, selection).moodId(), "a combination of its own has no mood");
+        assertNull(moods.snapshot(noir, false, new PromptComposer.Selection(null, null, null, null, null)),
                 "without blocks there is no copy");
+
+        /*  A changed mood becomes the base of a combination of its own, with the fields that differ from it  */
+        Mood harbor = new Mood("mood-harbor", "Harbor");
+        harbor.setReference(Mood.Field.STYLE, style.getId());
+        harbor.setReference(Mood.Field.ATMOSPHERE, "std:atmosphere:misty");
+        EntryMood mix = moods.snapshot(harbor, true, selection);
+        assertNull(mix.moodId());
+        assertEquals("mood-harbor", mix.baseId());
+        assertEquals("Harbor", mix.baseName());
+        assertEquals(Set.of(Mood.Field.ATMOSPHERE, Mood.Field.LIGHT, Mood.Field.COLOR), mix.changed());
+        assertNull(moods.snapshot(harbor, false, selection).baseId(), "an unchanged mood has no base");
+        assertNull(moods.snapshot(null, true, selection).baseId(), "\"No mood\" has no base");
 
         assertTrue(moods.missingBlocks(copy).isEmpty());
         assertEquals(Map.of(Mood.Field.STYLE, style.getId(), Mood.Field.LIGHT, light.getId(), Mood.Field.COLOR,
@@ -291,12 +303,13 @@ class MoodServiceTest {
         assertTrue(blocks.addCustom(camera));
         Mood product = moods.find("std:mood:clean-product");
 
-        EntryMood.Block tabletop = moods.snapshot(product, moods.selection(product)).blocks().get(Mood.Field.CAMERA);
+        EntryMood.Block tabletop = moods.snapshot(product, false, moods.selection(product)).blocks()
+                .get(Mood.Field.CAMERA);
         assertEquals("std:camera:product-tabletop", tabletop.id());
         assertEquals(blocks.find(PromptBlock.Type.CAMERA, tabletop.id()).getParams(), tabletop.params());
 
         /*  "Take over mood" sets the camera of the copy, a locked camera keeps its block  */
-        EntryMood copy = moods.snapshot(null, new PromptComposer.Selection(null, null, null, camera, null));
+        EntryMood copy = moods.snapshot(null, false, new PromptComposer.Selection(null, null, null, camera, null));
         Mood combination = new Mood(null, null);
         moods.references(copy, false).forEach(combination::setReference);
         assertEquals(Map.of(Mood.Field.CAMERA, camera.getId()), moods.apply(combination, Map.of(), Set.of()));
