@@ -141,7 +141,8 @@
                     
                     <!-- Chat Header: height and padding like the controls row of the sidebar; the title starts on the
                          left edge of the cards and of the first column of images, 1 px further out for the side bearing
-                         of its letters (set by the controller), the costs on the baseline of the title -->
+                         of its letters (set by the controller), the costs on the baseline of the title; the view switch
+                         ends on the right edge of the cards and of the last column of images (set by the controller) -->
                     <top>
                         <HBox fx:id="chatHeader" alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>

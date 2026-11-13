@@ -5,14 +5,19 @@ import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.ui.BoxInset;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
+import javafx.geometry.Bounds;
+import javafx.geometry.Orientation;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.IndexedCell;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.control.skin.VirtualFlow;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
@@ -20,6 +25,8 @@ import javafx.scene.layout.StackPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -108,6 +115,52 @@ class ImageGridTest {
         int columns = ImageGrid.columns(1000, 200, 200);
         assertEquals(5, columns);
         assertTrue((1000 - 10.0 * (columns - 1)) / columns <= 200);
+    }
+
+    @Test
+    void theColumnsFillTheWidthUpToTheRightEdgeOfTheViewSwitch() throws Exception {
+        ObservableList<ChatEntry> chat = FXCollections.observableArrayList();
+        for (int i = 0; i < 60; i++)
+            chat.add(entry("a lighthouse, take " + i));
+
+        /*  Per width, size and largest size, with and without the scroll bar: the left edge of the first column, the
+            right edge of the last one, the width of a cell, the edges expected and whether the scroll bar shows  */
+        List<double[]> measured = onFxThread(() -> {
+            List<double[]> rows = new ArrayList<>();
+            for (double width : new double[] { 500, 913, 1234, 1777 })
+                for (double[] size : new double[][] { { 100, 200 }, { 180, 200 }, { 200, 200 }, { 180, 400 },
+                        { 400, 400 } })
+                    for (double height : new double[] { 600, 20000 }) {
+                        ImageGrid grid = new ImageGrid((image) -> null);
+                        grid.tileSizeProperty().set(size[0]);
+                        grid.maxTileSizeProperty().set(size[1]);
+                        new Scene(new StackPane(grid), width, height);
+                        grid.entriesProperty().set(chat);
+                        tiles(grid);
+                        HBox row = grid.lookupAll(".list-cell").stream()
+                                .map((cell) -> ((ListCell<?>) cell).getGraphic())
+                                .filter((graphic) -> graphic instanceof HBox).map(HBox.class::cast)
+                                .max(Comparator.comparingInt((tiles) -> tiles.getChildren().size())).orElseThrow();
+                        Bounds first = row.getChildren().get(0).localToScene(
+                                row.getChildren().get(0).getLayoutBounds());
+                        Node lastCell = row.getChildren().get(row.getChildren().size() - 1);
+                        Bounds last = lastCell.localToScene(lastCell.getLayoutBounds());
+                        boolean scrollBar = grid.lookupAll(".scroll-bar").stream()
+                                .anyMatch((bar) -> ((ScrollBar) bar).getOrientation() == Orientation.VERTICAL
+                                        && bar.isVisible());
+                        rows.add(new double[] { first.getMinX(), last.getMaxX(), first.getWidth(), size[1],
+                                grid.snappedLeftInset() + BoxInset.LEFT - 1.0,
+                                width - grid.snappedRightInset() - (BoxInset.RIGHT - 1.0), scrollBar ? 1 : 0 });
+                    }
+            return rows;
+        });
+        for (double[] row : measured) {
+            assertEquals(row[4], row[0], 1.0);
+            assertEquals(row[5], row[1], 1.0);
+            assertTrue(row[2] <= row[3]);
+        }
+        assertTrue(measured.stream().anyMatch((row) -> row[6] == 1));
+        assertTrue(measured.stream().anyMatch((row) -> row[6] == 0));
     }
 
     @Test

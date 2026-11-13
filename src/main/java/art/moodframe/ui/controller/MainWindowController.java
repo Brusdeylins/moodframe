@@ -1003,10 +1003,12 @@ public class MainWindowController implements I18nChangeListener {
     private void setupUI() {
         /*  One inset for all boxes: the sidebar heading on the line of the names, the "M" of the logo 1 px further in
             for the side bearing of their letters (behind the 10 px padding of the sidebar), the chat title 1 px further
-            out on the edge of the cards and of the first column of images, the prompt text behind the 1 px border  */
+            out on the edge of the cards and of the first column of images, the view switch ending on their right edge,
+            the prompt text behind the 1 px border  */
         appHeader.setPadding(withLeft(appHeader.getPadding(), 10.0 + BoxInset.LEFT + 1.0));
         sidebarHeader.setPadding(withLeft(sidebarHeader.getPadding(), BoxInset.LEFT));
-        chatHeader.setPadding(withLeft(chatHeader.getPadding(), BoxInset.LEFT - 1.0));
+        chatHeader.setPadding(new javafx.geometry.Insets(chatHeader.getPadding().getTop(), BoxInset.RIGHT,
+                chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
         promptTextArea.setPadding(new javafx.geometry.Insets(2.0, 2.0, 2.0, BoxInset.LEFT - 1.0 - BoxInset.TEXT));
 
         // Configure SplitPane with restored position
@@ -3330,8 +3332,11 @@ public class MainWindowController implements I18nChangeListener {
                 // CRITICAL: Cell must fill entire width to prevent horizontal scroll
                 setMaxWidth(Double.MAX_VALUE);
                 setPrefWidth(0); // Let it grow with ListView
-                // The cards start on the inset of the boxes, behind the 1 px border of the list
-                setPadding(new javafx.geometry.Insets(5.0, 10.0, 5.0, BoxInset.LEFT - 1.0));
+                /*  The cards start on the inset of the boxes, behind the 1 px border of the list, and end on the right
+                    edge of the view switch; the list is wider than the cell by its two borders and the scroll bar  */
+                paddingProperty().bind(Bindings.createObjectBinding(() -> new javafx.geometry.Insets(5.0,
+                        Math.max(0.0, BoxInset.RIGHT + 1.0 - (listView.getWidth() - getWidth())), 5.0,
+                        BoxInset.LEFT - 1.0), widthProperty(), listView.widthProperty()));
             }
 
             @Override

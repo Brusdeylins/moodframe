@@ -69,11 +69,11 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageGrid.class);
 
-    /*  The gap between the cells across and down; the cells start on the inset of the boxes (behind the 1 px border
-        of the list), the vertical scroll bar takes at most 14 px  */
+    /*  The gap between the cells across and down; the cells start on the inset of the boxes and end on the right edge
+        of the view switch (behind the 1 px border of the list), the vertical scroll bar lies right of them  */
     private static final double GAP = 10.0;
-    private static final double SIDE_INSET = BoxInset.LEFT - 1.0;
-    private static final double SCROLL_BAR = 14.0;
+    private static final double LEFT_INSET = BoxInset.LEFT - 1.0;
+    private static final double RIGHT_INSET = BoxInset.RIGHT - 1.0;
     private static final int MIN_COLUMNS = 2;
     private static final double TILE_RADIUS = 8.0;
     private static final double DOTS_MARGIN = 5.0;
@@ -248,9 +248,9 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
      * @param imagesChanged whether the images changed, so the rows are split anew in any case
      */
     private void layoutRows(boolean imagesChanged) {
-        double width = getWidth() - snappedLeftInset() - snappedRightInset() - 2 * SIDE_INSET - SCROLL_BAR;
+        double width = getWidth() - snappedLeftInset() - snappedRightInset() - LEFT_INSET - RIGHT_INSET;
         int count = columns(width, tileSize.get(), maxTileSize.get());
-        cellSize.set(Math.max(1.0, Math.floor((width - GAP * (count - 1)) / count)));
+        cellSize.set(Math.max(1.0, (width - GAP * (count - 1)) / count));
         setFixedCellSize(cellSize.get() + GAP);
         if (!imagesChanged && count == columns)
             return;
@@ -267,8 +267,10 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         private final HBox tiles = new HBox(GAP);
         private final List<Runnable> releases = new ArrayList<>();
 
+        /*  The cells keep their fractional size, so the last column ends exactly on the right edge  */
         Row() {
-            tiles.setPadding(new Insets(GAP / 2, 0, GAP / 2, SIDE_INSET));
+            tiles.setPadding(new Insets(GAP / 2, 0, GAP / 2, LEFT_INSET));
+            tiles.setSnapToPixel(false);
         }
 
         @Override
