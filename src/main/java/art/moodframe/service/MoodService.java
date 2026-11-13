@@ -57,6 +57,23 @@ public class MoodService implements BlockUsage {
         this.blocks = blocks;
         this.colors = colors;
         this.defaultMoods = defaultMoods();
+        renameCustomMoodsNamedLikeDefaults();
+    }
+
+    /**
+     * A mood of the user named like a standard mood (which may be new) keeps its blocks and gets the next free name
+     * with a counter (see {@link #freeName}), so every name stays selectable.
+     */
+    private void renameCustomMoodsNamedLikeDefaults() {
+        for (Mood custom : repository.findAll()) {
+            if (defaultMoods.stream().noneMatch((Mood mood) -> mood.getName().equals(custom.getName())))
+                continue;
+            String original = custom.getName();
+            custom.setName(freeName(original));
+            if (repository.update(custom))
+                logger.info("Renamed mood '{}' of the user to '{}', a standard mood has its name", original,
+                        custom.getName());
+        }
     }
 
     private static List<Mood> defaultMoods() {
@@ -81,6 +98,10 @@ public class MoodService implements BlockUsage {
                 "Classic Portrait"));
         moods.add(mood("Wild North", "Documentary", "Raw", "Overcast", "Forest Dusk", null));
         moods.add(mood("Clean Product", "Product Photography", "Clean and Factual", "Studio Softbox", "Monochrome Pro",
+                "Product Tabletop"));
+        moods.add(mood("Lifestyle Product", "Photography", "Calm", "Window Light", "Faded Cream", "Product Bokeh"));
+        moods.add(mood("Styled Set", "Styled Set", "Calm", "Studio Softbox", "Faded Cream", "Product Tabletop"));
+        moods.add(mood("Product Hero", "Product Photography", "Epic", "Rim Light", "Monochrome Pro",
                 "Product Tabletop"));
 
         for (int i = 0; i < moods.size(); i++)

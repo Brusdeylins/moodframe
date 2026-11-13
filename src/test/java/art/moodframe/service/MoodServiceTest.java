@@ -6,6 +6,7 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.repository.MoodRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,12 +51,13 @@ class MoodServiceTest {
     }
 
     @Test
-    void offersFourteenStandardMoodsThatReferToExistingStandardBlocks() {
+    void offersSeventeenStandardMoodsThatReferToExistingStandardBlocks() {
         List<Mood> defaults = moods.getDefaults();
 
         assertEquals(List.of("Business Photography", "Film Noir", "Cinematic", "Blockbuster", "Arthouse",
                 "Sci-Fi Cinema", "Retro 80s", "Vintage Film", "Studio Portrait", "Quiet Morning", "Dreamy Pastel",
-                "Candle Glow", "Wild North", "Clean Product"), defaults.stream().map(Mood::getName).toList());
+                "Candle Glow", "Wild North", "Clean Product", "Lifestyle Product", "Styled Set", "Product Hero"),
+                defaults.stream().map(Mood::getName).toList());
         for (Mood mood : defaults) {
             assertTrue(mood.isDefault(), mood.getName());
             assertTrue(mood.getId().startsWith("std:mood:"), mood.getName());
@@ -71,6 +73,46 @@ class MoodServiceTest {
         assertNull(noir.getReference(Mood.Field.CAMERA));
         assertNull(moods.find("std:mood:cinematic").getReference(Mood.Field.ATMOSPHERE));
         assertEquals("std:camera:product-tabletop", moods.find("std:mood:clean-product").getReference(Mood.Field.CAMERA));
+    }
+
+    @Test
+    void setsEveryFieldOfTheThreeProductMoods() {
+        assertEquals(Map.of(Mood.Field.STYLE, "std:style:photography", Mood.Field.ATMOSPHERE, "std:atmosphere:calm",
+                Mood.Field.LIGHT, "std:light:window-light", Mood.Field.COLOR, "std:color:faded-cream",
+                Mood.Field.CAMERA, "std:camera:product-bokeh"),
+                moods.find("std:mood:lifestyle-product").getReferences());
+        assertEquals(Map.of(Mood.Field.STYLE, "std:style:styled-set", Mood.Field.ATMOSPHERE, "std:atmosphere:calm",
+                Mood.Field.LIGHT, "std:light:studio-softbox", Mood.Field.COLOR, "std:color:faded-cream",
+                Mood.Field.CAMERA, "std:camera:product-tabletop"), moods.find("std:mood:styled-set").getReferences());
+        assertEquals(Map.of(Mood.Field.STYLE, "std:style:product-photography", Mood.Field.ATMOSPHERE,
+                "std:atmosphere:epic", Mood.Field.LIGHT, "std:light:rim-light", Mood.Field.COLOR,
+                "std:color:monochrome-pro", Mood.Field.CAMERA, "std:camera:product-tabletop"),
+                moods.find("std:mood:product-hero").getReferences());
+
+        /*  Full frame, 85 mm, f/1.4, eye level and close-up contradict each other in no stage  */
+        String prompt = new PromptComposer(10000).compose("a coffee cup",
+                moods.selection(moods.find("std:mood:lifestyle-product")));
+        assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera, clean sharp detail, high dynamic "
+                + "range, 85mm portrait lens, flattering proportions, slight background compression, f/1.4, very "
+                + "shallow depth of field, the background melted into soft blur, shot at eye level, close-up "
+                + "framing."), prompt);
+        assertEquals("Calm · Styled Set · Faded Cream · Studio Softbox · Product Tabletop",
+                moods.describe(moods.find("std:mood:styled-set")));
+    }
+
+    @Test
+    void renamesAMoodOfTheUserThatIsNamedLikeAStandardMoodAndKeepsItsBlocks() {
+        MoodRepository repository = new MoodRepository();
+        Mood clash = new Mood(null, "Lifestyle Product");
+        clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
+        assertTrue(repository.save(clash));
+
+        new MoodService(blocks, colors);
+
+        Mood renamed = repository.findById(clash.getId());
+        assertEquals("Lifestyle Product (1)", renamed.getName());
+        assertEquals(Map.of(Mood.Field.CAMERA, "std:camera:classic-portrait"), renamed.getReferences());
+        assertEquals("std:mood:lifestyle-product", moods.find("std:mood:lifestyle-product").getId());
     }
 
     @Test

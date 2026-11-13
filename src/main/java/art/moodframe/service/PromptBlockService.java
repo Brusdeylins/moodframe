@@ -122,6 +122,9 @@ public class PromptBlockService {
         styles.add(style("Product Photography", photo, true,
                 "product photograph, the product crisp and detailed on a clean uncluttered backdrop, "
                 + "accurate reflections, catalog style"));
+        styles.add(style("Styled Set", photo, true,
+                "product photograph on an art-directed tabletop set with a few matching props, styled like a "
+                + "magazine still life, the product the clear hero"));
         styles.add(style("Analog Film", photo, true,
                 "analog photograph on Kodak Portra 400 35mm film, natural film grain, organic tones, "
                 + "slightly soft focus"));
@@ -356,6 +359,8 @@ public class PromptBlockService {
                 Aperture.F_1_4, null, null, null, Shot.MEDIUM)));
         cameras.add(camera("Product Tabletop", new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", Lens.MM_85,
                 Aperture.F_11, null, Iso.ISO_100, Perspective.HIGH_ANGLE, null)));
+        cameras.add(camera("Product Bokeh", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_1_4,
+                null, null, Perspective.EYE_LEVEL, Shot.CLOSE_UP)));
         cameras.add(camera("Long Exposure Landscape", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_24,
                 Aperture.F_11, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, Shot.WIDE)));
         cameras.add(camera("Phone Snapshot", new CameraSettings(Body.SMARTPHONE, null, null, null, null, null,

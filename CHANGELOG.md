@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### FEATURE
 - First public version of MoodFrame
 - Moods: style, atmosphere, light, color palette and camera as building blocks, each lockable, saved as named moods,
-  with 14 base moods
+  with 17 base moods
 - Camera building block with a visual settings dialog and an example image for every stage; only stages with a
   visible effect remain
 - Texts of the base building blocks tuned against test images

@@ -62,7 +62,7 @@ class PromptBlockServiceTest {
         Pattern negation = Pattern.compile("\\bno\\s", Pattern.CASE_INSENSITIVE);
         List<PromptBlock> styles = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE);
 
-        assertEquals(38, styles.size());
+        assertEquals(39, styles.size());
         for (PromptBlock style : styles) {
             String text = style.getText().toLowerCase(Locale.ROOT);
             assertFalse(text.contains("8k"), style.getName());
@@ -75,13 +75,13 @@ class PromptBlockServiceTest {
     }
 
     @Test
-    void offersTenStandardCamerasFromSettingsOnly() {
+    void offersElevenStandardCamerasFromSettingsOnly() {
         PromptBlockService service = new PromptBlockService();
         List<PromptBlock> cameras = service.getDefaults(PromptBlock.Type.CAMERA);
 
         assertEquals(List.of("Street 35mm", "Classic Portrait", "Epic Wide Low Angle", "Telephoto Compression",
-                "Macro Detail", "Drone Overview", "Cinematic Anamorphic", "Product Tabletop", "Long Exposure Landscape",
-                "Phone Snapshot"), cameras.stream().map(PromptBlock::getName).toList());
+                "Macro Detail", "Drone Overview", "Cinematic Anamorphic", "Product Tabletop", "Product Bokeh",
+                "Long Exposure Landscape", "Phone Snapshot"), cameras.stream().map(PromptBlock::getName).toList());
         for (PromptBlock camera : cameras) {
             assertTrue(camera.isDefault(), camera.getName());
             assertEquals("std:camera:" + PromptBlockService.slug(camera.getName()), camera.getId());
@@ -144,7 +144,7 @@ class PromptBlockServiceTest {
     void groupsTheStylesAndMarksOnlyThePhotoGroupAsPhotographic() {
         List<PromptBlock> styles = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE);
 
-        assertEquals(11, styles.stream().filter((PromptBlock s) -> PromptBlock.GROUP_PHOTO.equals(s.getGroup())).count());
+        assertEquals(12, styles.stream().filter((PromptBlock s) -> PromptBlock.GROUP_PHOTO.equals(s.getGroup())).count());
         assertEquals(13, styles.stream().filter((PromptBlock s) -> PromptBlock.GROUP_ART.equals(s.getGroup())).count());
         assertEquals(14, styles.stream().filter(PromptBlock::isLayout).count());
         assertTrue(styles.stream().allMatch((PromptBlock s) -> s.isPhotographic() == PromptBlock.GROUP_PHOTO.equals(s.getGroup())));
