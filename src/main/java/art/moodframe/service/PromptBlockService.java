@@ -303,7 +303,7 @@ public class PromptBlockService {
         lights.add(light("Window Light",
                 "soft daylight from a large window at the side, gentle falloff into shadow"));
         lights.add(light("Studio Softbox",
-                "large softbox key light at 45 degrees with subtle fill, controlled even studio lighting, "
+                "large diffused key light at 45 degrees with subtle fill, controlled even lighting, "
                 + "soft-edged shadows"));
         lights.add(light("Rembrandt",
                 "Rembrandt lighting, key light at 45 degrees from above, a small triangle of light on the shadow side "
@@ -317,8 +317,8 @@ public class PromptBlockService {
                 "hard low-key light from one side, deep black shadows and bright highlights, strong chiaroscuro "
                 + "contrast"));
         lights.add(light("Neon Practicals",
-                "lit only by neon signs and practical lights visible in the scene, their glow reflecting on nearby "
-                + "surfaces, dark surroundings"));
+                "night, lit only by saturated neon light from sources outside the frame, the glow reflecting on "
+                + "nearby surfaces, dark surroundings"));
         lights.add(light("Candlelight",
                 "lit only by candle flames, small flickering pools of light, rapid falloff into darkness"));
         lights.add(light("Moonlight",
