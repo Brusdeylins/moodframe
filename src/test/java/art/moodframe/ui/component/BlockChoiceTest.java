@@ -3,8 +3,13 @@ package art.moodframe.ui.component;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.StylePresetItem;
 import javafx.application.Platform;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Drives a building block list on the JavaFX thread without showing it. */
+/** Drives a building block field on the JavaFX thread without showing it. */
 class BlockChoiceTest {
 
     @BeforeAll
@@ -48,11 +53,15 @@ class BlockChoiceTest {
     }
 
     @Test
-    void anActionKeepsTheSelectedEntryAndRuns() throws Exception {
+    void theActionsAreIconsLeftOfTheLockAndTheListHoldsTheEntries() throws Exception {
         ComboBox<StylePresetItem> comboBox = new ComboBox<>();
+        ToggleButton lock = new ToggleButton();
+        HBox row = new HBox(new Label("Style:"), lock);
+
         /*  the actions run on the FX thread, the test reads them on its own  */
         List<String> calls = new java.util.concurrent.CopyOnWriteArrayList<>();
-        BlockChoice<StylePresetItem> choice = new BlockChoice<>(comboBox, (name) -> new StylePresetItem(name, "", false),
+        BlockChoice<StylePresetItem> choice = new BlockChoice<>(comboBox, lock,
+                (name) -> new StylePresetItem(name, "", false),
                 (item) -> item.getBlock() != null, new BlockChoice.Actions<>() {
                     @Override
                     public void edit(StylePresetItem entry) {
@@ -78,49 +87,70 @@ class BlockChoiceTest {
                 "Photo Style"));
         assertEquals(photo, comboBox.getValue());
 
-        /*  Edit, New, Manage, the line, None, header, Photo Style, header, Art Style  */
+        /*  The label, the icons Edit, New and Manage, then the lock  */
+        List<Node> nodes = List.copyOf(row.getChildren());
+        assertEquals(5, nodes.size());
+        assertEquals(lock, nodes.get(4));
+        Button edit = (Button) nodes.get(1);
+        Button create = (Button) nodes.get(2);
+        Button manage = (Button) nodes.get(3);
+
+        /*  None, header, Photo Style, header, Art Style: no actions in the list  */
         List<StylePresetItem> items = List.copyOf(comboBox.getItems());
-        assertEquals(9, items.size());
-        assertEquals(List.of(false, false, false, false, true, false, true, false, true),
-                items.stream().map(choice::isEntry).toList());
+        assertEquals(5, items.size());
+        assertEquals(List.of(true, false, true, false, true), items.stream().map(choice::isEntry).toList());
 
-        onFxThread(() -> comboBox.setValue(items.get(0)));
-        onFxThread(() -> comboBox.setValue(items.get(1)));
-        onFxThread(() -> comboBox.setValue(items.get(2)));
-
+        onFxThread(() -> {
+            edit.fire();
+            create.fire();
+            manage.fire();
+        });
         assertEquals(List.of("edit Photo Style", "create", "manage"), calls);
         assertEquals(photo, comboBox.getValue());
 
-        /*  The arrow keys pass a header on to the next entry, but stop at the line  */
-        onFxThread(() -> comboBox.setValue(items.get(7)));
-        assertEquals(art, comboBox.getValue());
-        onFxThread(() -> comboBox.setValue(items.get(7)));
-        assertEquals(photo, comboBox.getValue());
-        onFxThread(() -> comboBox.setValue(items.get(5)));
-        assertEquals(none, comboBox.getValue());
+        /*  The arrow keys pass a header on to the next entry in their direction  */
         onFxThread(() -> comboBox.setValue(items.get(3)));
+        assertEquals(art, comboBox.getValue());
+        onFxThread(() -> comboBox.setValue(items.get(3)));
+        assertEquals(photo, comboBox.getValue());
+        onFxThread(() -> comboBox.setValue(items.get(1)));
         assertEquals(none, comboBox.getValue());
+        onFxThread(() -> comboBox.setValue(items.get(1)));
+        assertEquals(photo, comboBox.getValue());
+
+        /*  "Edit" cannot edit "None": it is disabled, and so are all actions with the list  */
+        List<Boolean> states = new ArrayList<>();
+        onFxThread(() -> {
+            comboBox.setValue(none);
+            states.add(edit.isDisable());
+            edit.fire();
+            comboBox.setValue(art);
+            states.add(edit.isDisable());
+            comboBox.setDisable(true);
+            states.add(edit.isDisable());
+            states.add(create.isDisable());
+            states.add(manage.isDisable());
+            comboBox.setDisable(false);
+            states.add(create.isDisable());
+        });
+        assertEquals(List.of(true, false, true, true, true, false), states);
         assertEquals(3, calls.size());
 
-        /*  "Edit…" cannot edit "None": its cell is disabled and choosing it does nothing  */
+        /*  A header is drawn by the choice, disabled; an entry by the cell itself  */
         ListCell<StylePresetItem> cell = new ListCell<>();
         List<Boolean> drawn = new ArrayList<>();
-        onFxThread(() -> comboBox.setValue(none));
         onFxThread(() -> {
-            drawn.add(choice.render(cell, items.get(0)));
+            drawn.add(choice.render(cell, items.get(1)));
             drawn.add(cell.isDisable());
             drawn.add(choice.render(cell, art));
             drawn.add(cell.isDisable());
-            comboBox.setValue(items.get(0));
         });
         assertEquals(List.of(true, true, false, false), drawn);
-        assertEquals(none, comboBox.getValue());
-        assertEquals(3, calls.size());
 
         /*  A name that is gone selects the first entry  */
         onFxThread(() -> choice.setEntries(List.of(none, art), null, "Photo Style"));
         assertEquals(none, comboBox.getValue());
-        assertEquals(6, comboBox.getItems().size());
+        assertEquals(2, comboBox.getItems().size());
         onFxThread(() -> choice.setEntries(List.of(), null, null));
         assertNull(comboBox.getValue());
     }

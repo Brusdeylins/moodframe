@@ -347,9 +347,14 @@
                                         </Button>
                                     </HBox>
 
-                                    <!-- Atmosphere -->
-                                    <VBox spacing="5.0" styleClass="block-field">
-                                        <HBox alignment="CENTER_LEFT">
+                                    <!-- Atmosphere; in each field the list comes first, so Tab leads from it to the actions and the
+                                         lock in the row above -->
+                                    <GridPane vgap="5.0" styleClass="block-field">
+                                        <columnConstraints>
+                                            <ColumnConstraints hgrow="ALWAYS" />
+                                        </columnConstraints>
+                                        <ComboBox fx:id="atmosphereComboBox" maxWidth="Infinity" GridPane.rowIndex="1" />
+                                        <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="atmosphereLabel" text="Atmosphere:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
                                             <ToggleButton fx:id="atmosphereLockButton" styleClass="block-lock">
@@ -358,12 +363,15 @@
                                                 </graphic>
                                             </ToggleButton>
                                         </HBox>
-                                        <ComboBox fx:id="atmosphereComboBox" maxWidth="Infinity" />
-                                    </VBox>
+                                    </GridPane>
 
                                     <!-- Style -->
-                                    <VBox spacing="5.0" styleClass="block-field">
-                                        <HBox alignment="CENTER_LEFT">
+                                    <GridPane vgap="5.0" styleClass="block-field">
+                                        <columnConstraints>
+                                            <ColumnConstraints hgrow="ALWAYS" />
+                                        </columnConstraints>
+                                        <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" GridPane.rowIndex="1" />
+                                        <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
                                             <ToggleButton fx:id="styleLockButton" styleClass="block-lock">
@@ -372,12 +380,15 @@
                                                 </graphic>
                                             </ToggleButton>
                                         </HBox>
-                                        <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" />
-                                    </VBox>
+                                    </GridPane>
 
                                     <!-- Color -->
-                                    <VBox spacing="5.0" styleClass="block-field">
-                                        <HBox alignment="CENTER_LEFT">
+                                    <GridPane vgap="5.0" styleClass="block-field">
+                                        <columnConstraints>
+                                            <ColumnConstraints hgrow="ALWAYS" />
+                                        </columnConstraints>
+                                        <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" GridPane.rowIndex="1" />
+                                        <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="colorStyleLabel" text="Color:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
                                             <ToggleButton fx:id="colorLockButton" styleClass="block-lock">
@@ -386,12 +397,15 @@
                                                 </graphic>
                                             </ToggleButton>
                                         </HBox>
-                                        <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" />
-                                    </VBox>
+                                    </GridPane>
 
                                     <!-- Light -->
-                                    <VBox spacing="5.0" styleClass="block-field">
-                                        <HBox alignment="CENTER_LEFT">
+                                    <GridPane vgap="5.0" styleClass="block-field">
+                                        <columnConstraints>
+                                            <ColumnConstraints hgrow="ALWAYS" />
+                                        </columnConstraints>
+                                        <ComboBox fx:id="lightComboBox" maxWidth="Infinity" GridPane.rowIndex="1" />
+                                        <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
                                             <ToggleButton fx:id="lightLockButton" styleClass="block-lock">
@@ -400,17 +414,20 @@
                                                 </graphic>
                                             </ToggleButton>
                                         </HBox>
-                                        <ComboBox fx:id="lightComboBox" maxWidth="Infinity" />
 
                                         <!-- Shown for a layout style: the light keeps its choice, but does not apply -->
                                         <Label fx:id="lightLayoutHint" text="Does not apply to layout styles"
-                                               styleClass="text-small, text-muted" wrapText="true"
+                                               styleClass="text-small, text-muted" wrapText="true" GridPane.rowIndex="2"
                                                visible="false" managed="false" />
-                                    </VBox>
+                                    </GridPane>
 
                                     <!-- Camera -->
-                                    <VBox spacing="5.0" styleClass="block-field">
-                                        <HBox alignment="CENTER_LEFT">
+                                    <GridPane vgap="5.0" styleClass="block-field">
+                                        <columnConstraints>
+                                            <ColumnConstraints hgrow="ALWAYS" />
+                                        </columnConstraints>
+                                        <ComboBox fx:id="cameraComboBox" maxWidth="Infinity" GridPane.rowIndex="1" />
+                                        <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="cameraLabel" text="Camera:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
                                             <ToggleButton fx:id="cameraLockButton" styleClass="block-lock">
@@ -419,13 +436,12 @@
                                                 </graphic>
                                             </ToggleButton>
                                         </HBox>
-                                        <ComboBox fx:id="cameraComboBox" maxWidth="Infinity" />
 
                                         <!-- Shown for a style that is not photographic, layout included: only the framing applies -->
                                         <Label fx:id="cameraHint" text="Only perspective and shot size apply to this style"
-                                               styleClass="text-small, text-muted" wrapText="true"
+                                               styleClass="text-small, text-muted" wrapText="true" GridPane.rowIndex="2"
                                                visible="false" managed="false" />
-                                    </VBox>
+                                    </GridPane>
 
                                 </VBox>
                             </content>

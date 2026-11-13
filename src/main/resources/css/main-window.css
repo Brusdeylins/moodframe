@@ -105,6 +105,20 @@
     -fx-icon-color: -color-accent-fg;
 }
 
+/*  The actions left of the lock: flat icons in the size of the lock, without the border of a see-through button,
+    shown like the lock while the pointer is over the field, also when disabled (faded like any see-through button)  */
+.block-field .block-action,
+.block-field .block-action:disabled {
+    -fx-border-width: 0;
+    -fx-padding: 0 2px 0 2px;
+    -fx-opacity: 0;
+}
+.block-field:hover .block-action,
+.block-field:hover .block-action:disabled,
+.block-field .block-action:focused {
+    -fx-opacity: 1;
+}
+
 /*  The trash of a chat row: muted, in the color of danger while hovered  */
 .chat-list-cell .chat-action-button .ikonli-font-icon {
     -fx-icon-color: -color-fg-muted;

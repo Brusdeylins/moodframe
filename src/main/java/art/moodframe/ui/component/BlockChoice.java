@@ -2,15 +2,14 @@ package art.moodframe.ui.component;
 
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
-import javafx.geometry.Pos;
+import javafx.beans.binding.Bindings;
+import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.ComboBoxBase;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
-import javafx.scene.control.Separator;
-import javafx.scene.control.skin.ComboBoxListViewSkin;
-import javafx.scene.layout.HBox;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Pane;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.ArrayList;
@@ -22,19 +21,19 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * A building block list of the main window (atmosphere, style, color, light). It starts with the actions
- * "Edit…" (the selected entry), "New…" and "Manage…" and a line, followed by the entries, optionally under the
- * headers of their groups. Choosing an action keeps the selected entry and runs the action.
+ * A building block field of the main window (atmosphere, style, color, light, camera). Its list holds the entries,
+ * optionally under the headers of their groups; its actions "Edit" (the selected entry), "New" and "Manage" are icons
+ * in the row of the field name, left of the lock, and like the lock they show while the pointer is over the field.
  *
- * <p>Actions, line and headers are rows of the item type, made by a row factory and known by identity; the cells
- * of the list draw them through {@link #render}.</p>
+ * <p>Headers are rows of the item type, made by a row factory and known by identity; the cells of the list draw
+ * them through {@link #render}.</p>
  *
  * @param <T> the item type of the list
  * @since 2.0.0
  */
 public class BlockChoice<T> {
 
-    /** What the actions on top of the list do. */
+    /** What the actions of the field do. */
     public interface Actions<T> {
 
         /**
@@ -53,61 +52,69 @@ public class BlockChoice<T> {
 
     private final ComboBox<T> comboBox;
     private final Function<String, T> rowFactory;
-    private final Predicate<T> editable;
     private final Map<T, String> rows = new IdentityHashMap<>();
-    private final T editRow;
-    private final T newRow;
-    private final T manageRow;
-    private final T separatorRow;
+    private final Button editButton = action("mdi2p-pencil");
+    private final Button newButton = action("mdi2p-plus");
+    private final Button manageButton = action("mdi2c-cog-outline");
     private T entry;
 
     /**
-     * Sets the list up.
+     * Sets the field up and puts its action icons into the row of its lock, right in front of the lock.
      *
      * @param comboBox   the list
-     * @param rowFactory makes an item for a row that is no entry, from an internal name
+     * @param lock       the lock of the field
+     * @param rowFactory makes an item for a group header, from an internal name
      * @param editable   tells if an entry can be edited ("None" cannot)
      * @param actions    what the actions do
      */
-    public BlockChoice(ComboBox<T> comboBox, Function<String, T> rowFactory, Predicate<T> editable,
+    public BlockChoice(ComboBox<T> comboBox, Node lock, Function<String, T> rowFactory, Predicate<T> editable,
             Actions<T> actions) {
         this.comboBox = comboBox;
         this.rowFactory = rowFactory;
-        this.editable = editable;
-        this.editRow = row("block.action.edit");
-        this.newRow = row("block.action.new");
-        this.manageRow = row("block.action.manage");
-        this.separatorRow = row("");
 
-        /*  An action is no choice: the entry stays selected, and the action runs once the list is closed.
-            The line or a header, reached by the arrow keys, passes on to the next entry in that direction.  */
+        /*  A header, reached by the arrow keys, passes on to the next entry in that direction  */
         comboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal == null || isEntry(newVal)) {
                 entry = newVal;
                 return;
             }
             T selected = entry;
-            T next = newVal == editRow || newVal == newRow || newVal == manageRow ? null : nextEntry(selected, newVal);
-            Platform.runLater(() -> {
-                comboBox.setValue(next != null ? next : selected);
-                if (newVal == editRow && selected != null && editable.test(selected))
-                    actions.edit(selected);
-                else if (newVal == newRow)
-                    actions.create();
-                else if (newVal == manageRow)
-                    actions.manage();
-            });
+            T next = nextEntry(selected, newVal);
+            Platform.runLater(() -> comboBox.setValue(next != null ? next : selected));
         });
 
-        /*  "Edit…" follows the selected entry, so its cell is drawn anew each time the list opens  */
-        comboBox.addEventHandler(ComboBoxBase.ON_SHOWING, (event) -> {
-            if (comboBox.getSkin() instanceof ComboBoxListViewSkin<?> skin
-                    && skin.getPopupContent() instanceof ListView<?> list)
-                list.refresh();
-        });
+        /*  The actions are off with the list, "Edit" also while no entry that can be edited is selected  */
+        editButton.disableProperty().bind(Bindings.createBooleanBinding(() -> comboBox.isDisable()
+                || comboBox.getValue() == null || !isEntry(comboBox.getValue()) || !editable.test(comboBox.getValue()),
+                comboBox.disableProperty(), comboBox.valueProperty()));
+        newButton.disableProperty().bind(comboBox.disableProperty());
+        manageButton.disableProperty().bind(comboBox.disableProperty());
+        editButton.setOnAction((event) -> actions.edit(comboBox.getValue()));
+        newButton.setOnAction((event) -> actions.create());
+        manageButton.setOnAction((event) -> actions.manage());
+
+        Pane row = (Pane) lock.getParent();
+        row.getChildren().addAll(row.getChildren().indexOf(lock), List.of(editButton, newButton, manageButton));
+        updateTexts();
     }
 
-    /*  the first entry behind a row, seen from the selected entry; none behind the line, where the actions are  */
+    private static Button action(String iconLiteral) {
+        FontIcon icon = new FontIcon(iconLiteral);
+        icon.getStyleClass().add("ikonli-font-icon");
+        icon.setIconSize(14);
+        Button button = new Button(null, icon);
+        button.getStyleClass().addAll("button-icon", "flat", "block-action");
+        return button;
+    }
+
+    /** Sets the tooltips of the actions in the current language. */
+    public void updateTexts() {
+        editButton.setTooltip(new Tooltip(I18nManager.getText("block.action.edit")));
+        newButton.setTooltip(new Tooltip(I18nManager.getText("block.action.new")));
+        manageButton.setTooltip(new Tooltip(I18nManager.getText("block.action.manage")));
+    }
+
+    /*  the first entry behind a header, seen from the selected entry  */
     private T nextEntry(T selected, T row) {
         List<T> items = comboBox.getItems();
         int from = indexOf(items, selected);
@@ -117,8 +124,6 @@ public class BlockChoice<T> {
             T item = items.get(index);
             if (isEntry(item))
                 return item;
-            if (item == editRow || item == newRow || item == manageRow)
-                return null;
         }
         return null;
     }
@@ -137,7 +142,7 @@ public class BlockChoice<T> {
     }
 
     /**
-     * Tells if an item is an entry, not an action, the line or a group header.
+     * Tells if an item is an entry, not a group header.
      *
      * @param item the item
      * @return true for an entry
@@ -147,16 +152,15 @@ public class BlockChoice<T> {
     }
 
     /**
-     * Fills the list with the actions and the entries and selects the entry with the given name, or else the first
-     * entry.
+     * Fills the list with the entries and selects the entry with the given name, or else the first entry.
      *
      * @param entries  the entries, already in the order of their groups
      * @param groupKey tells the i18n key of the header of an entry's group, null for a list without groups
      * @param name     the name of the entry to select, null for the first entry
      */
     public void setEntries(List<T> entries, Function<T, String> groupKey, String name) {
-        rows.keySet().removeIf((row) -> row != editRow && row != newRow && row != manageRow && row != separatorRow);
-        List<T> items = new ArrayList<>(List.of(editRow, newRow, manageRow, separatorRow));
+        rows.clear();
+        List<T> items = new ArrayList<>();
         String group = null;
         for (T item : entries) {
             String key = groupKey != null ? groupKey.apply(item) : null;
@@ -171,11 +175,11 @@ public class BlockChoice<T> {
     }
 
     /**
-     * Draws an action, the line or a group header into a cell of the list.
+     * Draws a group header into a cell of the list.
      *
      * @param cell the cell
      * @param item the item of the cell
-     * @return true if the item was such a row, false for an entry, which the cell draws itself
+     * @return true if the item was a header, false for an entry, which the cell draws itself
      */
     public boolean render(ListCell<T> cell, T item) {
         String key = item != null ? rows.get(item) : null;
@@ -185,23 +189,9 @@ public class BlockChoice<T> {
             return false;
 
         cell.setText(null);
-        if (item == separatorRow) {
-            cell.setGraphic(new Separator());
-            cell.setDisable(true);
-        } else if (item == editRow || item == newRow || item == manageRow) {
-            FontIcon icon = new FontIcon(item == editRow ? "mdi2p-pencil-outline"
-                    : item == newRow ? "mdi2p-plus" : "mdi2c-cog-outline");
-            icon.getStyleClass().add("ikonli-font-icon");
-            icon.setIconSize(14);
-            HBox content = new HBox(6, icon, new Label(I18nManager.getText(key)));
-            content.setAlignment(Pos.CENTER_LEFT);
-            cell.setGraphic(content);
-            cell.setDisable(item == editRow && (entry == null || !editable.test(entry)));
-        } else {
-            cell.setGraphic(new Label(I18nManager.getText(key)));
-            cell.getStyleClass().add("block-row-header");
-            cell.setDisable(true);
-        }
+        cell.setGraphic(new Label(I18nManager.getText(key)));
+        cell.getStyleClass().add("block-row-header");
+        cell.setDisable(true);
         return true;
     }
 }

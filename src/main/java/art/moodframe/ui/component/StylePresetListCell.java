@@ -18,7 +18,7 @@ import art.moodframe.model.StylePresetItem;
  *   <li>Block name</li>
  * </ul>
  *
- * <p>Used in the building block lists of the main window, which also show their actions through
+ * <p>Used in the building block lists of the main window, which also show the headers of their groups through
  * {@link BlockChoice}, and in the "Manage…" dialog.</p>
  *
  * @since 1.3.0
@@ -38,7 +38,7 @@ public class StylePresetListCell extends ListCell<StylePresetItem> {
     }
 
     /**
-     * Creates a cell of a building block list that also draws its actions, line and group headers.
+     * Creates a cell of a building block list that also draws its group headers.
      *
      * @param choice the list, null for a cell that shows entries only
      */

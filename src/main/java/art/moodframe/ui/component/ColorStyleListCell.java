@@ -19,8 +19,7 @@ import art.moodframe.model.ColorStyleItem;
  *   <li>Line 2: 5 color boxes showing the defined colors (or crossed out if empty)</li>
  * </ul>
  *
- * <p>Used in the color list of the main window, which also shows its actions through {@link BlockChoice},
- * and in the "Manage…" dialog.</p>
+ * <p>Used in the color list of the main window and in the "Manage…" dialog.</p>
  *
  * @since 1.3.0
  */
@@ -32,23 +31,12 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
     private final FontIcon icon;
     private final Label nameLabel;
     private final ColorBox[] colorBoxes;
-    private final BlockChoice<ColorStyleItem> choice;
 
     /**
      * Creates a new ColorStyleListCell.
      */
     public ColorStyleListCell() {
-        this(null);
-    }
-
-    /**
-     * Creates a cell of the color list that also draws its actions and line.
-     *
-     * @param choice the list, null for a cell that shows palettes only
-     */
-    public ColorStyleListCell(BlockChoice<ColorStyleItem> choice) {
         super();
-        this.choice = choice;
 
         // Icon marking the palettes of the user
         icon = new FontIcon("mdi2p-palette");
@@ -83,9 +71,6 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
     @Override
     protected void updateItem(ColorStyleItem item, boolean empty) {
         super.updateItem(item, empty);
-
-        if (choice != null && choice.render(this, item))
-            return;
 
         if (empty || item == null) {
             setText(null);

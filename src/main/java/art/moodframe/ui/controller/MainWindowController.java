@@ -303,7 +303,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ToggleButton cameraLockButton;
 
-    /*  The building block lists with their actions on top: style, atmosphere, light and camera, and the color  */
+    /*  The building block fields with their actions: style, atmosphere, light and camera, and the color  */
     private final java.util.Map<art.moodframe.model.PromptBlock.Type,
             art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem>> blockChoices =
             new java.util.EnumMap<>(art.moodframe.model.PromptBlock.Type.class);
@@ -1656,19 +1656,20 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Sets up the building block lists: style, atmosphere, light and camera from the blocks, the color from the
-     * palettes. Each list starts with its actions "Edit…", "New…" and "Manage…" (see
-     * {@link art.moodframe.ui.component.BlockChoice}), followed by "None" (the default) and the entries; the styles
-     * are grouped into photo, art and layout.
+     * palettes. Each list holds "None" (the default) and the entries, the styles grouped into photo, art and layout;
+     * its actions "Edit", "New" and "Manage" sit as icons left of its lock (see
+     * {@link art.moodframe.ui.component.BlockChoice}).
      */
     private void setupBlockChoices() {
-        java.util.Map<art.moodframe.model.PromptBlock.Type, ComboBox<art.moodframe.model.StylePresetItem>> fields =
-                java.util.Map.of(art.moodframe.model.PromptBlock.Type.STYLE, stylePresetsComboBox,
-                        art.moodframe.model.PromptBlock.Type.ATMOSPHERE, atmosphereComboBox,
-                        art.moodframe.model.PromptBlock.Type.LIGHT, lightComboBox,
-                        art.moodframe.model.PromptBlock.Type.CAMERA, cameraComboBox);
-        fields.forEach((type, comboBox) -> {
+        java.util.Map<art.moodframe.model.PromptBlock.Type, ToggleButton> locks =
+                java.util.Map.of(art.moodframe.model.PromptBlock.Type.STYLE, styleLockButton,
+                        art.moodframe.model.PromptBlock.Type.ATMOSPHERE, atmosphereLockButton,
+                        art.moodframe.model.PromptBlock.Type.LIGHT, lightLockButton,
+                        art.moodframe.model.PromptBlock.Type.CAMERA, cameraLockButton);
+        locks.forEach((type, lock) -> {
+            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
             art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice =
-                    new art.moodframe.ui.component.BlockChoice<>(comboBox,
+                    new art.moodframe.ui.component.BlockChoice<>(comboBox, lock,
                             (name) -> new art.moodframe.model.StylePresetItem(name, "", false),
                             (item) -> item.getBlock() != null,
                             new art.moodframe.ui.component.BlockChoice.Actions<>() {
@@ -1693,7 +1694,7 @@ public class MainWindowController implements I18nChangeListener {
             fillBlockChoice(type, null);
         });
 
-        colorChoice = new art.moodframe.ui.component.BlockChoice<>(colorStyleComboBox,
+        colorChoice = new art.moodframe.ui.component.BlockChoice<>(colorStyleComboBox, colorLockButton,
                 (name) -> new art.moodframe.model.ColorStyleItem(name, java.util.Collections.emptyList(), true),
                 (item) -> !"None".equals(item.getName()),
                 new art.moodframe.ui.component.BlockChoice.Actions<>() {
@@ -1712,7 +1713,7 @@ public class MainWindowController implements I18nChangeListener {
                         managePalettes();
                     }
                 });
-        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell(colorChoice));
+        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell());
         colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
         fillColorChoice(null);
     }
@@ -2169,7 +2170,7 @@ public class MainWindowController implements I18nChangeListener {
         selectBlock(art.moodframe.model.PromptBlock.Type.LIGHT, fields.get(Mood.Field.LIGHT));
         selectBlock(art.moodframe.model.PromptBlock.Type.CAMERA, fields.get(Mood.Field.CAMERA));
 
-        /*  only entries: the actions on top of the list ("Edit…", "New…", "Manage…") would open their dialogs  */
+        /*  only entries, as in selectBlock  */
         colorStyleComboBox.getItems().stream().filter((item) -> colorChoice.isEntry(item)
                 && item.getName().equals(paletteName)).findFirst()
                 .or(() -> colorStyleComboBox.getItems().stream().filter(colorChoice::isEntry).findFirst())
@@ -2347,7 +2348,7 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Selects the item of a block in a field, "None" (the first entry) if the block is not listed. Only entries are
-     * chosen: the actions on top of the list would open their dialogs.
+     * chosen, never a group header.
      */
     private void selectBlock(art.moodframe.model.PromptBlock.Type type, String blockId) {
         javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
@@ -6776,6 +6777,9 @@ public class MainWindowController implements I18nChangeListener {
                 lightLockButton, cameraLockButton))
             if (lock != null)
                 lock.setTooltip(new Tooltip(I18nManager.getText("params.block.lock.tooltip")));
+        blockChoices.values().forEach(art.moodframe.ui.component.BlockChoice::updateTexts);
+        if (colorChoice != null)
+            colorChoice.updateTexts();
 
         if (aspectRatioLabel != null) {
             aspectRatioLabel.setText(I18nManager.getText("params.aspect.ratio"));
