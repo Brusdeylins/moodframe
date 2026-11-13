@@ -2399,27 +2399,29 @@ public class MainWindowController implements I18nChangeListener {
         return moodService != null && moodService.isChanged(chosenMood(), currentMoodFields());
     }
 
-    /*  "Save" of the mood and the frame group while the chosen one is changed: shown also without the pointer over
-        the group (see main-window.css)  */
+    /*  The action which saves the changed mood or frame: shown also without the pointer over the group, "Save" for
+        one of the user, "Save as..." for a standard one (see main-window.css)  */
     private static final javafx.css.PseudoClass UNSAVED = javafx.css.PseudoClass.getPseudoClass("unsaved");
 
     /**
-     * Shows the chosen mood as changed while a field differs from it, also by keeping "Save" shown, remembers the
-     * choice, shows the warning of a mood with a block in the trash and locks "Save" for a standard mood.
+     * Shows the chosen mood as changed while a field differs from it, also by keeping its save action shown, remembers
+     * the choice, shows the warning of a mood with a block in the trash and locks "Save" for a standard mood.
      */
     private void updateMoodState() {
         if (moodService == null)
             return;
         Mood mood = chosenMood();
+        boolean changed = isMoodChanged();
         if (config != null)
-            config.setSelectedMood(mood != null ? mood.getId() : "", isMoodChanged());
+            config.setSelectedMood(mood != null ? mood.getId() : "", changed);
 
         boolean incomplete = mood != null && isMoodIncomplete(mood);
         moodIncompleteButton.setVisible(incomplete);
         moodIncompleteButton.setManaged(incomplete);
         moodIncompleteButton.setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete")) : null);
         saveMoodButton.setDisable(moodComboBox.isDisable() || isMoodSaveLocked());
-        saveMoodButton.pseudoClassStateChanged(UNSAVED, isMoodChanged());
+        saveMoodButton.pseudoClassStateChanged(UNSAVED, changed && !isMoodSaveLocked());
+        saveMoodAsButton.pseudoClassStateChanged(UNSAVED, changed && isMoodSaveLocked());
         ((MoodListCell) moodComboBox.getButtonCell()).refresh();
     }
 
@@ -2658,8 +2660,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Marks the chosen frame as changed while aspect ratio or resolution differ from it, also by keeping "Save" shown,
-     * remembers the choice and locks "Save" for a standard frame.
+     * Marks the chosen frame as changed while aspect ratio or resolution differ from it, also by keeping the action
+     * shown which saves it, remembers the choice and locks "Save" for a standard frame.
      */
     private void updateFrameState() {
         if (frameService == null)
@@ -2671,7 +2673,8 @@ public class MainWindowController implements I18nChangeListener {
         if (config != null && !id.equals(config.getSelectedFrame()))
             config.setSelectedFrame(id);
         saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
-        saveFrameButton.pseudoClassStateChanged(UNSAVED, frameChanged);
+        saveFrameButton.pseudoClassStateChanged(UNSAVED, frameChanged && !isFrameSaveLocked());
+        saveFrameAsButton.pseudoClassStateChanged(UNSAVED, frameChanged && isFrameSaveLocked());
         ((FrameListCell) frameComboBox.getButtonCell()).refresh();
     }
 

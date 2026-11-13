@@ -177,7 +177,7 @@
 }
 
 /*  Shown like the actions of a block field while the pointer is over the group, header or content, keeping their
-    space; "Save" also while the chosen mood or frame is changed, so the unsaved state shows  */
+    space; the one saving a changed mood or frame ("Save", "Save as..." for a standard one) also without pointer  */
 .panel-group .panel-group-action,
 .panel-group .panel-group-action:disabled {
     -fx-opacity: 0;
