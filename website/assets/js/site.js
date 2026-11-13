@@ -28,7 +28,7 @@ const TEXT = {
         "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-compatible",
         "feature.models.full": "FLUX, Nano Banana, OpenAI-compatible",
         "mood.title": "Switch the mood, keep the picture",
-        "mood.lead": "Same prompt, three moods. A mood is made of building blocks, each one lockable.",
+        "mood.lead": "One picture, five moods. A mood is made of building blocks, each one lockable.",
         "block.style": "Style", "block.atmosphere": "Atmosphere", "block.light": "Light", "block.color": "Color", "block.camera": "Camera",
         "mood.point.own": "Your own blocks and saved moods",
         "mood.point.image": "Mood from image: drop a picture, get its mood",
@@ -42,6 +42,8 @@ const TEXT = {
         "mood.noir.name": "Sci-Fi Cinema", "mood.noir.style": "Cinematic Film Still",
         "mood.noir.atmosphere": "Futuristic", "mood.noir.light": "Neon Practicals",
         "mood.noir.camera": "—",
+        "mood.bw.name": "Film Noir", "mood.bw.style": "Black-and-White Film", "mood.bw.atmosphere": "Menacing", "mood.bw.light": "Chiaroscuro", "mood.bw.camera": "—",
+        "mood.pastel.name": "Dreamy Pastel", "mood.pastel.style": "Watercolor", "mood.pastel.atmosphere": "Dreamlike", "mood.pastel.light": "High-Key", "mood.pastel.camera": "—",
         "frame.title": "Say the format once",
         "frame.lead": "A frame is a target aspect ratio and resolution, saved by name.",
         "frame.text": "Every model takes its closest aspect ratio and resolution, and the app shows which one before you generate.",
@@ -88,7 +90,7 @@ const TEXT = {
         "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-kompatibel",
         "feature.models.full": "FLUX, Nano Banana, OpenAI-kompatibel",
         "mood.title": "Mood wechseln, Bild behalten",
-        "mood.lead": "Derselbe Prompt, drei Moods. Eine Mood besteht aus Bausteinen, jeder einzeln sperrbar.",
+        "mood.lead": "Ein Bild, fünf Moods. Eine Mood besteht aus Bausteinen, jeder einzeln sperrbar.",
         "block.style": "Stil", "block.atmosphere": "Atmosphäre", "block.light": "Licht", "block.color": "Farbe", "block.camera": "Kamera",
         "mood.point.own": "Eigene Bausteine und gespeicherte Moods",
         "mood.point.image": "Mood aus Bild: Bild ablegen, Mood erhalten",
@@ -102,6 +104,8 @@ const TEXT = {
         "mood.noir.name": "Sci-Fi Cinema", "mood.noir.style": "Cinematic Film Still",
         "mood.noir.atmosphere": "Futuristic", "mood.noir.light": "Neon Practicals",
         "mood.noir.camera": "—",
+        "mood.bw.name": "Film Noir", "mood.bw.style": "Black-and-White Film", "mood.bw.atmosphere": "Menacing", "mood.bw.light": "Chiaroscuro", "mood.bw.camera": "—",
+        "mood.pastel.name": "Dreamy Pastel", "mood.pastel.style": "Watercolor", "mood.pastel.atmosphere": "Dreamlike", "mood.pastel.light": "High-Key", "mood.pastel.camera": "—",
         "frame.title": "Format einmal festlegen",
         "frame.lead": "Ein Frame ist Seitenverhältnis plus Auflösung, gespeichert unter einem Namen.",
         "frame.text": "Jedes Modell nimmt das nächstliegende Seitenverhältnis und die nächstliegende Auflösung, die App zeigt beides vor dem Generieren an.",
@@ -131,7 +135,9 @@ const TEXT = {
 const MOODS = {
     golden: { image: "mood-vintage-film.jpg", swatches: [ "#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617" ] },
     fog:    { image: "mood-quiet-morning.jpg",    swatches: [ "#CAF0F8", "#ADE8F4", "#90E0EF", "#48CAE4", "#00B4D8" ] },
-    noir:   { image: "mood-sci-fi-cinema.jpg",   swatches: [ "#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3" ] }
+    noir:   { image: "mood-sci-fi-cinema.jpg",   swatches: [ "#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3" ] },
+    bw:     { image: "mood-film-noir.jpg",     swatches: [ "#0A0A0A", "#3D3D3D", "#808080", "#C4C4C4", "#F5F5F5" ] },
+    pastel: { image: "mood-dreamy-pastel.jpg", swatches: [ "#FFD1DC", "#E6E6FA", "#B5EAD7", "#FFDAC1", "#C7CEEA" ] }
 }
 
 const state = { lang: "en", mood: "golden", os: detectOS(), release: null }
