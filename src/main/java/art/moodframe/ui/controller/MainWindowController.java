@@ -35,6 +35,10 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
@@ -2427,6 +2431,33 @@ public class MainWindowController implements I18nChangeListener {
         setStatus(I18nManager.getText("status.entry.frame"));
     }
 
+    /**
+     * Saves aspect ratio and resolution of a chat entry as a new frame under a name entered and chooses it, as "Save as
+     * mood..." does with the mood of an entry.
+     *
+     * @param entry the chat entry
+     */
+    private void saveEntryFrame(ChatEntry entry) {
+        EntryFrame copy = entry.getFrame();
+        if (frameService == null || copy == null)
+            return;
+        String name = copy.frameName() != null ? copy.frameName() : copy.baseName();
+        name = art.moodframe.ui.dialog.FrameManageDialog.askName(mainBorderPane.getScene().getWindow(), frameService,
+                I18nManager.getText("frame.name.new"), name != null ? frameService.freeName(name) : "", null);
+        if (name == null)
+            return;
+        Frame frame = new Frame(null, name);
+        frame.setAspectRatio(copy.aspectRatio());
+        frame.setResolution(copy.resolution());
+        if (!frameService.add(frame)) {
+            showErrorMessage(I18nManager.getText("error.frame.save"));
+            return;
+        }
+        reloadFrames(frame.getId());
+        chooseFrame(frame);
+        setStatus(I18nManager.getText("status.frame.saved", frame.getName()));
+    }
+
     /** Takes over the mood of a chat entry; an entry without building blocks sets "No mood". */
     private void reuseMood(ChatEntry entry) {
         if (moodService == null)
@@ -3404,6 +3435,20 @@ public class MainWindowController implements I18nChangeListener {
         // This makes cells take full width and prevents horizontal scroll
         chatEntriesListView.setFixedCellSize(-1); // Variable height cells
 
+        /*  Shortcut+C over an entry reuses it ("Reuse"), unless a text field has a selection to copy  */
+        KeyCombination reuseKey = new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN);
+        mainBorderPane.addEventFilter(KeyEvent.KEY_PRESSED, (event) -> {
+            if (!reuseKey.match(event)
+                    || event.getTarget() instanceof TextInputControl text && !text.getSelectedText().isEmpty())
+                return;
+            for (Node cell : chatEntriesListView.lookupAll(".list-cell"))
+                if (cell.isHover() && cell instanceof ListCell<?> listCell
+                        && listCell.getItem() instanceof ChatEntry entry) {
+                    reuseEntry(entry, ChatEntryCard.Reuse.ALL);
+                    event.consume();
+                    return;
+                }
+        });
 
         // CellFactory creates ChatEntryCard for each visible cell
         chatEntriesListView.setCellFactory(listView -> new javafx.scene.control.ListCell<ChatEntry>() {
@@ -3476,6 +3521,7 @@ public class MainWindowController implements I18nChangeListener {
                     });
 
                     currentCard.setOnMoodTakeOver((takenEntry, save) -> takeOverEntryMood(takenEntry, save));
+                    currentCard.setOnFrameSave((savedEntry) -> saveEntryFrame(savedEntry));
                     currentCard.setOnMoodFromImage((imageFile) -> openMoodFromImage(imageFile));
 
                     /*  The entries of a group name their chat and lead to it  */

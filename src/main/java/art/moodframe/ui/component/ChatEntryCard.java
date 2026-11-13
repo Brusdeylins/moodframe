@@ -137,6 +137,7 @@ public class ChatEntryCard extends ManagedComponent {
     private Consumer<ChatEntry> onEntryDelete; // Callback for deleting entire entry
     private Consumer<GeneratedImage> onImageDelete; // Callback for deleting single image
     private java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver;
+    private Consumer<ChatEntry> onFrameSave;
     private Consumer<File> onMoodFromImage;
     private java.util.function.Supplier<Boolean> isFluxModelSelected; // Check if FLUX model is currently selected
 
@@ -220,24 +221,35 @@ public class ChatEntryCard extends ManagedComponent {
         promptLabel.setMaxHeight(javafx.scene.control.Control.USE_PREF_SIZE); // Force single line
         HBox.setHgrow(promptLabel, Priority.ALWAYS);
 
-        FontIcon reuseIcon = new FontIcon("mdi2r-replay");
+        FontIcon reuseIcon = new FontIcon("mdi2c-content-copy");
         reuseIcon.setIconSize(14);
         this.reuseButton = new Button(null, reuseIcon);
-        reuseButton.getStyleClass().addAll("flat", "small");
+        reuseButton.getStyleClass().addAll("button-icon", "flat");
         reuseButton.setMinWidth(Region.USE_PREF_SIZE);
         reuseButton.setOnAction((event) -> reuse(Reuse.ALL));
 
         FontIcon moreIcon = new FontIcon("mdi2d-dots-horizontal");
         moreIcon.setIconSize(14);
+        MenuItem saveMood = menuItem("entry.mood.save", () -> {
+            if (onMoodTakeOver != null)
+                onMoodTakeOver.accept(chatEntry, true);
+        });
+        MenuItem saveFrame = menuItem("entry.frame.save", this::saveFrame);
         this.moreButton = new MenuButton(null, moreIcon, menuItem("entry.reuse.prompt", () -> reuse(Reuse.PROMPT)),
                 menuItem("entry.reuse.mood", () -> reuse(Reuse.MOOD)),
-                menuItem("entry.reuse.frame", () -> reuse(Reuse.FRAME)), new SeparatorMenuItem(),
-                menuItem("entry.delete", () -> {
+                menuItem("entry.reuse.frame", () -> reuse(Reuse.FRAME)), new SeparatorMenuItem(), saveMood, saveFrame,
+                new SeparatorMenuItem(), menuItem("entry.delete", () -> {
                     if (onEntryDelete != null)
                         onEntryDelete.accept(chatEntry);
                 }));
         moreButton.getStyleClass().addAll("button-icon", "flat", "no-arrow");
         moreButton.setMinWidth(Region.USE_PREF_SIZE);
+
+        /*  Saving is available for an entry that carries a mood or a frame  */
+        moreButton.setOnShowing((event) -> {
+            saveMood.setDisable(onMoodTakeOver == null || !hasMood());
+            saveFrame.setDisable(onFrameSave == null || chatEntry.getFrame() == null);
+        });
 
         promptContainer.getChildren().addAll(promptLabel, reuseButton, moreButton);
 
@@ -300,6 +312,12 @@ public class ChatEntryCard extends ManagedComponent {
     private void reuse(Reuse part) {
         if (onReuse != null)
             onReuse.accept(chatEntry, part);
+    }
+
+    /** Hands the entry to "Save as frame...". */
+    private void saveFrame() {
+        if (onFrameSave != null)
+            onFrameSave.accept(chatEntry);
     }
 
     /** An item of the menu of the entry, which keeps the key of its text for a change of the language. */
@@ -538,8 +556,11 @@ public class ChatEntryCard extends ManagedComponent {
         if (mood != null)
             badgesBox.getChildren().add(createBadge(mood, "mood", moodTooltip(chatEntry.getMood(), style)));
         EntryBadge frame = EntryBadge.frame(chatEntry.getFrame(), chatEntry.getSize());
-        if (frame != null)
-            badgesBox.getChildren().add(createBadge(frame, "frame", new Tooltip(frameDetails())));
+        if (frame != null) {
+            Label badge = createBadge(frame, "frame", new Tooltip(frameDetails()));
+            badge.setOnContextMenuRequested(this::showFrameMenu);
+            badgesBox.getChildren().add(badge);
+        }
         EntryBadge model = EntryBadge.model(chatEntry.getModel());
         if (model != null)
             badgesBox.getChildren().add(createBadge(model, "model", new Tooltip(modelDetails(model))));
@@ -1495,14 +1516,41 @@ public class ChatEntryCard extends ManagedComponent {
     private void showMoodMenu(ContextMenuEvent event) {
         if (onMoodTakeOver == null)
             return;
-        boolean available = chatEntry.getMood() != null
-                || art.moodframe.service.MoodService.isLegacyLook(chatEntry.getStyle());
+        boolean available = hasMood();
         MenuItem takeOver = new MenuItem(I18nManager.getText("entry.mood.take.over"));
         takeOver.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, false));
         takeOver.setDisable(!available);
         MenuItem save = new MenuItem(I18nManager.getText("entry.mood.save"));
         save.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, true));
         save.setDisable(!available);
+        new ContextMenu(takeOver, save).show(this, event.getScreenX(), event.getScreenY());
+        event.consume();
+    }
+
+    /** Whether the entry carries building blocks or a former look style (1.x), which lives on as a standard mood. */
+    private boolean hasMood() {
+        return chatEntry.getMood() != null || art.moodframe.service.MoodService.isLegacyLook(chatEntry.getStyle());
+    }
+
+    /**
+     * Sets the callback of "Save as frame...", which stores aspect ratio and resolution of the entry as a new frame.
+     *
+     * @param onFrameSave the callback that receives the entry
+     */
+    public void setOnFrameSave(Consumer<ChatEntry> onFrameSave) {
+        this.onFrameSave = onFrameSave;
+    }
+
+    /**
+     * Shows the context menu of the frame badge with "Take over frame" and "Save as frame...", the latter available
+     * for an entry that carries its frame.
+     */
+    private void showFrameMenu(ContextMenuEvent event) {
+        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.frame.take.over"));
+        takeOver.setOnAction((action) -> reuse(Reuse.FRAME));
+        MenuItem save = new MenuItem(I18nManager.getText("entry.frame.save"));
+        save.setOnAction((action) -> saveFrame());
+        save.setDisable(onFrameSave == null || chatEntry.getFrame() == null);
         new ContextMenu(takeOver, save).show(this, event.getScreenX(), event.getScreenY());
         event.consume();
     }
@@ -1654,7 +1702,6 @@ public class ChatEntryCard extends ManagedComponent {
      * Sets "Reuse", the menu of the entry and the action bars of the images in the current language.
      */
     private void updateTooltips() {
-        reuseButton.setText(I18nManager.getText("entry.reuse"));
         reuseButton.setTooltip(new Tooltip(I18nManager.getText("entry.reuse.tooltip")));
         moreButton.setTooltip(new Tooltip(I18nManager.getText("entry.more.tooltip")));
         moreButton.getItems().forEach((item) -> {
