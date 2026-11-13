@@ -17,38 +17,6 @@
     -fx-background-color: transparent;
 }
 
-/*  The two dividers of the main window draw no line: each fills the 10 px gap between the boxes with its grip
-    in the middle. The SplitPane takes the left and right padding of a divider as its thickness, in both
-    orientations.  */
-#mainSplitPane > .split-pane-divider,
-#chatInputSplitPane > .split-pane-divider {
-    -fx-background-color: transparent;
-    -fx-padding: 0 5px 0 5px;
-    -fx-opacity: 1;
-}
-#mainSplitPane > .split-pane-divider > .horizontal-grabber,
-#chatInputSplitPane > .split-pane-divider > .vertical-grabber {
-    -fx-background-color: -color-fg-subtle;
-    -fx-background-radius: 2px;
-    -fx-opacity: 0.5;
-}
-
-/*  The grip beside the chat list moves down by half the 45 px heading row, into the middle of the boxes  */
-#mainSplitPane > .split-pane-divider > .horizontal-grabber {
-    -fx-padding: 16px 2px 16px 2px;
-    -fx-translate-y: 22.5px;
-}
-#chatInputSplitPane > .split-pane-divider > .vertical-grabber {
-    -fx-padding: 2px 16px 2px 16px;
-}
-#mainSplitPane > .split-pane-divider:hover > .horizontal-grabber,
-#mainSplitPane > .split-pane-divider:pressed > .horizontal-grabber,
-#chatInputSplitPane > .split-pane-divider:hover > .vertical-grabber,
-#chatInputSplitPane > .split-pane-divider:pressed > .vertical-grabber {
-    -fx-background-color: -color-accent-emphasis;
-    -fx-opacity: 1;
-}
-
 /*  Inside the panels over the cloud, fields and buttons have a translucent background (the controller sets
     -color-bg-default and -color-bg-subtle there to the theme colors at 55 %). Disabled controls keep that
     background and only fade their text, instead of fading as a whole.  */

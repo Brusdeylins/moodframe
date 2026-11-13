@@ -17,6 +17,7 @@ import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.SplitPane;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -81,6 +82,49 @@ class BrainstormDialogTest {
             throw new AssertionError(failure.get());
         }
         assertNull(failure.get());
+    }
+
+    @Test
+    void hasGripDividersAndTheHeadingsOfTheThreeColumnsOnOneBaseline() throws Exception {
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Leuchtturm",
+                LocalDateTime.now(), LocalDateTime.now())));
+        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<List<String>> grips = new AtomicReference<>();
+        AtomicReference<List<Double>> baselines = new AtomicReference<>();
+        AtomicReference<List<String>> stylesheets = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                BrainstormDialog dialog = new BrainstormDialog(null, service, context,
+                        GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                dialog.getScene().getRoot().applyCss();
+                dialog.getScene().getRoot().layout();
+                grips.set(dialog.getScene().getRoot().lookupAll(".split-pane").stream()
+                        .filter((node) -> node.getStyleClass().contains("grip-split-pane"))
+                        .map((node) -> ((SplitPane) node).getOrientation().name()).toList());
+                baselines.set(dialog.getScene().getRoot().lookupAll(".title-4").stream().map((node) -> (Label) node)
+                        .map((label) -> label.localToScene(0, label.getBaselineOffset()).getY()).toList());
+                stylesheets.set(List.copyOf(dialog.getScene().getStylesheets()));
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+
+        assertTrue(done.await(20, TimeUnit.SECONDS), "the dialog was not built in time");
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+        assertEquals(List.of("HORIZONTAL", "VERTICAL"), grips.get(), "both dividers are grips as in the main window");
+        assertTrue(stylesheets.get().stream().anyMatch((sheet) -> sheet.endsWith("/css/split-pane-grips.css")));
+        assertEquals(3, baselines.get().size(), "history, chat and result have a heading each");
+        assertEquals(1, baselines.get().stream().distinct().count(), "the headings share one baseline");
     }
 
     @Test

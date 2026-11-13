@@ -16,7 +16,7 @@
            fx:controller="art.moodframe.ui.controller.MainWindowController"
            prefHeight="800.0" prefWidth="1200.0"
            styleClass="app-root"
-           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css,@../css/main-window.css">
+           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css,@../css/main-window.css,@../css/split-pane-grips.css">
     
     <!-- Main Application Content -->
     <BorderPane fx:id="mainBorderPane">
@@ -64,7 +64,7 @@
 
     <!-- Main Content Area with Sidebar -->
     <center>
-        <SplitPane fx:id="mainSplitPane" dividerPositions="0.2">
+        <SplitPane fx:id="mainSplitPane" dividerPositions="0.2" styleClass="grip-split-pane">
             
             <!-- Left Sidebar: Chat List, translucent over the cloud like the fields on the right -->
             <VBox spacing="0.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
@@ -192,7 +192,7 @@
                     
                     <!-- Vertical SplitPane for resizable chat and input areas -->
                     <center>
-                        <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84">
+                        <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84" styleClass="grip-split-pane">
 
                             <!-- Top: Chat Messages Area with Overlay Support, the gap to the chat list is the divider -->
                             <StackPane fx:id="chatAreaStackPane" styleClass="glass">

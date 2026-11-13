@@ -1,0 +1,30 @@
+/*  The dividers of the main window and of the brainstorm dialog draw no line: each fills the 10 px gap between the
+    boxes with its grip in the middle. The SplitPane takes the left and right padding of a divider as its thickness,
+    in both orientations.  */
+.grip-split-pane > .split-pane-divider {
+    -fx-background-color: transparent;
+    -fx-padding: 0 5px 0 5px;
+    -fx-opacity: 1;
+}
+.grip-split-pane > .split-pane-divider > .horizontal-grabber,
+.grip-split-pane > .split-pane-divider > .vertical-grabber {
+    -fx-background-color: -color-fg-subtle;
+    -fx-background-radius: 2px;
+    -fx-opacity: 0.5;
+}
+
+/*  A grip between columns moves down by half the 45 px heading row of the columns, into the middle of the boxes  */
+.grip-split-pane > .split-pane-divider > .horizontal-grabber {
+    -fx-padding: 16px 2px 16px 2px;
+    -fx-translate-y: 22.5px;
+}
+.grip-split-pane > .split-pane-divider > .vertical-grabber {
+    -fx-padding: 2px 16px 2px 16px;
+}
+.grip-split-pane > .split-pane-divider:hover > .horizontal-grabber,
+.grip-split-pane > .split-pane-divider:pressed > .horizontal-grabber,
+.grip-split-pane > .split-pane-divider:hover > .vertical-grabber,
+.grip-split-pane > .split-pane-divider:pressed > .vertical-grabber {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-opacity: 1;
+}

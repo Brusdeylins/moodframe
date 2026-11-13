@@ -94,6 +94,8 @@ public class BrainstormDialog extends Stage {
     private static final String NONE_ITEM_KEY = "brainstorm.none";
     private static final String BUBBLE_STYLE = "-fx-padding: 8 12 8 12; -fx-background-radius: 10;";
     private static final List<String> DURATIONS = List.of("3s", "4s", "5s", "6s", "7s", "8s", "9s", "10s");
+    /** The width of the button column of the input row, as in the main window. */
+    private static final double ACTIONS_WIDTH = 180.0;
 
     /**
      * The values adopted into the main window. A {@code null} value is not adopted.
@@ -127,6 +129,7 @@ public class BrainstormDialog extends Stage {
     private final ListView<BrainstormSession> historyList = new ListView<>();
 
     // Chat
+    private final Label chatTitleLabel = new Label();
     private final List<Text> stepTexts = new ArrayList<>();
     private final Label statusLabel = new Label();
     private final ScrollPane messageScroll = new ScrollPane();
@@ -195,10 +198,13 @@ public class BrainstormDialog extends Stage {
         VBox chat = createChat();
         VBox result = createResultPanel();
         SplitPane root = new SplitPane(history, chat, result);
+        root.getStyleClass().add("grip-split-pane");
         root.setDividerPositions(0.19, 0.70);
         SplitPane.setResizableWithParent(history, false);
         SplitPane.setResizableWithParent(result, false);
         setScene(new Scene(root, DIALOG_WIDTH, DIALOG_HEIGHT));
+        getScene().getStylesheets().add(
+                BrainstormDialog.class.getResource("/css/split-pane-grips.css").toExternalForm());
         setMinWidth(800);
         setMinHeight(520);
 
@@ -226,10 +232,11 @@ public class BrainstormDialog extends Stage {
     // ===== History =====
 
     private VBox createHistory() {
+        FontIcon newIcon = new FontIcon("mdi2p-plus");
+        newIcon.setIconSize(20);
         Button newButton = new Button();
-        newButton.setGraphic(new FontIcon("mdi2p-plus"));
-        newButton.getStyleClass().add("button-icon");
-        newButton.setMaxWidth(Double.MAX_VALUE);
+        newButton.setGraphic(newIcon);
+        newButton.getStyleClass().addAll("button-icon", "flat");
         newButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.new")));
         newButton.setOnAction(event -> showNewSession());
 
@@ -242,13 +249,34 @@ public class BrainstormDialog extends Stage {
         });
         VBox.setVgrow(historyList, Priority.ALWAYS);
 
-        VBox box = new VBox(5.0, newButton, historyList);
+        /*  The heading starts on the line of the titles in the list: 1 px border, 7 px cell padding, 18 px indent.
+            The gap to the chat is the divider, the list ends at the bottom with the input field and "Adopt".  */
+        Label title = new Label(I18nManager.getText("brainstorm.history.title"));
+        VBox box = new VBox(headingRow(title, 26.0, 0, newButton), historyList);
         box.getStyleClass().add("bg-inset");
-        box.setPadding(new Insets(10.0, 5.0, 10.0, 10.0));
+        box.setPadding(new Insets(0, 0, 15.0, 10.0));
         box.setPrefWidth(240.0);
         box.setMinWidth(180.0);
         box.setMaxWidth(420.0);
         return box;
+    }
+
+    /**
+     * The heading row of a column, as high as the heading rows of the main window, so that the headings of the three
+     * columns share one baseline. The heading starts at the given left inset, the actions sit on the right.
+     */
+    private static HBox headingRow(Label title, double left, double right, javafx.scene.Node... actions) {
+        title.getStyleClass().add("title-4");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox row = new HBox(5.0, title, spacer);
+        row.getChildren().addAll(actions);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10.0, right, 15.0, left));
+        row.setMinHeight(45.0);
+        row.setPrefHeight(45.0);
+        row.setMaxHeight(45.0);
+        return row;
     }
 
     /**
@@ -277,7 +305,12 @@ public class BrainstormDialog extends Stage {
             box.getItems().add(openAiItem);
         box.setDisable(box.getItems().size() < 2);
         box.setMaxWidth(Double.MAX_VALUE);
-        box.setTooltip(new Tooltip(I18nManager.getText("brainstorm.engine.tooltip")));
+
+        /*  The tooltip names the chosen entry in full, in case it is too long for the box  */
+        String hint = I18nManager.getText("brainstorm.engine.tooltip");
+        Tooltip tooltip = new Tooltip(hint);
+        tooltip.textProperty().bind(box.valueProperty().map((String item) -> item + "\n" + hint).orElse(hint));
+        box.setTooltip(tooltip);
         box.valueProperty().addListener((obs, old, selected) -> {
             if (updatingUi || selected == null)
                 return;
@@ -322,6 +355,16 @@ public class BrainstormDialog extends Stage {
             historyList.getSelectionModel().clearSelection();
         }
         updatingUi = false;
+        showChatTitle();
+    }
+
+    /** Shows the title of the shown chat as listed (the AI or the user may have renamed it), for a new chat its own. */
+    private void showChatTitle() {
+        String title = chat.session == null ? I18nManager.getText("brainstorm.session.new")
+                : historyList.getItems().stream()
+                        .filter((BrainstormSession listed) -> listed.getId().equals(chat.session.getId()))
+                        .map(BrainstormSession::getTitle).findFirst().orElse(chat.session.getTitle());
+        chatTitleLabel.setText(title);
     }
 
     private void renameSession(BrainstormSession toRename, String title) {
@@ -410,22 +453,32 @@ public class BrainstormDialog extends Stage {
         VBox actions = new VBox(8.0, sendButton);
         if (engineBox != null)
             actions.getChildren().add(0, engineBox);
-        actions.setAlignment(Pos.BOTTOM_CENTER);
+
+        /*  As in the main window: on top, level with the input field, and wide enough for the language model. A chat
+            too narrow for both at 180 px takes from the field and the column alike.  */
+        actions.setAlignment(Pos.TOP_CENTER);
         actions.setFillWidth(true);
+        actions.setPrefWidth(ACTIONS_WIDTH);
+        actions.setMaxWidth(ACTIONS_WIDTH);
+        inputArea.setPrefWidth(ACTIONS_WIDTH);
         sendButton.setMaxWidth(Double.MAX_VALUE);
+
+        /*  Flush with the message area at both sides, the gap above it is the divider  */
         HBox inputRow = new HBox(8.0, inputArea, actions);
         inputRow.setAlignment(Pos.BOTTOM_LEFT);
-        inputRow.setPadding(new Insets(10.0, 15.0, 15.0, 15.0));
+        inputRow.setPadding(new Insets(0, 0, 15.0, 0));
         inputRow.setMinHeight(90.0);
 
         // The divider above the input row can be dragged, like in the main window
         VBox messages = new VBox(messageScroll, statusLabel, quickReplyPane);
         SplitPane chatSplit = new SplitPane(messages, inputRow);
+        chatSplit.getStyleClass().add("grip-split-pane");
         chatSplit.setOrientation(javafx.geometry.Orientation.VERTICAL);
         chatSplit.setDividerPositions(0.72);
         SplitPane.setResizableWithParent(inputRow, false);
 
-        VBox box = new VBox(stepper, chatSplit);
+        /*  The title starts on the line of the text in the bubbles: 15 px message padding, 12 px bubble padding  */
+        VBox box = new VBox(headingRow(chatTitleLabel, 27.0, 15.0), stepper, chatSplit);
         box.getStyleClass().add("bg-default");
         VBox.setVgrow(chatSplit, Priority.ALWAYS);
         return box;
@@ -475,6 +528,7 @@ public class BrainstormDialog extends Stage {
         chat = target;
         target.opened();
 
+        showChatTitle();
         messageScroll.setContent(target.messageBox);
         setQuickReplies(target.quickReplies);
         updateStepper();
@@ -867,14 +921,13 @@ public class BrainstormDialog extends Stage {
         adoptButton.setOnAction(event -> adopt());
 
         Label resultTitle = new Label(I18nManager.getText("brainstorm.result.title"));
-        resultTitle.getStyleClass().add("title-3");
         Label promptLabel = new Label(I18nManager.getText("brainstorm.result.prompt"));
         promptLabel.getStyleClass().addAll("text-bold", "text-small");
 
         factsBox.managedProperty().bind(factsBox.visibleProperty());
         factsBox.setVisible(false);
 
-        resultPanel.getChildren().addAll(resultTitle, promptLabel, promptArea, promptCounter, factsBox,
+        resultPanel.getChildren().addAll(promptLabel, promptArea, promptCounter, factsBox,
                 row(I18nManager.getText("brainstorm.result.model"), familyBox, modelCheck),
                 resolutionRow,
                 row(I18nManager.getText("params.mood.title"), moodBox, moodCheck));
@@ -883,17 +936,20 @@ public class BrainstormDialog extends Stage {
                 row(I18nManager.getText("brainstorm.result.ratio"), ratioBox, ratioCheck),
                 videoBox);
 
-        /*  The mood and the four building blocks make the panel taller than the dialog  */
+        /*  The mood and the four building blocks make the panel taller than the dialog; the fields keep 10 px off the
+            scrollbar, as in the right panel of the main window  */
+        resultPanel.setPadding(new Insets(0, 10.0, 0, 0));
         ScrollPane resultScroll = new ScrollPane(resultPanel);
         resultScroll.setFitToWidth(true);
         resultScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         resultScroll.getStyleClass().add("edge-to-edge");
         resultScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
         VBox.setVgrow(resultScroll, Priority.ALWAYS);
+        VBox.setMargin(adoptButton, new Insets(10.0, 0, 0, 0));
 
-        VBox box = new VBox(10.0, resultScroll, adoptButton);
+        VBox box = new VBox(headingRow(resultTitle, 0, 0), resultScroll, adoptButton);
         box.getStyleClass().add("bg-inset");
-        box.setPadding(new Insets(10.0, 15.0, 15.0, 15.0));
+        box.setPadding(new Insets(0, 15.0, 15.0, 15.0));
         box.setPrefWidth(380.0);
         box.setMinWidth(320.0);
         box.setMaxWidth(620.0);
@@ -905,6 +961,9 @@ public class BrainstormDialog extends Stage {
         HBox line = new HBox(8.0, control, check);
         line.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(control, Priority.ALWAYS);
+
+        /*  The control gives way, the text of the checkbox ("Add to my list") stays readable  */
+        check.setMinWidth(Region.USE_PREF_SIZE);
         VBox box = new VBox(3.0);
         if (label != null) {
             Label title = new Label(label);
