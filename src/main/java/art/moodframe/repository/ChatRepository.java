@@ -863,8 +863,8 @@ public class ChatRepository {
                     generation_job_id, prompt, model, seed, prompt_upsampling,
                     base_cost, search_cost, reasoning_cost, thinking_tokens, thought_summary,
                     is_video, video_duration_seconds, video_resolution, has_audio, negative_prompt,
-                    output_format
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    output_format, width, height
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         Connection conn = null;
@@ -912,6 +912,8 @@ public class ChatRepository {
             stmt.setBoolean(27, image.hasAudio());
             stmt.setString(28, null); // negative_prompt - not stored in GeneratedImage model
             stmt.setString(29, image.getFormat());
+            stmt.setInt(30, image.getWidth());
+            stmt.setInt(31, image.getHeight());
 
             stmt.executeUpdate();
             
@@ -989,6 +991,27 @@ public class ChatRepository {
             stmt.setBoolean(35, image.hasAudio());
             stmt.setString(36, image.getId());
 
+            stmt.executeUpdate();
+        }
+    }
+
+    /**
+     * Stores the pixel size of an image as read from its file, also for an image in the trash.
+     *
+     * @param imageId the image ID
+     * @param width   the width in pixels
+     * @param height  the height in pixels
+     * @throws SQLException if the update fails
+     */
+    public void updateImageSize(String imageId, int width, int height) throws SQLException {
+        String sql = "UPDATE generated_images SET image_width = ?, image_height = ?, width = ?, height = ? WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, width);
+            stmt.setInt(2, height);
+            stmt.setInt(3, width);
+            stmt.setInt(4, height);
+            stmt.setString(5, imageId);
             stmt.executeUpdate();
         }
     }
@@ -1168,6 +1191,8 @@ public class ChatRepository {
                 .downloadStatus(GeneratedImage.DownloadStatus.valueOf(rs.getString("download_status")))
                 .createdAt(rs.getTimestamp("created_at").toLocalDateTime())
                 .fileSizeBytes(rs.getLong("file_size_bytes"))
+                /*  The size is image_width/image_height alone: the columns width/height held 1024 for an image
+                    stored without them, and the builder's width()/height() would overwrite the real size  */
                 .imageWidth(rs.getInt("image_width"))
                 .imageHeight(rs.getInt("image_height"))
                 .mimeType(rs.getString("mime_type"))
@@ -1184,9 +1209,7 @@ public class ChatRepository {
                 .apiStatus(rs.getString("api_status"))
                 // Additional parameters for recreation
                 .aspectRatio(rs.getString("aspect_ratio"))
-                .stylePreset(rs.getString("style_preset"))
-                .width(rs.getInt("width"))
-                .height(rs.getInt("height"));
+                .stylePreset(rs.getString("style_preset"));
 
         // Prefer the actually delivered mime_type over the requested output_format,
         // so the UI always shows what the API really returned

@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.util.ImageSize;
 import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,20 +114,12 @@ public class ImageFileStore {
         Path imagePath = imagesDir.resolve(filename);
         Files.write(imagePath, imageBytes);
 
-        // Extract actual image dimensions from the saved file
-        int width = 0;
-        int height = 0;
-        try {
-            java.awt.image.BufferedImage bufferedImage = javax.imageio.ImageIO.read(imagePath.toFile());
-            if (bufferedImage != null) {
-                width = bufferedImage.getWidth();
-                height = bufferedImage.getHeight();
-            } else {
-                logger.warn("Could not read image dimensions from: {}", imagePath);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to extract image dimensions", e);
-        }
+        // Extract actual image dimensions from the header of the saved file
+        ImageSize size = ImageSize.read(imagePath);
+        if (size == null)
+            logger.warn("Could not read image dimensions from: {}", imagePath);
+        int width  = size != null ? size.width()  : 0;
+        int height = size != null ? size.height() : 0;
 
         if (config.getLoggingEnabled())
             logger.info("Image download completed: {} ({}x{}, {} bytes)", filename, width, height,
@@ -174,20 +167,13 @@ public class ImageFileStore {
         Path imagePath = imagesDir.resolve(filename);
         Files.write(imagePath, imageBytes);
 
-        int width = 0;
-        int height = 0;
-        try {
-            java.awt.image.BufferedImage bufferedImage = javax.imageio.ImageIO.read(imagePath.toFile());
-            if (bufferedImage != null) {
-                width = bufferedImage.getWidth();
-                height = bufferedImage.getHeight();
-                logger.info("Extracted Gemini image dimensions: {}x{}", width, height);
-            } else {
-                logger.warn("Could not read image dimensions from: {}", imagePath);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to extract image dimensions", e);
-        }
+        ImageSize size = ImageSize.read(imagePath);
+        if (size != null)
+            logger.info("Extracted Gemini image dimensions: {}x{}", size.width(), size.height());
+        else
+            logger.warn("Could not read image dimensions from: {}", imagePath);
+        int width  = size != null ? size.width()  : 0;
+        int height = size != null ? size.height() : 0;
 
         return new StoredImage(imagePath, filename, detectedFormat, "image/" + fileExtension, width, height,
                 Files.size(imagePath));

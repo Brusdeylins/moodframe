@@ -8,15 +8,22 @@ import org.junit.jupiter.api.io.TempDir;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,9 +37,19 @@ class ImageFileStoreTest {
     }
 
     private static String base64(String format) throws Exception {
+        return base64(8, 4, format);
+    }
+
+    private static String base64(int width, int height, String format) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        ImageIO.write(new BufferedImage(8, 4, BufferedImage.TYPE_INT_RGB), format, bytes);
+        ImageIO.write(new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB), format, bytes);
         return Base64.getEncoder().encodeToString(bytes.toByteArray());
+    }
+
+    private static ApplicationConfig config(Path dir) {
+        ApplicationConfig config = mock(ApplicationConfig.class);
+        when(config.getImagesPath()).thenReturn(dir.toString());
+        return config;
     }
 
     @Test
@@ -62,6 +79,50 @@ class ImageFileStoreTest {
         assertTrue(stored.filename().endsWith(".png"));
         assertEquals(Files.size(stored.path()), stored.size());
         assertEquals(dir, stored.path().getParent());
+    }
+
+    @Test
+    void aGeminiImageGetsTheSizeOfItsFile(@TempDir Path dir) throws Exception {
+        GeneratedImage image = image();
+
+        new ImageFileStore(config(dir), null).writeBase64(base64(160, 90, "png"), image).applyTo(image);
+
+        assertEquals(160, image.getWidth());
+        assertEquals(90, image.getHeight());
+        assertEquals("160x90", image.getDimensions());
+    }
+
+    @Test
+    void anOpenAiWebpGetsTheSizeOfItsHeader(@TempDir Path dir) throws Exception {
+        ByteBuffer header = ByteBuffer.allocate(30).order(ByteOrder.LITTLE_ENDIAN);
+        header.put(0, "RIFF".getBytes(US_ASCII)).putInt(4, 22).put(8, "WEBP".getBytes(US_ASCII))
+                .put(12, "VP8X".getBytes(US_ASCII)).putShort(24, (short) 2751).putShort(27, (short) 1535);
+        GeneratedImage image = image();
+
+        new ImageFileStore(config(dir), null).writeBase64(Base64.getEncoder().encodeToString(header.array()), image)
+                .applyTo(image);
+
+        assertEquals(2752, image.getWidth());
+        assertEquals(1536, image.getHeight());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aDownloadedBflImageGetsTheSizeOfItsFileInsteadOfTheRequestedOne(@TempDir Path dir) throws Exception {
+        HttpResponse<byte[]> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(Base64.getDecoder().decode(base64(160, 90, "png")));
+        HttpClient client = mock(HttpClient.class);
+        doReturn(response).when(client).send(any(), any());
+        GeneratedImage image = new GeneratedImage.Builder().id("0123456789abcdef").model("FLUX.2 [pro]")
+                .createdAt(LocalDateTime.of(2026, 10, 26, 14, 30, 5)).imageUrl("https://delivery.example/result.png")
+                .width(1024).height(1024).build();
+
+        new ImageFileStore(config(dir), client).download(image).applyTo(image);
+
+        assertEquals(160, image.getWidth());
+        assertEquals(90, image.getHeight());
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, image.getDownloadStatus());
     }
 
     @Test

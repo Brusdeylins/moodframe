@@ -10,6 +10,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.service.ThumbnailManager;
 import art.moodframe.service.ImageDragExporter;
+import art.moodframe.service.ImageSizeCheck;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
@@ -555,7 +556,10 @@ public class ChatEntryCard extends ManagedComponent {
             badgesBox.getChildren().add(createBadge(mood, "mood", moodTooltip(chatEntry.getMood(), style)));
         EntryBadge frame = EntryBadge.frame(chatEntry.getFrame(), chatEntry.getSize());
         if (frame != null) {
-            Label badge = createBadge(frame, "frame", new Tooltip(frameDetails()));
+            /*  The details are read anew on every showing, as the size of an image may be corrected later  */
+            Tooltip details = new Tooltip(frameDetails());
+            details.setOnShowing((event) -> details.setText(frameDetails()));
+            Label badge = createBadge(frame, "frame", details);
             badge.setOnContextMenuRequested(this::showFrameMenu);
             badgesBox.getChildren().add(badge);
         }
@@ -738,9 +742,14 @@ public class ChatEntryCard extends ManagedComponent {
         tile.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         Double ratio = ratioOf(generatedImage);
         if (ratio != null || generatedImage.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED) {
-            double shape = ratio != null ? ratio : 1.0;
+            /*  The shape follows the size of the image, which its first display may still correct from the file  */
+            DoubleBinding shape = Bindings.createDoubleBinding(() -> {
+                Double known = ratioOf(generatedImage);
+                return known != null ? known : 1.0;
+            }, generatedImage.widthProperty(), generatedImage.heightProperty(), generatedImage.imageWidthProperty(),
+                    generatedImage.imageHeightProperty());
             DoubleBinding width = Bindings.createDoubleBinding(
-                    () -> Math.min(tileWidth.get(), maxTileSize.get() * shape), tileWidth, maxTileSize);
+                    () -> Math.min(tileWidth.get(), maxTileSize.get() * shape.get()), tileWidth, maxTileSize, shape);
             tile.prefWidthProperty().bind(width);
             tile.prefHeightProperty().bind(width.divide(shape));
             tile.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -769,6 +778,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         Tooltip details = new Tooltip(imageDetails(generatedImage));
         details.setShowDelay(Duration.millis(500));
+        details.setOnShowing((event) -> details.setText(imageDetails(generatedImage)));
         Tooltip.install(imageView, details);
 
         /*  The menu checks for the file itself, as the image may still be loading  */
@@ -968,6 +978,11 @@ public class ChatEntryCard extends ManagedComponent {
 
         String localPath = getActualImagePath(generatedImage, false);
         ThumbnailManager thumbnailManager = getThumbnailManager();
+
+        /*  The first display corrects a missing or wrong size from the file, the tile and tooltip follow it  */
+        ImageSizeCheck sizeCheck = ServiceFactory.getInstance().getService(ImageSizeCheck.class);
+        if (sizeCheck != null)
+            sizeCheck.check(generatedImage, localPath);
 
         if (thumbnailManager == null) {
             // Fallback to original image loading if ThumbnailManager not available

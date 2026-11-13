@@ -169,6 +169,30 @@ class ChatRepositoryTest {
         assertFalse(renamed.holds(combination));
     }
 
+    @Test
+    void keepsTheSizeOfAnImageAcrossSavingAndLoading() throws Exception {
+        GeneratedImage image = sized(save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a coast")
+                .build()), 2752, 1536);
+
+        assertEquals("2752x1536", repository.findGeneratedImageById(image.getId()).orElseThrow().getDimensions());
+    }
+
+    @Test
+    void loadsAnImageInItsSizeAlthoughWidthAndHeightHoldTheirDefault() throws Exception {
+        GeneratedImage image = sized(save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a coast")
+                .build()), 2752, 1536);
+
+        /*  As for an image whose insert left the columns out, so they took their default  */
+        try (Connection connection = databaseManager.getConnection();
+                PreparedStatement stmt = connection.prepareStatement(
+                        "UPDATE generated_images SET width = 1024, height = 1024 WHERE id = ?")) {
+            stmt.setString(1, image.getId());
+            stmt.executeUpdate();
+        }
+
+        assertEquals("2752x1536", repository.findGeneratedImageById(image.getId()).orElseThrow().getDimensions());
+    }
+
     private Chat chat() throws Exception {
         Chat chat = new Chat.Builder().name("Hafen").build();
         repository.saveChat(chat);
@@ -193,6 +217,18 @@ class ChatRepositoryTest {
     private GeneratedImage image(ChatEntry entry) throws Exception {
         GeneratedImage image = new GeneratedImage.Builder().chatEntryId(entry.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        repository.saveGeneratedImage(image);
+        return image;
+    }
+
+    /** Stores a downloaded image of an entry with the size read from its file. */
+    private GeneratedImage sized(ChatEntry entry, int width, int height) throws Exception {
+        GeneratedImage image = new GeneratedImage.Builder().chatEntryId(entry.getId())
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        image.setImageWidth(width);
+        image.setImageHeight(height);
+        image.setWidth(width);
+        image.setHeight(height);
         repository.saveGeneratedImage(image);
         return image;
     }

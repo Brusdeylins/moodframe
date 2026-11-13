@@ -3,6 +3,7 @@ package art.moodframe.ui.component;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.service.ImageSizeCheck;
 import art.moodframe.service.ThumbnailManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
@@ -364,6 +365,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
         Tooltip details = new Tooltip(ChatEntryCard.imageDetails(image));
         details.setShowDelay(Duration.millis(500));
+        details.setOnShowing((event) -> details.setText(ChatEntryCard.imageDetails(image)));
         Tooltip.install(view, details);
         tile.setOnContextMenuRequested((event) -> {
             createMenu(item).show(tile, event.getScreenX(), event.getScreenY());
@@ -417,6 +419,11 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
                     }));
             return;
         }
+
+        /*  The first display corrects a missing or wrong size from the file, the tooltip reads it when shown  */
+        ImageSizeCheck sizeCheck = ServiceFactory.getInstance().getService(ImageSizeCheck.class);
+        if (sizeCheck != null)
+            sizeCheck.check(image, path);
 
         ThumbnailManager thumbnails = ServiceFactory.getInstance().getService(ThumbnailManager.class);
         if (thumbnails == null) {

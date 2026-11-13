@@ -257,6 +257,15 @@ public class MoodframeApplication extends Application {
                                 : null;
                     });
 
+            /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.ImageSizeCheck.class,
+                    () -> {
+                        art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
+                                .getService(art.moodframe.repository.ChatRepository.class);
+                        return chatRepo != null ? new art.moodframe.service.ImageSizeCheck(chatRepo) : null;
+                    });
+
             // Initialize RequestResponseManager for real API integration
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.RequestResponseManager.class,

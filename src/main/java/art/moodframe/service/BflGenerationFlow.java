@@ -223,8 +223,8 @@ public class BflGenerationFlow {
                         .seed(imageSeed) // Always has a valid seed (user or generated)
                         .safetyTolerance(request.getSafetyTolerance() != null ? request.getSafetyTolerance() : 2)
                         .promptUpsampling(request.getPromptUpsampling() != null ? request.getPromptUpsampling() : true)
-                        .width(request.getWidth() != null ? request.getWidth() : 1024)
-                        .height(request.getHeight() != null ? request.getHeight() : 1024)
+                        .width(request.getWidth() != null ? request.getWidth() : 0)
+                        .height(request.getHeight() != null ? request.getHeight() : 0)
                         .format(request.getOutputFormat() != null ? request.getOutputFormat() : "png")
                         // Store additional parameters for recreation
                         .aspectRatio(request.getAspectRatio() != null ? request.getAspectRatio() : "1:1")
