@@ -196,6 +196,27 @@ public class BrainstormService {
     }
 
     /**
+     * Moves a session to another place in the list and stores the order of all sessions.
+     *
+     * @param sessions all sessions in their order
+     * @param session  the session to move
+     * @param before   the session it goes in front of, null for the end of the list
+     * @return the sessions in their new order
+     * @since 2.0.0
+     */
+    public List<BrainstormSession> moveSession(List<BrainstormSession> sessions, BrainstormSession session,
+            BrainstormSession before) {
+        List<BrainstormSession> order = new ArrayList<>(sessions);
+        if (session == before) {
+            return order;
+        }
+        order.remove(session);
+        order.add(before != null ? order.indexOf(before) : order.size(), session);
+        repository.updateSortOrders(order);
+        return order;
+    }
+
+    /**
      * Deletes a session. A request that is still running for it stops before its next AI or research call and
      * stores nothing any more.
      *

@@ -43,7 +43,7 @@ public class BrainstormRepository {
     }
 
     /**
-     * Creates and stores a new empty session that is answered by the given language model.
+     * Creates and stores a new empty session that is answered by the given language model, on top of the list.
      *
      * @param title initial title of the session
      * @param engine "gemini" or "openai", null to follow the choice of the window
@@ -54,7 +54,10 @@ public class BrainstormRepository {
         LocalDateTime now = LocalDateTime.now();
         BrainstormSession session = new BrainstormSession(UUID.randomUUID().toString(), title, now, now);
         session.setEngine(engine);
-        String sql = "INSERT INTO brainstorm_sessions (id, title, created_at, updated_at, engine) VALUES (?, ?, ?, ?, ?)";
+        String sql = """
+            INSERT INTO brainstorm_sessions (id, title, created_at, updated_at, engine, sort_order)
+            VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MIN(sort_order), 1) - 1 FROM brainstorm_sessions))
+            """;
 
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -72,12 +75,13 @@ public class BrainstormRepository {
     }
 
     /**
-     * Returns all sessions, most recently changed first.
+     * Returns all sessions in the order the user gave them, a new one first.
      *
      * @return the sessions, empty on failure
      */
     public List<BrainstormSession> findAllSessions() {
-        String sql = "SELECT id, title, created_at, updated_at, engine FROM brainstorm_sessions ORDER BY updated_at DESC";
+        String sql = "SELECT id, title, created_at, updated_at, engine FROM brainstorm_sessions "
+                + "ORDER BY sort_order, updated_at DESC";
         List<BrainstormSession> sessions = new ArrayList<>();
 
         try (Connection conn = DatabaseConfig.getConnection();
@@ -94,6 +98,35 @@ public class BrainstormRepository {
             logger.error("Failed to load brainstorm sessions", e);
         }
         return sessions;
+    }
+
+    /**
+     * Stores the order of the sessions in one transaction: numbers them from 0 on, as they follow in the list.
+     *
+     * @param sessions all sessions in their new order
+     * @since 2.0.0
+     */
+    public void updateSortOrders(List<BrainstormSession> sessions) {
+        String sql = "UPDATE brainstorm_sessions SET sort_order = ? WHERE id = ?";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            conn.setAutoCommit(false);
+            try {
+                for (int i = 0; i < sessions.size(); i++) {
+                    stmt.setInt(1, i);
+                    stmt.setString(2, sessions.get(i).getId());
+                    stmt.addBatch();
+                }
+                stmt.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            logger.error("Failed to store the order of the brainstorm sessions", e);
+        }
     }
 
     /**

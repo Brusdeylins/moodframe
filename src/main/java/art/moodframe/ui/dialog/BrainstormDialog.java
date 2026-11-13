@@ -17,6 +17,7 @@ import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.MoodService;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
+import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
@@ -58,6 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -229,10 +231,9 @@ public class BrainstormDialog extends Stage {
         showNewSession();
         refreshHistory(null);
 
-        // The history is sorted by the latest change, so the first entry is the chat that was worked on last
-        if (!historyList.getItems().isEmpty()) {
-            historyList.getSelectionModel().select(0);
-        }
+        // The chat that was worked on last opens, wherever the user put it in the history
+        historyList.getItems().stream().max(Comparator.comparing(BrainstormSession::getUpdatedAt))
+                .ifPresent((BrainstormSession last) -> historyList.getSelectionModel().select(last));
     }
 
     // ===== History =====
@@ -246,8 +247,13 @@ public class BrainstormDialog extends Stage {
         newButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.new")));
         newButton.setOnAction(event -> showNewSession());
 
-        historyList.setCellFactory(list -> new BrainstormSessionListCell(this::deleteSession, this::renameSession,
-                (BrainstormSession listed) -> chatOf(listed).markerProperty()));
+        ListReorder<BrainstormSession> reorder = new ListReorder<>(historyList, this::moveSession);
+        historyList.setCellFactory(list -> {
+            BrainstormSessionListCell cell = new BrainstormSessionListCell(this::deleteSession, this::renameSession,
+                    (BrainstormSession listed) -> chatOf(listed).markerProperty());
+            reorder.attach(cell, cell.getGrip());
+            return cell;
+        });
         historyList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected != null && (chat.session == null || !selected.getId().equals(chat.session.getId()))) {
                 loadSession(selected);
@@ -352,8 +358,13 @@ public class BrainstormDialog extends Stage {
     }
 
     private void refreshHistory(BrainstormSession select) {
+        showHistory(service.listSessions(), select);
+    }
+
+    /** Lists the sessions and selects the given one among them, none for null. */
+    private void showHistory(List<BrainstormSession> sessions, BrainstormSession select) {
         updatingUi = true;
-        historyList.getItems().setAll(service.listSessions());
+        historyList.getItems().setAll(sessions);
         if (select != null) {
             historyList.getItems().stream().filter(s -> s.getId().equals(select.getId())).findFirst()
                     .ifPresent(s -> historyList.getSelectionModel().select(s));
@@ -371,6 +382,12 @@ public class BrainstormDialog extends Stage {
                         .filter((BrainstormSession listed) -> listed.getId().equals(chat.session.getId()))
                         .map(BrainstormSession::getTitle).findFirst().orElse(chat.session.getTitle());
         chatTitleLabel.setText(title);
+    }
+
+    /** Moves a session to a gap of the history (0 above the first one) and stores the order; the shown chat stays. */
+    private void moveSession(BrainstormSession moved, int gap) {
+        List<BrainstormSession> listed = historyList.getItems();
+        showHistory(service.moveSession(listed, moved, gap < listed.size() ? listed.get(gap) : null), chat.session);
     }
 
     private void renameSession(BrainstormSession toRename, String title) {

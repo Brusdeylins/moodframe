@@ -3,14 +3,11 @@ package art.moodframe.ui.cell;
 import art.moodframe.model.Chat;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.InPlaceEditableLabel;
-import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -25,7 +22,7 @@ import java.util.function.Consumer;
  * <p>
  * This cell displays the name of an active chat and provides the
  * actions to rename it and to move it to the trash. Its grip on the left
- * moves the chat to another place in the list (see {@link ChatListReorder}).
+ * moves the chat to another place in the list (see {@link ListReorder}).
  * </p>
  * 
  * @since 1.0.0
@@ -78,20 +75,8 @@ public class ChatListCell extends ListCell<Chat> {
         statusLabel.getStyleClass().addAll("text-muted", "text-small");
         statusLabel.setVisible(false);
 
-        /*  The grip shows on hover only, like the trash button, in the empty inset left of the name, over the cell
-            padding, so it takes no space and the name does not move; pressing it does not select the chat  */
-        FontIcon gripIcon = new FontIcon("mdi2d-drag-vertical");
-        gripIcon.setIconSize(14);
-        grip = new Label(null, gripIcon);
-        grip.getStyleClass().add("text-muted");
-        grip.setAlignment(Pos.CENTER);
-        grip.setMinWidth(BoxInset.LEFT);
-        grip.setMaxWidth(BoxInset.LEFT);
-        grip.setTranslateX(-BoxInset.LIST);
-        grip.setMaxHeight(Double.MAX_VALUE);
-        grip.setCursor(Cursor.OPEN_HAND);
-        grip.setVisible(false);
-        grip.addEventHandler(MouseEvent.MOUSE_PRESSED, Event::consume);
+        /*  The grip shows on hover only, like the trash button  */
+        grip = ListReorder.grip();
 
         // Create layout
         headerRow = new HBox(6.0); // Reduced spacing for compactness
@@ -270,7 +255,7 @@ public class ChatListCell extends ListCell<Chat> {
     }
 
     /** The grip that drags the chat to another place in the list. */
-    Node getGrip() {
+    public Node getGrip() {
         return grip;
     }
 

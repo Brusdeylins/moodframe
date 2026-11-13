@@ -26,8 +26,8 @@ import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.MoodListCell;
 import art.moodframe.ui.cell.ChatListCell;
-import art.moodframe.ui.cell.ChatListReorder;
 import art.moodframe.ui.cell.FrameGroupListCell;
+import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -3221,7 +3221,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Setup chat list view with filtered list
         chatListView.setItems(filteredChatList);
-        ChatListReorder reorder = new ChatListReorder(chatListView, this::moveChat);
+        ListReorder<Chat> reorder = new ListReorder<>(chatListView, this::moveChat);
         chatListView.setCellFactory(listView -> {
             ChatListCell cell = new ChatListCell();
 
@@ -3229,7 +3229,7 @@ public class MainWindowController implements I18nChangeListener {
             cell.setOnDeleteRequested(this::onChatDeleteRequested);
             cell.setOnChatRenamed(this::onChatRenamed);
             cell.setTrashColumn(trashButton);
-            reorder.attach(cell);
+            reorder.attach(cell, cell.getGrip());
 
             return cell;
         });

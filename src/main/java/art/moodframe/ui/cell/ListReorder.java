@@ -1,13 +1,18 @@
 package art.moodframe.ui.cell;
 
-import art.moodframe.model.Chat;
+import art.moodframe.ui.BoxInset;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.event.Event;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point2D;
+import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SkinBase;
 import javafx.scene.control.TextInputControl;
@@ -23,50 +28,53 @@ import javafx.scene.input.TransferMode;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.List;
 
 /**
- * Puts the chats of the list in another order: dragging the grip of a row shows a line in the accent color where the
- * chat lands and scrolls the list near its upper and lower edge; Esc or a release outside the list cancels. Alt+Up and
- * Alt+Down (Option on macOS) move the selected chat by one place.
+ * Puts the items of a list in another order, like the chats of the main window and the brainstorm sessions:
+ * dragging the grip of a row shows a line in the accent color where the item lands and scrolls the list near its
+ * upper and lower edge; Esc or a release outside the list cancels. Alt+Up and Alt+Down (Option on macOS) move the
+ * selected item by one place.
  *
+ * @param <T> the type of the items
  * @since 2.0.0
  */
-public class ChatListReorder {
+public class ListReorder<T> {
 
-    /** Moves a chat to a gap between the shown chats: 0 is above the first one, the number of chats below the last. */
+    /** Moves an item to a gap between the shown items: 0 is above the first one, the number of items below the last. */
     @FunctionalInterface
-    public interface Mover {
-        void move(Chat chat, int gap);
+    public interface Mover<T> {
+        void move(T item, int gap);
     }
 
-    private static final DataFormat CHAT_ID = new DataFormat("application/x-moodframe-chat-id");
+    private static final DataFormat ITEM_INDEX = new DataFormat("application/x-moodframe-list-index");
 
     /*  Near the upper and lower edge, the list scrolls by up to SCROLL_STEP pixels per frame, faster towards the edge  */
     private static final double SCROLL_ZONE = 24.0;
     private static final double SCROLL_STEP = 8.0;
 
-    private final ListView<Chat> listView;
-    private final Mover mover;
+    private final ListView<T> listView;
+    private final Mover<T> mover;
     private final Region line = new Region();
     private final Timeline scrolling;
 
-    private Chat dragged;
+    private T dragged;
     private int gap = -1;
     private double pointerY;
 
     /**
-     * Lets the user reorder the chats of a list.
+     * Lets the user reorder the items of a list.
      *
-     * @param listView the list of the chats
-     * @param mover    moves a chat and stores the new order
+     * @param listView the list of the items
+     * @param mover    moves an item and stores the new order
      */
-    public ChatListReorder(ListView<Chat> listView, Mover mover) {
+    public ListReorder(ListView<T> listView, Mover<T> mover) {
         this.listView = listView;
         this.mover = mover;
 
-        line.getStyleClass().add("chat-drop-line");
+        line.setStyle("-fx-background-color: -color-accent-emphasis;");
         line.setManaged(false);
         line.setMouseTransparent(true);
         line.setVisible(false);
@@ -83,16 +91,38 @@ public class ChatListReorder {
         listView.addEventFilter(KeyEvent.KEY_PRESSED, this::keyPressed);
     }
 
-    /** Lets the grip of a cell drag its chat. */
-    public void attach(ChatListCell cell) {
-        Node grip = cell.getGrip();
+    /**
+     * Creates the grip of a row, to be placed left in the row: it is hidden until the row shows it on hover, sits in
+     * the empty inset left of the name, over the cell padding, so it takes no space and the name does not move.
+     * Pressing it does not select the row.
+     *
+     * @return the grip
+     */
+    public static Label grip() {
+        FontIcon gripIcon = new FontIcon("mdi2d-drag-vertical");
+        gripIcon.setIconSize(14);
+        Label grip = new Label(null, gripIcon);
+        grip.getStyleClass().add("text-muted");
+        grip.setAlignment(Pos.CENTER);
+        grip.setMinWidth(BoxInset.LEFT);
+        grip.setMaxWidth(BoxInset.LEFT);
+        grip.setTranslateX(-BoxInset.LIST);
+        grip.setMaxHeight(Double.MAX_VALUE);
+        grip.setCursor(Cursor.OPEN_HAND);
+        grip.setVisible(false);
+        grip.addEventHandler(MouseEvent.MOUSE_PRESSED, Event::consume);
+        return grip;
+    }
+
+    /** Lets the grip of a cell drag its item. */
+    public void attach(ListCell<T> cell, Node grip) {
         grip.setOnDragDetected((MouseEvent event) -> {
             if (cell.getItem() == null || !event.isPrimaryButtonDown())
                 return;
             dragged = cell.getItem();
             Dragboard board = grip.startDragAndDrop(TransferMode.MOVE);
             ClipboardContent content = new ClipboardContent();
-            content.put(CHAT_ID, dragged.getId());
+            content.put(ITEM_INDEX, String.valueOf(cell.getIndex()));
             board.setContent(content);
 
             /*  The row hangs at the pointer where the grip was taken  */
@@ -133,32 +163,32 @@ public class ChatListReorder {
         showGap(-1);
     }
 
-    /*  Alt+Up and Alt+Down move the selected chat, except while its name is edited  */
+    /*  Alt+Up and Alt+Down move the selected item, except while its name is edited  */
     private void keyPressed(KeyEvent event) {
         if (!event.isAltDown() || event.getCode() != KeyCode.UP && event.getCode() != KeyCode.DOWN
                 || event.getTarget() instanceof TextInputControl)
             return;
-        Chat chat = listView.getSelectionModel().getSelectedItem();
+        T item = listView.getSelectionModel().getSelectedItem();
         int index = listView.getSelectionModel().getSelectedIndex();
         int target = event.getCode() == KeyCode.UP ? index - 1 : index + 2;
-        if (chat != null && target >= 0 && target <= listView.getItems().size()) {
-            move(chat, target);
+        if (item != null && target >= 0 && target <= listView.getItems().size()) {
+            move(item, target);
             if (flow() instanceof VirtualFlow<?> flow)
-                flow.scrollTo(listView.getItems().indexOf(chat));
+                flow.scrollTo(listView.getItems().indexOf(item));
         }
         event.consume();
     }
 
-    /*  The gap right above or below the chat itself leaves it where it is  */
-    private void move(Chat chat, int target) {
-        int index = listView.getItems().indexOf(chat);
+    /*  The gap right above or below the item itself leaves it where it is  */
+    private void move(T item, int target) {
+        int index = listView.getItems().indexOf(item);
         if (index >= 0 && target != index && target != index + 1)
-            mover.move(chat, target);
+            mover.move(item, target);
     }
 
-    /** The gap at a height of the list: above a chat in its upper half, below it in its lower half. */
+    /** The gap at a height of the list: above an item in its upper half, below it in its lower half. */
     private int gapAt(double y) {
-        for (ChatListCell cell : shownCells()) {
+        for (ListCell<?> cell : shownCells()) {
             Bounds bounds = bounds(cell);
             if (y >= bounds.getMinY() && y < bounds.getMaxY())
                 return cell.isEmpty() ? listView.getItems().size()
@@ -167,12 +197,12 @@ public class ChatListReorder {
         return gap;
     }
 
-    /** Draws the line at a gap, above the chat that follows it or below the last chat; -1 hides it. */
+    /** Draws the line at a gap, above the item that follows it or below the last item; -1 hides it. */
     private void showGap(int gap) {
         this.gap = gap;
         int size = listView.getItems().size();
         int row = gap < size ? gap : size - 1;
-        ChatListCell cell = gap < 0 ? null : shownCells().stream()
+        ListCell<?> cell = gap < 0 ? null : shownCells().stream()
                 .filter((shown) -> !shown.isEmpty() && shown.getIndex() == row).findFirst().orElse(null);
         if (cell == null) {
             line.setVisible(false);
@@ -214,10 +244,11 @@ public class ChatListReorder {
     }
 
     /*  The list keeps unused cells and a cell for measuring hidden  */
-    private List<ChatListCell> shownCells() {
-        return listView.lookupAll(".chat-list-cell").stream()
-                .filter((node) -> node instanceof ChatListCell && node.isVisible() && node.getParent().isVisible())
-                .map((node) -> (ChatListCell) node).toList();
+    private List<ListCell<?>> shownCells() {
+        return listView.lookupAll(".list-cell").stream()
+                .filter((node) -> node instanceof ListCell<?> cell && cell.getListView() == listView
+                        && node.isVisible() && node.getParent().isVisible())
+                .<ListCell<?>>map((node) -> (ListCell<?>) node).toList();
     }
 
     private Bounds bounds(Node cell) {

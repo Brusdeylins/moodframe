@@ -7,6 +7,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -34,7 +35,9 @@ import java.util.function.Function;
  * opened by the same click, like the chats in the main window) or the context menu entry renames the session in place (Enter confirms, Escape cancels).
  *
  * <p>A marker in the empty inset left of the title shows what happens in the background: a spinner while the AI
- * works, a dot for an unread answer (red for a failure). It takes no space, so the titles do not move.</p>
+ * works, a dot for an unread answer (red for a failure). It takes no space, so the titles do not move. While the
+ * mouse is over the row, the grip takes its place, which moves the session to another place in the list (see
+ * {@link ListReorder}).</p>
  *
  * @since 1.7.0
  */
@@ -49,7 +52,8 @@ public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
     private final ProgressIndicator spinner = new ProgressIndicator();
     private final Circle dot = new Circle(4.0);
     private final StackPane markerLayer = new StackPane(spinner, dot);
-    private final StackPane root = new StackPane(row, markerLayer);
+    private final Label grip = ListReorder.grip();
+    private final StackPane root = new StackPane(row, markerLayer, grip);
     private final Function<BrainstormSession, ObjectProperty<BrainstormMarker>> markerOf;
     private final Tooltip markerTooltip = new Tooltip();
     private final ChangeListener<BrainstormMarker> markerListener = (obs, old, marker) -> showMarker(marker);
@@ -131,8 +135,16 @@ public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         markerLayer.setPickOnBounds(false);
         spinner.setVisible(false);
         dot.setVisible(false);
+        StackPane.setAlignment(grip, Pos.CENTER_LEFT);
 
-        hoverProperty().addListener((obs, wasHover, isHover) -> trashButton.setVisible(isHover && getItem() != null));
+        hoverProperty().addListener((obs, wasHover, isHover) -> showHover(isHover && getItem() != null));
+    }
+
+    /** The trash button and the grip show while the mouse is over the row, the grip in place of the marker. */
+    private void showHover(boolean hovered) {
+        trashButton.setVisible(hovered);
+        grip.setVisible(hovered);
+        markerLayer.setVisible(!hovered);
     }
 
     private void startRename() {
@@ -202,7 +214,12 @@ public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         titleLabel.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.rename.tooltip")));
         titleLabel.setText(session.getTitle());
         trashButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.delete")));
-        trashButton.setVisible(isHover());
+        showHover(isHover());
         setGraphic(root);
+    }
+
+    /** The grip that drags the session to another place in the list. */
+    public Node getGrip() {
+        return grip;
     }
 }
