@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * A reusable in-place editing component for text labels.
  * 
  * <p>This component switches between Label (display mode) and TextField (edit mode)
- * on user interaction. It supports click-to-edit, Enter to confirm, ESC to cancel,
+ * on user interaction. It supports double-click-to-edit, Enter to confirm, ESC to cancel,
  * and focus-loss auto-save functionality.</p>
  * 
  * <p><strong>Usage Examples:</strong></p>
@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * 
  * <p><strong>Features:</strong></p>
  * <ul>
- * <li>Click-to-edit activation</li>
+ * <li>Double-click-to-edit activation</li>
  * <li>Enter key confirms changes</li>
  * <li>ESC key cancels editing</li>
  * <li>Focus-loss auto-saves changes</li>
@@ -109,19 +109,16 @@ public class InPlaceEditableLabel extends StackPane {
         // Improve visual appearance - no border in display mode
         label.setPadding(new javafx.geometry.Insets(2, 4, 2, 4));
         
-        // Click to edit
+        // Double-click to edit
         label.setOnMouseClicked(this::handleLabelClick);
-        
-        // Hover effect to indicate editability - subtle background only
+
+        /*  Hover shows the hand cursor only: a background would put the name into a box  */
         label.setOnMouseEntered(e -> {
-            if (editable.get()) {
-                label.setStyle("-fx-background-color: rgba(128, 128, 128, 0.1); -fx-background-radius: 3px;");
+            if (editable.get())
                 label.setCursor(javafx.scene.Cursor.HAND);
-            }
         });
-        
+
         label.setOnMouseExited(e -> {
-            label.setStyle("");
             label.setCursor(javafx.scene.Cursor.DEFAULT);
         });
         
@@ -202,7 +199,7 @@ public class InPlaceEditableLabel extends StackPane {
      * Handles mouse clicks on the display label.
      */
     private void handleLabelClick(MouseEvent event) {
-        if (event.getClickCount() == 1 && editable.get() && !editMode.get()) {
+        if (event.getClickCount() == 2 && editable.get() && !editMode.get()) {
             startEdit();
             event.consume();
         }

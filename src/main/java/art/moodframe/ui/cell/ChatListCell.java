@@ -37,6 +37,7 @@ public class ChatListCell extends ListCell<Chat> {
     private final Button trashButton;
     private final Label grip;
 
+    private Node trashColumn;
     private Consumer<Chat> onDeleteRequested;
     private Consumer<Chat> onChatRenamed;
 
@@ -54,19 +55,20 @@ public class ChatListCell extends ListCell<Chat> {
         nameLabel.setPrefHeight(Region.USE_COMPUTED_SIZE); // Use natural height
         // No CSS alignment needed - handled by HBox alignment
 
-        // Trash button for active chats (no borders)
+        /*  Trash button for active chats: the icon and its size of the trash in the header of the list, muted and
+            in the color of danger while hovered (see main-window.css)  */
         trashButton = new Button();
-        FontIcon trashIcon = new FontIcon("mdi2d-delete");
-        trashIcon.setIconSize(12);
+        FontIcon trashIcon = new FontIcon("mdi2t-trash-can-outline");
+        trashIcon.setIconSize(20);
         trashButton.setGraphic(trashIcon);
-        trashButton.getStyleClass().addAll("button-icon", "chat-action-button");
+        trashButton.getStyleClass().addAll("button-icon", "flat", "chat-action-button");
         trashButton.setStyle(
                 "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0; -fx-padding: 2;");
         trashButton.setVisible(false);
         trashButton.managedProperty().bind(trashButton.visibleProperty());
-        trashButton.setMinSize(18, 18);
-        trashButton.setMaxSize(18, 18);
-        trashButton.setPrefSize(18, 18);
+        trashButton.setMinSize(24, 24);
+        trashButton.setMaxSize(24, 24);
+        trashButton.setPrefSize(24, 24);
         trashButton.setTooltip(new Tooltip("Move to trash (can be restored)"));
 
         statusLabel = new Label();
@@ -244,6 +246,19 @@ public class ChatListCell extends ListCell<Chat> {
         });
     }
 
+    @Override
+    protected void layoutChildren() {
+        super.layoutChildren();
+
+        /*  The trash button ends the row, whose right edge moves with the scroll bar of the list: shift it from
+            there onto the center line of the column  */
+        if (trashColumn != null) {
+            double columnCenter = trashColumn.localToScene(trashColumn.getLayoutBounds().getCenterX(), 0).getX();
+            double rowRight     = content.localToScene(content.getWidth() - content.snappedRightInset(), 0).getX();
+            trashButton.setTranslateX(columnCenter - (rowRight - trashButton.prefWidth(-1) / 2));
+        }
+    }
+
     /** The grip that drags the chat to another place in the list. */
     Node getGrip() {
         return grip;
@@ -267,5 +282,15 @@ public class ChatListCell extends ListCell<Chat> {
      */
     public void setOnChatRenamed(Consumer<Chat> callback) {
         this.onChatRenamed = callback;
+    }
+
+    /**
+     * Sets the column of the trash button: it keeps the center line of the given node, the trash button in the
+     * header of the list, whether the scroll bar of the list shows or not.
+     *
+     * @param column the node whose center line the trash button keeps
+     */
+    public void setTrashColumn(Node column) {
+        this.trashColumn = column;
     }
 }

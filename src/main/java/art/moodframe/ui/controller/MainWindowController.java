@@ -3417,6 +3417,7 @@ public class MainWindowController implements I18nChangeListener {
             // Set up chat action callbacks
             cell.setOnDeleteRequested(this::onChatDeleteRequested);
             cell.setOnChatRenamed(this::onChatRenamed);
+            cell.setTrashColumn(trashButton);
             reorder.attach(cell);
 
             return cell;

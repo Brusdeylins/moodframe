@@ -137,6 +137,13 @@
     -fx-icon-color: -color-accent-fg;
 }
 
+/*  The trash of a chat row: muted, in the color of danger while hovered  */
+.chat-list-cell .chat-action-button .ikonli-font-icon {
+    -fx-icon-color: -color-fg-muted;
+}
+.chat-list-cell .chat-action-button:hover .ikonli-font-icon {
+    -fx-icon-color: -color-danger-fg;
+}
 /*  The line where a dragged chat lands, between two rows of the chat list  */
 .chat-drop-line {
     -fx-background-color: -color-accent-emphasis;
