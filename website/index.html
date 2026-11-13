@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MoodFrame – Desktop studio for AI images</title>
+    <meta name="description" content="The mood decides how an image feels, the frame how it is rendered. One desktop app for FLUX, Nano Banana and every OpenAI-compatible image API. Free and open source.">
+    <meta name="theme-color" content="#0d1a1e">
+    <meta property="og:title" content="MoodFrame – Mood in. Frame out.">
+    <meta property="og:description" content="Desktop studio for AI images: FLUX, Nano Banana and OpenAI-compatible APIs in one app.">
+    <meta property="og:image" content="https://moodframe.art/assets/img/hero-wide.jpg">
+    <link rel="icon" type="image/png" href="assets/img/favicon-64.png">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="preload" href="assets/fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<!--  nav: the chapters in the order of the page, then language and GitHub  -->
+<header class="nav" id="nav">
+    <a class="brand" href="#top" aria-label="MoodFrame"><img src="assets/img/wordmark.svg" alt="MoodFrame" width="140" height="49"></a>
+    <nav class="links" aria-label="Chapters">
+        <a href="#overview" data-i18n="nav.overview">Overview</a>
+        <a href="#mood" data-i18n="nav.mood">Mood</a>
+        <a href="#frame" data-i18n="nav.frame">Frame</a>
+        <a href="#models" data-i18n="nav.models">Models</a>
+        <a href="#install" data-i18n="nav.install">Install</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="de" aria-pressed="false">DE</button>
+    </div>
+    <a class="pill" href="https://github.com/Brusdeylins/moodframe" data-release-link>GitHub <span class="version" data-version-tag>v2.0.0</span></a>
+    <button type="button" class="menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="nav">☰</button>
+</header>
+
+<main id="top">
+
+    <!--  hero: the splash scene widened, text and buttons on the calm left half above the floor  -->
+    <section class="hero">
+        <div class="wrap">
+            <p class="eyebrow" data-i18n="hero.eyebrow">Desktop studio for AI images</p>
+            <h1><span>Mood in.</span><span>Frame out.</span></h1>
+            <div class="rule"></div>
+            <p class="claim" data-i18n="hero.claim">The mood decides how an image feels, the frame how it is rendered. One app for FLUX, Nano Banana and every OpenAI-compatible image API.</p>
+            <div class="actions">
+                <a class="button primary" href="#install" data-install-button><span data-i18n="hero.install.mac" data-os-label>Install for macOS</span> ↓</a>
+                <a class="button" href="https://github.com/Brusdeylins/moodframe" data-i18n="hero.github">View on GitHub</a>
+            </div>
+        </div>
+    </section>
+
+    <!--  overview: the app with its main capabilities; the chapters below go into the details  -->
+    <section class="chapter first wrap" id="overview">
+        <p class="eyebrow" data-i18n="nav.overview">Overview</p>
+        <h2 data-i18n="overview.title">One studio, every image model</h2>
+        <p class="lead" data-i18n="overview.lead">Everything in one window. The chapters below go into the details.</p>
+        <figure class="card overview-figure" style="margin-inline: 0">
+            <svg viewBox="0 0 1248 600" role="img" aria-labelledby="overview-desc">
+                <desc id="overview-desc" data-i18n="overview.alt">The MoodFrame main window with the library, the images, the prompt, and the groups Mood, Frame and Generation</desc>
+                <image href="assets/img/app-screenshot.png" x="194" y="30" width="860" height="545"/>
+                <g stroke-width="1">
+                    <line x1="182" y1="132" x2="273" y2="132" stroke="rgb(255 255 255 / 45%)"/>
+                    <line x1="182" y1="211" x2="431" y2="211" stroke="rgb(255 255 255 / 45%)"/>
+                    <line x1="182" y1="454" x2="409" y2="454" stroke="rgb(255 255 255 / 45%)"/>
+                    <line x1="954" y1="182" x2="1066" y2="182" stroke="#ff6b4a"/>
+                    <line x1="954" y1="347" x2="1066" y2="347" stroke="#2fb8a6"/>
+                    <line x1="954" y1="447" x2="1066" y2="447" stroke="#5b6ee1"/>
+                </g>
+                <g stroke="#0d1a1e" stroke-width="2">
+                    <circle cx="273" cy="132" r="5" fill="#ffffff"/><circle cx="431" cy="211" r="5" fill="#ffffff"/>
+                    <circle cx="409" cy="454" r="5" fill="#ffffff"/><circle cx="954" cy="182" r="5" fill="#ff6b4a"/>
+                    <circle cx="954" cy="347" r="5" fill="#2fb8a6"/><circle cx="954" cy="447" r="5" fill="#5b6ee1"/>
+                </g>
+                <g text-anchor="end">
+                    <text x="174" y="137" class="callout-title" data-i18n="feature.library">Library</text>
+                    <text x="174" y="157" class="callout-text" data-i18n="feature.library.1">Chats, or all images</text>
+                    <text x="174" y="175" class="callout-text" data-i18n="feature.library.2">of a mood or frame</text>
+                    <text x="174" y="216" class="callout-title" data-i18n="feature.images">Images</text>
+                    <text x="174" y="236" class="callout-text" data-i18n="feature.images.1">each with its mood,</text>
+                    <text x="174" y="254" class="callout-text" data-i18n="feature.images.2">model and cost</text>
+                    <text x="174" y="459" class="callout-title" data-i18n="feature.prompt">Prompt</text>
+                    <text x="174" y="479" class="callout-text" data-i18n="feature.prompt.1">write what you see, or</text>
+                    <text x="174" y="497" class="callout-text" data-i18n="feature.prompt.2">brainstorm it with AI</text>
+                </g>
+                <g>
+                    <text x="1074" y="187" class="callout-title" data-i18n="nav.mood">Mood</text>
+                    <text x="1074" y="207" class="callout-text" data-i18n="feature.mood.1">style, atmosphere, light,</text>
+                    <text x="1074" y="225" class="callout-text" data-i18n="feature.mood.2">color and camera</text>
+                    <text x="1074" y="352" class="callout-title" data-i18n="nav.frame">Frame</text>
+                    <text x="1074" y="372" class="callout-text" data-i18n="feature.frame.1">aspect ratio and size</text>
+                    <text x="1074" y="452" class="callout-title" data-i18n="nav.models">Models</text>
+                    <text x="1074" y="472" class="callout-text" data-i18n="feature.models.1">FLUX, Nano Banana,</text>
+                    <text x="1074" y="490" class="callout-text" data-i18n="feature.models.2">OpenAI-compatible</text>
+                </g>
+            </svg>
+            <img class="shot" src="assets/img/app-screenshot.png" alt="" width="1800" height="1140" loading="lazy">
+            <ul class="overview-list">
+                <li><span><b data-i18n="feature.library">Library</b> · <span data-i18n="feature.library.full">Chats, or all images of a mood or frame</span></span></li>
+                <li><span><b data-i18n="feature.images">Images</b> · <span data-i18n="feature.images.full">each with its mood, model and cost</span></span></li>
+                <li><span><b data-i18n="feature.prompt">Prompt</b> · <span data-i18n="feature.prompt.full">write what you see, or brainstorm it with AI</span></span></li>
+                <li style="--dot: #ff6b4a"><span><b data-i18n="nav.mood">Mood</b> · <span data-i18n="feature.mood.full">style, atmosphere, light, color and camera</span></span></li>
+                <li style="--dot: #2fb8a6"><span><b data-i18n="nav.frame">Frame</b> · <span data-i18n="feature.frame.1">aspect ratio and size</span></span></li>
+                <li style="--dot: #5b6ee1"><span><b data-i18n="nav.models">Models</b> · <span data-i18n="feature.models.full">FLUX, Nano Banana, OpenAI-compatible</span></span></li>
+            </ul>
+        </figure>
+    </section>
+
+    <!--  mood: tabs swap the image and the recipe of the mood  -->
+    <section class="chapter wrap" id="mood">
+        <p class="eyebrow" data-i18n="nav.mood">Mood</p>
+        <h2 data-i18n="mood.title">Switch the mood, keep the picture</h2>
+        <p class="lead" data-i18n="mood.lead">Same prompt, three moods. A mood is made of building blocks, each one lockable.</p>
+        <div class="card">
+            <div class="tabs" role="tablist" aria-label="Moods" data-mood-tabs>
+                <button type="button" role="tab" aria-selected="true" data-mood="golden" data-i18n="mood.golden.name">Golden coast</button>
+                <button type="button" role="tab" aria-selected="false" data-mood="fog" data-i18n="mood.fog.name">Nordic fog</button>
+                <button type="button" role="tab" aria-selected="false" data-mood="noir" data-i18n="mood.noir.name">Storm noir</button>
+            </div>
+            <div class="mood-body" role="tabpanel">
+                <img src="assets/img/mood-golden.jpg" alt="" width="600" height="402" data-mood-image>
+                <div class="recipe">
+                    <h3 data-mood-field="name">Golden coast</h3>
+                    <dl>
+                        <dt data-i18n="block.style">Style</dt><dd data-mood-field="style">Analog film, Portra grain</dd>
+                        <dt data-i18n="block.atmosphere">Atmosphere</dt><dd data-mood-field="atmosphere">Nostalgic, hazy amber air</dd>
+                        <dt data-i18n="block.light">Light</dt><dd data-mood-field="light">Golden hour backlight</dd>
+                        <dt data-i18n="block.color">Color palette</dt>
+                        <dd><div class="swatches" data-mood-swatches><span style="background:#f4b183"></span><span style="background:#e9a35a"></span><span style="background:#7a4b33"></span><span style="background:#2d2a2a"></span></div></dd>
+                        <dt data-i18n="block.camera">Camera</dt><dd data-mood-field="camera">Rangefinder · 35 mm · f/2.8 · eye level</dd>
+                    </dl>
+                    <ul>
+                        <li data-i18n="mood.point.own">Your own blocks and saved moods</li>
+                        <li data-i18n="mood.point.image">Mood from image: drop a picture, get its mood</li>
+                        <li data-i18n="mood.point.remember">Every image remembers its mood</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!--  frame: nested aspect ratios over one image, what each model makes of the target  -->
+    <section class="chapter wrap" id="frame">
+        <p class="eyebrow" data-i18n="nav.frame">Frame</p>
+        <h2 data-i18n="frame.title">Say the format once</h2>
+        <p class="lead" data-i18n="frame.lead">A frame is a target aspect ratio and resolution, saved by name.</p>
+        <div class="card frame-body">
+            <div class="frame-figure">
+                <img src="assets/img/mood-fog.jpg" alt="" width="600" height="402" loading="lazy">
+                <svg viewBox="0 0 600 400" preserveAspectRatio="none" aria-hidden="true">
+                    <g fill="none" stroke-width="2" vector-effect="non-scaling-stroke">
+                        <rect x="1" y="1" width="598" height="398" rx="8" stroke="rgb(255 255 255 / 90%)"/>
+                        <rect x="0" y="31" width="600" height="338" stroke="#2fb8a6" stroke-dasharray="8 6"/>
+                        <rect x="100" y="0" width="400" height="400" stroke="#f5b83d" stroke-dasharray="8 6"/>
+                        <rect x="187" y="0" width="225" height="400" stroke="#ff6b4a" stroke-dasharray="8 6"/>
+                    </g>
+                    <g font-family="Inter, sans-serif" font-size="13" font-weight="600">
+                        <text x="12" y="24" fill="#ffffff">3:2</text><text x="12" y="362" fill="#2fb8a6">16:9</text>
+                        <text x="110" y="388" fill="#f5b83d">1:1</text><text x="197" y="24" fill="#ff6b4a">9:16</text>
+                    </g>
+                </svg>
+            </div>
+            <div class="frame-text">
+                <p data-i18n="frame.text">Every model takes its closest aspect ratio and resolution, and the app shows which one before you generate.</p>
+                <div class="target" data-i18n="frame.target">Target: widescreen · 16:9</div>
+                <table>
+                    <thead><tr><th data-i18n="frame.model">Model</th><th data-i18n="frame.gets">Gets</th><th></th></tr></thead>
+                    <tbody>
+                        <tr><td>FLUX.2 [pro]</td><td>16:9</td><td class="exact" data-i18n="frame.exact">exact</td></tr>
+                        <tr><td>Nano Banana Pro</td><td>16:9</td><td class="exact" data-i18n="frame.exact">exact</td></tr>
+                        <tr><td>OpenAI gpt-image</td><td>3:2</td><td class="closest" data-i18n="frame.closest">closest</td></tr>
+                    </tbody>
+                </table>
+                <ul>
+                    <li data-i18n="frame.point.saved">Saved frames for your recurring formats</li>
+                    <li data-i18n="frame.point.group">Group your library by frame</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!--  models: the supported image APIs  -->
+    <section class="chapter wrap" id="models">
+        <p class="eyebrow" data-i18n="nav.models">Models</p>
+        <h2 data-i18n="models.title">Bring your own API key</h2>
+        <p class="lead" data-i18n="models.lead">Three providers in one app. Your keys stay on your machine, encrypted.</p>
+        <div class="providers">
+            <!--  TODO: official logos of the providers, monochrome white, as assets/img/logo-*.svg  -->
+            <div class="provider"><div class="logo">Black Forest Labs</div><div class="models">FLUX 3 · FLUX.2</div></div>
+            <div class="provider"><div class="logo">Google Gemini</div><div class="models" data-i18n="models.gemini">Nano Banana · Omni video · Brainstorm</div></div>
+            <div class="provider"><div class="logo">OpenAI</div><div class="models" data-i18n="models.openai">OpenAI or your own compatible gateway</div></div>
+        </div>
+    </section>
+
+    <!--  install: the tab of the detected system is open; commands and files as on Conveyor's download page  -->
+    <section class="chapter wrap" id="install">
+        <p class="eyebrow" data-i18n="nav.install">Install</p>
+        <h2 data-i18n="install.title">Up and running in a minute</h2>
+        <p class="lead"><span data-i18n="install.version">Version</span> <span data-version>2.0.0</span><span data-release-date></span>. <span data-i18n="install.free">Free and open source (MIT).</span></p>
+        <div class="card">
+            <div class="tabs" role="tablist" aria-label="Operating system" data-os-tabs>
+                <button type="button" role="tab" aria-selected="true" data-os="mac">macOS<span class="hint" data-i18n="install.yours" hidden>Your system</span></button>
+                <button type="button" role="tab" aria-selected="false" data-os="windows">Windows<span class="hint" data-i18n="install.yours" hidden>Your system</span></button>
+                <button type="button" role="tab" aria-selected="false" data-os="linux">Linux<span class="hint" data-i18n="install.yours" hidden>Your system</span></button>
+            </div>
+
+            <div class="install-panel" role="tabpanel" data-os-panel="mac">
+                <div class="terminal"><pre><span class="prompt">$ </span>curl -L https://moodframe.art/download/launch.mac | bash</pre><button type="button" class="copy" aria-label="Copy" data-copy>⧉</button></div>
+                <p data-i18n="install.mac.command">Paste into a terminal: the command installs and starts MoodFrame.</p>
+                <p><span data-i18n="install.mac.zip">Or download the .zip:</span>
+                    <a data-file="moodframe-{v}-mac-aarch64.zip" href="https://moodframe.art/download/moodframe-2.0.0-mac-aarch64.zip">Apple Silicon</a> ·
+                    <a data-file="moodframe-{v}-mac-amd64.zip" href="https://moodframe.art/download/moodframe-2.0.0-mac-amd64.zip">Intel</a>.
+                    <span data-i18n="install.mac.notarized">The app is not notarized by Apple, so open it the first time with Control-click → Open.</span></p>
+            </div>
+
+            <div class="install-panel" role="tabpanel" data-os-panel="windows" hidden>
+                <div class="actions"><a class="button primary" href="https://moodframe.art/download/moodframe.exe" data-i18n="install.windows.button">Download and install</a></div>
+                <p data-i18n="install.windows.text">Runs the installer, which also keeps MoodFrame up to date.</p>
+                <p><span data-i18n="install.windows.also">Also as</span>
+                    <a data-file="moodframe-{v}.x64.msix" href="https://moodframe.art/download/moodframe-2.0.0.x64.msix">.msix</a> ·
+                    <a href="https://moodframe.art/download/moodframe.appinstaller">.appinstaller</a> ·
+                    <a data-file="moodframe-{v}-windows-amd64.zip" href="https://moodframe.art/download/moodframe-2.0.0-windows-amd64.zip">.zip</a></p>
+            </div>
+
+            <div class="install-panel" role="tabpanel" data-os-panel="linux" hidden>
+                <div class="terminal"><pre data-template><span class="prompt">$ </span>CPU=$(dpkg --print-architecture)
+<span class="prompt">$ </span>wget https://moodframe.art/download/debian/moodframe_<span data-version>2.0.0</span>_${CPU}.deb
+<span class="prompt">$ </span>sudo apt install ./moodframe_<span data-version>2.0.0</span>_${CPU}.deb</pre><button type="button" class="copy" aria-label="Copy" data-copy>⧉</button></div>
+                <p data-i18n="install.linux.text">For Debian and Ubuntu; updates come with apt.</p>
+                <p><span data-i18n="install.linux.other">Other distributions:</span>
+                    <a data-file="moodframe-{v}-linux-amd64.tar.gz" href="https://moodframe.art/download/moodframe-2.0.0-linux-amd64.tar.gz">.tar.gz</a></p>
+            </div>
+
+            <p class="packaged">📦 <span data-i18n="install.packaged">Packaged with</span> <a href="https://www.hydraulic.dev">Conveyor</a> <span data-i18n="install.updates">by Hydraulic · MoodFrame checks for updates on every launch and updates itself</span></p>
+        </div>
+    </section>
+
+</main>
+
+<footer>
+    <div class="wrap">
+        <img src="assets/img/wordmark.svg" alt="MoodFrame" width="120" height="42">
+        <span data-i18n="footer.credit">Built with Agentic Coding using Claude Code and ASE</span>
+        <span>© Matthias Brusdeylins 2025-2026 · MIT</span>
+        <span class="links">
+            <a href="https://github.com/Brusdeylins/moodframe">GitHub</a>
+            <a href="https://github.com/Brusdeylins/moodframe/blob/main/CHANGELOG.md" data-i18n="footer.changelog">Changelog</a>
+            <a href="https://github.com/Brusdeylins/moodframe/releases" data-i18n="footer.releases">Releases</a>
+        </span>
+    </div>
+</footer>
+
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>

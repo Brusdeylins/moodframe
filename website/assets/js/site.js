@@ -1,0 +1,324 @@
+/*  moodframe.art: language switch, mood tabs, install tabs for the detected system, copy buttons, and the
+    version of the latest GitHub release (the page works without this script, in English, with 2.0.0)  */
+"use strict"
+
+const REPO = "Brusdeylins/moodframe"
+const DOWNLOAD = "https://moodframe.art/download/"
+
+const TEXT = {
+    en: {
+        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Models", "nav.install": "Install",
+        "hero.eyebrow": "Desktop studio for AI images",
+        "hero.claim": "The mood decides how an image feels, the frame how it is rendered. One app for FLUX, Nano Banana and every OpenAI-compatible image API.",
+        "hero.install.mac": "Install for macOS", "hero.install.windows": "Install for Windows",
+        "hero.install.linux": "Install for Linux", "hero.install.other": "Install",
+        "hero.github": "View on GitHub",
+        "overview.title": "One studio, every image model",
+        "overview.lead": "Everything in one window. The chapters below go into the details.",
+        "overview.alt": "The MoodFrame main window with the library, the images, the prompt, and the groups Mood, Frame and Generation",
+        "feature.library": "Library", "feature.library.1": "Chats, or all images", "feature.library.2": "of a mood or frame",
+        "feature.library.full": "Chats, or all images of a mood or frame",
+        "feature.images": "Images", "feature.images.1": "each with its mood,", "feature.images.2": "model and cost",
+        "feature.images.full": "each with its mood, model and cost",
+        "feature.prompt": "Prompt", "feature.prompt.1": "write what you see, or", "feature.prompt.2": "brainstorm it with AI",
+        "feature.prompt.full": "write what you see, or brainstorm it with AI",
+        "feature.mood.1": "style, atmosphere, light,", "feature.mood.2": "color and camera",
+        "feature.mood.full": "style, atmosphere, light, color and camera",
+        "feature.frame.1": "aspect ratio and size",
+        "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-compatible",
+        "feature.models.full": "FLUX, Nano Banana, OpenAI-compatible",
+        "mood.title": "Switch the mood, keep the picture",
+        "mood.lead": "Same prompt, three moods. A mood is made of building blocks, each one lockable.",
+        "block.style": "Style", "block.atmosphere": "Atmosphere", "block.light": "Light", "block.color": "Color palette", "block.camera": "Camera",
+        "mood.point.own": "Your own blocks and saved moods",
+        "mood.point.image": "Mood from image: drop a picture, get its mood",
+        "mood.point.remember": "Every image remembers its mood",
+        "mood.golden.name": "Golden coast", "mood.golden.style": "Analog film, Portra grain",
+        "mood.golden.atmosphere": "Nostalgic, hazy amber air", "mood.golden.light": "Golden hour backlight",
+        "mood.golden.camera": "Rangefinder · 35 mm · f/2.8 · eye level",
+        "mood.fog.name": "Nordic fog", "mood.fog.style": "Matte cinematic still",
+        "mood.fog.atmosphere": "Quiet, Nordic melancholy", "mood.fog.light": "Soft, diffused fog light",
+        "mood.fog.camera": "Medium format · 80 mm · f/4 · eye level",
+        "mood.noir.name": "Storm noir", "mood.noir.style": "Cinematic noir, high contrast",
+        "mood.noir.atmosphere": "Stormy night after rain", "mood.noir.light": "Lighthouse beam, neon rim light",
+        "mood.noir.camera": "Full frame · 35 mm · f/1.4 · low angle",
+        "frame.title": "Say the format once",
+        "frame.lead": "A frame is a target aspect ratio and resolution, saved by name.",
+        "frame.text": "Every model takes its closest aspect ratio and resolution, and the app shows which one before you generate.",
+        "frame.target": "Target: widescreen · 16:9", "frame.model": "Model", "frame.gets": "Gets",
+        "frame.exact": "exact", "frame.closest": "closest",
+        "frame.point.saved": "Saved frames for your recurring formats", "frame.point.group": "Group your library by frame",
+        "models.title": "Bring your own API key",
+        "models.lead": "Three providers in one app. Your keys stay on your machine, encrypted.",
+        "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
+        "install.title": "Up and running in a minute", "install.version": "Version", "install.released": ", released ",
+        "install.free": "Free and open source (MIT).", "install.yours": "Your system",
+        "install.mac.command": "Paste into a terminal: the command installs and starts MoodFrame.",
+        "install.mac.zip": "Or download the .zip:",
+        "install.mac.notarized": "The app is not notarized by Apple, so open it the first time with Control-click → Open.",
+        "install.windows.button": "Download and install",
+        "install.windows.text": "Runs the installer, which also keeps MoodFrame up to date.",
+        "install.windows.also": "Also as",
+        "install.linux.text": "For Debian and Ubuntu; updates come with apt.", "install.linux.other": "Other distributions:",
+        "install.packaged": "Packaged with",
+        "install.updates": "by Hydraulic · MoodFrame checks for updates on every launch and updates itself",
+        "footer.credit": "Built with Agentic Coding using Claude Code and ASE",
+        "footer.changelog": "Changelog", "footer.releases": "Releases",
+        "copy": "Copy", "copied": "Copied"
+    },
+    de: {
+        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Modelle", "nav.install": "Installieren",
+        "hero.eyebrow": "Desktop-Studio für KI-Bilder",
+        "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame, wie es ausgegeben wird. Eine App für FLUX, Nano Banana und jede OpenAI-kompatible Bild-API.",
+        "hero.install.mac": "Für macOS installieren", "hero.install.windows": "Für Windows installieren",
+        "hero.install.linux": "Für Linux installieren", "hero.install.other": "Installieren",
+        "hero.github": "Auf GitHub ansehen",
+        "overview.title": "Ein Studio für jedes Bildmodell",
+        "overview.lead": "Alles in einem Fenster. Die Kapitel darunter gehen ins Detail.",
+        "overview.alt": "Das Hauptfenster von MoodFrame mit Bibliothek, Bildern, Prompt und den Gruppen Mood, Frame und Generierung",
+        "feature.library": "Bibliothek", "feature.library.1": "Chats, oder alle Bilder", "feature.library.2": "einer Mood oder eines Frames",
+        "feature.library.full": "Chats, oder alle Bilder einer Mood oder eines Frames",
+        "feature.images": "Bilder", "feature.images.1": "jedes mit Mood,", "feature.images.2": "Modell und Kosten",
+        "feature.images.full": "jedes mit Mood, Modell und Kosten",
+        "feature.prompt": "Prompt", "feature.prompt.1": "schreiben, was du siehst,", "feature.prompt.2": "oder mit KI entwickeln",
+        "feature.prompt.full": "schreiben, was du siehst, oder mit KI entwickeln",
+        "feature.mood.1": "Stil, Atmosphäre, Licht,", "feature.mood.2": "Farbe und Kamera",
+        "feature.mood.full": "Stil, Atmosphäre, Licht, Farbe und Kamera",
+        "feature.frame.1": "Seitenverhältnis und Größe",
+        "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-kompatibel",
+        "feature.models.full": "FLUX, Nano Banana, OpenAI-kompatibel",
+        "mood.title": "Mood wechseln, Bild behalten",
+        "mood.lead": "Derselbe Prompt, drei Moods. Eine Mood besteht aus Bausteinen, jeder einzeln sperrbar.",
+        "block.style": "Stil", "block.atmosphere": "Atmosphäre", "block.light": "Licht", "block.color": "Farbe", "block.camera": "Kamera",
+        "mood.point.own": "Eigene Bausteine und gespeicherte Moods",
+        "mood.point.image": "Mood aus Bild: Bild ablegen, Mood erhalten",
+        "mood.point.remember": "Jedes Bild merkt sich seine Mood",
+        "mood.golden.name": "Goldene Küste", "mood.golden.style": "Analogfilm, Portra-Korn",
+        "mood.golden.atmosphere": "Nostalgisch, warmer Dunst", "mood.golden.light": "Goldene Stunde, Gegenlicht",
+        "mood.golden.camera": "Messsucher · 35 mm · f/2.8 · Augenhöhe",
+        "mood.fog.name": "Nordischer Nebel", "mood.fog.style": "Matter Kinolook",
+        "mood.fog.atmosphere": "Still, nordische Melancholie", "mood.fog.light": "Weiches, diffuses Nebellicht",
+        "mood.fog.camera": "Mittelformat · 80 mm · f/4 · Augenhöhe",
+        "mood.noir.name": "Sturm-Noir", "mood.noir.style": "Film noir, harter Kontrast",
+        "mood.noir.atmosphere": "Stürmische Nacht nach dem Regen", "mood.noir.light": "Leuchtturmstrahl, Neon-Kantenlicht",
+        "mood.noir.camera": "Vollformat · 35 mm · f/1.4 · Untersicht",
+        "frame.title": "Format einmal festlegen",
+        "frame.lead": "Ein Frame ist Seitenverhältnis plus Auflösung, gespeichert unter einem Namen.",
+        "frame.text": "Jedes Modell nimmt das nächstliegende Seitenverhältnis und die nächstliegende Auflösung, die App zeigt beides vor dem Generieren an.",
+        "frame.target": "Ziel: Breitbild · 16:9", "frame.model": "Modell", "frame.gets": "Ergebnis",
+        "frame.exact": "exakt", "frame.closest": "nächstliegend",
+        "frame.point.saved": "Gespeicherte Frames für wiederkehrende Formate", "frame.point.group": "Bibliothek nach Frame gruppieren",
+        "models.title": "Mit deinem eigenen API-Schlüssel",
+        "models.lead": "Drei Anbieter in einer App. Deine Schlüssel bleiben verschlüsselt auf deinem Rechner.",
+        "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
+        "install.title": "In einer Minute startklar", "install.version": "Version", "install.released": ", erschienen am ",
+        "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
+        "install.mac.command": "Im Terminal einfügen: Der Befehl installiert und startet MoodFrame.",
+        "install.mac.zip": "Oder die .zip laden:",
+        "install.mac.notarized": "Die App ist nicht von Apple notarisiert; beim ersten Start mit Control-Klick → Öffnen starten.",
+        "install.windows.button": "Laden und installieren",
+        "install.windows.text": "Startet das Installationsprogramm, das MoodFrame auch aktuell hält.",
+        "install.windows.also": "Auch als",
+        "install.linux.text": "Für Debian und Ubuntu; Updates kommen über apt.", "install.linux.other": "Andere Distributionen:",
+        "install.packaged": "Paketiert mit",
+        "install.updates": "von Hydraulic · MoodFrame prüft bei jedem Start auf Updates und aktualisiert sich selbst",
+        "footer.credit": "Entwickelt mit Agentic Coding über Claude Code und ASE",
+        "footer.changelog": "Änderungen", "footer.releases": "Releases",
+        "copy": "Kopieren", "copied": "Kopiert"
+    }
+}
+
+const MOODS = {
+    golden: { image: "mood-golden.jpg", swatches: [ "#f4b183", "#e9a35a", "#7a4b33", "#2d2a2a" ] },
+    fog:    { image: "mood-fog.jpg",    swatches: [ "#c8d3d2", "#9fb3b5", "#5f7a7f", "#2f4247" ] },
+    noir:   { image: "mood-neon.jpg",   swatches: [ "#e0379a", "#36c5d6", "#1d2340", "#0b0d17" ] }
+}
+
+const state = { lang: "en", mood: "golden", os: detectOS(), release: null }
+
+/*  storage can be blocked (private mode); the page works without it  */
+function remember (key, value) {
+    try { localStorage.setItem(key, value) }
+    catch (e) { /*  not available  */ }
+}
+function recall (key) {
+    try { return localStorage.getItem(key) }
+    catch (e) { return null }
+}
+
+function t (key) {
+    return TEXT[state.lang][key] ?? TEXT.en[key] ?? key
+}
+
+/*  the desktop system of the visitor: mac, windows, linux, or null on phones and the unknown  */
+function detectOS () {
+    const platform = (navigator.userAgentData?.platform ?? navigator.platform ?? "").toLowerCase()
+    const agent = navigator.userAgent.toLowerCase()
+    if (/android|iphone|ipad|ipod/.test(agent))
+        return null
+    if (platform.includes("mac") || agent.includes("mac os"))
+        return "mac"
+    if (platform.includes("win") || agent.includes("windows"))
+        return "windows"
+    if (platform.includes("linux") || agent.includes("linux") || agent.includes("x11"))
+        return "linux"
+    return null
+}
+
+function applyLanguage () {
+    document.documentElement.lang = state.lang
+    for (const element of document.querySelectorAll("[data-i18n]"))
+        element.textContent = t(element.dataset.i18n)
+    for (const button of document.querySelectorAll("[data-lang]"))
+        button.setAttribute("aria-pressed", String(button.dataset.lang === state.lang))
+    for (const button of document.querySelectorAll("[data-copy]"))
+        button.setAttribute("aria-label", t("copy"))
+    const label = document.querySelector("[data-os-label]")
+    label.textContent = t(`hero.install.${state.os ?? "other"}`)
+    applyMood()
+    applyRelease()
+}
+
+function applyMood () {
+    const mood = MOODS[state.mood]
+    for (const tab of document.querySelectorAll("[data-mood]"))
+        tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}`
+    for (const field of document.querySelectorAll("[data-mood-field]"))
+        field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
+    const swatches = document.querySelector("[data-mood-swatches]")
+    swatches.replaceChildren(...mood.swatches.map((color) => {
+        const swatch = document.createElement("span")
+        swatch.style.background = color
+        return swatch
+    }))
+}
+
+function selectOS (os) {
+    for (const tab of document.querySelectorAll("[data-os]"))
+        tab.setAttribute("aria-selected", String(tab.dataset.os === os))
+    for (const panel of document.querySelectorAll("[data-os-panel]"))
+        panel.hidden = panel.dataset.osPanel !== os
+}
+
+/*  tabs: click, and arrow keys between the tabs of one list  */
+function setupTabs (list, onSelect) {
+    const tabs = [ ...list.querySelectorAll("[role=tab]") ]
+    tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => onSelect(tab))
+        tab.addEventListener("keydown", (event) => {
+            const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+            if (step === 0)
+                return
+            const next = tabs[(index + step + tabs.length) % tabs.length]
+            next.focus()
+            onSelect(next)
+        })
+    })
+}
+
+/*  the version of the latest GitHub release: commands, file links, date; falls back to the static 2.0.0  */
+async function loadRelease () {
+    try {
+        const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
+        if (!response.ok)
+            return
+        const release = await response.json()
+        state.release = { version: release.tag_name.replace(/^v/, ""), date: release.published_at, url: release.html_url }
+        applyRelease()
+    }
+    catch (e) {
+        /*  offline or rate limited: keep the static version  */
+    }
+}
+
+function applyRelease () {
+    const release = state.release
+    if (release === null)
+        return
+    for (const element of document.querySelectorAll("[data-version]"))
+        element.textContent = release.version
+    for (const element of document.querySelectorAll("[data-version-tag]"))
+        element.textContent = `v${release.version}`
+    for (const link of document.querySelectorAll("[data-file]"))
+        link.href = DOWNLOAD + link.dataset.file.replace("{v}", release.version)
+    for (const link of document.querySelectorAll("[data-release-link]"))
+        link.href = release.url
+    const date = new Date(release.date).toLocaleDateString(state.lang === "de" ? "de-DE" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
+    document.querySelector("[data-release-date]").textContent = t("install.released") + date
+}
+
+function setupCopy () {
+    for (const button of document.querySelectorAll("[data-copy]")) {
+        button.addEventListener("click", async () => {
+            const pre = button.parentElement.querySelector("pre").cloneNode(true)
+            pre.querySelectorAll(".prompt").forEach((prompt) => prompt.remove())
+            try {
+                await navigator.clipboard.writeText(pre.textContent.trim())
+                button.classList.add("done")
+                button.textContent = "✓"
+                button.setAttribute("aria-label", t("copied"))
+                setTimeout(() => {
+                    button.classList.remove("done")
+                    button.textContent = "⧉"
+                    button.setAttribute("aria-label", t("copy"))
+                }, 1600)
+            }
+            catch (e) {
+                /*  clipboard not allowed: the command stays selectable  */
+            }
+        })
+    }
+}
+
+function setupNav () {
+    const nav = document.getElementById("nav")
+    const toggle = nav.querySelector(".menu-toggle")
+    const update = () => nav.classList.toggle("scrolled", window.scrollY > 40)
+    window.addEventListener("scroll", update, { passive: true })
+    update()
+    toggle.addEventListener("click", () => {
+        const open = nav.classList.toggle("open")
+        toggle.setAttribute("aria-expanded", String(open))
+    })
+    for (const link of nav.querySelectorAll(".links a"))
+        link.addEventListener("click", () => {
+            nav.classList.remove("open")
+            toggle.setAttribute("aria-expanded", "false")
+        })
+}
+
+function init () {
+    const asked = new URLSearchParams(location.search).get("lang")
+    const stored = recall("lang")
+    state.lang = TEXT[asked] ? asked : TEXT[stored] ? stored : "en"
+
+    for (const button of document.querySelectorAll("[data-lang]"))
+        button.addEventListener("click", () => {
+            state.lang = button.dataset.lang
+            remember("lang", state.lang)
+            applyLanguage()
+        })
+
+    setupTabs(document.querySelector("[data-mood-tabs]"), (tab) => {
+        state.mood = tab.dataset.mood
+        applyMood()
+    })
+    setupTabs(document.querySelector("[data-os-tabs]"), (tab) => selectOS(tab.dataset.os))
+
+    if (state.os !== null) {
+        selectOS(state.os)
+        document.querySelector(`[data-os="${state.os}"] .hint`).hidden = false
+    }
+    document.querySelector("[data-install-button]").addEventListener("click", () => {
+        if (state.os !== null)
+            selectOS(state.os)
+    })
+
+    setupNav()
+    setupCopy()
+    applyLanguage()
+    loadRelease()
+}
+
+init()
