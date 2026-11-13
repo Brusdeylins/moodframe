@@ -5,7 +5,9 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
+import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
@@ -208,18 +210,52 @@ public class SplashScreen {
     }
 
     /**
-     * Centers the splash screen on the primary monitor.
+     * Centers the splash screen over the main window -- the owner, or at startup its saved bounds -- completely
+     * on the screen the main window lies on, and without either on the primary monitor.
      */
     private void centerOnScreen() {
-        Screen screen = Screen.getPrimary();
-        double screenWidth = screen.getBounds().getWidth();
-        double screenHeight = screen.getBounds().getHeight();
+        Window owner = splashStage.getOwner();
+        Rectangle2D anchor = owner != null
+                ? new Rectangle2D(owner.getX(), owner.getY(), owner.getWidth(), owner.getHeight())
+                : savedWindowBounds();
+        Screen screen = anchor != null
+                ? Screen.getScreensForRectangle(anchor).stream().findFirst().orElse(null)
+                : null;
+        if (screen == null) {
+            screen = Screen.getPrimary();
+            anchor = screen.getBounds();
+        }
+        Point2D position = position(anchor, screen.getVisualBounds(), SPLASH_WIDTH, SPLASH_HEIGHT);
+        splashStage.setX(position.getX());
+        splashStage.setY(position.getY());
+    }
 
-        double x = (screenWidth - SPLASH_WIDTH) / 2;
-        double y = (screenHeight - SPLASH_HEIGHT) / 2;
+    /**
+     * Computes the position of a window of the given size centered over the anchor, shifted into the visible
+     * bounds of the screen where it would stick out.
+     */
+    static Point2D position(Rectangle2D anchor, Rectangle2D screen, double width, double height) {
+        double x = anchor.getMinX() + (anchor.getWidth()  - width)  / 2;
+        double y = anchor.getMinY() + (anchor.getHeight() - height) / 2;
+        return new Point2D(
+                Math.max(screen.getMinX(), Math.min(x, screen.getMaxX() - width)),
+                Math.max(screen.getMinY(), Math.min(y, screen.getMaxY() - height)));
+    }
 
-        splashStage.setX(x);
-        splashStage.setY(y);
+    /*  the main window bounds saved at the last exit, or null where the main window does not restore them either;
+        the configuration is registered only after the splash, so it is read here  */
+    private static Rectangle2D savedWindowBounds() {
+        try {
+            ApplicationConfig config = new ApplicationConfig();
+            return config.getWindowX() >= 0 && config.getWindowY() >= 0
+                    ? new Rectangle2D(config.getWindowX(), config.getWindowY(),
+                            config.getWindowWidth(), config.getWindowHeight())
+                    : null;
+        }
+        catch (Exception e) {
+            logger.warn("Could not read the saved window position: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
