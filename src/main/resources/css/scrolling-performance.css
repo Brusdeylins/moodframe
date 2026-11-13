@@ -64,29 +64,6 @@
     -fx-effect: null;
 }
 
-/* Resizable Input Area - SplitPane Divider Styling */
-#chatInputSplitPane {
-    -fx-background-color: transparent;
-}
-
-#chatInputSplitPane .split-pane-divider {
-    -fx-padding: 0 0 0 0;
-    -fx-background-color: -color-border-default;
-    -fx-background-insets: 0;
-    -fx-pref-height: 3px;
-    -fx-cursor: row-resize;
-}
-
-#chatInputSplitPane .split-pane-divider:hover {
-    -fx-background-color: -color-accent-emphasis;
-    -fx-pref-height: 4px;
-}
-
-#chatInputSplitPane .split-pane-divider:pressed {
-    -fx-background-color: -color-accent-emphasis;
-    -fx-pref-height: 5px;
-}
-
 /* ============================================= */
 /* Chat Entries ListView - Virtualized Scrolling */
 /* ============================================= */

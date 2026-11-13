@@ -68,7 +68,7 @@
             <!-- Left Sidebar: Chat List, translucent over the cloud like the fields on the right -->
             <VBox spacing="0.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
                 <padding>
-                    <Insets bottom="0.0" left="10.0" right="5.0" top="0.0" />
+                    <Insets bottom="0.0" left="10.0" right="0.0" top="0.0" />
                 </padding>
 
                 <!-- Chat Controls Row: height and padding like the chat header, so both headings share one line -->
@@ -142,7 +142,7 @@
                     <top>
                         <HBox alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>
-                                <Insets left="5.0" right="20.0" top="10.0" bottom="15.0" />
+                                <Insets left="0.0" right="20.0" top="10.0" bottom="15.0" />
                             </padding>
                             <HBox alignment="BASELINE_LEFT" spacing="10.0" maxHeight="-Infinity" HBox.hgrow="ALWAYS">
                                 <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-4" />
@@ -156,11 +156,8 @@
                     <center>
                         <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84">
 
-                            <!-- Top: Chat Messages Area with Overlay Support, 5 px off the divider like the chat list -->
+                            <!-- Top: Chat Messages Area with Overlay Support, the gap to the chat list is the divider -->
                             <StackPane fx:id="chatAreaStackPane" styleClass="glass">
-                                <padding>
-                                    <Insets left="5.0" />
-                                </padding>
 
                                 <!-- Main Chat Content -->
                                 <!-- Virtualized ListView for ChatEntries (replaces ScrollPane+VBox) -->
@@ -179,11 +176,12 @@
 
                             </StackPane>
 
-                            <!-- Bottom: Input Area - height in pixels set via the divider, kept on window resize -->
+                            <!-- Bottom: Input Area - height in pixels set via the divider, kept on window resize; flush
+                                 with the chat area at both sides, the gap above it is the divider -->
                             <VBox fx:id="chatInputArea" spacing="10.0" styleClass="bg-inset, see-through"
                                   SplitPane.resizableWithParent="false">
                                 <padding>
-                                    <Insets bottom="10.0" left="5.0" right="20.0" top="15.0" />
+                                    <Insets bottom="10.0" left="0.0" right="0.0" top="0.0" />
                                 </padding>
 
                                 <!-- Main Input Row -->
