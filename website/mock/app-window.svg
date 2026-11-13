@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="760" viewBox="0 0 1200 760" font-family="Inter, -apple-system, 'Helvetica Neue', sans-serif">
+    <!--  Stand-in for the app screenshot: the main window with a demo library (made-up chat names)  -->
+    <defs>
+        <clipPath id="win"><rect width="1200" height="760" rx="12"/></clipPath>
+        <clipPath id="card1"><rect x="0" y="0" width="200" height="134" rx="6"/></clipPath>
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#0d1117" stop-opacity="0"/>
+            <stop offset=".6" stop-color="#0d1117" stop-opacity=".85"/>
+        </linearGradient>
+    </defs>
+    <g clip-path="url(#win)">
+        <rect width="1200" height="760" fill="#0d1117"/>
+        <image href="images/corner-cloud.png" x="-40" y="-30" width="760" height="567" opacity=".9"/>
+        <rect width="1200" height="760" fill="url(#fade)"/>
+
+        <!--  title bar  -->
+        <rect width="1200" height="34" fill="#0d1117" opacity=".55"/>
+        <circle cx="20" cy="17" r="6" fill="#ff5f57"/>
+        <circle cx="40" cy="17" r="6" fill="#febc2e"/>
+        <circle cx="60" cy="17" r="6" fill="#28c840"/>
+        <text x="600" y="22" fill="#8b949e" font-size="12" text-anchor="middle">MoodFrame</text>
+
+        <!--  left sidebar  -->
+        <image href="images/wordmark.svg" x="18" y="46" width="150" height="52"/>
+        <g fill="none" stroke="#8b949e" stroke-width="1.6">
+            <rect x="178" y="56" width="26" height="26" rx="5" fill="#21262d" stroke="#30363d"/>
+            <circle cx="191" cy="69" r="6"/>
+        </g>
+        <rect x="14" y="108" width="200" height="608" rx="8" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+        <text x="28" y="134" fill="#e6edf3" font-size="15">Chats</text>
+        <g fill="#8b949e" font-size="15"><text x="150" y="134">≡</text><text x="172" y="134">+</text><text x="192" y="134">🗑</text></g>
+        <rect x="20" y="148" width="188" height="34" rx="6" fill="#1f6feb" fill-opacity=".35"/>
+        <g font-size="13" fill="#c9d1d9">
+            <text x="30" y="170" fill="#ffffff">Lighthouse series</text>
+            <text x="30" y="206">Coffee cup product shot</text>
+            <text x="30" y="242">Portrait studio</text>
+            <text x="30" y="278">Alpine lake at dawn</text>
+            <text x="30" y="314">Neon city brainstorm</text>
+            <text x="30" y="350">Logo ideas</text>
+        </g>
+
+        <!--  chat area  -->
+        <text x="234" y="72" fill="#e6edf3" font-size="20" font-weight="700">Lighthouse series</text>
+        <text x="926" y="72" fill="#8b949e" font-size="12" text-anchor="end">$0.42</text>
+        <rect x="234" y="108" width="696" height="470" rx="8" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+        <rect x="560" y="124" width="354" height="44" rx="8" fill="#1f6feb" fill-opacity=".3"/>
+        <text x="574" y="142" fill="#e6edf3" font-size="12">A white lighthouse on a rocky cliff, a figure</text>
+        <text x="574" y="158" fill="#e6edf3" font-size="12">with a red umbrella walking toward it</text>
+        <g transform="translate(250 186)">
+            <g clip-path="url(#card1)"><image href="images/mood-golden.jpg" width="200" height="134" preserveAspectRatio="xMidYMid slice"/></g>
+            <text x="0" y="154" fill="#c9d1d9" font-size="12">Golden coast</text>
+            <text x="200" y="154" fill="#8b949e" font-size="11" text-anchor="end">FLUX.2 · 3:2</text>
+        </g>
+        <g transform="translate(466 186)">
+            <g clip-path="url(#card1)"><image href="images/mood-fog.jpg" width="200" height="134" preserveAspectRatio="xMidYMid slice"/></g>
+            <text x="0" y="154" fill="#c9d1d9" font-size="12">Nordic fog</text>
+            <text x="200" y="154" fill="#8b949e" font-size="11" text-anchor="end">Nano Banana · 3:2</text>
+        </g>
+        <g transform="translate(682 186)">
+            <g clip-path="url(#card1)"><image href="images/mood-neon.jpg" width="200" height="134" preserveAspectRatio="xMidYMid slice"/></g>
+            <text x="0" y="154" fill="#c9d1d9" font-size="12">Storm noir</text>
+            <text x="200" y="154" fill="#8b949e" font-size="11" text-anchor="end">FLUX 3 · 3:2</text>
+        </g>
+        <rect x="560" y="370" width="354" height="28" rx="8" fill="#1f6feb" fill-opacity=".3"/>
+        <text x="574" y="389" fill="#e6edf3" font-size="12">Now the same in portrait for a poster</text>
+        <rect x="250" y="412" width="134" height="150" rx="6" fill="#30363d" opacity=".6"/>
+        <text x="317" y="492" fill="#8b949e" font-size="11" text-anchor="middle">generating…</text>
+
+        <!--  input  -->
+        <rect x="234" y="592" width="696" height="92" rx="8" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+        <text x="250" y="618" fill="#6e7681" font-size="13">Enter your prompt here...</text>
+        <rect x="814" y="640" width="104" height="32" rx="6" fill="#238636"/>
+        <text x="866" y="661" fill="#ffffff" font-size="13" font-weight="600" text-anchor="middle">Generate</text>
+        <text x="250" y="666" fill="#8b949e" font-size="11">› Final prompt</text>
+
+        <!--  right panel  -->
+        <g font-size="12">
+            <rect x="944" y="108" width="242" height="270" rx="6" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+            <text x="954" y="130" fill="#8b949e">⌄</text>
+            <rect x="968" y="119" width="4" height="16" rx="2" fill="#ff6b4a"/>
+            <text x="980" y="132" fill="#e6edf3" font-size="14" font-weight="600">Mood</text>
+            <text x="1176" y="132" fill="#8b949e" font-size="13" text-anchor="end" letter-spacing="6">▣ ⤓ ⧉ ⚙</text>
+            <g fill="#8b949e">
+                <text x="976" y="158">Mood</text><text x="976" y="200">Style</text><text x="976" y="242">Atmosphere</text>
+                <text x="976" y="284">Light · Color</text><text x="976" y="326">Camera</text>
+            </g>
+            <g fill="#21262d" fill-opacity=".8" stroke="#30363d">
+                <rect x="976" y="164" width="200" height="24" rx="4"/><rect x="976" y="206" width="200" height="24" rx="4"/>
+                <rect x="976" y="248" width="200" height="24" rx="4"/><rect x="976" y="290" width="98" height="24" rx="4"/>
+                <rect x="1078" y="290" width="98" height="24" rx="4"/><rect x="976" y="332" width="200" height="24" rx="4"/>
+            </g>
+            <g fill="#e6edf3">
+                <text x="984" y="181">Golden coast</text><text x="984" y="223">Analog film</text><text x="984" y="265">Nostalgic</text>
+                <text x="984" y="307">Golden hour</text><text x="1086" y="307">Peach</text><text x="984" y="349">35 mm · f/2.8 · eye level</text>
+            </g>
+
+            <rect x="944" y="388" width="242" height="146" rx="6" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+            <text x="954" y="410" fill="#8b949e">⌄</text>
+            <rect x="968" y="399" width="4" height="16" rx="2" fill="#2fb8a6"/>
+            <text x="980" y="412" fill="#e6edf3" font-size="14" font-weight="600">Frame</text>
+            <text x="1176" y="412" fill="#8b949e" font-size="13" text-anchor="end" letter-spacing="6">⤓ ⧉ ⚙</text>
+            <g fill="#8b949e"><text x="976" y="438">Frame</text><text x="976" y="480">Aspect ratio</text><text x="1078" y="480">Resolution</text></g>
+            <g fill="#21262d" fill-opacity=".8" stroke="#30363d">
+                <rect x="976" y="444" width="200" height="24" rx="4"/><rect x="976" y="486" width="98" height="24" rx="4"/><rect x="1078" y="486" width="98" height="24" rx="4"/>
+            </g>
+            <g fill="#e6edf3"><text x="984" y="461">Landscape print</text><text x="984" y="503">3:2</text><text x="1086" y="503">2K</text></g>
+            <text x="976" y="526" fill="#8b949e" font-size="11">FLUX.2: 2048 × 1365</text>
+
+            <rect x="944" y="544" width="242" height="140" rx="6" fill="#0d1117" fill-opacity=".55" stroke="#30363d"/>
+            <text x="954" y="566" fill="#8b949e">⌄</text>
+            <rect x="968" y="555" width="4" height="16" rx="2" fill="#5b6ee1"/>
+            <text x="980" y="568" fill="#e6edf3" font-size="14" font-weight="600">Generation</text>
+            <g fill="#8b949e"><text x="976" y="594">Model</text><text x="976" y="636">Count</text></g>
+            <g fill="#21262d" fill-opacity=".8" stroke="#30363d"><rect x="976" y="600" width="200" height="24" rx="4"/><rect x="976" y="642" width="60" height="24" rx="4"/></g>
+            <g fill="#e6edf3"><text x="984" y="617">FLUX.2 [pro]</text><text x="984" y="659">3</text></g>
+        </g>
+
+        <!--  status bar  -->
+        <text x="234" y="740" fill="#8b949e" font-size="11">Ready</text>
+        <circle cx="1060" cy="736" r="4" fill="#3fb950"/>
+        <text x="1070" y="740" fill="#8b949e" font-size="11">API key valid</text>
+    </g>
+    <rect x=".5" y=".5" width="1199" height="759" rx="12" fill="none" stroke="#ffffff" stroke-opacity=".12"/>
+</svg>
