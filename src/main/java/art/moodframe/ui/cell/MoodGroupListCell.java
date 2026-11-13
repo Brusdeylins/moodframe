@@ -1,6 +1,7 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.MoodGroup;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -44,8 +45,8 @@ public class MoodGroupListCell extends ListCell<MoodGroup> {
         colorStrip.managedProperty().bind(colorStrip.visibleProperty());
         content = new VBox(3, headerRow, colorStrip);
 
-        /*  The name starts on the line of the chat names, behind the space of their grip  */
-        content.setPadding(new Insets(4, 12, 4, 28));
+        /*  The name starts on the inset of the boxes, like the chat names  */
+        content.setPadding(new Insets(4, 12, 4, BoxInset.LEFT - BoxInset.LIST));
     }
 
     /**

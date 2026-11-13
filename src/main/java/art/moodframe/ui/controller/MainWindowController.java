@@ -17,6 +17,7 @@ import art.moodframe.service.MoodService;
 import art.moodframe.service.ThumbnailManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.FrameListCell;
@@ -117,6 +118,8 @@ public class MainWindowController implements I18nChangeListener {
     private Tooltip infoTooltip;
     @FXML
     private Label appVersionLabel;
+    @FXML
+    private HBox appHeader;
 
     // Sidebar Controls
     @FXML
@@ -127,6 +130,8 @@ public class MainWindowController implements I18nChangeListener {
     private Button trashButton;
     @FXML
     private ListView<Chat> chatListView;
+    @FXML
+    private HBox sidebarHeader;
     @FXML
     private Label sidebarTitleLabel;
     @FXML
@@ -983,10 +988,23 @@ public class MainWindowController implements I18nChangeListener {
                     chatInputSplitPane.getDividerPositions()[0] + (chatInputArea.getHeight() - height) / size);
     }
 
+    /*  the given padding with another left inset  */
+    private static javafx.geometry.Insets withLeft(javafx.geometry.Insets padding, double left) {
+        return new javafx.geometry.Insets(padding.getTop(), padding.getRight(), padding.getBottom(), left);
+    }
+
     /**
      * Sets up the initial UI state and component configurations.
      */
     private void setupUI() {
+        /*  One inset for all boxes: the sidebar heading on the line of the names, the "M" of the logo 1 px further in
+            for the side bearing of their letters (behind the 10 px padding of the sidebar), the chat title 1 px further
+            out on the edge of the cards and of the first column of images, the prompt text behind the 1 px border  */
+        appHeader.setPadding(withLeft(appHeader.getPadding(), 10.0 + BoxInset.LEFT + 1.0));
+        sidebarHeader.setPadding(withLeft(sidebarHeader.getPadding(), BoxInset.LEFT));
+        chatHeader.setPadding(withLeft(chatHeader.getPadding(), BoxInset.LEFT - 1.0));
+        promptTextArea.setPadding(new javafx.geometry.Insets(2.0, 2.0, 2.0, BoxInset.LEFT - 1.0 - BoxInset.TEXT));
+
         // Configure SplitPane with restored position
         try {
             art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
@@ -2511,7 +2529,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Folds the groups of the right panel (Mood, Frame, Generation) as the user left them. The header of a group spans
-     * its width, so that its actions sit on the right.
+     * its width, so that its actions sit on the right; its content starts on the inset of the boxes, behind its 1 px
+     * border.
      */
     private void setupPanelGroups() {
         java.util.Map<String, TitledPane> groups = java.util.Map.of("mood", moodGroupPane, "frame", frameGroupPane,
@@ -2525,6 +2544,8 @@ public class MainWindowController implements I18nChangeListener {
             });
             ((javafx.scene.layout.Region) pane.getGraphic()).prefWidthProperty()
                     .bind(pane.widthProperty().subtract(PANEL_GROUP_HEADER_INSETS));
+            ((javafx.scene.layout.Region) pane.getContent()).setPadding(
+                    new javafx.geometry.Insets(0, 0, 0, BoxInset.LEFT - 1.0));
         });
     }
 
@@ -3277,8 +3298,8 @@ public class MainWindowController implements I18nChangeListener {
                 // CRITICAL: Cell must fill entire width to prevent horizontal scroll
                 setMaxWidth(Double.MAX_VALUE);
                 setPrefWidth(0); // Let it grow with ListView
-                // Remove default padding that can cause overflow
-                setPadding(javafx.geometry.Insets.EMPTY);
+                // The cards start on the inset of the boxes, behind the 1 px border of the list
+                setPadding(new javafx.geometry.Insets(5.0, 10.0, 5.0, BoxInset.LEFT - 1.0));
             }
 
             @Override
@@ -3361,11 +3382,6 @@ public class MainWindowController implements I18nChangeListener {
         Cmd/Ctrl + and - change it in steps  */
     private static final double MIN_IMAGE_SIZE = 100.0;
     private static final double IMAGE_SIZE_STEP = 20.0;
-
-    /*  The chat title starts on the left edge of the cards, in the images view on the one of the first column, 1 px
-        further out for the side bearing of its letters  */
-    private static final double TITLE_INSET_CHAT   = 10.0;
-    private static final double TITLE_INSET_IMAGES = 31.0;
 
     /**
      * Sets up the images view of the chat area, the switch between it and the chat in the chat header and the size
@@ -3451,9 +3467,6 @@ public class MainWindowController implements I18nChangeListener {
         boolean images = imagesViewButton.isSelected();
         chatEntriesListView.setVisible(shown && !images);
         imageGrid.setVisible(shown && images);
-        javafx.geometry.Insets padding = chatHeader.getPadding();
-        chatHeader.setPadding(new javafx.geometry.Insets(padding.getTop(), padding.getRight(), padding.getBottom(),
-                images ? TITLE_INSET_IMAGES : TITLE_INSET_CHAT));
     }
 
     /** Cmd/Ctrl + and - change the image size in steps, but not in the full view, where + and - zoom. */

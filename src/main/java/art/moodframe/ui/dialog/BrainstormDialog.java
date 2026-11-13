@@ -15,6 +15,7 @@ import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.BrainstormService;
 import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.MoodService;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.model.AspectRatios;
@@ -254,10 +255,10 @@ public class BrainstormDialog extends Stage {
         });
         VBox.setVgrow(historyList, Priority.ALWAYS);
 
-        /*  The heading starts on the line of the titles in the list: 1 px border, 7 px cell padding, 18 px indent.
-            The gap to the chat is the divider, the list ends at the bottom with the input field and "Adopt".  */
+        /*  The heading starts on the inset of the boxes, the line of the titles in the list. The gap to the chat is
+            the divider, the list ends at the bottom with the input field and "Adopt".  */
         Label title = new Label(I18nManager.getText("brainstorm.history.title"));
-        VBox box = new VBox(headingRow(title, 26.0, 0, newButton), historyList);
+        VBox box = new VBox(headingRow(title, BoxInset.LEFT, 0, newButton), historyList);
         box.getStyleClass().add("bg-inset");
         box.setPadding(new Insets(0, 0, 15.0, 10.0));
         box.setPrefWidth(240.0);
@@ -423,9 +424,9 @@ public class BrainstormDialog extends Stage {
         messageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(messageScroll, Priority.ALWAYS);
 
-        quickReplyPane.setPadding(new Insets(0, 15.0, 0, 15.0));
+        quickReplyPane.setPadding(new Insets(0, 15.0, 0, BoxInset.LEFT));
         statusLabel.getStyleClass().addAll("text-muted", "text-small");
-        statusLabel.setPadding(new Insets(0, 15.0, 6.0, 15.0));
+        statusLabel.setPadding(new Insets(0, 15.0, 6.0, BoxInset.LEFT));
         statusLabel.setVisible(false);
         statusLabel.managedProperty().bind(statusLabel.visibleProperty());
 
@@ -434,6 +435,9 @@ public class BrainstormDialog extends Stage {
         inputArea.setPrefRowCount(4);
         inputArea.setMinWidth(0);
         HBox.setHgrow(inputArea, Priority.ALWAYS);
+
+        /*  The field is flush with the chat, its text starts on the inset of the boxes  */
+        inputArea.setPadding(new Insets(2.0, 2.0, 2.0, BoxInset.LEFT - BoxInset.TEXT));
         inputArea.setOnKeyPressed(event -> {
             if (event.getCode() == javafx.scene.input.KeyCode.ENTER && !event.isShiftDown()) {
                 event.consume();
@@ -487,9 +491,9 @@ public class BrainstormDialog extends Stage {
         chatSplit.setDividerPositions(0.72);
         SplitPane.setResizableWithParent(inputBox, false);
 
-        /*  The title starts on the left edge of the bubbles (15 px message padding), 1 px further out for the side
+        /*  The title starts on the left edge of the bubbles (the inset of the boxes), 1 px further out for the side
             bearing of its letters  */
-        VBox box = new VBox(headingRow(chatTitleLabel, 14.0, 15.0), stepper, chatSplit);
+        VBox box = new VBox(headingRow(chatTitleLabel, BoxInset.LEFT - 1.0, 15.0), stepper, chatSplit);
         box.getStyleClass().add("bg-default");
         VBox.setVgrow(chatSplit, Priority.ALWAYS);
         return box;
@@ -1081,7 +1085,7 @@ public class BrainstormDialog extends Stage {
 
         VBox box = new VBox(headingRow(resultTitle, 0, 0), resultScroll, adoptButton);
         box.getStyleClass().add("bg-inset");
-        box.setPadding(new Insets(0, 15.0, 15.0, 15.0));
+        box.setPadding(new Insets(0, 15.0, 15.0, BoxInset.LEFT));
         box.setPrefWidth(380.0);
         box.setMinWidth(320.0);
         box.setMaxWidth(620.0);

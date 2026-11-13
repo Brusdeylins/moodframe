@@ -168,12 +168,11 @@
     -fx-padding: 0 4px 0 0;
 }
 
-/*  The content starts below the text of the header: 8 px title padding, 10 px arrow, 4 px gap, 4 px mark, 6 px
-    spacing  */
+/*  The content starts on the inset of the boxes, set by the controller on the content of a group  */
 .panel-group > .content {
     -fx-background-color: transparent;
     -fx-border-width: 0;
-    -fx-padding: 4px 10px 12px 32px;
+    -fx-padding: 4px 10px 12px 0;
 }
 .panel-group-mark {
     -fx-background-color: -panel-group-color;

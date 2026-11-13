@@ -1,6 +1,7 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.Chat;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.InPlaceEditableLabel;
 import javafx.event.Event;
 import javafx.geometry.Insets;
@@ -13,6 +14,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 import java.util.function.Consumer;
@@ -31,6 +33,7 @@ import java.util.function.Consumer;
 public class ChatListCell extends ListCell<Chat> {
 
     private final VBox content;
+    private final StackPane root;
     private final HBox headerRow;
     private final InPlaceEditableLabel nameLabel;
     private final Label statusLabel;
@@ -75,14 +78,16 @@ public class ChatListCell extends ListCell<Chat> {
         statusLabel.getStyleClass().addAll("text-muted", "text-small");
         statusLabel.setVisible(false);
 
-        /*  The grip shows on hover only, like the trash button, but keeps its fixed space, so the name does not move
-            and starts 28 px in like the names by mood and frame; pressing it does not select the chat  */
+        /*  The grip shows on hover only, like the trash button, in the empty inset left of the name, over the cell
+            padding, so it takes no space and the name does not move; pressing it does not select the chat  */
         FontIcon gripIcon = new FontIcon("mdi2d-drag-vertical");
         gripIcon.setIconSize(14);
         grip = new Label(null, gripIcon);
         grip.getStyleClass().add("text-muted");
-        grip.setMinWidth(18);
-        grip.setMaxWidth(18);
+        grip.setAlignment(Pos.CENTER);
+        grip.setMinWidth(BoxInset.LEFT);
+        grip.setMaxWidth(BoxInset.LEFT);
+        grip.setTranslateX(-BoxInset.LIST);
         grip.setMaxHeight(Double.MAX_VALUE);
         grip.setCursor(Cursor.OPEN_HAND);
         grip.setVisible(false);
@@ -107,13 +112,15 @@ public class ChatListCell extends ListCell<Chat> {
         // Set vertical alignment for all header components
         HBox.setHgrow(nameLabel, Priority.ALWAYS);
 
-        headerRow.getChildren().addAll(grip, nameLabel, spacer, trashButton);
+        headerRow.getChildren().addAll(nameLabel, spacer, trashButton);
 
         // Vertical centering is handled by HBox.setAlignment(Pos.CENTER_LEFT)
 
         content = new VBox(0); // No spacing between VBox children
         content.setAlignment(Pos.CENTER_LEFT); // Center content vertically
-        content.setPadding(new Insets(0, 12.0, 0, 0)); // Remove top/bottom padding, the grip takes the left one
+
+        /*  The name starts on the inset of the boxes, behind the 4 px padding of the editable label  */
+        content.setPadding(new Insets(0, 12.0, 0, BoxInset.LEFT - BoxInset.LIST - 4.0));
         content.setMinHeight(32.0); // Match HBox height
         content.setPrefHeight(32.0); // Set preferred height for compact layout
         content.setMaxHeight(32.0); // Prevent expansion
@@ -122,6 +129,9 @@ public class ChatListCell extends ListCell<Chat> {
         // Only add headerRow, statusLabel is rarely used and takes space
         content.getChildren().add(headerRow);
         // statusLabel will be added dynamically only when needed
+
+        root = new StackPane(content, grip);
+        StackPane.setAlignment(grip, Pos.CENTER_LEFT);
 
         // Set up mouse handling and event listeners
         setupMouseHandling();
@@ -218,7 +228,7 @@ public class ChatListCell extends ListCell<Chat> {
             setText(null);
         } else {
             updateCellContent(chat);
-            setGraphic(content);
+            setGraphic(root);
             setText(null);
         }
     }

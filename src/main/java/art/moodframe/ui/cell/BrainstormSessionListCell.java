@@ -1,6 +1,7 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.BrainstormSession;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.value.ChangeListener;
@@ -32,9 +33,8 @@ import java.util.function.Function;
  * while the mouse is over the row (same look as {@link ChatListCell}). A click on the title (the session is
  * opened by the same click, like the chats in the main window) or the context menu entry renames the session in place (Enter confirms, Escape cancels).
  *
- * <p>A marker in the left margin, in front of the title, shows what happens in the background: a spinner while the AI
- * works, a dot for an unread answer (red for a failure). The margin is a bit wider than in the main window chat list,
- * so the marker has some space to the title and the titles do not move.</p>
+ * <p>A marker in the empty inset left of the title shows what happens in the background: a spinner while the AI
+ * works, a dot for an unread answer (red for a failure). It takes no space, so the titles do not move.</p>
  *
  * @since 1.7.0
  */
@@ -112,19 +112,21 @@ public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         });
 
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 6.0, 0, 18.0));
+        row.setPadding(new Insets(0, 6.0, 0, BoxInset.LEFT - BoxInset.LIST));
         row.setMinHeight(32.0);
         row.setPrefHeight(32.0);
         row.setMaxHeight(32.0);
         Region spacer = new Region();
         row.getChildren().addAll(titleBox, spacer, trashButton);
 
-        // The marker sits in the left margin and does not take part in the layout of the row
+        // The marker sits in the middle of the inset left of the title, over the cell padding
         spinner.setPrefSize(10.0, 10.0);
         spinner.setMinSize(10.0, 10.0);
         spinner.setMaxSize(10.0, 10.0);
-        markerLayer.setAlignment(Pos.CENTER_LEFT);
-        markerLayer.setPadding(new Insets(0, 0, 0, 3.0));
+        markerLayer.setAlignment(Pos.CENTER);
+        markerLayer.setMaxWidth(BoxInset.LEFT);
+        markerLayer.setTranslateX(-BoxInset.LIST);
+        StackPane.setAlignment(markerLayer, Pos.CENTER_LEFT);
         markerLayer.setMouseTransparent(true);
         markerLayer.setPickOnBounds(false);
         spinner.setVisible(false);

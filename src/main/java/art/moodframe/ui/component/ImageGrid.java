@@ -4,6 +4,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.ThumbnailManager;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.VideoPoster;
 import javafx.application.Platform;
@@ -60,10 +61,10 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageGrid.class);
 
-    /*  The gap between the cells across and down; the cells start on the line of the images of the chat view, the
-        vertical scroll bar takes at most 14 px  */
+    /*  The gap between the cells across and down; the cells start on the inset of the boxes (behind the 1 px border
+        of the list), the vertical scroll bar takes at most 14 px  */
     private static final double GAP = 10.0;
-    private static final double SIDE_INSET = 31.0;
+    private static final double SIDE_INSET = BoxInset.LEFT - 1.0;
     private static final double SCROLL_BAR = 14.0;
     private static final int MIN_COLUMNS = 2;
     private static final double TILE_RADIUS = 8.0;

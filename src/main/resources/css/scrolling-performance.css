@@ -92,10 +92,9 @@
     -fx-block-increment: 200;
 }
 
-/* Cell styling - must fill width */
+/* Cell styling - must fill width; the padding is set by the controller, the cards start on the inset of the boxes */
 .chat-entries-list .list-cell {
     -fx-background-color: transparent;
-    -fx-padding: 5 10 5 10;
     /* Prevent cell from expanding beyond ListView width */
     -fx-max-width: infinity;
 }

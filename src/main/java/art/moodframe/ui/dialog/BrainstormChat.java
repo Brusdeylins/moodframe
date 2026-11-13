@@ -3,6 +3,7 @@ package art.moodframe.ui.dialog;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
+import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.cell.BrainstormMarker;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -51,7 +52,7 @@ public class BrainstormChat {
 
     BrainstormChat(BrainstormSession session) {
         this.session = session;
-        messageBox.setPadding(new Insets(15.0));
+        messageBox.setPadding(new Insets(15.0, 15.0, 15.0, BoxInset.LEFT));
     }
 
     public ObjectProperty<BrainstormMarker> markerProperty() {

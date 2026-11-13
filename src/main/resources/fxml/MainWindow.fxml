@@ -22,11 +22,11 @@
     <BorderPane fx:id="mainBorderPane">
 
     <!-- Header Section: the "M" of the logo starts on the line of the heading and the names of the left sidebar,
-         1 px further in for the side bearing of their letters -->
+         1 px further in for the side bearing of their letters (left padding set by the controller) -->
     <top>
-        <HBox spacing="10.0" alignment="CENTER_LEFT" styleClass="bg-inset">
+        <HBox fx:id="appHeader" spacing="10.0" alignment="CENTER_LEFT" styleClass="bg-inset">
             <padding>
-                <Insets bottom="10.0" left="47.0" right="20.0" top="10.0" />
+                <Insets bottom="10.0" right="20.0" top="10.0" />
             </padding>
             
             <!-- Wordmark; the version number sits on the baseline of "FRAME" -->
@@ -73,10 +73,10 @@
                 </padding>
 
                 <!-- Chat Controls Row: height and padding like the chat header, so both headings share one line; the
-                     heading starts on the line of the names in the list (1 px border, 7 px cell padding, 28 px indent) -->
-                <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+                     heading starts on the inset of the boxes, the line of the names in the list (set by the controller) -->
+                <HBox fx:id="sidebarHeader" spacing="5.0" alignment="CENTER_LEFT" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                     <padding>
-                        <Insets top="10.0" bottom="15.0" left="36.0" />
+                        <Insets top="10.0" bottom="15.0" />
                     </padding>
                     <!-- The current view of the list: chats, moods or frames -->
                     <Label fx:id="sidebarTitleLabel" text="Chats" styleClass="title-4" />
@@ -140,13 +140,12 @@
                 <BorderPane HBox.hgrow="ALWAYS">
                     
                     <!-- Chat Header: height and padding like the controls row of the sidebar; the title starts on the
-                         left edge of the cards in the chat area, 1 px further out for the side bearing of its letters
-                         (in the images view on the edge of the first column, set by the controller), the costs on the
-                         baseline of the title -->
+                         left edge of the cards and of the first column of images, 1 px further out for the side bearing
+                         of its letters (set by the controller), the costs on the baseline of the title -->
                     <top>
                         <HBox fx:id="chatHeader" alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>
-                                <Insets left="10.0" right="20.0" top="10.0" bottom="15.0" />
+                                <Insets right="20.0" top="10.0" bottom="15.0" />
                             </padding>
                             <HBox alignment="BASELINE_LEFT" spacing="10.0" maxHeight="-Infinity" HBox.hgrow="ALWAYS">
                                 <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-4" />
