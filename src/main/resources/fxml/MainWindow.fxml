@@ -16,7 +16,7 @@
            fx:controller="art.moodframe.ui.controller.MainWindowController"
            prefHeight="800.0" prefWidth="1200.0"
            styleClass="app-root"
-           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css,@../css/main-window.css,@../css/split-pane-grips.css">
+           stylesheets="@../css/drag-drop-styles.css,@../css/memory-status.css,@../css/scrolling-performance.css,@../css/logo-colors.css,@../css/main-window.css,@../css/split-pane-grips.css">
     
     <!-- Main Application Content -->
     <BorderPane fx:id="mainBorderPane">

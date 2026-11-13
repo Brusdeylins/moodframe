@@ -33,8 +33,10 @@ final class BrainstormVideoCard extends HBox {
 
     private static final double IMAGE_WIDTH = 128.0;
     private static final double IMAGE_HEIGHT = 72.0;
-    private static final String CHIP_STYLE = "-fx-background-color: #ff6b4a; -fx-background-radius: 10; "
-            + "-fx-padding: 1 8 1 8; -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold;";
+
+    /*  The chip is orange like the mood badges and, as they do, takes dark text (6.7:1) in every theme  */
+    private static final String CHIP_STYLE = "-fx-background-color: -logo-orange; -fx-background-radius: 10; "
+            + "-fx-padding: 1 8 1 8; -fx-text-fill: #0d1117; -fx-font-size: 11px; -fx-font-weight: bold;";
 
     private final BrainstormService service;
     private final ImageView preview = new ImageView();

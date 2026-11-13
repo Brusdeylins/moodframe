@@ -1,0 +1,7 @@
+/*  The colors of the wordmark from left to right (as in Wordmark and wordmark.svg), the same in all themes, for the
+    main window and the brainstorm dialog  */
+.root {
+    -logo-orange: #ff6b4a;
+    -logo-green:  #2fb8a6;
+    -logo-blue:   #5b6ee1;
+}

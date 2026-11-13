@@ -28,3 +28,9 @@
     -fx-background-color: -color-accent-emphasis;
     -fx-opacity: 1;
 }
+
+/*  As root of a window (the brainstorm dialog), the split pane paints the background of the window as the root of
+    the main window does; transparent, the white fill of the scene would show in the gaps  */
+.root.grip-split-pane {
+    -fx-background-color: -color-bg-inset;
+}

@@ -13,16 +13,22 @@ import art.moodframe.service.BrainstormService;
 import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.GeminiApiService;
 import art.moodframe.util.I18nManager;
+import art.moodframe.util.ThemeManager;
+import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
+import javafx.scene.layout.Region;
+import javafx.scene.paint.Paint;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -125,6 +131,53 @@ class BrainstormDialogTest {
         assertTrue(stylesheets.get().stream().anyMatch((sheet) -> sheet.endsWith("/css/split-pane-grips.css")));
         assertEquals(3, baselines.get().size(), "history, chat and result have a heading each");
         assertEquals(1, baselines.get().stream().distinct().count(), "the headings share one baseline");
+    }
+
+    @Test
+    void paintsTheBackgroundOfTheThemeBehindTheDividersInEveryTheme() throws Exception {
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        when(repository.findAllSessions()).thenReturn(List.of());
+        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<List<String>> mismatches = new AtomicReference<>(List.of());
+        CountDownLatch done = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            String previous = Application.getUserAgentStylesheet();
+            try {
+                List<String> found = new ArrayList<>();
+                for (String theme : ThemeManager.getAvailableThemes()) {
+                    Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
+                    BrainstormDialog dialog = new BrainstormDialog(null, service, context,
+                            GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                    Region root = (Region) dialog.getScene().getRoot();
+                    root.applyCss();
+                    Region probe = new Region();
+                    probe.setStyle("-fx-background-color: -color-bg-inset;");
+                    new Scene(probe);
+                    probe.applyCss();
+                    Paint expected = probe.getBackground().getFills().get(0).getFill();
+                    Paint painted = root.getBackground() != null ? root.getBackground().getFills().get(0).getFill()
+                            : null;
+                    if (!expected.equals(painted))
+                        found.add(theme + ": " + painted + " instead of " + expected);
+                }
+                mismatches.set(found);
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                Application.setUserAgentStylesheet(previous);
+                done.countDown();
+            }
+        });
+
+        assertTrue(done.await(30, TimeUnit.SECONDS), "the dialogs were not built in time");
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+        assertEquals(List.of(), mismatches.get(), "the gaps of the dividers show the window background, not white");
     }
 
     @Test

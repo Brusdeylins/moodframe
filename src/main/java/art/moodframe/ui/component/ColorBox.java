@@ -133,7 +133,9 @@ public class ColorBox extends StackPane {
      * Shows the empty (crossed-out) state.
      */
     private void showEmpty() {
-        colorRect.setFill(Color.WHITE);
+
+        /*  the field behind shows through, in the color of the theme  */
+        colorRect.setFill(Color.TRANSPARENT);
         crossLine1.setVisible(true);
         crossLine2.setVisible(true);
         Tooltip.install(this, new Tooltip("-"));

@@ -1,10 +1,3 @@
-/*  The colors of the wordmark from left to right (as in Wordmark and wordmark.svg), the same in both themes  */
-.app-root {
-    -logo-orange: #ff6b4a;
-    -logo-green:  #2fb8a6;
-    -logo-blue:   #5b6ee1;
-}
-
 /*  The main window paints its background once, on the root; the panels above it are transparent, so the
     corner cloud behind them shows through. Controls, the chat list and images keep their own background.  */
 .app-root {

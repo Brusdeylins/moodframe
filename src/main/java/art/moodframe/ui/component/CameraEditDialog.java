@@ -221,7 +221,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         promptArea.setPrefRowCount(3);
         promptArea.setFocusTraversable(false);
 
-        validationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #d32f2f;");
+        validationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-danger-fg;");
         validationLabel.setWrapText(true);
         validationLabel.setVisible(false);
         validationLabel.setManaged(false);

@@ -211,7 +211,8 @@ public class BrainstormDialog extends Stage {
         SplitPane.setResizableWithParent(history, false);
         SplitPane.setResizableWithParent(result, false);
         setScene(new Scene(root, DIALOG_WIDTH, DIALOG_HEIGHT));
-        getScene().getStylesheets().add(
+        getScene().getStylesheets().addAll(
+                BrainstormDialog.class.getResource("/css/logo-colors.css").toExternalForm(),
                 BrainstormDialog.class.getResource("/css/split-pane-grips.css").toExternalForm());
         setMinWidth(800);
         setMinHeight(520);
@@ -759,7 +760,7 @@ public class BrainstormDialog extends Stage {
         label.setWrapText(true);
         label.setMaxWidth(520.0);
         label.setStyle(BUBBLE_STYLE + (fromUser
-                ? "-fx-background-color: -color-accent-emphasis; -fx-text-fill: white;"
+                ? "-fx-background-color: -color-accent-emphasis; -fx-text-fill: -color-fg-emphasis;"
                 : "-fx-background-color: -color-bg-subtle;"));
         HBox row = new HBox(label);
         row.setAlignment(fromUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
