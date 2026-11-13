@@ -1,3 +1,10 @@
+/*  The colors of the wordmark from left to right (as in Wordmark and wordmark.svg), the same in both themes  */
+.app-root {
+    -logo-orange: #ff6b4a;
+    -logo-green:  #2fb8a6;
+    -logo-blue:   #5b6ee1;
+}
+
 /*  The main window paints its background once, on the root; the panels above it are transparent, so the
     corner cloud behind them shows through. Controls, the chat list and images keep their own background.  */
 .app-root {
@@ -123,15 +130,15 @@
 }
 
 /*  The groups of the right panel: foldable cards with the translucent background and the border of the chat list
-    and the chat area, the color of their group only in the mark left in the header  */
+    and the chat area, the color of their group only in the mark left in the header, in the order of the wordmark  */
 .panel-group-mood {
-    -panel-group-color: -color-chart-6;
+    -panel-group-color: -logo-orange;
 }
 .panel-group-frame {
-    -panel-group-color: -color-chart-4;
+    -panel-group-color: -logo-green;
 }
 .panel-group-gen {
-    -panel-group-color: -color-chart-8;
+    -panel-group-color: -logo-blue;
 }
 .panel-group {
     -fx-background-color: -color-bg-default;
