@@ -18,15 +18,19 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.IndexedCell;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.skin.VirtualFlow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -50,13 +54,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * The images view of a chat or a group: all its images in a grid, the newest first, without text and without card.
- * Each image keeps its aspect ratio within a square cell; the cells fill the width in as many columns as the chosen
- * size allows. While the pointer is over an image, the action bar shows at its top and the mood and frame of its
- * entry at its bottom; a double click opens it in the full view. Images in generation show as placeholders, failed
- * ones as error tiles in their place.
+ * The images view of a chat or a group: all its images in a grid in the order of the chat, the newest last, without
+ * text and without card. Each image keeps its aspect ratio within a square cell; the cells fill the width in as many
+ * columns as the chosen size allows. While the pointer is over an image, the action bar shows at its top and the mood
+ * and frame of its entry at its bottom; a double click opens it in the full view. Images in generation show as
+ * placeholders, failed ones as error tiles in their place.
  *
- * <p>The grid is a list of rows, so only the rows in view hold tiles, and the tiles show the thumbnails.</p>
+ * <p>The grid is a list of rows, so only the rows in view hold tiles, and the tiles show the thumbnails. It opens at
+ * its end and stays there while images arrive, unless the user scrolled away from it.</p>
  *
  * @since 2.0.0
  */
@@ -93,6 +98,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     private final ListChangeListener<GeneratedImage> onImagesChange = (change) -> requestRebuild();
     private ObservableList<ChatEntry> followed;
     private int columns = 0;
+    private boolean atEnd = true;
 
     private Consumer<Item> onOpen;
     private BiConsumer<Item, ImageActionBar.Action> onAction;
@@ -117,6 +123,36 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         widthProperty().addListener((obs) -> layoutRows(false));
         tileSize.addListener((obs) -> layoutRows(false));
         maxTileSize.addListener((obs) -> layoutRows(false));
+
+        /*  Scrolling away from the end, by wheel or scroll bar, lets the grid stay where the user left it; while the
+            user scrolls, the grid does not follow its end  */
+        addEventFilter(ScrollEvent.SCROLL, (event) -> {
+            atEnd = false;
+            Platform.runLater(() -> atEnd = isAtEnd());
+        });
+        addEventFilter(MouseEvent.MOUSE_PRESSED, (event) -> atEnd = false);
+        addEventFilter(MouseEvent.MOUSE_RELEASED, (event) -> Platform.runLater(() -> atEnd = isAtEnd()));
+    }
+
+    /*  The rows are counted anew first, so new rows at the end stay in view  */
+    @Override
+    protected void layoutChildren() {
+        super.layoutChildren();
+        if (atEnd && lookup(".virtual-flow") instanceof VirtualFlow<?> flow)
+            flow.setPosition(1.0);
+    }
+
+    /**
+     * Whether the last row is in view, so the grid keeps it in view while images arrive.
+     *
+     * @return true if the last row is in view or the grid shows nothing yet
+     */
+    private boolean isAtEnd() {
+        if (!(lookup(".virtual-flow") instanceof VirtualFlow<?> flow))
+            return true;
+        IndexedCell<?> last = flow.getLastVisibleCell();
+        return last == null || last.getIndex() == flow.getCellCount() - 1
+                && last.getLayoutY() + last.getHeight() <= flow.getHeight() + 1.0;
     }
 
     /**
@@ -135,8 +171,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     }
 
     /**
-     * The entries of the chat or the group, the oldest first, null for none; the grid shows their images, the newest
-     * first, and follows their changes.
+     * The entries of the chat or the group, the oldest first, null for none; the grid shows their images in this
+     * order and follows their changes.
      *
      * @return the entries
      */
@@ -144,21 +180,21 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         return entries;
     }
 
-    /** Shows the images of the new entries and follows their changes instead of those of the last ones. */
+    /** Shows the images of the new entries at the end and follows their changes instead of those of the last ones. */
     private void followEntries() {
         if (followed != null)
             followed.removeListener(onEntriesChange);
         followed = entries.get();
         if (followed != null)
             followed.addListener(onEntriesChange);
+        atEnd = true;
         rebuild();
-        scrollTo(0);
     }
 
     /**
      * The images of the grid in their order, for the full view.
      *
-     * @return the images, the newest first
+     * @return the images, the oldest first as in the chat
      */
     public List<Item> getImages() {
         return Collections.unmodifiableList(images);
@@ -190,14 +226,13 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             Platform.runLater(this::rebuild);
     }
 
-    /** Collects the images of the entries, the newest entry first. */
+    /** Collects the images of the entries in the order of the chat, the oldest entry first. */
     private void rebuild() {
         watched.forEach((list) -> list.removeListener(onImagesChange));
         watched.clear();
         images.clear();
         if (followed != null) {
-            for (int i = followed.size() - 1; i >= 0; i--) {
-                ChatEntry entry = followed.get(i);
+            for (ChatEntry entry : followed) {
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
                 for (GeneratedImage image : entry.getImages())
