@@ -407,6 +407,8 @@ public class DatabaseManager {
                     "V023__Add_frame_resolution.sql"));
             migrations.add(new Migration("024", "Add_frame_to_chat_entries",
                     "V024__Add_frame_to_chat_entries.sql"));
+            migrations.add(new Migration("025", "Number_chats",
+                    "V025__Number_chats.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

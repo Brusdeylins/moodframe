@@ -132,6 +132,35 @@ public class ChatRepository {
     }
 
     /**
+     * Stores the place of each chat in the list in one transaction, leaving its other columns alone; a chat that is
+     * not stored yet is skipped.
+     *
+     * @param chats the chats with their sort order
+     * @throws SQLException if the update fails
+     */
+    public void updateChatSortOrders(List<Chat> chats) throws SQLException {
+        String sql = "UPDATE chats SET sort_order = ? WHERE id = ?";
+
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            conn.setAutoCommit(false);
+            try {
+                for (Chat chat : chats) {
+                    stmt.setInt(1, chat.getSortOrder());
+                    stmt.setString(2, chat.getId());
+                    stmt.addBatch();
+                }
+                stmt.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        }
+    }
+
+    /**
      * Finds a chat by ID.
      * 
      * @param chatId the chat ID

@@ -2,10 +2,14 @@ package art.moodframe.ui.cell;
 
 import art.moodframe.model.Chat;
 import art.moodframe.ui.component.InPlaceEditableLabel;
+import javafx.event.Event;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -18,7 +22,8 @@ import java.util.function.Consumer;
  * 
  * <p>
  * This cell displays the name of an active chat and provides the
- * actions to rename it and to move it to the trash.
+ * actions to rename it and to move it to the trash. Its grip on the left
+ * moves the chat to another place in the list (see {@link ChatListReorder}).
  * </p>
  * 
  * @since 1.0.0
@@ -30,6 +35,7 @@ public class ChatListCell extends ListCell<Chat> {
     private final InPlaceEditableLabel nameLabel;
     private final Label statusLabel;
     private final Button trashButton;
+    private final Label grip;
 
     private Consumer<Chat> onDeleteRequested;
     private Consumer<Chat> onChatRenamed;
@@ -67,6 +73,18 @@ public class ChatListCell extends ListCell<Chat> {
         statusLabel.getStyleClass().addAll("text-muted", "text-small");
         statusLabel.setVisible(false);
 
+        /*  The grip shows on hover only, like the trash button, but keeps its space, so the name does not move;
+            pressing it does not select the chat  */
+        FontIcon gripIcon = new FontIcon("mdi2d-drag-vertical");
+        gripIcon.setIconSize(14);
+        grip = new Label(null, gripIcon);
+        grip.getStyleClass().add("text-muted");
+        grip.setMinWidth(14);
+        grip.setMaxHeight(Double.MAX_VALUE);
+        grip.setCursor(Cursor.OPEN_HAND);
+        grip.setVisible(false);
+        grip.addEventHandler(MouseEvent.MOUSE_PRESSED, Event::consume);
+
         // Create layout
         headerRow = new HBox(6.0); // Reduced spacing for compactness
         headerRow.setAlignment(Pos.CENTER_LEFT); // Center children vertically, left align horizontally
@@ -86,13 +104,13 @@ public class ChatListCell extends ListCell<Chat> {
         // Set vertical alignment for all header components
         HBox.setHgrow(nameLabel, Priority.ALWAYS);
 
-        headerRow.getChildren().addAll(nameLabel, spacer, trashButton);
+        headerRow.getChildren().addAll(grip, nameLabel, spacer, trashButton);
 
         // Vertical centering is handled by HBox.setAlignment(Pos.CENTER_LEFT)
 
         content = new VBox(0); // No spacing between VBox children
         content.setAlignment(Pos.CENTER_LEFT); // Center content vertically
-        content.setPadding(new Insets(0, 12.0, 0, 12.0)); // Remove top/bottom padding, keep left/right
+        content.setPadding(new Insets(0, 12.0, 0, 0)); // Remove top/bottom padding, the grip takes the left one
         content.setMinHeight(32.0); // Match HBox height
         content.setPrefHeight(32.0); // Set preferred height for compact layout
         content.setMaxHeight(32.0); // Prevent expansion
@@ -106,10 +124,11 @@ public class ChatListCell extends ListCell<Chat> {
         setupMouseHandling();
         setupEventHandlers();
 
-        // The trash button is only visible while the mouse is over the row
+        // The trash button and the grip are only visible while the mouse is over the row
         hoverProperty().addListener((obs, wasHover, isHover) -> {
             if (getItem() != null) {
                 trashButton.setVisible(isHover);
+                grip.setVisible(isHover);
             }
         });
     }
@@ -210,8 +229,9 @@ public class ChatListCell extends ListCell<Chat> {
         // Update name
         nameLabel.setText(chat.getName());
 
-        // The trash button is only visible while hovered
+        // The trash button and the grip are only visible while hovered
         trashButton.setVisible(isHover());
+        grip.setVisible(isHover());
 
         // Update selection styling
         selectedProperty().addListener((obs, wasSelected, isSelected) -> {
@@ -221,6 +241,11 @@ public class ChatListCell extends ListCell<Chat> {
                 content.getStyleClass().remove("selected");
             }
         });
+    }
+
+    /** The grip that drags the chat to another place in the list. */
+    Node getGrip() {
+        return grip;
     }
 
     // Callback setters

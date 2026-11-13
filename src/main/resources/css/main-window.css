@@ -137,6 +137,10 @@
     -fx-icon-color: -color-accent-fg;
 }
 
+/*  The line where a dragged chat lands, between two rows of the chat list  */
+.chat-drop-line {
+    -fx-background-color: -color-accent-emphasis;
+}
 /*  The header of a group in a building block list: not selectable, but readable  */
 .list-cell.block-row-header:disabled {
     -fx-opacity: 1;

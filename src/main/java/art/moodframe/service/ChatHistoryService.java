@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -299,8 +300,10 @@ public class ChatHistoryService {
 
         // Filter out empty deleted chats before adding to the list
         // Empty deleted chats should not be kept in memory to prevent UI issues
+        /*  The chats in the trash keep their place in the order, so a restored chat shows where it was  */
         List<Chat> chatsToKeep = persistedChats.stream()
                 .filter(chat -> !chat.isDeleted() || !chat.getEntries().isEmpty())
+                .sorted(Comparator.comparingInt(Chat::getSortOrder))
                 .collect(Collectors.toList());
 
         return new History(chatsToKeep, persistedChats.isEmpty());
@@ -354,6 +357,30 @@ public class ChatHistoryService {
 
     public void saveChat(Chat chat) throws SQLException {
         chatRepository.saveChat(chat);
+    }
+
+    /**
+     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow.
+     *
+     * @param chats  all chats of the list in their order, also the hidden ones in the trash
+     * @param chat   the chat to move
+     * @param before the chat it goes in front of, null for the end of the list
+     * @throws SQLException if the order cannot be stored; the chats keep their new numbers anyway
+     */
+    public void moveChat(List<Chat> chats, Chat chat, Chat before) throws SQLException {
+        if (chat == before)
+            return;
+        List<Chat> order = new ArrayList<>(chats);
+        order.remove(chat);
+        order.add(before != null ? order.indexOf(before) : order.size(), chat);
+        for (int i = 0; i < order.size(); i++)
+            order.get(i).setSortOrder(i);
+        chatRepository.updateChatSortOrders(order);
+    }
+
+    /** The sort order that puts a new chat on top of the list: one less than the smallest one. */
+    public static int sortOrderOnTop(List<Chat> chats) {
+        return chats.stream().mapToInt(Chat::getSortOrder).min().orElse(1) - 1;
     }
 
     public void saveChatEntry(ChatEntry entry) throws SQLException {

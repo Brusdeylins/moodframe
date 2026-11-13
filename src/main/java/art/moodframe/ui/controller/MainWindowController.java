@@ -22,6 +22,7 @@ import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.MoodListCell;
 import art.moodframe.ui.cell.ChatListCell;
+import art.moodframe.ui.cell.ChatListReorder;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import javafx.application.Platform;
@@ -406,6 +407,9 @@ public class MainWindowController implements I18nChangeListener {
     private Chat currentChat;
     private boolean wasScrolledToBottom = true; // Track if user was at bottom before update
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
+
+    /*  A guard while the chats get a new order: the list keeps its selection without opening the chat again  */
+    private boolean reorderingChats;
 
     // Services
     private art.moodframe.service.RequestResponseManager requestResponseManager;
@@ -1496,7 +1500,10 @@ public class MainWindowController implements I18nChangeListener {
             if (chat == null)
                 return;
 
-            chatList.add(chat);
+            /*  It goes back to its place in the order  */
+            int sortOrder = chat.getSortOrder();
+            chatList.add((int) chatList.stream().filter((listed) -> listed.getSortOrder() <= sortOrder).count(),
+                    chat);
         }
 
         // Refresh filter to show the restored chat in active list
@@ -3285,19 +3292,22 @@ public class MainWindowController implements I18nChangeListener {
 
         // Setup chat list view with filtered list
         chatListView.setItems(filteredChatList);
+        ChatListReorder reorder = new ChatListReorder(chatListView, this::moveChat);
         chatListView.setCellFactory(listView -> {
             ChatListCell cell = new ChatListCell();
 
             // Set up chat action callbacks
             cell.setOnDeleteRequested(this::onChatDeleteRequested);
             cell.setOnChatRenamed(this::onChatRenamed);
+            reorder.attach(cell);
 
             return cell;
         });
 
         // Setup chat selection handling
         chatListView.getSelectionModel().selectedItemProperty().addListener((obs, oldChat, newChat) -> {
-            onChatSelected(newChat);
+            if (!reorderingChats)
+                onChatSelected(newChat);
         });
 
         // Setup virtualized ListView for ChatEntries (replaces VBox for performance)
@@ -3838,6 +3848,27 @@ public class MainWindowController implements I18nChangeListener {
             logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
             setStatus(I18nManager.getText("status.error.chat.deletion"));
         }
+    }
+
+    /**
+     * Moves a chat to a gap between the shown chats (0 above the first one) and stores the order of all chats. The
+     * list sorts itself anew, keeping the selected chat without opening it again.
+     *
+     * @param chat the chat to move
+     * @param gap  the gap it goes to
+     */
+    private void moveChat(Chat chat, int gap) {
+        if (chatHistory == null)
+            return;
+        Chat before = gap < filteredChatList.size() ? filteredChatList.get(gap) : null;
+        try {
+            chatHistory.moveChat(chatList, chat, before);
+        } catch (Exception e) {
+            logger.error("Failed to store the order of the chats", e);
+        }
+        reorderingChats = true;
+        FXCollections.sort(chatList, java.util.Comparator.comparingInt(Chat::getSortOrder));
+        reorderingChats = false;
     }
 
     /**
@@ -4729,6 +4760,7 @@ public class MainWindowController implements I18nChangeListener {
         // Create new chat
         Chat newChat = new Chat.Builder()
                 .name("New Chat " + (chatList.size() + 1))
+                .sortOrder(ChatHistoryService.sortOrderOnTop(chatList))
                 .build();
 
         // Add to beginning of list
