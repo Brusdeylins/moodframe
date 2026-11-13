@@ -110,8 +110,13 @@ public final class AspectRatios {
         return nearest(target, forItem(item));
     }
 
-    /** Width by height of a ratio like {@code 16:9}, 1 for a ratio that cannot be read. */
-    private static double value(String ratio) {
+    /**
+     * Width by height of a ratio.
+     *
+     * @param ratio the ratio, for example {@code 16:9}
+     * @return width by height, 1 for a ratio that cannot be read
+     */
+    public static double value(String ratio) {
         String[] parts = ratio != null ? ratio.split(":") : new String[0];
         try {
             double value = parts.length == 2 ? Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]) : 1.0;

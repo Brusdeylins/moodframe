@@ -22,12 +22,15 @@
     -fx-padding: 0;
 }
 
-/*  An image in generation or without its file  */
+/*  An image in generation or without its file, or failed with an icon of danger  */
 .image-grid-placeholder {
     -fx-background-color: -color-bg-subtle;
 }
 .image-grid-placeholder .ikonli-font-icon {
     -fx-icon-color: -color-fg-muted;
+}
+.image-grid-failed .ikonli-font-icon {
+    -fx-icon-color: -color-danger-fg;
 }
 .image-grid-play {
     -fx-icon-color: white;

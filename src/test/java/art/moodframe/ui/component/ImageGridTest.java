@@ -104,6 +104,32 @@ class ImageGridTest {
     }
 
     @Test
+    void aFailedImageShowsAsErrorTileInThePlaceOfItsPlaceholder() throws Exception {
+        ChatEntry entry = new ChatEntry.Builder().userPrompt("a lighthouse at dusk").model("Nano Banana Pro").build();
+        GeneratedImage failing = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.PENDING)
+                .build();
+        entry.addImage(failing);
+        entry.addImage(new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.PENDING).build());
+        ImageGrid grid = onFxThread(() -> {
+            ImageGrid shown = new ImageGrid((image) -> null);
+            new Scene(new StackPane(shown), 900, 600);
+            shown.entriesProperty().set(FXCollections.observableArrayList(entry));
+            return shown;
+        });
+        int generating = onFxThread(() -> tiles(grid));
+
+        onFxThread(() -> {
+            failing.setErrorMessage("Blocked by the safety filter");
+            failing.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+            return null;
+        });
+        int[] failed = onFxThread(() -> new int[] { tiles(grid), grid.lookupAll(".image-grid-failed").size() });
+        assertEquals(2, generating);
+        assertEquals(2, failed[0]);
+        assertEquals(1, failed[1]);
+    }
+
+    @Test
     void theLineOfAnImageNamesMoodFrameAndModel() {
         GenerationModel model = GenerationModel.getDefault();
         ChatEntry entry = new ChatEntry.Builder().userPrompt("a harbor at dawn")

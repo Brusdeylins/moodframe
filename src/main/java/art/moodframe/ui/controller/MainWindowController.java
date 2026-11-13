@@ -37,12 +37,15 @@ import javafx.collections.transformation.FilteredList;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.*;
+import javafx.scene.control.skin.VirtualFlow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
@@ -434,7 +437,10 @@ public class MainWindowController implements I18nChangeListener {
     private ObservableList<Chat> chatList;
     private FilteredList<Chat> filteredChatList;
     private Chat currentChat;
-    private boolean wasScrolledToBottom = true; // Track if user was at bottom before update
+
+    /*  The chat keeps its end in view while the images of a new entry arrive: from sending until the user scrolls
+        away from the end  */
+    private boolean wasScrolledToBottom = false;
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
 
     /*  A guard while the chats get a new order: the list keeps its selection without opening the chat again  */
@@ -1528,6 +1534,8 @@ public class MainWindowController implements I18nChangeListener {
         // Force refresh by updating the entry in the list
         // ListView will automatically re-render the visible cell
         chatEntriesListView.refresh();
+        if (wasScrolledToBottom)
+            scrollToBottom("entry updated");
 
         // Update total cost after entry update
         if (currentChat != null) {
@@ -1548,6 +1556,7 @@ public class MainWindowController implements I18nChangeListener {
                 refreshGroups();
                 if (shownGroup.holds(chatEntry)) {
                     chatEntriesListView.getItems().add(chatEntry);
+                    wasScrolledToBottom = true;
                     scrollToBottom("new entry added");
                 }
                 return;
@@ -1570,6 +1579,7 @@ public class MainWindowController implements I18nChangeListener {
                 updateChatHeader();
 
                 // Auto-scroll to bottom for new entries
+                wasScrolledToBottom = true;
                 scrollToBottom("new entry added");
 
                 if (config.getLoggingEnabled()) {
@@ -1615,10 +1625,23 @@ public class MainWindowController implements I18nChangeListener {
      * @param timing timing description
      */
     private void performScroll(String reason, String timing) {
-        if (chatEntriesListView != null && chatEntriesListView.getItems() != null
-                && !chatEntriesListView.getItems().isEmpty()) {
-            chatEntriesListView.scrollTo(chatEntriesListView.getItems().size() - 1);
-        }
+        /*  At position 1 the list lays its cells out from the end; scrollTo(last) misjudges cells not measured yet  */
+        if (wasScrolledToBottom && chatEntriesListView != null
+                && chatEntriesListView.lookup(".virtual-flow") instanceof VirtualFlow<?> flow)
+            flow.setPosition(1.0);
+    }
+
+    /**
+     * Whether the end of the last entry is in view, so the chat keeps it in view while images arrive.
+     *
+     * @return true if the end is in view or the list shows nothing yet
+     */
+    private boolean isChatAtEnd() {
+        if (!(chatEntriesListView.lookup(".virtual-flow") instanceof VirtualFlow<?> flow))
+            return true;
+        IndexedCell<?> last = flow.getLastVisibleCell();
+        return last == null || last.getIndex() == flow.getCellCount() - 1
+                && last.getLayoutY() + last.getHeight() <= flow.getHeight() + 1.0;
     }
 
     /**
@@ -3266,6 +3289,16 @@ public class MainWindowController implements I18nChangeListener {
         // CRITICAL: Fix horizontal scrolling - cells must fill width
         // This makes cells take full width and prevents horizontal scroll
         chatEntriesListView.setFixedCellSize(-1); // Variable height cells
+
+        /*  Scrolling away from the end, by wheel or scroll bar, lets the chat stay where the user left it; while the
+            user scrolls, the chat does not follow its end  */
+        chatEntriesListView.addEventFilter(ScrollEvent.SCROLL, (event) -> {
+            wasScrolledToBottom = false;
+            Platform.runLater(() -> wasScrolledToBottom = isChatAtEnd());
+        });
+        chatEntriesListView.addEventFilter(MouseEvent.MOUSE_PRESSED, (event) -> wasScrolledToBottom = false);
+        chatEntriesListView.addEventFilter(MouseEvent.MOUSE_RELEASED,
+                (event) -> Platform.runLater(() -> wasScrolledToBottom = isChatAtEnd()));
 
         /*  Shortcut+C over an entry reuses it ("Reuse"), unless a text field has a selection to copy  */
         KeyCombination reuseKey = new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN);

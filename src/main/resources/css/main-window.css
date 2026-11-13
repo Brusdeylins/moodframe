@@ -228,3 +228,11 @@
     -fx-font-style: italic;
     -fx-font-weight: normal;
 }
+
+/*  An image of a chat entry in generation, muted like in the images view, or failed with an icon of danger  */
+.entry-image-placeholder {
+    -fx-background-color: -color-bg-subtle;
+}
+.entry-image-failed .ikonli-font-icon {
+    -fx-icon-color: -color-danger-fg;
+}

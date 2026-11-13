@@ -53,7 +53,8 @@ import java.util.function.Supplier;
  * The images view of a chat or a group: all its images in a grid, the newest first, without text and without card.
  * Each image keeps its aspect ratio within a square cell; the cells fill the width in as many columns as the chosen
  * size allows. While the pointer is over an image, the action bar shows at its top and the mood and frame of its
- * entry at its bottom; a double click opens it in the full view. Images in generation show as placeholders.
+ * entry at its bottom; a double click opens it in the full view. Images in generation show as placeholders, failed
+ * ones as error tiles in their place.
  *
  * <p>The grid is a list of rows, so only the rows in view hold tiles, and the tiles show the thumbnails.</p>
  *
@@ -189,7 +190,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             Platform.runLater(this::rebuild);
     }
 
-    /** Collects the images of the entries, the newest entry first; a failed image is left out. */
+    /** Collects the images of the entries, the newest entry first. */
     private void rebuild() {
         watched.forEach((list) -> list.removeListener(onImagesChange));
         watched.clear();
@@ -199,10 +200,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
                 ChatEntry entry = followed.get(i);
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
-                for (GeneratedImage image : entry.getImages()) {
-                    if (image.getDownloadStatus() != GeneratedImage.DownloadStatus.FAILED)
-                        images.add(new Item(entry, image));
-                }
+                for (GeneratedImage image : entry.getImages())
+                    images.add(new Item(entry, image));
             }
         }
         layoutRows(true);
@@ -254,12 +253,10 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             for (Item item : row) {
                 tiles.getChildren().add(createCell(item));
 
-                /*  A finished image shows in its tile, a failed one leaves the grid  */
+                /*  A finished or failed image takes the place of its placeholder  */
                 ChangeListener<GeneratedImage.DownloadStatus> onStatus = (obs, oldStatus, newStatus) ->
                         Platform.runLater(() -> {
-                            if (newStatus == GeneratedImage.DownloadStatus.FAILED)
-                                rebuild();
-                            else if (row.equals(getItem()))
+                            if (row.equals(getItem()))
                                 show(row);
                         });
                 item.image().downloadStatusProperty().addListener(onStatus);
@@ -271,7 +268,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /**
      * Creates the square cell of an image: the image in its aspect ratio with rounded corners, the action bar at its
-     * top and the dot line at its bottom while the pointer is over it, or a placeholder while it is generated.
+     * top and the dot line at its bottom while the pointer is over it, a placeholder while it is generated, or an
+     * error tile with the message in its tooltip once it failed.
      */
     private StackPane createCell(Item item) {
         StackPane cell = new StackPane();
@@ -281,6 +279,15 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         cell.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
         GeneratedImage image = item.image();
+        if (image.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED) {
+            FontIcon icon = new FontIcon("mdi2a-alert-circle-outline");
+            icon.setIconSize(24);
+            StackPane failed = placeholder(icon);
+            failed.getStyleClass().add("image-grid-failed");
+            Tooltip.install(failed, new Tooltip(ChatEntryCard.failure(image)));
+            cell.getChildren().add(failed);
+            return cell;
+        }
         if (image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED) {
             ProgressIndicator progress = new ProgressIndicator();
             progress.setMaxSize(32, 32);

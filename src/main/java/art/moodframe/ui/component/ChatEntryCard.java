@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.model.ApiProvider;
+import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
@@ -120,9 +121,6 @@ public class ChatEntryCard extends ManagedComponent {
     private final DoubleProperty availableWidth = new SimpleDoubleProperty();
     private final DoubleProperty maxTileSize = new SimpleDoubleProperty(MAX_TILE_SIZE);
     private final DoubleBinding tileWidth;
-
-    // Image loading state
-    private boolean imagesCurrentlyLoaded = false;
 
     // Static counter for total loaded images across all cards
     private static final java.util.concurrent.atomic.AtomicInteger totalLoadedImages = new java.util.concurrent.atomic.AtomicInteger(0);
@@ -407,14 +405,11 @@ public class ChatEntryCard extends ManagedComponent {
                             setupImagePropertyListeners(addedImage);
                         }
 
-                        // Skip rebuild if this is initial load (images going from 0 to N)
-                        // Constructor already called updateContent() -> updateImagesDisplay()
-                        if (change.getFrom() > 0 || imagesCurrentlyLoaded) {
-                            // Real runtime change - rebuild display
-                            updateImagesDisplay();
-                            updateBadgesDisplay();
-                            updateInfoDisplay();
-                        }
+                        /*  The constructor showed the images of that time, so also the first placeholders of a new
+                            request show at once  */
+                        updateImagesDisplay();
+                        updateBadgesDisplay();
+                        updateInfoDisplay();
                     } else if (change.wasRemoved()) {
                         updateImagesDisplay();
                         updateBadgesDisplay();
@@ -686,7 +681,6 @@ public class ChatEntryCard extends ManagedComponent {
     private void updateImagesDisplay() {
         imagesContainer.getChildren().clear();
         imageBars.clear();
-        imagesCurrentlyLoaded = false;
 
         if (chatEntry.getImages().isEmpty()) {
             imagesContainer.setVisible(false);
@@ -696,15 +690,12 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.setVisible(true);
         for (int i = 0; i < chatEntry.getImages().size(); i++)
             imagesContainer.getChildren().add(createImageTile(chatEntry.getImages().get(i), i));
-
-        // Mark as loaded
-        imagesCurrentlyLoaded = true;
     }
 
     /**
-     * Creates the tile of an image: the image with rounded corners, a loading overlay while it is generated or
-     * downloaded, and the action bar at its top while the pointer is over it. Size, format and seed show in its
-     * tooltip, "Mood from image" and "Copy seed" in its context menu.
+     * Creates the tile of an image: the image with rounded corners, a muted placeholder with a progress while it is
+     * generated or downloaded, or with an icon once it failed, and the action bar at its top while the pointer is over
+     * it. Size, format and seed show in its tooltip, "Mood from image" and "Copy seed" in its context menu.
      *
      * @param generatedImage the generated image
      * @param imageIndex     the index of this image in the chat entry
@@ -719,21 +710,15 @@ public class ChatEntryCard extends ManagedComponent {
 
         // Create loading indicator for each image
         ProgressIndicator imageProgressIndicator = new ProgressIndicator();
-        imageProgressIndicator.setMaxSize(40, 40);
+        imageProgressIndicator.setMaxSize(32, 32);
         imageProgressIndicator.setVisible(false); // Initially hidden
 
-        // Create loading overlay
+        /*  The placeholder covers the whole tile  */
         VBox loadingOverlay = new VBox(8.0);
         loadingOverlay.setAlignment(Pos.CENTER);
         loadingOverlay.setVisible(false); // Initially hidden
-        loadingOverlay.getStyleClass().add("bg-default");
-        loadingOverlay.setStyle("-fx-background-color: rgba(0,0,0,0.7);");
-
-        Label loadingLabel = new Label(I18nManager.getText("status.generating"));
-        loadingLabel.getStyleClass().addAll("text-default", "text-small");
-        loadingLabel.setStyle("-fx-text-fill: white;");
-
-        loadingOverlay.getChildren().addAll(imageProgressIndicator, loadingLabel);
+        loadingOverlay.getStyleClass().add("entry-image-placeholder");
+        loadingOverlay.getChildren().add(imageProgressIndicator);
 
         // Check if image is available for actions
         boolean imageAvailable = generatedImage.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED &&
@@ -747,9 +732,19 @@ public class ChatEntryCard extends ManagedComponent {
         // Set up image based on download status
         updateImageDisplay(generatedImage, imageView, loadingOverlay, imageProgressIndicator);
 
-        /*  The tile is as large as the image, its corners rounded by a clip  */
+        /*  The tile is as large as the image, its corners rounded by a clip; in the aspect ratio of the image, the
+            placeholder already has the size of the finished image, so the entry keeps its height  */
         StackPane tile = new StackPane(imageView, loadingOverlay);
         tile.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        Double ratio = ratioOf(generatedImage);
+        if (ratio != null || generatedImage.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED) {
+            double shape = ratio != null ? ratio : 1.0;
+            DoubleBinding width = Bindings.createDoubleBinding(
+                    () -> Math.min(tileWidth.get(), maxTileSize.get() * shape), tileWidth, maxTileSize);
+            tile.prefWidthProperty().bind(width);
+            tile.prefHeightProperty().bind(width.divide(shape));
+            tile.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        }
         Rectangle clip = new Rectangle();
         clip.setArcWidth(2 * TILE_RADIUS);
         clip.setArcHeight(2 * TILE_RADIUS);
@@ -781,6 +776,21 @@ public class ChatEntryCard extends ManagedComponent {
             imageView.setOnContextMenuRequested((event) -> showImageMenu(generatedImage, event));
 
         return tile;
+    }
+
+    /**
+     * The aspect ratio of the tile of an image: its pixel size once known, else the ratio it is generated in, of the
+     * image itself, of the model or of the frame of the entry.
+     *
+     * @return width by height, null if unknown
+     */
+    private Double ratioOf(GeneratedImage image) {
+        if (image.getWidth() > 0 && image.getHeight() > 0)
+            return (double) image.getWidth() / image.getHeight();
+        String ratio = image.getAspectRatio() != null ? image.getAspectRatio()
+                : chatEntry.getSize() != null ? chatEntry.getSize()
+                : chatEntry.getFrame() != null ? chatEntry.getFrame().aspectRatio() : null;
+        return ratio != null ? AspectRatios.value(ratio) : null;
     }
 
     /** Carries out an action of the action bar of an image. */
@@ -868,6 +878,19 @@ public class ChatEntryCard extends ManagedComponent {
             details.append(String.format("%nTotal: $%.2f", baseCost + searchCost + reasoningCost));
         }
         return details.toString();
+    }
+
+    /**
+     * Why an image failed, for the tooltip of its tile.
+     *
+     * @param generatedImage the failed image
+     * @return its error message or reason, else the failed status
+     */
+    static String failure(GeneratedImage generatedImage) {
+        String message = generatedImage.getErrorMessage();
+        if (message == null || message.isBlank())
+            message = generatedImage.getFailureReason();
+        return message != null && !message.isBlank() ? message : I18nManager.getText("entry.status.failed");
     }
 
     /**
@@ -1147,36 +1170,12 @@ public class ChatEntryCard extends ManagedComponent {
         int imageIndex = chatEntry.getImages().indexOf(generatedImage);
 
         switch (status) {
-            case PENDING -> {
-                // Show placeholder without text (status shown under animation)
-                createPlaceholderImage(generatedImage, imageView, "", 0.4);
-                loadingOverlay.setVisible(true);
-                progressIndicator.setVisible(true);
-                progressIndicator.setProgress(-1.0); // Indeterminate progress for generation
-                // Update the loading label text
-                VBox overlayVBox = (VBox) loadingOverlay;
-                if (overlayVBox.getChildren().size() > 1 && overlayVBox.getChildren().get(1) instanceof Label) {
-                    Label loadingLabel = (Label) overlayVBox.getChildren().get(1);
-                    loadingLabel.setText(I18nManager.getText("status.generating"));
-                }
-                // Remove click handler and cursor for pending images
-                imageView.setOnMouseClicked(null);
-                imageView.setCursor(javafx.scene.Cursor.DEFAULT);
-            }
-
-            case DOWNLOADING -> {
-                // Show placeholder without text (status shown under animation)
-                createPlaceholderImage(generatedImage, imageView, "", 0.3);
+            case PENDING, DOWNLOADING -> {
+                /*  A muted placeholder with a quiet progress while the image is generated or downloaded  */
                 loadingOverlay.setVisible(true);
                 progressIndicator.setVisible(true);
                 progressIndicator.setProgress(-1.0); // Indeterminate progress
-                // Update the loading label text
-                VBox overlayVBox = (VBox) loadingOverlay;
-                if (overlayVBox.getChildren().size() > 1 && overlayVBox.getChildren().get(1) instanceof Label) {
-                    Label loadingLabel = (Label) overlayVBox.getChildren().get(1);
-                    loadingLabel.setText("Downloading...");
-                }
-                // Remove click handler and cursor for downloading images
+                // Remove click handler and cursor for pending images
                 imageView.setOnMouseClicked(null);
                 imageView.setCursor(javafx.scene.Cursor.DEFAULT);
             }
@@ -1208,17 +1207,13 @@ public class ChatEntryCard extends ManagedComponent {
             }
 
             case FAILED -> {
-                // Show error state with specific error message if available
-                String errorMsg = "Load Failed";
-                if (generatedImage.getErrorMessage() != null && !generatedImage.getErrorMessage().trim().isEmpty()) {
-                    errorMsg = generatedImage.getErrorMessage();
-                } else if (generatedImage.getFailureReason() != null
-                        && !generatedImage.getFailureReason().trim().isEmpty()) {
-                    errorMsg = generatedImage.getFailureReason();
-                }
-                createPlaceholderImage(generatedImage, imageView, errorMsg, 0.2);
-                loadingOverlay.setVisible(false);
-                progressIndicator.setVisible(false);
+                /*  An error tile in place of the image, the message in its tooltip  */
+                FontIcon failedIcon = new FontIcon("mdi2a-alert-circle-outline");
+                failedIcon.setIconSize(24);
+                loadingOverlay.getChildren().setAll(failedIcon);
+                loadingOverlay.getStyleClass().add("entry-image-failed");
+                Tooltip.install(loadingOverlay, new Tooltip(failure(generatedImage)));
+                loadingOverlay.setVisible(true);
                 // Remove click handler and cursor for failed images
                 imageView.setOnMouseClicked(null);
                 imageView.setCursor(javafx.scene.Cursor.DEFAULT);
@@ -1644,7 +1639,6 @@ public class ChatEntryCard extends ManagedComponent {
     public void refreshImages() {
         // Clear and rebuild the images container
         imagesContainer.getChildren().clear();
-        imagesCurrentlyLoaded = false;
 
         // Rebuild the images display
         updateImagesDisplay();
@@ -1697,8 +1691,6 @@ public class ChatEntryCard extends ManagedComponent {
 
         // Clear action bar references map to prevent memory leaks
         imageBars.clear();
-
-        imagesCurrentlyLoaded = false;
     }
 
     @Override
