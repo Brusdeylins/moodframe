@@ -33,7 +33,8 @@ GitHub release `v<version>`). Locally, or without JavaScript, the page shows ver
 
 - [ ] Screenshot of the real app (English UI, demo library, throwaway `user.home`) as `assets/img/app-screenshot.png`;
       the dots in the overview may need moving to match it
-- [ ] Mood images made with MoodFrame itself, at least 1600 px wide (the current ones are 600 px stand-ins)
+- [ ] Mood images: the current ones (1600 px) follow the real blocks of Vintage Film, Quiet Morning and Sci-Fi Cinema
+      (generated with Nano Banana Pro, same picture restyled); replace them with images made in MoodFrame if wanted
 - [ ] Official provider logos, monochrome white, in place of the names in "Models"
 - [ ] GitHub release `v2.0.0`
 - [x] Imprint and privacy notice (`imprint.html`, `privacy.html`; German binding, English translation)

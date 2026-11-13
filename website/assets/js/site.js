@@ -129,9 +129,9 @@ const TEXT = {
 }
 
 const MOODS = {
-    golden: { image: "mood-golden.jpg", swatches: [ "#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617" ] },
-    fog:    { image: "mood-fog.jpg",    swatches: [ "#CAF0F8", "#ADE8F4", "#90E0EF", "#48CAE4", "#00B4D8" ] },
-    noir:   { image: "mood-neon.jpg",   swatches: [ "#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3" ] }
+    golden: { image: "mood-vintage-film.jpg", swatches: [ "#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617" ] },
+    fog:    { image: "mood-quiet-morning.jpg",    swatches: [ "#CAF0F8", "#ADE8F4", "#90E0EF", "#48CAE4", "#00B4D8" ] },
+    noir:   { image: "mood-sci-fi-cinema.jpg",   swatches: [ "#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3" ] }
 }
 
 const state = { lang: "en", mood: "golden", os: detectOS(), release: null }
