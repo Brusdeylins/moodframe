@@ -37,7 +37,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
-import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,9 +56,9 @@ import java.util.function.Supplier;
 /**
  * The images view of a chat or a group: all its images in a grid in the order of the chat, the newest last, without
  * text and without card. Each image keeps its aspect ratio within a square cell; the cells fill the width in as many
- * columns as the chosen size allows. While the pointer is over an image, the action bar shows at its top and the mood
- * and frame of its entry at its bottom; a double click opens it in the full view. Images in generation show as
- * placeholders, failed ones as error tiles in their place.
+ * columns as the chosen size allows. While the pointer is over an image, the action bar shows at its top, its size
+ * above the mood and frame of its entry at its bottom; a double click opens it in the full view. Images in generation
+ * show as placeholders, failed ones as error tiles in their place.
  *
  * <p>The grid is a list of rows, so only the rows in view hold tiles, and the tiles show the thumbnails. It opens at
  * its end and stays there while images arrive, unless the user scrolled away from it.</p>
@@ -306,8 +305,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /**
      * Creates the square cell of an image: the image in its aspect ratio with rounded corners, the action bar at its
-     * top and the dot line at its bottom while the pointer is over it, a placeholder while it is generated, or an
-     * error tile with the message in its tooltip once it failed.
+     * top and the size line above the dot line at its bottom while the pointer is over it, a placeholder while it is
+     * generated, or an error tile with the message in its tooltip once it failed.
      */
     private StackPane createCell(Item item) {
         StackPane cell = new StackPane();
@@ -361,12 +360,12 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         });
         actionBar.setAvailable(true, image.isVideo());
         actionBar.attachTo(tile);
-        attachDots(createDots(item.entry()), tile);
+        HBox dots = createDots(item.entry());
+        attachDots(dots, tile);
+        ImageSizeLabel size = new ImageSizeLabel(image);
+        size.attachTo(tile, dots);
 
-        Tooltip details = new Tooltip(ChatEntryCard.imageDetails(image));
-        details.setShowDelay(Duration.millis(500));
-        details.setOnShowing((event) -> details.setText(ChatEntryCard.imageDetails(image)));
-        Tooltip.install(view, details);
+        ChatEntryCard.installDetails(tile, view, image, size);
         tile.setOnContextMenuRequested((event) -> {
             createMenu(item).show(tile, event.getScreenX(), event.getScreenY());
             event.consume();

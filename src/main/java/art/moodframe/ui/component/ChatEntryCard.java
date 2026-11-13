@@ -698,8 +698,9 @@ public class ChatEntryCard extends ManagedComponent {
 
     /**
      * Creates the tile of an image: the image with rounded corners, a muted placeholder with a progress while it is
-     * generated or downloaded, or with an icon once it failed, and the action bar at its top while the pointer is over
-     * it. Size, format and seed show in its tooltip, "Mood from image" and "Copy seed" in its context menu.
+     * generated or downloaded, or with an icon once it failed, and the action bar at its top and its size at its bottom
+     * while the pointer is over it. Seed and costs show in its tooltip, "Mood from image" and "Copy seed" in its
+     * context menu.
      *
      * @param generatedImage the generated image
      * @param imageIndex     the index of this image in the chat entry
@@ -761,6 +762,8 @@ public class ChatEntryCard extends ManagedComponent {
         clip.heightProperty().bind(tile.heightProperty());
         tile.setClip(clip);
         actionBar.attachTo(tile);
+        ImageSizeLabel size = new ImageSizeLabel(generatedImage);
+        size.attachTo(tile, null);
 
         // Enable dragging the finished image out of the app (to Finder/Explorer or PowerPoint)
         if (imageAvailable) {
@@ -776,10 +779,7 @@ public class ChatEntryCard extends ManagedComponent {
             });
         }
 
-        Tooltip details = new Tooltip(imageDetails(generatedImage));
-        details.setShowDelay(Duration.millis(500));
-        details.setOnShowing((event) -> details.setText(imageDetails(generatedImage)));
-        Tooltip.install(imageView, details);
+        installDetails(tile, imageView, generatedImage, size);
 
         /*  The menu checks for the file itself, as the image may still be loading  */
         if (!generatedImage.isVideo())
@@ -832,42 +832,51 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * The details of an image for its tooltip: size, format and seed, of a video its resolution, duration and audio;
-     * below the cost of a Gemini image with web search or reasoning.
+     * Installs the tooltip of an image, read anew whenever the pointer enters its tile: the size line over the image
+     * may give way and the size be corrected meanwhile. An image without any details gets no tooltip.
+     *
+     * @param tile  the pane holding the image, with its size line attached
+     * @param view  the view of the image
+     * @param image the image
+     * @param size  the size line of the image
+     */
+    static void installDetails(Pane tile, Node view, GeneratedImage image, ImageSizeLabel size) {
+        Tooltip details = new Tooltip();
+        details.setShowDelay(Duration.millis(500));
+        tile.hoverProperty().addListener((obs, wasOver, isOver) -> {
+            if (isOver) {
+                details.setText(imageDetails(image, !size.isVisible()));
+                Tooltip.uninstall(view, details);
+                if (!details.getText().isEmpty())
+                    Tooltip.install(view, details);
+            }
+        });
+    }
+
+    /**
+     * The details of an image for its tooltip: its seed, of a video its resolution, duration and audio; below the
+     * cost of a Gemini image with web search or reasoning. The size and format of an image lead only on request.
      *
      * @param generatedImage the generated image
-     * @return the details
+     * @param withSize       whether to name the size and format of an image, as its size line gives way
+     * @return the details, one per line, empty if there are none
      */
-    static String imageDetails(GeneratedImage generatedImage) {
-        StringBuilder details = new StringBuilder();
+    static String imageDetails(GeneratedImage generatedImage, boolean withSize) {
+        List<String> details = new ArrayList<>();
         if (generatedImage.isVideo()) {
             String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
-            details.append(String.format("MP4 • %s • %ds%s", resolution, generatedImage.getVideoDurationSeconds(),
+            details.add(String.format("MP4 • %s • %ds%s", resolution, generatedImage.getVideoDurationSeconds(),
                     generatedImage.hasAudio() ? " • Audio" : ""));
         } else {
+            String size = ImageSizeLabel.text(generatedImage);
+            if (withSize && size != null)
+                details.add(size);
+
             // Hide seed information for Gemini images (seed = 0)
             // FLUX seeds can be negative (XOR of random longs), so check != 0
             long seed = generatedImage.getSeed();
-            String seedInfo = seed != 0 ? String.format(" • Seed: %d", seed) : "";
-
-            // Use stored values from GeneratedImage - NO disk I/O here for performance!
-            String format = generatedImage.getFormat();
-
-            // Determine format from file extension if not stored
-            if (format == null || format.isEmpty() || "UNKNOWN".equals(format)) {
-                String localPath = generatedImage.getLocalFilePath();
-                String fileName = localPath != null ? localPath.toLowerCase() : "";
-                if (fileName.endsWith(".png"))
-                    format = "PNG";
-                else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg"))
-                    format = "JPEG";
-                else if (fileName.endsWith(".webp"))
-                    format = "WEBP";
-                else
-                    format = "IMG";
-            }
-            details.append(String.format("%dx%d • %s%s", generatedImage.getWidth(), generatedImage.getHeight(),
-                    format.toUpperCase(), seedInfo));
+            if (seed != 0)
+                details.add(String.format("Seed: %d", seed));
         }
 
         /*  Gemini: the cost of web search and reasoning beside the base cost, if any  */
@@ -876,18 +885,18 @@ public class ChatEntryCard extends ManagedComponent {
         if (searchCost > 0 || reasoningCost > 0) {
             double baseCost = generatedImage.getBaseCost() != null ? generatedImage.getBaseCost() : 0.0;
             if (baseCost > 0)
-                details.append(String.format("%nBase Generation: $%.2f", baseCost));
+                details.add(String.format("Base Generation: $%.2f", baseCost));
             if (searchCost > 0)
-                details.append(String.format("%nGoogle Search: $%.2f", searchCost));
+                details.add(String.format("Google Search: $%.2f", searchCost));
             if (reasoningCost > 0) {
                 Integer thinkingTokens = generatedImage.getThinkingTokens();
-                details.append(String.format("%nReasoning: $%.2f%s", reasoningCost,
+                details.add(String.format("Reasoning: $%.2f%s", reasoningCost,
                         thinkingTokens != null && thinkingTokens > 0 ? String.format(" (%,d tokens)", thinkingTokens)
                                 : ""));
             }
-            details.append(String.format("%nTotal: $%.2f", baseCost + searchCost + reasoningCost));
+            details.add(String.format("Total: $%.2f", baseCost + searchCost + reasoningCost));
         }
-        return details.toString();
+        return String.join("\n", details);
     }
 
     /**

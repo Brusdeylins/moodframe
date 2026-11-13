@@ -1,0 +1,9 @@
+/*  The size and format of an image: a dark, rounded line in the font of the line of mood and frame, the same in
+    both themes  */
+.image-size {
+    -fx-background-color: rgba(0, 0, 0, 0.72);
+    -fx-background-radius: 8px;
+    -fx-padding: 2px 6px 2px 6px;
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+}
