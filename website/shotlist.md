@@ -22,7 +22,7 @@ Prompt (the same for all five entries):
 | 2 | Quiet Morning | Nano Banana Pro | blue hour, calm, cool palette |
 | 3 | Sci-Fi Cinema | FLUX.2 [pro] | neon practicals, night, magenta and cyan |
 | 4 | Film Noir | Nano Banana Pro | black and white, hard shadows (the red coat turns grey: the mood wins) |
-| 5 | Dreamy Pastel | FLUX.2 [pro] | watercolor, high key: the style changes too |
+| 5 | Wild North | FLUX.2 [pro] | overcast, raw documentary look, muted greens |
 
 Website: one image per mood for the tabs in the Mood chapter (the best one).
 
