@@ -146,6 +146,8 @@ public class MainWindowController implements I18nChangeListener {
 
     // Input Area Controls
     @FXML
+    private VBox chatInputArea;
+    @FXML
     private TextArea promptTextArea;
     @FXML
     private Label characterCountLabel;
@@ -1135,6 +1137,45 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
+     * Gives the input area below the chat its remembered height, or else the default one, which shows the button
+     * column and about five lines of the prompt.
+     *
+     * @param config the configuration holding the remembered height, or null
+     */
+    private void restoreChatInputHeight(art.moodframe.config.ApplicationConfig config) {
+        /*  The items of the SplitPane get their styles after its first layout, the default height needs them  */
+        chatInputSplitPane.applyCss();
+        double savedHeight = config != null ? config.getChatInputHeight() : 0;
+        resizeChatInputArea(savedHeight > 0
+                ? savedHeight + (promptPreviewToggle.isSelected() ? promptPreviewHeight() : 0)
+                : chatInputArea.prefHeight(chatInputArea.getWidth()));
+    }
+
+    /**
+     * Moves the divider above the input area below the chat, so that the input area gets the given height.
+     *
+     * @param height the height in pixels
+     */
+    private void resizeChatInputArea(double height) {
+        /*  The divider position is a share of the SplitPane height: shift it by the missing pixels  */
+        chatInputSplitPane.layout();
+        javafx.geometry.Insets insets = chatInputSplitPane.getInsets();
+        double size = chatInputSplitPane.getHeight() - insets.getTop() - insets.getBottom();
+        if (size > 0)
+            chatInputSplitPane.setDividerPosition(0,
+                    chatInputSplitPane.getDividerPositions()[0] + (chatInputArea.getHeight() - height) / size);
+    }
+
+    /**
+     * The height the unfolded final prompt adds to the input area below the chat.
+     *
+     * @return the height of the final prompt plus its spacing in pixels
+     */
+    private double promptPreviewHeight() {
+        return promptPreviewTextArea.prefHeight(-1) + chatInputArea.getSpacing();
+    }
+
+    /**
      * Sets up the initial UI state and component configurations.
      */
     private void setupUI() {
@@ -1183,50 +1224,32 @@ public class MainWindowController implements I18nChangeListener {
             mainSplitPane.setDividerPositions(0.2); // Fallback
         }
 
-        // Configure Chat-Input SplitPane with restored position
+        // Configure Chat-Input SplitPane: the input area keeps its height in pixels, restored after the first layout
         try {
             art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(art.moodframe.config.ApplicationConfig.class);
 
+            // Restore the height once the SplitPane got its first size, after that layout pass
+            chatInputSplitPane.heightProperty().addListener((obs, oldHeight, newHeight) -> {
+                if (oldHeight.doubleValue() == 0 && newHeight.doubleValue() > 0)
+                    Platform.runLater(() -> restoreChatInputHeight(config));
+            });
+
+            // Save the height when the user drags the divider, related to the folded final prompt
             if (config != null) {
-                final double savedChatInputPosition = config.getChatInputSplitterPosition();
-
-                // Set up scene listener for reliable restoration after window is shown
-                chatInputSplitPane.sceneProperty().addListener((obs, oldScene, newScene) -> {
-                    if (newScene != null) {
-                        newScene.windowProperty().addListener((winObs, oldWindow, newWindow) -> {
-                            if (newWindow != null) {
-                                newWindow.showingProperty().addListener((showObs, wasShowing, isShowing) -> {
-                                    if (isShowing) {
-                                        Platform.runLater(() -> {
-                                            chatInputSplitPane.setDividerPosition(0, savedChatInputPosition);
-                                        });
-                                    }
-                                });
-                            }
-                        });
+                chatInputSplitPane.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_RELEASED, (event) -> {
+                    Node node = event.getTarget() instanceof Node target ? target : null;
+                    while (node != null && !node.getStyleClass().contains("split-pane-divider"))
+                        node = node.getParent();
+                    if (node != null) {
+                        chatInputSplitPane.layout();
+                        config.setChatInputHeight(chatInputArea.getHeight()
+                                - (promptPreviewToggle.isSelected() ? promptPreviewHeight() : 0));
                     }
                 });
-
-                // Immediate attempt (may not work if layout isn't ready)
-                Platform.runLater(() -> {
-                    chatInputSplitPane.setDividerPositions(savedChatInputPosition);
-                });
-
-                // Save position when user changes it
-                chatInputSplitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
-                    try {
-                        config.setChatInputSplitterPosition(newPos.doubleValue());
-                    } catch (Exception ex) {
-                        logger.warn("Failed to save chat-input splitter position", ex);
-                    }
-                });
-            } else {
-                chatInputSplitPane.setDividerPositions(0.84); // Fallback
             }
         } catch (Exception e) {
-            logger.warn("Failed to restore chat-input splitter position, using default", e);
-            chatInputSplitPane.setDividerPositions(0.84); // Fallback
+            logger.warn("Failed to set up the chat-input height, using default", e);
         }
 
         // Setup model selection based on enabled providers
@@ -4073,9 +4096,15 @@ public class MainWindowController implements I18nChangeListener {
         /*  The fold of the final prompt below the input field  */
         promptPreviewTextArea.visibleProperty().bind(promptPreviewToggle.selectedProperty());
         promptPreviewTextArea.managedProperty().bind(promptPreviewToggle.selectedProperty());
-        promptPreviewToggle.selectedProperty().addListener((obs, oldVal, newVal) ->
-                ((FontIcon) promptPreviewToggle.getGraphic()).setIconLiteral(
-                        newVal ? "mdi2c-chevron-down" : "mdi2c-chevron-right"));
+        promptPreviewToggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            ((FontIcon) promptPreviewToggle.getGraphic()).setIconLiteral(
+                    newVal ? "mdi2c-chevron-down" : "mdi2c-chevron-right");
+
+            /*  Unfolding pushes the divider up by the height of the final prompt, folding pushes it back down,
+                so the prompt field keeps its height  */
+            double height = chatInputArea.getHeight();
+            resizeChatInputArea(newVal ? height + promptPreviewHeight() : height - promptPreviewHeight());
+        });
 
         // Handle Enter key in prompt area (Enter for line break, Shift+Enter to send)
         promptTextArea.setOnKeyPressed(event -> {

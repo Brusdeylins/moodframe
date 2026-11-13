@@ -481,19 +481,22 @@ public class ApplicationConfig {
     }
 
     /**
-     * Gets the chat-input splitter divider position (0.0 - 1.0).
-     * @return splitter position, defaults to 0.84 (84% chat area, 16% input area)
+     * Gets the height of the input area below the chat, with the final prompt folded.
+     * @return height in pixels, 0 if none is remembered (default height)
      */
-    public double getChatInputSplitterPosition() {
-        return Double.parseDouble(properties.getProperty("ui.chat_input_splitter_position", "0.84"));
+    public double getChatInputHeight() {
+        return Double.parseDouble(properties.getProperty("ui.chat_input_height", "0"));
     }
 
     /**
-     * Sets the chat-input splitter divider position.
-     * @param position position between 0.0 and 1.0
+     * Remembers the height of the input area below the chat, with the final prompt folded.
+     * @param height height in pixels
      */
-    public void setChatInputSplitterPosition(double position) {
-        properties.setProperty("ui.chat_input_splitter_position", String.valueOf(position));
+    public void setChatInputHeight(double height) {
+        properties.setProperty("ui.chat_input_height", String.valueOf(height));
+
+        /*  The former divider position as a share of the height does not count any more  */
+        properties.remove("ui.chat_input_splitter_position");
         saveConfiguration();
     }
 

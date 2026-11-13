@@ -179,8 +179,9 @@
 
                             </StackPane>
 
-                            <!-- Bottom: Input Area - resizable via SplitPane divider -->
-                            <VBox spacing="10.0" styleClass="bg-inset, see-through">
+                            <!-- Bottom: Input Area - height in pixels set via the divider, kept on window resize -->
+                            <VBox fx:id="chatInputArea" spacing="10.0" styleClass="bg-inset, see-through"
+                                  SplitPane.resizableWithParent="false">
                                 <padding>
                                     <Insets bottom="10.0" left="5.0" right="20.0" top="15.0" />
                                 </padding>
@@ -190,12 +191,13 @@
                                     <!-- Text Input Area - grows with available space -->
                                     <TextArea fx:id="promptTextArea"
                                               promptText="Enter your prompt here..."
-                                              wrapText="true" prefRowCount="3"
+                                              wrapText="true" prefRowCount="5"
                                               VBox.vgrow="ALWAYS"
                                               HBox.hgrow="ALWAYS" />
 
-                                    <!-- Button + Checkbox Column -->
-                                    <VBox alignment="TOP_CENTER" spacing="5.0" minWidth="180.0" prefWidth="180.0" maxWidth="180.0">
+                                    <!-- Button + Checkbox Column: never shrinks, so the input area cannot get lower -->
+                                    <VBox alignment="TOP_CENTER" spacing="5.0" minWidth="180.0" prefWidth="180.0" maxWidth="180.0"
+                                          minHeight="-Infinity">
                                         <Button fx:id="sendButton" styleClass="accent"
                                                 text="0.00"
                                                 maxWidth="Infinity" VBox.vgrow="ALWAYS"
@@ -228,14 +230,15 @@
                                     </VBox>
                                 </HBox>
 
-                                <!-- Final prompt: the composed text the model receives, folded by default -->
+                                <!-- Final prompt: the composed text the model receives, folded by default; never shrinks,
+                                     so unfolding leaves the height of the prompt field alone -->
                                 <ToggleButton fx:id="promptPreviewToggle" text="Final prompt" styleClass="prompt-preview-toggle">
                                     <graphic>
                                         <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
                                     </graphic>
                                 </ToggleButton>
                                 <TextArea fx:id="promptPreviewTextArea" editable="false" wrapText="true"
-                                          prefRowCount="4" focusTraversable="false"
+                                          prefRowCount="4" minHeight="-Infinity" focusTraversable="false"
                                           visible="false" managed="false" />
 
                             </VBox>
