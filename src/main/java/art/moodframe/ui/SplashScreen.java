@@ -9,6 +9,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
+import javafx.scene.control.Labeled;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.input.KeyCode;
 import javafx.scene.image.Image;
@@ -110,22 +111,26 @@ public class SplashScreen {
             String titleStyle = "-fx-text-fill: #FFFFFF; -fx-font-size: 14px;";
             Label moodLabel = new Label("Mood");
             moodLabel.setStyle(titleStyle + " -fx-font-weight: bold;");
-            Label versionText = new Label("Frame · Version " + version + " · © Matthias Brusdeylins 2025-2026");
-            versionText.setStyle(titleStyle + " -fx-font-weight: 300;");
-            HBox versionLabel = new HBox(moodLabel, versionText);
+            String versionStyle = titleStyle + " -fx-font-weight: 300;";
+            Label versionText = new Label("Frame · Version " + version + " · © ");
+            versionText.setStyle(versionStyle);
+            Labeled authorLink = creditLink("Matthias Brusdeylins", "https://brusdeylins.info", versionStyle);
+            Label versionYears = new Label(" 2025-2026");
+            versionYears.setStyle(versionStyle);
+            HBox versionLabel = new HBox(moodLabel, versionText, authorLink, versionYears);
             versionLabel.setAlignment(Pos.BASELINE_CENTER);
 
-            /*  credits: built with ASE (a link in the info window, plain text during startup)  */
+            /*  credits: built with Claude Code and ASE  */
             String creditStyle = "-fx-text-fill: #FFFFFF; -fx-font-size: 12px; -fx-font-weight: 200;";
-            Label creditBefore = new Label("This application was built with Agentic Coding using Claude Code and ");
+            Label creditBefore = new Label("This application was built with Agentic Coding using ");
             creditBefore.setStyle(creditStyle);
-            Hyperlink aseLink = new Hyperlink("ase.tools");
-            aseLink.setStyle(creditStyle + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
-            aseLink.setFocusTraversable(false);
-            aseLink.setOnAction((event) -> openInBrowser("https://ase.tools"));
+            Labeled claudeLink = creditLink("Claude Code", "https://claude.ai", creditStyle);
+            Label creditBetween = new Label(" and ");
+            creditBetween.setStyle(creditStyle);
+            Labeled aseLink = creditLink("ASE", "https://ase.tools", creditStyle);
             Label creditAfter = new Label(".");
             creditAfter.setStyle(creditStyle);
-            HBox aiCreditLine1 = new HBox(creditBefore, aseLink, creditAfter);
+            HBox aiCreditLine1 = new HBox(creditBefore, claudeLink, creditBetween, aseLink, creditAfter);
             aiCreditLine1.setAlignment(Pos.BASELINE_CENTER);
 
             Label aiCreditLine2 = new Label("Concept, planning, review and direction by human.");
@@ -172,6 +177,22 @@ public class SplashScreen {
             if (onComplete != null) {
                 onComplete.run();
             }
+        }
+    }
+
+    /*  a link in the info window, plain text in the same font during startup, so the lines keep their length  */
+    private Labeled creditLink(String text, String url, String style) {
+        if (info) {
+            Hyperlink link = new Hyperlink(text);
+            link.setStyle(style + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
+            link.setFocusTraversable(false);
+            link.setOnAction((event) -> openInBrowser(url));
+            return link;
+        }
+        else {
+            Label label = new Label(text);
+            label.setStyle(style);
+            return label;
         }
     }
 
