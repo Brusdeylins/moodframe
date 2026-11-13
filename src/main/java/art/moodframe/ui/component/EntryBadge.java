@@ -22,8 +22,9 @@ public record EntryBadge(String text, boolean mixture) {
     private static final String SEPARATOR = " · ";
 
     /**
-     * The badge of the mood of an entry. An entry from before 2.0 shows a former look style as the standard mood of the
-     * same name, any other style as mixture.
+     * The badge of the mood of an entry. A combination that started from a mood without a changed field shows that mood
+     * by name. An entry from before 2.0 shows a former look style as the standard mood of the same name, any other
+     * style as mixture.
      *
      * @param mood the copy of the mood at the entry, null for none
      * @param style the style name of the entry, "None" or null for none
@@ -32,6 +33,8 @@ public record EntryBadge(String text, boolean mixture) {
     public static EntryBadge mood(EntryMood mood, String style) {
         if (mood != null && mood.moodId() != null)
             return new EntryBadge(mood.moodName(), false);
+        if (mood != null && mood.baseName() != null && mood.changed().isEmpty())
+            return new EntryBadge(mood.baseName(), false);
         if (mood != null)
             return new EntryBadge(join(I18nManager.getText("entry.badge.mood.mixture"), mood.baseName()), true);
         if (MoodService.isLegacyLook(style))

@@ -300,6 +300,18 @@ public class MoodService implements BlockUsage {
     }
 
     /**
+     * Whether the fields differ from a chosen mood: a field, locked or not, holds another block than the mood sets.
+     * A field left empty as the block of the mood is not in use counts as unchanged.
+     *
+     * @param mood the chosen mood, null for "No mood", which is never changed
+     * @param fields the block ids of the fields; a missing field is empty
+     * @return whether a field differs from the mood
+     */
+    public boolean isChanged(Mood mood, Map<Mood.Field, String> fields) {
+        return mood != null && !apply(mood, fields, Set.of()).equals(fields);
+    }
+
+    /**
      * The blocks a mood saved from the fields refers to: the block of each field. A field left empty as its block
      * lies in the trash keeps the reference of the chosen mood.
      *

@@ -38,6 +38,16 @@ class EntryBadgeTest {
     }
 
     @Test
+    void aMixtureWithoutAChangedFieldShowsTheMoodItStartedFromByName() {
+        EntryMood unchanged = new EntryMood(null, null, BLOCKS, "std:mood:blockbuster", "Blockbuster", Set.of());
+        assertEquals(new EntryBadge("Blockbuster", false), EntryBadge.mood(unchanged, "None"));
+        assertEquals(new EntryBadge("Blockbuster", false), EntryBadge.moodName(unchanged, "None"));
+        assertEquals(new EntryBadge(mixture + " · Blockbuster", true), EntryBadge.mood(
+                new EntryMood(null, null, BLOCKS, "std:mood:blockbuster", "Blockbuster", Set.of(Mood.Field.LIGHT)),
+                "None"));
+    }
+
+    @Test
     void anEntryWithoutMoodHasNoMoodBadge() {
         assertNull(EntryBadge.mood(null, "None"));
         assertNull(EntryBadge.mood(null, null));

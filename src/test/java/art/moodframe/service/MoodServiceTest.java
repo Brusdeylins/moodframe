@@ -14,6 +14,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,6 +103,30 @@ class MoodServiceTest {
     }
 
     @Test
+    void comparesTheFieldsWithTheChosenMoodEachTime() {
+        Mood blockbuster = moods.find("std:mood:blockbuster");
+        Map<Mood.Field, String> fields = new EnumMap<>(moods.apply(blockbuster, Map.of(), Set.of()));
+        assertEquals(Set.of(Mood.Field.values()), fields.keySet());
+        assertFalse(moods.isChanged(blockbuster, fields), "the blocks of the mood are unchanged");
+
+        String light = fields.get(Mood.Field.LIGHT);
+        fields.put(Mood.Field.LIGHT, "std:light:golden-hour");
+        assertTrue(moods.isChanged(blockbuster, fields), "another block in a field is a change");
+        fields.put(Mood.Field.LIGHT, light);
+        assertFalse(moods.isChanged(blockbuster, fields), "a field set back is unchanged again");
+        fields.remove(Mood.Field.CAMERA);
+        assertTrue(moods.isChanged(blockbuster, fields), "an emptied field is a change");
+
+        /*  On start, the fields of the remembered mood are compared anew, whatever was stored as changed  */
+        assertFalse(moods.isChanged(blockbuster, blockbuster.getReferences()));
+
+        Map<Mood.Field, String> locked = moods.apply(blockbuster, Map.of(Mood.Field.STYLE, "std:style:watercolor"),
+                Set.of(Mood.Field.STYLE));
+        assertTrue(moods.isChanged(blockbuster, locked), "a locked field with another block is a change, too");
+        assertFalse(moods.isChanged(null, locked), "\"No mood\" is never changed");
+    }
+
+    @Test
     void savesTheFieldsAsTheyAreTheCameraToo() {
         Mood product = moods.find("std:mood:clean-product");
         Map<Mood.Field, String> fields = Map.of(Mood.Field.STYLE, "std:style:watercolor");
@@ -139,6 +164,8 @@ class MoodServiceTest {
         Mood stored = moods.find(mood.getId());
         assertEquals(List.of(palette.getId(), light.getId()), moods.trashedBlocks(stored));
         assertEquals(Map.of(Mood.Field.STYLE, "std:style:analog-film"), moods.apply(stored, Map.of(), Set.of()));
+        assertFalse(moods.isChanged(stored, Map.of(Mood.Field.STYLE, "std:style:analog-film")),
+                "a field left empty as its block lies in the trash is no change");
         assertEquals(light.getId(), stored.getReference(Mood.Field.LIGHT), "the mood keeps the reference");
         assertEquals("Analog Film · Lantern Glow · Lantern", moods.describe(stored));
         assertEquals(Map.of(Mood.Field.STYLE, "std:style:watercolor", Mood.Field.COLOR, palette.getId(),

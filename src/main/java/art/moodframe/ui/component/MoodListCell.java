@@ -34,7 +34,7 @@ public class MoodListCell extends ListCell<MoodChoice> {
      * Creates a row.
      *
      * @param incomplete tells if a block of a mood lies in the trash
-     * @param changed tells if a field was changed after the mood was chosen; null for a row of the list
+     * @param changed tells if a field differs from the chosen mood; null for a row of the list
      */
     public MoodListCell(Predicate<Mood> incomplete, BooleanSupplier changed) {
         this.incomplete = incomplete;

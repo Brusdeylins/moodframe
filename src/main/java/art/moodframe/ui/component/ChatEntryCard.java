@@ -593,7 +593,7 @@ public class ChatEntryCard extends ManagedComponent {
         if (mood == null)
             rows.getChildren().add(new Label(I18nManager.getText("params.style") + " " + style));
         else {
-            if (mood.baseName() != null)
+            if (mood.baseName() != null && !mood.changed().isEmpty())
                 rows.getChildren().add(new Label(I18nManager.getText("entry.badge.mood.base", mood.baseName())));
             for (Mood.Field field : BADGE_FIELDS) {
                 EntryMood.Block block = mood.blocks().get(field);
@@ -608,7 +608,12 @@ public class ChatEntryCard extends ManagedComponent {
                     HBox swatches = new HBox(2);
                     for (String hex : block.colors()) {
                         try {
-                            swatches.getChildren().add(new Rectangle(10, 10, Color.web(hex)));
+                            Rectangle swatch = new Rectangle(10, 10, Color.web(hex));
+
+                            /*  the fine border of the color list keeps a dark color visible on the dark tooltip  */
+                            swatch.setStroke(Color.GRAY);
+                            swatch.setStrokeWidth(0.5);
+                            swatches.getChildren().add(swatch);
                         }
                         catch (IllegalArgumentException e) {
 

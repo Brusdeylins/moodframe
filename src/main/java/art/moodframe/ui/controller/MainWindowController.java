@@ -474,11 +474,9 @@ public class MainWindowController implements I18nChangeListener {
     // Multi-Image Attachment Panel (FLUX.2 & Gemini)
     private art.moodframe.ui.component.MultiImageAttachmentPanel multiImagePanel;
 
-    /*  The moods: the blocks of the fields right after the chosen mood was applied or saved (a field that differs
-        marks the mood as changed), whether it is changed, and a guard while the mood selection sets the fields  */
+    /*  The moods, and a guard while the mood selection sets the fields; whether the chosen mood is changed is
+        compared anew from the fields each time (see isMoodChanged)  */
     private MoodService moodService;
-    private java.util.Map<Mood.Field, String> moodSnapshot = java.util.Map.of();
-    private boolean moodChanged;
     private boolean updatingMood;
 
     /*  The frames: whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame
@@ -683,7 +681,7 @@ public class MainWindowController implements I18nChangeListener {
             Mood mood = moodService != null ? chosenMood() : null;
             String currentState = "Target model: " + modelComboBox.getValue()
                     + (modelResolution() != null ? "\nResolution: " + modelResolution() : "")
-                    + "\nMood: " + (mood != null ? mood.getName() + (moodChanged ? " (changed)" : "") : "None")
+                    + "\nMood: " + (mood != null ? mood.getName() + (isMoodChanged() ? " (changed)" : "") : "None")
                     + fieldState("Style", stylePresetsComboBox.getValue(), locked.contains(Mood.Field.STYLE))
                     + fieldState("Atmosphere", atmosphereComboBox.getValue(), locked.contains(Mood.Field.ATMOSPHERE))
                     + fieldState("Light", lightComboBox.getValue(), locked.contains(Mood.Field.LIGHT))
@@ -2047,9 +2045,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Sets up the mood selection: "No mood" and the moods; the actions sit as icons in the header of the group.
-     * Choosing a mood sets the fields that are not locked; a field changed afterwards shows the mood as changed until
-     * it is saved or chosen again. A remembered former look style (1.x) is chosen as the standard mood of the same
-     * name.
+     * Choosing a mood sets the fields that are not locked; the mood shows as changed while a field differs from it. A
+     * remembered former look style (1.x) is chosen as the standard mood of the same name.
      */
     private void setupMoods() {
         moodService = art.moodframe.config.ServiceFactory.getInstance().getService(MoodService.class);
@@ -2059,7 +2056,7 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, null));
-        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, () -> moodChanged));
+        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, this::isMoodChanged));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
         for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
                 colorStyleComboBox, lightComboBox, cameraComboBox))
@@ -2077,11 +2074,8 @@ public class MainWindowController implements I18nChangeListener {
             art.moodframe.model.StylePresetItem style = stylePresetsComboBox.getValue();
             config.setDefaultStyle(style != null ? style.getName() : "None");
         }
-        else {
-            moodSnapshot = currentMoodFields();
-            moodChanged = config != null && config.isSelectedMoodChanged();
+        else
             updateMoodState();
-        }
 
         /*  Moods that lost their last block while the window was closed, for example by the automatic cleanup  */
         Platform.runLater(this::askToDeleteEmptiedMoods);
@@ -2137,12 +2131,11 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Sets the fields that are not locked to the blocks of a combination and shows a mood as chosen, null for
-     * "No mood"; the mood shows as changed if the combination sets other blocks than the mood would.
+     * "No mood"; the mood shows as changed if the fields then differ from it.
      */
     private void chooseMood(Mood combination, Mood mood) {
         java.util.Map<Mood.Field, String> fields = moodService.apply(combination, currentMoodFields(),
                 lockedMoodFields());
-        boolean changed = !fields.equals(moodService.apply(mood, currentMoodFields(), lockedMoodFields()));
 
         art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
         String paletteName = palette != null ? palette.getName() : "None";
@@ -2162,9 +2155,6 @@ public class MainWindowController implements I18nChangeListener {
                 : item.mood() != null && item.mood().getId().equals(mood.getId()))
                 .findFirst().ifPresent(moodComboBox::setValue);
         updatingMood = false;
-
-        moodSnapshot = currentMoodFields();
-        moodChanged = changed;
         updateMoodState();
     }
 
@@ -2378,17 +2368,21 @@ public class MainWindowController implements I18nChangeListener {
         return art.moodframe.config.ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class);
     }
 
+    /** Whether a field differs from the chosen mood, compared anew each time; "No mood" is never changed. */
+    private boolean isMoodChanged() {
+        return moodService != null && moodService.isChanged(chosenMood(), currentMoodFields());
+    }
+
     /**
-     * Marks the chosen mood as changed once a field differs from it, remembers the choice, shows the warning of a
+     * Shows the chosen mood as changed while a field differs from it, remembers the choice, shows the warning of a
      * mood with a block in the trash and locks "Save" for a standard mood.
      */
     private void updateMoodState() {
         if (moodService == null)
             return;
         Mood mood = chosenMood();
-        moodChanged = mood != null && (moodChanged || !moodSnapshot.equals(currentMoodFields()));
         if (config != null)
-            config.setSelectedMood(mood != null ? mood.getId() : "", moodChanged);
+            config.setSelectedMood(mood != null ? mood.getId() : "", isMoodChanged());
 
         boolean incomplete = mood != null && isMoodIncomplete(mood);
         moodIncompleteButton.setVisible(incomplete);
@@ -2421,8 +2415,6 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
         reloadMoods(mood.getId());
-        moodSnapshot = currentMoodFields();
-        moodChanged = false;
         updateMoodState();
         setStatus(I18nManager.getText("status.mood.saved", mood.getName()));
     }
@@ -4984,7 +4976,7 @@ public class MainWindowController implements I18nChangeListener {
                 .model(modelDisplay)
                 .size(aspectRatio)
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
-                .mood(moodService != null ? moodService.snapshot(chosenMood(), moodChanged, blocks) : null)
+                .mood(moodService != null ? moodService.snapshot(chosenMood(), isMoodChanged(), blocks) : null)
                 .frame(EntryFrame.of(chosenFrame(), frameChanged, aspectRatioComboBox.getValue(),
                         resolutionChoiceBox.getValue()))
                 .safetyTolerance(safetyToleranceValue)

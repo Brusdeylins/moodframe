@@ -630,19 +630,11 @@ public class ApplicationConfig {
     }
 
     /**
-     * Whether a field was changed after the remembered mood was chosen.
-     *
-     * @return true if the mood shows as changed (default: unchanged)
-     */
-    public boolean isSelectedMoodChanged() {
-        return Boolean.parseBoolean(properties.getProperty("mood.selected.changed", "false"));
-    }
-
-    /**
-     * Remembers the mood selection and whether a field was changed after it.
+     * Remembers the mood selection and whether a field differs from it. The window compares the fields anew on start
+     * and does not read the flag back.
      *
      * @param moodId the id of the mood, empty for "No mood"
-     * @param changed true if a field was changed after the mood was chosen
+     * @param changed true if a field differs from the mood
      */
     public void setSelectedMood(String moodId, boolean changed) {
         properties.setProperty("mood.selected", moodId);
