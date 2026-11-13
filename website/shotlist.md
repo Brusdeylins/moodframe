@@ -4,11 +4,12 @@ Everything is made in MoodFrame itself, in the empty library (`~/.moodframe`, th
 English. Only standard moods and frames are used, so every visitor finds them in the app. The library is at the
 same time the content of the overview screenshot.
 
-Order: first the chats 1 to 6, then the screenshots. Prices as the app shows them; about 45 images.
+Order: first the chats 1 to 6, then the screenshots. Prices as the app shows them; about 25 images.
 
 ## Chat 1: "The red coat" (selected in the overview, source of the Mood chapter)
 
-One prompt, five standard moods, 4 images each. Frame **Social Post (4:5, 2K)**.
+One prompt, five standard moods. Nano Banana Pro: 1 image per entry (it returns nearly the same image for
+identical requests); FLUX.2 [pro]: 4 images (one seed each, real variations). Frame **Social Post (4:5, 2K)**.
 
 Prompt (the same for all five entries):
 
@@ -43,7 +44,7 @@ Website: the three side by side in the Frame chapter, each composed for its form
 
 ## Chats 3 to 6: breadth for the library
 
-One entry each, 4 images, Nano Banana Pro unless noted.
+One entry each: Nano Banana Pro 1 image, FLUX.2 [pro] 4 images.
 
 | Chat | Prompt (short) | Mood | Frame |
 |---|---|---|---|
