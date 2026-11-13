@@ -65,4 +65,6 @@ The download site is written to `build/packages/moodframe-<version>/`. Upload it
 
 ## License
 
-[MIT](LICENSE) © Matthias Brusdeylins. The logo is set in Space Grotesk (SIL Open Font License).
+[MIT](LICENSE) © [Matthias Brusdeylins](https://brusdeylins.info). The logo is set in Space Grotesk (SIL Open Font License).
+
+Built with Agentic Coding using [Claude Code](https://claude.ai) and [ASE](https://ase.tools).

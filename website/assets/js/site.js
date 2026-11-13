@@ -51,7 +51,7 @@ const TEXT = {
         "models.title": "Bring your own API key",
         "models.lead": "Three providers in one app. Your keys stay on your machine, encrypted.",
         "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
-        "install.title": "Up and running in a minute", "install.version": "Version", "install.released": ", released ",
+        "install.title": "Up and running in a minute", "install.version": "Version",
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
         "install.mac.command": "Paste into a terminal: the command installs and starts MoodFrame.",
         "install.mac.zip": "Or download the .zip:",
@@ -62,8 +62,8 @@ const TEXT = {
         "install.linux.text": "For Debian and Ubuntu; updates come with apt.", "install.linux.other": "Other distributions:",
         "install.packaged": "Packaged with",
         "install.updates": "by Hydraulic · MoodFrame checks for updates on every launch and updates itself",
-        "footer.credit": "Built with Agentic Coding using Claude Code and ASE",
-        "footer.changelog": "Changelog", "footer.releases": "Releases",
+        "footer.built": "Built with Agentic Coding using", "footer.and": "and",
+        "footer.changelog": "Changelog", "footer.releases": "Releases", "footer.imprint": "Imprint", "footer.privacy": "Privacy", "legal.back": "Back to moodframe.art",
         "copy": "Copy", "copied": "Copied"
     },
     de: {
@@ -111,7 +111,7 @@ const TEXT = {
         "models.title": "Mit deinem eigenen API-Schlüssel",
         "models.lead": "Drei Anbieter in einer App. Deine Schlüssel bleiben verschlüsselt auf deinem Rechner.",
         "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
-        "install.title": "In einer Minute startklar", "install.version": "Version", "install.released": ", erschienen am ",
+        "install.title": "In einer Minute startklar", "install.version": "Version",
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
         "install.mac.command": "Im Terminal einfügen: Der Befehl installiert und startet MoodFrame.",
         "install.mac.zip": "Oder die .zip laden:",
@@ -122,8 +122,8 @@ const TEXT = {
         "install.linux.text": "Für Debian und Ubuntu; Updates kommen über apt.", "install.linux.other": "Andere Distributionen:",
         "install.packaged": "Paketiert mit",
         "install.updates": "von Hydraulic · MoodFrame prüft bei jedem Start auf Updates und aktualisiert sich selbst",
-        "footer.credit": "Entwickelt mit Agentic Coding über Claude Code und ASE",
-        "footer.changelog": "Änderungen", "footer.releases": "Releases",
+        "footer.built": "Entwickelt mit Agentic Coding über", "footer.and": "und",
+        "footer.changelog": "Änderungen", "footer.releases": "Releases", "footer.imprint": "Impressum", "footer.privacy": "Datenschutz", "legal.back": "Zurück zu moodframe.art",
         "copy": "Kopieren", "copied": "Kopiert"
     }
 }
@@ -173,13 +173,18 @@ function applyLanguage () {
         button.setAttribute("aria-pressed", String(button.dataset.lang === state.lang))
     for (const button of document.querySelectorAll("[data-copy]"))
         button.setAttribute("aria-label", t("copy"))
+    for (const block of document.querySelectorAll("[data-lang-block]"))
+        block.hidden = block.dataset.langBlock !== state.lang
     const label = document.querySelector("[data-os-label]")
-    label.textContent = t(`hero.install.${state.os ?? "other"}`)
+    if (label !== null)
+        label.textContent = t(`hero.install.${state.os ?? "other"}`)
     applyMood()
     applyRelease()
 }
 
 function applyMood () {
+    if (document.querySelector("[data-mood-image]") === null)
+        return
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
@@ -217,18 +222,21 @@ function setupTabs (list, onSelect) {
     })
 }
 
-/*  the version of the latest GitHub release: commands, file links, date; falls back to the static 2.0.0  */
+/*  the released version, from the metadata Conveyor publishes next to the files (same site, no third party):
+    commands, file links and the link to its GitHub release; falls back to the static 2.0.0  */
 async function loadRelease () {
     try {
-        const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
+        const response = await fetch(DOWNLOAD + "metadata.properties", { cache: "no-cache" })
         if (!response.ok)
             return
-        const release = await response.json()
-        state.release = { version: release.tag_name.replace(/^v/, ""), date: release.published_at, url: release.html_url }
+        const version = (await response.text()).match(/^app\.version=(.+)$/m)?.[1]?.trim()
+        if (version === undefined)
+            return
+        state.release = { version, url: `https://github.com/${REPO}/releases/tag/v${version}` }
         applyRelease()
     }
     catch (e) {
-        /*  offline or rate limited: keep the static version  */
+        /*  offline or not served from moodframe.art: keep the static version  */
     }
 }
 
@@ -244,8 +252,6 @@ function applyRelease () {
         link.href = DOWNLOAD + link.dataset.file.replace("{v}", release.version)
     for (const link of document.querySelectorAll("[data-release-link]"))
         link.href = release.url
-    const date = new Date(release.date).toLocaleDateString(state.lang === "de" ? "de-DE" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
-    document.querySelector("[data-release-date]").textContent = t("install.released") + date
 }
 
 function setupCopy () {
@@ -300,20 +306,25 @@ function init () {
             applyLanguage()
         })
 
-    setupTabs(document.querySelector("[data-mood-tabs]"), (tab) => {
-        state.mood = tab.dataset.mood
-        applyMood()
-    })
-    setupTabs(document.querySelector("[data-os-tabs]"), (tab) => selectOS(tab.dataset.os))
-
-    if (state.os !== null) {
-        selectOS(state.os)
-        document.querySelector(`[data-os="${state.os}"] .hint`).hidden = false
-    }
-    document.querySelector("[data-install-button]").addEventListener("click", () => {
-        if (state.os !== null)
+    /*  the main page only: mood and install tabs; imprint and privacy have just the language switch  */
+    const moodTabs = document.querySelector("[data-mood-tabs]")
+    if (moodTabs !== null)
+        setupTabs(moodTabs, (tab) => {
+            state.mood = tab.dataset.mood
+            applyMood()
+        })
+    const osTabs = document.querySelector("[data-os-tabs]")
+    if (osTabs !== null) {
+        setupTabs(osTabs, (tab) => selectOS(tab.dataset.os))
+        if (state.os !== null) {
             selectOS(state.os)
-    })
+            document.querySelector(`[data-os="${state.os}"] .hint`).hidden = false
+        }
+        document.querySelector("[data-install-button]").addEventListener("click", () => {
+            if (state.os !== null)
+                selectOS(state.os)
+        })
+    }
 
     setupNav()
     setupCopy()

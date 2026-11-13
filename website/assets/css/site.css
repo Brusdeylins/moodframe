@@ -45,7 +45,7 @@
 html { scroll-behavior: smooth; scroll-padding-top: 80px; }
 body {
     margin: 0;
-    background: linear-gradient(180deg, var(--bg-top) 0 900px, var(--bg-middle) 50%, var(--bg-bottom));
+    background: linear-gradient(180deg, var(--bg-top) 0 900px, var(--bg-middle) max(50%, 1600px), var(--bg-bottom));
     background-color: var(--bg-top);
     color: var(--fg-body);
     font: 400 16px/1.55 var(--font-text);
@@ -259,4 +259,20 @@ footer .links { display: flex; gap: 20px; margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
+}
+
+/*  footer credits: the linked names stand out a little  */
+footer .credit a { color: var(--fg); border-bottom: 1px solid rgb(255 255 255 / 25%); }
+
+/*  imprint and privacy: one readable column  */
+.legal { max-width: 760px; padding-top: 140px; }
+.legal h1 { margin: 18px 0 0; font: 500 44px/1.15 var(--font-display); color: var(--fg-strong); }
+.legal h2 { margin: 40px 0 0; font: 500 22px/1.3 var(--font-display); color: var(--fg-strong); }
+.legal p, .legal li { font-size: 16px; line-height: 1.65; }
+.legal ul { padding-left: 20px; }
+.legal a { color: var(--fg); border-bottom: 1px solid rgb(255 255 255 / 25%); }
+.legal .note { margin-top: 32px; }
+@media (max-width: 900px) {
+    .legal { padding-top: 96px; }
+    .legal h1 { font-size: 32px; }
 }
