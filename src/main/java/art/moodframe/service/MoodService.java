@@ -100,7 +100,7 @@ public class MoodService implements BlockUsage {
         moods.add(mood("Clean Product", "Product Photography", "Clean and Factual", "Studio Softbox", "Monochrome Pro",
                 "Product Tabletop"));
         moods.add(mood("Lifestyle Product", "Photography", "Calm", "Window Light", "Faded Cream", "Product Bokeh"));
-        moods.add(mood("Styled Set", "Styled Set", "Calm", "Studio Softbox", "Faded Cream", "Product Tabletop"));
+        moods.add(mood("Styled Set", "Styled Set", "Calm", "Soft Natural", "Faded Cream", "Product Tabletop"));
         moods.add(mood("Product Hero", "Product Photography", "Epic", "Rim Light", "Monochrome Pro",
                 "Product Tabletop"));
 

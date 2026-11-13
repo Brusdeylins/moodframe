@@ -82,7 +82,7 @@ class MoodServiceTest {
                 Mood.Field.CAMERA, "std:camera:product-bokeh"),
                 moods.find("std:mood:lifestyle-product").getReferences());
         assertEquals(Map.of(Mood.Field.STYLE, "std:style:styled-set", Mood.Field.ATMOSPHERE, "std:atmosphere:calm",
-                Mood.Field.LIGHT, "std:light:studio-softbox", Mood.Field.COLOR, "std:color:faded-cream",
+                Mood.Field.LIGHT, "std:light:soft-natural", Mood.Field.COLOR, "std:color:faded-cream",
                 Mood.Field.CAMERA, "std:camera:product-tabletop"), moods.find("std:mood:styled-set").getReferences());
         assertEquals(Map.of(Mood.Field.STYLE, "std:style:product-photography", Mood.Field.ATMOSPHERE,
                 "std:atmosphere:epic", Mood.Field.LIGHT, "std:light:rim-light", Mood.Field.COLOR,
@@ -96,7 +96,7 @@ class MoodServiceTest {
                 + "range, 85mm portrait lens, flattering proportions, slight background compression, f/1.4, very "
                 + "shallow depth of field, the background melted into soft blur, shot at eye level, close-up "
                 + "framing."), prompt);
-        assertEquals("Calm · Styled Set · Faded Cream · Studio Softbox · Product Tabletop",
+        assertEquals("Calm · Styled Set · Faded Cream · Soft Natural · Product Tabletop",
                 moods.describe(moods.find("std:mood:styled-set")));
     }
 
