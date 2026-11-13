@@ -140,11 +140,13 @@
                 <BorderPane HBox.hgrow="ALWAYS">
                     
                     <!-- Chat Header: height and padding like the controls row of the sidebar; the title starts on the
-                         line of the prompts in the chat area, the costs on the baseline of the title -->
+                         left edge of the cards in the chat area, 1 px further out for the side bearing of its letters
+                         (in the images view on the edge of the first column, set by the controller), the costs on the
+                         baseline of the title -->
                     <top>
-                        <HBox alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+                        <HBox fx:id="chatHeader" alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>
-                                <Insets left="32.0" right="20.0" top="10.0" bottom="15.0" />
+                                <Insets left="10.0" right="20.0" top="10.0" bottom="15.0" />
                             </padding>
                             <HBox alignment="BASELINE_LEFT" spacing="10.0" maxHeight="-Infinity" HBox.hgrow="ALWAYS">
                                 <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-4" />

@@ -156,6 +156,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /*  The images view beside the chat, the switch between them and the size of the images both share  */
     @FXML
+    private HBox chatHeader;
+    @FXML
     private Slider imageSizeSlider;
     @FXML
     private Tooltip imageSizeTooltip;
@@ -3564,6 +3566,11 @@ public class MainWindowController implements I18nChangeListener {
     private static final double MIN_IMAGE_SIZE = 100.0;
     private static final double IMAGE_SIZE_STEP = 20.0;
 
+    /*  The chat title starts on the left edge of the cards, in the images view on the one of the first column, 1 px
+        further out for the side bearing of its letters  */
+    private static final double TITLE_INSET_CHAT   = 10.0;
+    private static final double TITLE_INSET_IMAGES = 31.0;
+
     /**
      * Sets up the images view of the chat area, the switch between it and the chat in the chat header and the size
      * of the images both views share; view and size are remembered for all chats and groups.
@@ -3648,6 +3655,9 @@ public class MainWindowController implements I18nChangeListener {
         boolean images = imagesViewButton.isSelected();
         chatEntriesListView.setVisible(shown && !images);
         imageGrid.setVisible(shown && images);
+        javafx.geometry.Insets padding = chatHeader.getPadding();
+        chatHeader.setPadding(new javafx.geometry.Insets(padding.getTop(), padding.getRight(), padding.getBottom(),
+                images ? TITLE_INSET_IMAGES : TITLE_INSET_CHAT));
     }
 
     /** Cmd/Ctrl + and - change the image size in steps, but not in the full view, where + and - zoom. */

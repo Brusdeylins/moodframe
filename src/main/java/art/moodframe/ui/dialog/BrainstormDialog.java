@@ -477,8 +477,9 @@ public class BrainstormDialog extends Stage {
         chatSplit.setDividerPositions(0.72);
         SplitPane.setResizableWithParent(inputRow, false);
 
-        /*  The title starts on the line of the text in the bubbles: 15 px message padding, 12 px bubble padding  */
-        VBox box = new VBox(headingRow(chatTitleLabel, 27.0, 15.0), stepper, chatSplit);
+        /*  The title starts on the left edge of the bubbles (15 px message padding), 1 px further out for the side
+            bearing of its letters  */
+        VBox box = new VBox(headingRow(chatTitleLabel, 14.0, 15.0), stepper, chatSplit);
         box.getStyleClass().add("bg-default");
         VBox.setVgrow(chatSplit, Priority.ALWAYS);
         return box;
