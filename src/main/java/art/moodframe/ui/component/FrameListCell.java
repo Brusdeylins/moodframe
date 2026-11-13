@@ -14,7 +14,7 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import java.util.function.BooleanSupplier;
 
 /**
- * Row of the frame selection: "No frame" and the frames. A standard frame shows a lock, a frame of the user a brush;
+ * Row of the frame selection: "No frame" and the frames. A standard frame shows a star, a frame of the user a brush;
  * the tooltip names its aspect ratio. As the button cell, it shows the chosen frame in italics with a dot once the
  * aspect ratio differs from it.
  *
@@ -25,6 +25,7 @@ public class FrameListCell extends ListCell<FrameChoice> {
     private final BooleanSupplier changed;
 
     private final FontIcon icon = new FontIcon();
+    private final Tooltip builtin = new Tooltip(I18nManager.getText("params.builtin"));
     private final Label nameLabel = new Label();
     private final HBox content = new HBox(6, icon, nameLabel);
 
@@ -58,6 +59,7 @@ public class FrameListCell extends ListCell<FrameChoice> {
         }
 
         icon.getStyleClass().removeAll("accent", "success");
+        Tooltip.uninstall(icon, builtin);
         nameLabel.setStyle("");
         switch (item.kind()) {
             case NONE -> {
@@ -67,14 +69,19 @@ public class FrameListCell extends ListCell<FrameChoice> {
             case FRAME -> {
                 Frame frame = item.frame();
                 boolean edited = changed != null && changed.getAsBoolean();
-                show(frame.isDefault() ? "mdi2l-lock" : "mdi2b-brush", frame.getName() + (edited ? " •" : ""));
+                show(frame.isDefault() ? "mdi2s-star-outline" : "mdi2b-brush", frame.getName() + (edited ? " •" : ""));
                 icon.getStyleClass().add(frame.isDefault() ? "accent" : "success");
+                if (frame.isDefault())
+                    Tooltip.install(icon, builtin);
                 nameLabel.setStyle((frame.isDefault() ? "-fx-font-weight: normal;" : "-fx-font-weight: bold;")
                         + (edited ? " -fx-font-style: italic;" : ""));
+
+                /*  The tooltip of the row hides the one of the star, so in the list it names the standard, too  */
                 if (edited)
                     setTooltip(new Tooltip(I18nManager.getText("params.frame.changed")));
                 else if (changed == null)
-                    setTooltip(new Tooltip(FrameService.describe(frame)));
+                    setTooltip(new Tooltip(FrameService.describe(frame)
+                            + (frame.isDefault() ? " · " + builtin.getText() : "")));
             }
         }
         setGraphic(content);

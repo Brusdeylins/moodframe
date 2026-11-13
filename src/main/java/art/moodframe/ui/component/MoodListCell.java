@@ -14,7 +14,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Row of the mood selection: "No mood" and the moods. A standard mood shows a lock, a mood of the user a brush, an
+ * Row of the mood selection: "No mood" and the moods. A standard mood shows a star, a mood of the user a brush, an
  * incomplete mood a warning. As the button cell, it shows the chosen mood in italics with a dot once a field was
  * changed after choosing it.
  *
@@ -26,6 +26,7 @@ public class MoodListCell extends ListCell<MoodChoice> {
     private final BooleanSupplier changed;
 
     private final FontIcon icon = new FontIcon();
+    private final Tooltip builtin = new Tooltip(I18nManager.getText("params.builtin"));
     private final Label nameLabel = new Label();
     private final FontIcon warning = new FontIcon("mdi2a-alert-circle-outline");
     private final HBox content = new HBox(6, icon, nameLabel, warning);
@@ -65,6 +66,7 @@ public class MoodListCell extends ListCell<MoodChoice> {
         }
 
         icon.getStyleClass().removeAll("accent", "success");
+        Tooltip.uninstall(icon, builtin);
         nameLabel.setStyle("");
         warning.setVisible(false);
         warning.setManaged(false);
@@ -76,8 +78,10 @@ public class MoodListCell extends ListCell<MoodChoice> {
             case MOOD -> {
                 Mood mood = item.mood();
                 boolean edited = changed != null && changed.getAsBoolean();
-                show(mood.isDefault() ? "mdi2l-lock" : "mdi2b-brush", mood.getName() + (edited ? " •" : ""));
+                show(mood.isDefault() ? "mdi2s-star-outline" : "mdi2b-brush", mood.getName() + (edited ? " •" : ""));
                 icon.getStyleClass().add(mood.isDefault() ? "accent" : "success");
+                if (mood.isDefault())
+                    Tooltip.install(icon, builtin);
                 nameLabel.setStyle((mood.isDefault() ? "-fx-font-weight: normal;" : "-fx-font-weight: bold;")
                         + (edited ? " -fx-font-style: italic;" : ""));
                 if (edited)
