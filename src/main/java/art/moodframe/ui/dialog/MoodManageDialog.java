@@ -155,6 +155,7 @@ public class MoodManageDialog extends Stage {
 
     private static Button iconButton(String iconLiteral, String tooltipKey) {
         Button button = new Button(null, new FontIcon(iconLiteral));
+        button.getStyleClass().add("icon-button");
         button.setTooltip(new Tooltip(I18nManager.getText(tooltipKey)));
         return button;
     }

@@ -70,7 +70,7 @@ public class TrashEntryCell extends ListCell<TrashEntry> {
         FontIcon restoreIcon = new FontIcon("mdi2r-restore");
         restoreIcon.setIconSize(16);
         restoreButton.setGraphic(restoreIcon);
-        restoreButton.getStyleClass().addAll("button-icon", "flat");
+        restoreButton.getStyleClass().add("icon-button");
         restoreButton.setTooltip(new Tooltip(I18nManager.getText("trash.restore")));
         restoreButton.setOnAction((event) -> {
             TrashEntry entry = getItem();
@@ -81,7 +81,7 @@ public class TrashEntryCell extends ListCell<TrashEntry> {
         FontIcon deleteIcon = new FontIcon("mdi2d-delete-forever");
         deleteIcon.setIconSize(16);
         deleteButton.setGraphic(deleteIcon);
-        deleteButton.getStyleClass().addAll("button-icon", "flat", "danger");
+        deleteButton.getStyleClass().addAll("icon-button", "text-danger-hover");
         deleteButton.setTooltip(new Tooltip(I18nManager.getText("trash.delete")));
         deleteButton.setOnAction((event) -> {
             TrashEntry entry = getItem();

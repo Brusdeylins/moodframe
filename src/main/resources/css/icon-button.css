@@ -1,0 +1,65 @@
+/*  The buttons with only an icon, all as the info and settings buttons at the top right: the normal pointer, no
+    border, a light rounded surface behind the icon while hovered, a stronger one while pressed, open or chosen, and
+    a ring while focused by the keyboard. The rules set the button colors of the theme, which the translucent panels
+    use as well (see main-window.css); the surfaces darken a light background and lighten a dark one.  */
+.icon-button {
+    -icon-button-hover:           ladder(-color-bg-default, rgba(255, 255, 255, 0.1) 49%, rgba(0, 0, 0, 0.07) 50%);
+    -icon-button-pressed:         ladder(-color-bg-default, rgba(255, 255, 255, 0.2) 49%, rgba(0, 0, 0, 0.14) 50%);
+    -color-button-bg:             transparent;
+    -color-button-border:         transparent;
+    -color-button-bg-hover:       -icon-button-hover;
+    -color-button-border-hover:   transparent;
+    -color-button-bg-pressed:     -icon-button-pressed;
+    -color-button-border-focused: transparent;
+    -color-button-fg-selected:    -color-accent-fg;
+    -fx-background-color:  -color-button-bg;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4px;
+    -fx-border-color:      -color-button-border;
+    -fx-border-width:      1px;
+    -fx-border-radius:     4px;
+    -fx-padding:           3px;
+    -fx-content-display:   graphic-only;
+    -fx-cursor:            default;
+    -fx-effect:            none;
+}
+
+/*  On the dark bar over an image and in the full view: white icons, a light surface and a brighter red, the same in
+    all themes  */
+.image-action-bar .icon-button,
+.image-preview-overlay .icon-button {
+    -icon-button-hover:   rgba(255, 255, 255, 0.2);
+    -icon-button-pressed: rgba(255, 255, 255, 0.32);
+    -color-fg-default:    white;
+    -color-fg-muted:      white;
+    -color-danger-fg:     #ff6b6b;
+}
+
+.icon-button:hover {
+    -fx-background-color: -color-button-bg-hover;
+}
+.icon-button:armed,
+.icon-button:showing,
+.icon-button:selected {
+    -color-button-bg:       -color-button-bg-pressed;
+    -color-button-bg-hover: -color-button-bg-pressed;
+}
+.icon-button:focused {
+    -fx-border-color: -color-button-border-focused;
+}
+.icon-button:focus-visible {
+    -color-button-border-focused: -color-accent-emphasis;
+}
+
+/*  A menu button pads itself like a button instead of its label  */
+.menu-button.icon-button > .label {
+    -fx-padding: 0;
+}
+
+/*  Icons that delete or move to the trash: muted, in the color of danger only while hovered  */
+.text-danger-hover {
+    -color-button-fg: -color-fg-muted;
+}
+.text-danger-hover:hover {
+    -color-button-fg: -color-danger-fg;
+}

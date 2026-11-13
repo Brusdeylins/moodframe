@@ -39,7 +39,7 @@
             <Region HBox.hgrow="ALWAYS" />
             
             <!-- Info Button: shows the splash screen again, closes with Esc -->
-            <Button fx:id="infoButton" styleClass="button-icon, flat"
+            <Button fx:id="infoButton" styleClass="icon-button"
                     onAction="#onInfoClicked">
                 <graphic>
                     <FontIcon iconLiteral="mdi2i-information-outline" iconSize="20" styleClass="ikonli-font-icon" />
@@ -50,7 +50,7 @@
             </Button>
 
             <!-- Settings Button (CRITICAL: Must be available BEFORE API calls) -->
-            <Button fx:id="settingsButton" styleClass="button-icon, flat" 
+            <Button fx:id="settingsButton" styleClass="icon-button"
                     onAction="#onSettingsClicked">
                 <graphic>
                     <FontIcon iconLiteral="mdi2c-cog" iconSize="20" styleClass="ikonli-font-icon" />
@@ -83,7 +83,7 @@
                     <Region HBox.hgrow="ALWAYS" />
 
                     <!-- Switch of the list: by chat, by mood or by frame, the active one checked -->
-                    <MenuButton fx:id="sidebarModeButton" styleClass="button-icon, flat, no-arrow">
+                    <MenuButton fx:id="sidebarModeButton" styleClass="icon-button, no-arrow">
                         <graphic>
                             <FontIcon iconLiteral="mdi2s-sort" iconSize="20" styleClass="ikonli-font-icon" />
                         </graphic>
@@ -98,7 +98,7 @@
                     </MenuButton>
 
                     <!-- New Chat Button -->
-                    <Button fx:id="newChatButton" styleClass="button-icon, flat"
+                    <Button fx:id="newChatButton" styleClass="icon-button"
                             onAction="#onNewChatClicked" HBox.hgrow="ALWAYS">
                         <graphic>
                             <FontIcon iconLiteral="mdi2p-plus" iconSize="20" styleClass="ikonli-font-icon" />
@@ -109,7 +109,7 @@
                     </Button>
                     
                     <!-- Trash Button: opens the central trash -->
-                    <Button fx:id="trashButton" styleClass="button-icon, flat"
+                    <Button fx:id="trashButton" styleClass="icon-button"
                             onAction="#onTrashClicked">
                         <graphic>
                             <FontIcon iconLiteral="mdi2t-trash-can-outline" iconSize="20" styleClass="ikonli-font-icon" />
@@ -171,7 +171,7 @@
                                     <padding>
                                         <Insets left="12.0" />
                                     </padding>
-                                    <ToggleButton fx:id="chatViewButton" styleClass="button-icon, left-pill" selected="true">
+                                    <ToggleButton fx:id="chatViewButton" styleClass="icon-button" selected="true">
                                         <graphic>
                                             <FontIcon iconLiteral="mdi2f-format-list-bulleted" iconSize="16" styleClass="ikonli-font-icon" />
                                         </graphic>
@@ -179,7 +179,7 @@
                                             <Tooltip fx:id="chatViewTooltip" text="Chat" />
                                         </tooltip>
                                     </ToggleButton>
-                                    <ToggleButton fx:id="imagesViewButton" styleClass="button-icon, right-pill">
+                                    <ToggleButton fx:id="imagesViewButton" styleClass="icon-button">
                                         <graphic>
                                             <FontIcon iconLiteral="mdi2v-view-grid-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                         </graphic>
@@ -302,28 +302,28 @@
                                     <HBox alignment="CENTER_RIGHT" spacing="2.0">
 
                                         <!-- Finds atmosphere, style, light and colors in an image -->
-                                        <Button fx:id="moodFromImageButton" styleClass="button-icon, flat, panel-group-action" onAction="#onMoodFromImageClicked">
+                                        <Button fx:id="moodFromImageButton" styleClass="icon-button, panel-group-action" onAction="#onMoodFromImageClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2i-image-search-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
                                         </Button>
 
                                         <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
-                                        <Button fx:id="saveMoodButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveMoodClicked">
+                                        <Button fx:id="saveMoodButton" styleClass="icon-button, panel-group-action" onAction="#onSaveMoodClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
                                         </Button>
 
                                         <!-- Saves the fields as a new mood under a name the user enters -->
-                                        <Button fx:id="saveMoodAsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveMoodAsClicked">
+                                        <Button fx:id="saveMoodAsButton" styleClass="icon-button, panel-group-action" onAction="#onSaveMoodAsClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
                                         </Button>
 
                                         <!-- Opens the window for the moods of the user -->
-                                        <Button fx:id="manageMoodsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onManageMoodsClicked">
+                                        <Button fx:id="manageMoodsButton" styleClass="icon-button, panel-group-action" onAction="#onManageMoodsClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
@@ -340,7 +340,7 @@
                                     <!-- "No mood" and the moods; the warning leads to a block of the mood in the trash -->
                                     <HBox alignment="CENTER_LEFT" spacing="4.0">
                                         <ComboBox fx:id="moodComboBox" maxWidth="Infinity" HBox.hgrow="ALWAYS" />
-                                        <Button fx:id="moodIncompleteButton" styleClass="button-icon, flat, mood-incomplete"
+                                        <Button fx:id="moodIncompleteButton" styleClass="icon-button, mood-incomplete"
                                                 onAction="#onMoodIncompleteClicked" visible="false" managed="false">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2a-alert-circle-outline" iconSize="16" styleClass="ikonli-font-icon" />
@@ -358,7 +358,7 @@
                                         <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="atmosphereLabel" text="Atmosphere:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
-                                            <ToggleButton fx:id="atmosphereLockButton" styleClass="block-lock">
+                                            <ToggleButton fx:id="atmosphereLockButton" styleClass="icon-button, block-lock">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
                                                 </graphic>
@@ -375,7 +375,7 @@
                                         <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
-                                            <ToggleButton fx:id="styleLockButton" styleClass="block-lock">
+                                            <ToggleButton fx:id="styleLockButton" styleClass="icon-button, block-lock">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
                                                 </graphic>
@@ -392,7 +392,7 @@
                                         <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="colorStyleLabel" text="Color:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
-                                            <ToggleButton fx:id="colorLockButton" styleClass="block-lock">
+                                            <ToggleButton fx:id="colorLockButton" styleClass="icon-button, block-lock">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
                                                 </graphic>
@@ -409,7 +409,7 @@
                                         <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
-                                            <ToggleButton fx:id="lightLockButton" styleClass="block-lock">
+                                            <ToggleButton fx:id="lightLockButton" styleClass="icon-button, block-lock">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
                                                 </graphic>
@@ -431,7 +431,7 @@
                                         <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
                                             <Label fx:id="cameraLabel" text="Camera:" styleClass="text-bold" />
                                             <Region HBox.hgrow="ALWAYS" />
-                                            <ToggleButton fx:id="cameraLockButton" styleClass="block-lock">
+                                            <ToggleButton fx:id="cameraLockButton" styleClass="icon-button, block-lock">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
                                                 </graphic>
@@ -461,21 +461,21 @@
                                     <HBox alignment="CENTER_RIGHT" spacing="2.0">
 
                                         <!-- Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame -->
-                                        <Button fx:id="saveFrameButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveFrameClicked">
+                                        <Button fx:id="saveFrameButton" styleClass="icon-button, panel-group-action" onAction="#onSaveFrameClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
                                         </Button>
 
                                         <!-- Saves aspect ratio and resolution as a new frame under a name the user enters -->
-                                        <Button fx:id="saveFrameAsButton" styleClass="button-icon, flat, panel-group-action" onAction="#onSaveFrameAsClicked">
+                                        <Button fx:id="saveFrameAsButton" styleClass="icon-button, panel-group-action" onAction="#onSaveFrameAsClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
                                         </Button>
 
                                         <!-- Opens the window for the frames of the user -->
-                                        <Button fx:id="manageFramesButton" styleClass="button-icon, flat, panel-group-action" onAction="#onManageFramesClicked">
+                                        <Button fx:id="manageFramesButton" styleClass="icon-button, panel-group-action" onAction="#onManageFramesClicked">
                                             <graphic>
                                                 <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
                                             </graphic>
@@ -578,7 +578,7 @@
                                                           promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
 
                                                 <!-- Clear Seed Button -->
-                                                <Button fx:id="clearSeedButton" styleClass="button-icon, flat"
+                                                <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
                                                         onAction="#onClearSeedClicked">
                                                     <graphic>
                                                         <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
@@ -732,7 +732,7 @@
                                             </Button>
 
                                             <!-- Remove Button -->
-                                            <Button fx:id="removeImageButton" styleClass="button-icon, flat"
+                                            <Button fx:id="removeImageButton" styleClass="icon-button, text-danger-hover"
                                                     disable="true" onAction="#onRemoveImageClicked">
                                                 <graphic>
                                                     <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />

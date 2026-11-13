@@ -374,6 +374,10 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             if (value == null || icons != null) {
                 button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
                 button.setPrefSize(38, 34);
+
+                /*  A row of icons only is a row of icon buttons; "Any" beside the ISO values stays a chip like them  */
+                if (icons != null)
+                    button.getStyleClass().add("icon-button");
                 Tooltip tooltip = new Tooltip();
                 texts.put(tooltip, name);
                 button.setTooltip(tooltip);

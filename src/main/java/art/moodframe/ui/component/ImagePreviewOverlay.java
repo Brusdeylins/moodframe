@@ -133,13 +133,6 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     public ImagePreviewOverlay() {
         getStyleClass().add("image-preview-overlay");
 
-        // Load custom CSS for white icons
-        try {
-            getStylesheets().add(getClass().getResource("/css/image-preview-overlay.css").toExternalForm());
-        } catch (Exception e) {
-            logger.warn("Could not load image preview overlay CSS", e);
-        }
-
         setVisible(false);
 
         // =================== LAYER 1: DISPLAY LAYER ===================
@@ -239,18 +232,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         closeIcon.setIconSize(20);
         closeIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         closeButton.setGraphic(closeIcon);
-        closeButton.getStyleClass().addAll("button-icon");
+        closeButton.getStyleClass().add("icon-button");
         closeButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.close")));
-        closeButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Previous image button (left side)
         prevImageButton = new Button();
@@ -258,18 +241,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         prevImageIcon.setIconSize(24);
         prevImageIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         prevImageButton.setGraphic(prevImageIcon);
-        prevImageButton.getStyleClass().addAll("button-icon");
+        prevImageButton.getStyleClass().add("icon-button");
         prevImageButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.prev.image")));
-        prevImageButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Next image button (right side)
         nextImageButton = new Button();
@@ -277,18 +250,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         nextImageIcon.setIconSize(24);
         nextImageIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         nextImageButton.setGraphic(nextImageIcon);
-        nextImageButton.getStyleClass().addAll("button-icon");
+        nextImageButton.getStyleClass().add("icon-button");
         nextImageButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.next.image")));
-        nextImageButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Previous chat entry button (top center)
         prevChatButton = new Button();
@@ -296,18 +259,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         prevChatIcon.setIconSize(24);
         prevChatIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         prevChatButton.setGraphic(prevChatIcon);
-        prevChatButton.getStyleClass().addAll("button-icon");
+        prevChatButton.getStyleClass().add("icon-button");
         prevChatButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.prev.chat")));
-        prevChatButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Next chat entry button (bottom center)
         nextChatButton = new Button();
@@ -315,18 +268,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         nextChatIcon.setIconSize(24);
         nextChatIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         nextChatButton.setGraphic(nextChatIcon);
-        nextChatButton.getStyleClass().addAll("button-icon");
+        nextChatButton.getStyleClass().add("icon-button");
         nextChatButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.next.chat")));
-        nextChatButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Download button (bottom left)
         downloadButton = new Button();
@@ -334,18 +277,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         downloadIcon.setIconSize(20);
         downloadIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         downloadButton.setGraphic(downloadIcon);
-        downloadButton.getStyleClass().addAll("button-icon");
+        downloadButton.getStyleClass().add("icon-button");
         downloadButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.download.image")));
-        downloadButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Edit This button (bottom right)
         editThisButton = new Button();
@@ -353,18 +286,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         editIcon.setIconSize(20);
         editIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         editThisButton.setGraphic(editIcon);
-        editThisButton.getStyleClass().addAll("button-icon");
+        editThisButton.getStyleClass().add("icon-button");
         editThisButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.edit.image")));
-        editThisButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
 
         // Toggle Zoom button (100% <-> Fit to screen) - top right, next to close button
         zoom100Button = new Button();
@@ -373,17 +296,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         zoomToggleIcon.setIconSize(20);
         zoomToggleIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         zoom100Button.setGraphic(zoomToggleIcon);
-        zoom100Button.getStyleClass().addAll("button-icon");
-        zoom100Button.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 25; " +
-                        "-fx-min-width: 50; " +
-                        "-fx-min-height: 50; " +
-                        "-fx-max-width: 50; " +
-                        "-fx-max-height: 50; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
+        zoom100Button.getStyleClass().add("icon-button");
         // Ensure button can receive mouse events
         zoom100Button.setMouseTransparent(false);
         zoom100Button.setPickOnBounds(true);
@@ -394,18 +307,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         playIcon.setIconSize(24);
         playIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         playPauseButton.setGraphic(playIcon);
-        playPauseButton.getStyleClass().addAll("button-icon");
+        playPauseButton.getStyleClass().add("icon-button");
         playPauseButton.setTooltip(new Tooltip("Play / Pause"));
-        playPauseButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); " +
-                        "-fx-background-radius: 30; " +
-                        "-fx-min-width: 60; " +
-                        "-fx-min-height: 60; " +
-                        "-fx-max-width: 60; " +
-                        "-fx-max-height: 60; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-text-fill: white; " +
-                        "-ikonli-icon-color: white;");
         playPauseButton.setVisible(false);
 
         /*  The gallery shows the counter and the line of the image at the bottom center  */
@@ -455,12 +358,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Center image navigation buttons vertically via layout listener
         navigationAnchor.layoutBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
             // Center left/right navigation buttons vertically
-            double centerY = (newBounds.getHeight() - 50) / 2; // 50 is button height
+            double centerY = (newBounds.getHeight() - prevImageButton.prefHeight(-1)) / 2;
             prevImageButton.setLayoutY(centerY);
             nextImageButton.setLayoutY(centerY);
 
             // Center chat navigation buttons horizontally
-            double centerX = (newBounds.getWidth() - 50) / 2; // 50 is button width
+            double centerX = (newBounds.getWidth() - prevChatButton.prefWidth(-1)) / 2;
             prevChatButton.setLayoutX(centerX);
             nextChatButton.setLayoutX(centerX);
         });
@@ -486,7 +389,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
         // Center play button horizontally via layout listener
         navigationAnchor.layoutBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
-            double centerX2 = (newBounds.getWidth() - 60) / 2; // 60 is button width
+            double centerX2 = (newBounds.getWidth() - playPauseButton.prefWidth(-1)) / 2;
             playPauseButton.setLayoutX(centerX2);
         });
     }

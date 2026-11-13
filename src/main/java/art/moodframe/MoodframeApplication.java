@@ -4,10 +4,12 @@ import java.io.IOException;
 import java.net.URL;
 
 import javafx.application.Application;
+import javafx.collections.ListChangeListener;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +49,16 @@ public class MoodframeApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+
+        /*  The icon buttons look the same in every window, the dialogs included  */
+        String iconButtonCss = MoodframeApplication.class.getResource("/css/icon-button.css").toExternalForm();
+        Window.getWindows().addListener((ListChangeListener<Window>) (change) -> {
+            while (change.next())
+                for (Window window : change.getAddedSubList())
+                    if (window instanceof Stage && window.getScene() != null
+                            && !window.getScene().getStylesheets().contains(iconButtonCss))
+                        window.getScene().getStylesheets().add(iconButtonCss);
+        });
 
         // Show splash screen first
         SplashScreen splash = new SplashScreen(() -> {

@@ -243,7 +243,7 @@ public class BrainstormDialog extends Stage {
         newIcon.setIconSize(20);
         Button newButton = new Button();
         newButton.setGraphic(newIcon);
-        newButton.getStyleClass().addAll("button-icon", "flat");
+        newButton.getStyleClass().add("icon-button");
         newButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.new")));
         newButton.setOnAction(event -> showNewSession());
 

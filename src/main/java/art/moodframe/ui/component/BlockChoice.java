@@ -103,7 +103,7 @@ public class BlockChoice<T> {
         icon.getStyleClass().add("ikonli-font-icon");
         icon.setIconSize(14);
         Button button = new Button(null, icon);
-        button.getStyleClass().addAll("button-icon", "flat", "block-action");
+        button.getStyleClass().addAll("icon-button", "block-action");
         return button;
     }
 

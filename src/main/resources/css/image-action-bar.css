@@ -1,22 +1,8 @@
-/*  The actions of an image: a dark, rounded bar with white icons over the image, the same in both themes  */
+/*  The actions of an image: a dark, rounded bar over the image, the same in both themes, with white icon buttons
+    (see icon-button.css)  */
 .image-action-bar {
     -fx-background-color: rgba(0, 0, 0, 0.72);
     -fx-background-radius: 8px;
     -fx-padding: 3px 4px 3px 4px;
     -fx-spacing: 1px;
-}
-.image-action-bar .button {
-    -fx-background-color: transparent;
-    -fx-border-width: 0;
-    -fx-padding: 2px;
-}
-.image-action-bar .button:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.2);
-    -fx-background-radius: 5px;
-}
-.image-action-bar .ikonli-font-icon {
-    -fx-icon-color: white;
-}
-.image-action-bar .image-action-delete .ikonli-font-icon {
-    -fx-icon-color: #ff6b6b;
 }

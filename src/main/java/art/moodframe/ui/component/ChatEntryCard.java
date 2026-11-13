@@ -187,13 +187,6 @@ public class ChatEntryCard extends ManagedComponent {
 
         // Initialize UI components - must be done in constructor because fields are
         // final
-        // Load custom CSS for icon color overrides
-        try {
-            getStylesheets().add(getClass().getResource("/css/image-card-overrides.css").toExternalForm());
-        } catch (Exception e) {
-            logger.warn("Could not load image card CSS overrides", e);
-        }
-
         // Configure the main container with subtle border
         setSpacing(8.0);
         setPadding(new Insets(16.0, 20.0, 16.0, 20.0));
@@ -225,7 +218,7 @@ public class ChatEntryCard extends ManagedComponent {
         FontIcon reuseIcon = new FontIcon("mdi2c-content-copy");
         reuseIcon.setIconSize(14);
         this.reuseButton = new Button(null, reuseIcon);
-        reuseButton.getStyleClass().addAll("button-icon", "flat");
+        reuseButton.getStyleClass().add("icon-button");
         reuseButton.setMinWidth(Region.USE_PREF_SIZE);
         reuseButton.setOnAction((event) -> reuse(Reuse.ALL));
 
@@ -244,7 +237,7 @@ public class ChatEntryCard extends ManagedComponent {
                     if (onEntryDelete != null)
                         onEntryDelete.accept(chatEntry);
                 }));
-        moreButton.getStyleClass().addAll("button-icon", "flat", "no-arrow");
+        moreButton.getStyleClass().addAll("icon-button", "no-arrow");
         moreButton.setMinWidth(Region.USE_PREF_SIZE);
 
         /*  Saving is available for an entry that carries a mood or a frame  */

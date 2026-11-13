@@ -83,14 +83,10 @@
     -fx-border-color: -color-accent-emphasis;
 }
 
-/*  The lock of a building block field: no button look, shown while the pointer is over the field and always
-    once locked, so it takes its space without making the row jump  */
-.block-lock,
-.block-lock:selected {
-    -fx-background-color: transparent;
-    -fx-padding: 0 2px 0 2px;
-}
+/*  The lock of a building block field: muted, shown while the pointer is over the field and always once locked, so
+    it takes its space without making the row jump  */
 .block-lock {
+    -color-button-fg: -color-fg-muted;
     -fx-opacity: 0;
 }
 .block-field:hover .block-lock,
@@ -98,19 +94,11 @@
 .block-lock:focused {
     -fx-opacity: 1;
 }
-.block-lock .ikonli-font-icon {
-    -fx-icon-color: -color-fg-muted;
-}
-.block-lock:selected .ikonli-font-icon {
-    -fx-icon-color: -color-accent-fg;
-}
 
-/*  The actions left of the lock: flat icons in the size of the lock, without the border of a see-through button,
-    shown like the lock while the pointer is over the field, also when disabled (faded like any see-through button)  */
+/*  The actions left of the lock: shown like the lock while the pointer is over the field, also when disabled (faded
+    like any see-through button)  */
 .block-field .block-action,
 .block-field .block-action:disabled {
-    -fx-border-width: 0;
-    -fx-padding: 0 2px 0 2px;
     -fx-opacity: 0;
 }
 .block-field:hover .block-action,
@@ -119,13 +107,6 @@
     -fx-opacity: 1;
 }
 
-/*  The trash of a chat row: muted, in the color of danger while hovered  */
-.chat-list-cell .chat-action-button .ikonli-font-icon {
-    -fx-icon-color: -color-fg-muted;
-}
-.chat-list-cell .chat-action-button:hover .ikonli-font-icon {
-    -fx-icon-color: -color-danger-fg;
-}
 /*  The header of a group in a building block list: not selectable, but readable  */
 .list-cell.block-row-header:disabled {
     -fx-opacity: 1;
@@ -195,12 +176,6 @@
     -fx-max-height: 18px;
 }
 
-/*  The actions in the header of a group: tighter than the icon buttons of the theme, so that the title keeps its
-    width beside four of them at the 250 px of the panel  */
-.panel-group .panel-group-action {
-    -fx-padding: 4px;
-}
-
 /*  Shown like the actions of a block field while the pointer is over the group, header or content, keeping their
     space; "Save" also while the chosen mood or frame is changed, so the unsaved state shows  */
 .panel-group .panel-group-action,
@@ -212,12 +187,6 @@
 .panel-group .panel-group-action:focused,
 .panel-group .panel-group-action:unsaved {
     -fx-opacity: 1;
-}
-
-/*  The menu of the left sidebar as wide as the icon buttons next to it: the theme pads the label of a menu button
-    wider than a button  */
-.menu-button.button-icon > .label {
-    -fx-padding: 8px;
 }
 
 /*  The badges below the prompt of a chat entry, in the colors of the groups of the right panel: filled for a saved

@@ -78,7 +78,7 @@
                         <HBox alignment="CENTER_LEFT" spacing="10.0">
                             <PasswordField fx:id="apiKeyField" promptText="%settings.api.key.placeholder" HBox.hgrow="ALWAYS" />
                             
-                            <Button fx:id="showApiKeyButton" onAction="#onShowApiKeyToggle" styleClass="button-icon">
+                            <Button fx:id="showApiKeyButton" onAction="#onShowApiKeyToggle" styleClass="icon-button">
                                 <graphic>
                                     <FontIcon fx:id="showApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
                                 </graphic>
@@ -152,7 +152,7 @@
                         <HBox alignment="CENTER_LEFT" spacing="10.0">
                             <PasswordField fx:id="geminiApiKeyField" promptText="%settings.gemini.key.placeholder" HBox.hgrow="ALWAYS" />
 
-                            <Button fx:id="showGeminiApiKeyButton" onAction="#onShowGeminiApiKeyToggle" styleClass="button-icon">
+                            <Button fx:id="showGeminiApiKeyButton" onAction="#onShowGeminiApiKeyToggle" styleClass="icon-button">
                                 <graphic>
                                     <FontIcon fx:id="showGeminiApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
                                 </graphic>
@@ -200,7 +200,7 @@
                         <HBox alignment="CENTER_LEFT" spacing="10.0">
                             <PasswordField fx:id="openaiApiKeyField" promptText="%settings.openai.key.placeholder" HBox.hgrow="ALWAYS" />
 
-                            <Button fx:id="showOpenaiApiKeyButton" onAction="#onShowOpenaiApiKeyToggle" styleClass="button-icon">
+                            <Button fx:id="showOpenaiApiKeyButton" onAction="#onShowOpenaiApiKeyToggle" styleClass="icon-button">
                                 <graphic>
                                     <FontIcon fx:id="showOpenaiApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
                                 </graphic>

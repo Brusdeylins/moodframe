@@ -56,19 +56,14 @@ public class ChatListCell extends ListCell<Chat> {
         // No CSS alignment needed - handled by HBox alignment
 
         /*  Trash button for active chats: the icon and its size of the trash in the header of the list, muted and
-            in the color of danger while hovered (see main-window.css)  */
+            in the color of danger while hovered (see icon-button.css)  */
         trashButton = new Button();
         FontIcon trashIcon = new FontIcon("mdi2t-trash-can-outline");
         trashIcon.setIconSize(20);
         trashButton.setGraphic(trashIcon);
-        trashButton.getStyleClass().addAll("button-icon", "flat", "chat-action-button");
-        trashButton.setStyle(
-                "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0; -fx-padding: 2;");
+        trashButton.getStyleClass().addAll("icon-button", "text-danger-hover");
         trashButton.setVisible(false);
         trashButton.managedProperty().bind(trashButton.visibleProperty());
-        trashButton.setMinSize(24, 24);
-        trashButton.setMaxSize(24, 24);
-        trashButton.setPrefSize(24, 24);
         trashButton.setTooltip(new Tooltip("Move to trash (can be restored)"));
 
         statusLabel = new Label();

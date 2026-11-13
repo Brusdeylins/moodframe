@@ -101,12 +101,7 @@ public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         FontIcon trashIcon = new FontIcon("mdi2d-delete");
         trashIcon.setIconSize(12);
         trashButton.setGraphic(trashIcon);
-        trashButton.getStyleClass().addAll("button-icon", "chat-action-button");
-        trashButton.setStyle(
-                "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0; -fx-padding: 2;");
-        trashButton.setMinSize(18, 18);
-        trashButton.setMaxSize(18, 18);
-        trashButton.setPrefSize(18, 18);
+        trashButton.getStyleClass().addAll("icon-button", "text-danger-hover");
         trashButton.setVisible(false);
         trashButton.setOnAction(event -> {
             BrainstormSession session = getItem();

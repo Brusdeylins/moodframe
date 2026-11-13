@@ -139,7 +139,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
         // Clipboard paste button next to the header
         pasteButton = new Button();
-        pasteButton.getStyleClass().addAll("button-icon", "flat");
+        pasteButton.getStyleClass().add("icon-button");
         pasteButton.setOnAction((e) -> pasteFromClipboard());
 
         FontIcon pasteIcon = new FontIcon("mdi2c-clipboard-arrow-down-outline");
@@ -765,7 +765,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
             // Remove button - overlay at top right, only visible on hover
             removeButton = new Button();
-            removeButton.getStyleClass().addAll("button-icon", "flat");
+            removeButton.getStyleClass().addAll("icon-button", "text-danger-hover");
             removeButton.setVisible(false);
             removeButton.setOnAction(e -> {
                 // Hide button immediately before removal
@@ -778,12 +778,19 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             removeIcon.getStyleClass().addAll("ikonli-font-icon");
             removeButton.setGraphic(removeIcon);
             removeButton.setTooltip(new Tooltip(I18nManager.getText("attachment.remove")));
-            removeButton.setStyle("-fx-background-color: rgba(0, 0, 0, 0.5); -fx-background-radius: 4px;");
 
-            StackPane.setAlignment(removeButton, Pos.TOP_RIGHT);
-            StackPane.setMargin(removeButton, new Insets(4));
+            /*  Over the image the button sits on the dark bar of the actions of an image, shown with the button  */
+            HBox removeBar = new HBox(removeButton);
+            removeBar.getStyleClass().add("image-action-bar");
+            removeBar.getStylesheets().add(
+                    MultiImageAttachmentPanel.class.getResource("/css/image-action-bar.css").toExternalForm());
+            removeBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            removeBar.visibleProperty().bind(removeButton.visibleProperty());
 
-            previewContainer.getChildren().addAll(placeholder, imageView, removeButton);
+            StackPane.setAlignment(removeBar, Pos.TOP_RIGHT);
+            StackPane.setMargin(removeBar, new Insets(4));
+
+            previewContainer.getChildren().addAll(placeholder, imageView, removeBar);
 
             // Hover effect: show remove button only when image present (but not during drag)
             previewContainer.setOnMouseEntered(e -> {

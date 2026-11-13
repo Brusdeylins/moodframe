@@ -57,8 +57,9 @@ public class ImageActionBar extends HBox {
             FontIcon icon = new FontIcon(action.icon);
             icon.setIconSize(14);
             Button button = new Button(null, icon);
+            button.getStyleClass().add("icon-button");
             if (action == Action.DELETE)
-                button.getStyleClass().add("image-action-delete");
+                button.getStyleClass().add("text-danger-hover");
             button.setOnAction((event) -> onAction.accept(action));
             buttons.put(action, button);
             getChildren().add(button);

@@ -3233,24 +3233,6 @@ public class MainWindowController implements I18nChangeListener {
         // Create filtered list to hide trashed chats
         filteredChatList = new FilteredList<>(chatList, this::shouldShowChat);
 
-        // Remove borders from all main buttons
-        if (trashButton != null) {
-            trashButton.setStyle(
-                    "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
-        }
-        if (newChatButton != null) {
-            newChatButton.setStyle(
-                    "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
-        }
-        if (settingsButton != null) {
-            settingsButton.setStyle(
-                    "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
-        }
-        if (infoButton != null) {
-            infoButton.setStyle(
-                    "-fx-border-color: transparent; -fx-border-width: 0; -fx-background-insets: 0; -fx-border-insets: 0;");
-        }
-
         // Setup chat list view with filtered list
         chatListView.setItems(filteredChatList);
         ListReorder<Chat> reorder = new ListReorder<>(chatListView, this::moveChat);
