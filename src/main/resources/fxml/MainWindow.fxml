@@ -66,13 +66,16 @@
         <SplitPane fx:id="mainSplitPane" dividerPositions="0.2">
             
             <!-- Left Sidebar: Chat List, translucent over the cloud like the fields on the right -->
-            <VBox spacing="5.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
+            <VBox spacing="0.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
                 <padding>
                     <Insets bottom="0.0" left="10.0" right="5.0" top="0.0" />
                 </padding>
 
-                <!-- Chat Controls Row -->
-                <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="40.0" maxHeight="40.0" prefHeight="40.0">
+                <!-- Chat Controls Row: height and padding like the chat header, so both headings share one line -->
+                <HBox spacing="5.0" alignment="CENTER_LEFT" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+                    <padding>
+                        <Insets top="10.0" bottom="15.0" />
+                    </padding>
                     <!-- The current view of the list: chats, moods or frames -->
                     <Label fx:id="sidebarTitleLabel" text="Chats" styleClass="title-4" />
                     <Region HBox.hgrow="ALWAYS" />
@@ -134,15 +137,18 @@
                 <!-- Left: Chat Area (grows to take available space) -->
                 <BorderPane HBox.hgrow="ALWAYS">
                     
-                    <!-- Chat Header -->
+                    <!-- Chat Header: height and padding like the controls row of the sidebar; the title sits
+                         like the sidebar heading, the costs on the baseline of the title -->
                     <top>
-                        <HBox alignment="CENTER_LEFT" spacing="10.0" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+                        <HBox alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
                             <padding>
                                 <Insets left="5.0" right="20.0" top="10.0" bottom="15.0" />
                             </padding>
-                            <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-3" />
-                            <Region HBox.hgrow="ALWAYS" />
-                            <Label fx:id="chatTotalCostLabel" text="" styleClass="text-muted" />
+                            <HBox alignment="BASELINE_LEFT" spacing="10.0" maxHeight="-Infinity" HBox.hgrow="ALWAYS">
+                                <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-4" />
+                                <Region HBox.hgrow="ALWAYS" />
+                                <Label fx:id="chatTotalCostLabel" text="" styleClass="text-muted" />
+                            </HBox>
                         </HBox>
                     </top>
                     
