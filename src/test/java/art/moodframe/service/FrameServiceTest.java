@@ -48,8 +48,8 @@ class FrameServiceTest {
 
     @Test
     void offersSevenLockedStandardFramesWithATargetAspectRatioAndResolution() {
-        assertEquals(List.of("Social Post", "Story / Reel", "Präsentation", "Web-Banner", "Poster / Druck",
-                "Text im Bild", "Schnelle Skizzen"), frames.getDefaults().stream().map(Frame::getName).toList());
+        assertEquals(List.of("Social Post", "Story / Reel", "Presentation", "Web Banner", "Poster / Print",
+                "Text in Image", "Quick Sketches"), frames.getDefaults().stream().map(Frame::getName).toList());
         assertEquals(List.of("4:5", "9:16", "16:9", "21:9", "2:3", "16:9", "1:1"),
                 frames.getDefaults().stream().map(Frame::getAspectRatio).toList());
         assertEquals(List.of("2K", "2K", "2K", "2K", "4K", "2K", "1K"),
@@ -72,7 +72,7 @@ class FrameServiceTest {
         assertEquals("2:3", AspectRatios.nearestForItem(socialPost, OPENAI));
         assertEquals("9:16", AspectRatios.nearestForItem(socialPost, item(GenerationModel.OMNI_720P)));
 
-        String webBanner = standard("Web-Banner").getAspectRatio();
+        String webBanner = standard("Web Banner").getAspectRatio();
         assertEquals("21:9", AspectRatios.nearestForItem(webBanner, item(GenerationModel.FLUX3_IMAGE_2K)));
         assertEquals("3:2", AspectRatios.nearestForItem(webBanner, OPENAI));
         assertEquals("16:9", AspectRatios.nearestForItem(webBanner, item(GenerationModel.OMNI_1080P)));
@@ -94,13 +94,13 @@ class FrameServiceTest {
                 .filter((GenerationModel model) -> model != GenerationModel.OPENAI_IMAGE).map(FrameServiceTest::item)
                 .toList();
 
-        String poster = standard("Poster / Druck").getResolution();
+        String poster = standard("Poster / Print").getResolution();
         assertEquals("1K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.NANO_BANANA2_LITE)));
         assertEquals("4K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.GEMINI_PRO_2K)));
         assertEquals("4K", ModelFamilies.nearestForItem(poster, items, item(GenerationModel.FLUX3_IMAGE_1K)));
         assertNull(ModelFamilies.nearestForItem(poster, items, item(GenerationModel.FLUX2_PRO)));
 
-        String sketches = standard("Schnelle Skizzen").getResolution();
+        String sketches = standard("Quick Sketches").getResolution();
         assertEquals("2K", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.GEMINI_PRO_4K)));
         assertEquals("1K", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.NANO_BANANA2_2K)));
         assertEquals("720p", ModelFamilies.nearestForItem(sketches, items, item(GenerationModel.OMNI_4K)));

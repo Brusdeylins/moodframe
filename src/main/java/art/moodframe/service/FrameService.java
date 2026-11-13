@@ -46,11 +46,11 @@ public class FrameService {
         /*  Id, name, target aspect ratio and target resolution  */
         frames.add(frame("social-post", "Social Post", "4:5", "2K"));
         frames.add(frame("story-reel", "Story / Reel", "9:16", "2K"));
-        frames.add(frame("presentation", "Präsentation", "16:9", "2K"));
-        frames.add(frame("web-banner", "Web-Banner", "21:9", "2K"));
-        frames.add(frame("poster-print", "Poster / Druck", "2:3", "4K"));
-        frames.add(frame("text-in-image", "Text im Bild", "16:9", "2K"));
-        frames.add(frame("quick-sketches", "Schnelle Skizzen", "1:1", "1K"));
+        frames.add(frame("presentation", "Presentation", "16:9", "2K"));
+        frames.add(frame("web-banner", "Web Banner", "21:9", "2K"));
+        frames.add(frame("poster-print", "Poster / Print", "2:3", "4K"));
+        frames.add(frame("text-in-image", "Text in Image", "16:9", "2K"));
+        frames.add(frame("quick-sketches", "Quick Sketches", "1:1", "1K"));
 
         for (int i = 0; i < frames.size(); i++)
             frames.get(i).setSortOrder(i);

@@ -49,7 +49,7 @@ One entry each, 4 images, Nano Banana Pro unless noted.
 |---|---|---|---|
 | Tokyo after rain | A narrow alley in Tokyo at night after rain, glowing signs, a cyclist passing | Sci-Fi Cinema | Presentation |
 | Morning coffee ritual | A handmade ceramic cup of coffee on a linen cloth, steam rising, morning window | Clean Product | Social Post |
-| Desert observatory | A lone observatory dome in a red desert under a sky full of stars | Blockbuster | Web-Banner (21:9) |
+| Desert observatory | A lone observatory dome in a red desert under a sky full of stars | Blockbuster | Web Banner (21:9) |
 | Fox in the snow | A red fox curled up in fresh snow in a birch forest | Dreamy Pastel (FLUX.2 [pro]) | Social Post |
 
 ## Chat 7: "Mood from image" (optional, for a later chapter)
