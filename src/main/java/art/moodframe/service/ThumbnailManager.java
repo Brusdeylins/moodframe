@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.util.ImageSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,10 +14,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Collections;
@@ -29,8 +33,8 @@ import java.util.Collections;
  * following features:
  * </p>
  * <ul>
- * <li>400x400px maximum dimension thumbnails with aspect ratio
- * preservation</li>
+ * <li>800x800px maximum dimension thumbnails with aspect ratio
+ * preservation, sharp up to 400 pt on a Retina screen</li>
  * <li>JPEG format with 85% quality for optimal size/quality balance</li>
  * <li>Background thumbnail generation using thread pool</li>
  * <li>Retroactive thumbnail creation for existing images</li>
@@ -53,7 +57,7 @@ public class ThumbnailManager implements ThumbnailService {
     private static final Logger logger = LoggerFactory.getLogger(ThumbnailManager.class);
 
     /** The longer side of the stored thumbnails in pixels, which also limits the size of the images in the chat area */
-    public static final int MAX_THUMBNAIL_SIZE = 400;
+    public static final int MAX_THUMBNAIL_SIZE = 800;
 
     // Thumbnail configuration constants
     private static final String THUMBNAIL_FORMAT = "jpg";
@@ -81,9 +85,13 @@ public class ThumbnailManager implements ThumbnailService {
     // Thumbnail cache with LRU eviction (caches File paths)
     private final Map<String, CompletableFuture<File>> thumbnailCache;
 
-    // JavaFX Image cache with LRU eviction (caches loaded Image objects to avoid disk I/O on scroll)
-    private static final int IMAGE_CACHE_SIZE = 100; // ~100 images in RAM for smooth scrolling
+    /*  JavaFX Image cache with LRU eviction (avoids disk I/O on scroll), limited by pixels: as many as 200
+        thumbnails of 400 by 400 px or 50 of 800 by 800 px, about 128 MB  */
+    private static final double IMAGE_CACHE_PIXELS = 32_000_000.0;
     private final Map<String, javafx.scene.image.Image> imageCache;
+
+    /*  The thumbnails checked for their full size in this run, by original image path  */
+    private final Map<String, CompletableFuture<Boolean>> enlargements = new ConcurrentHashMap<>();
 
     private final AtomicLong totalThumbnailsGenerated;
     private final AtomicLong totalOriginalSize;
@@ -118,12 +126,20 @@ public class ThumbnailManager implements ThumbnailService {
             }
         });
 
-        // LRU cache for JavaFX Image objects (avoids disk I/O on scroll)
+        /*  LRU cache for JavaFX Image objects: the least recently used give way while the cache holds more pixels
+            than its limit, the newest one always stays  */
         this.imageCache = Collections.synchronizedMap(new LinkedHashMap<String, javafx.scene.image.Image>(
-                IMAGE_CACHE_SIZE + 1, 0.75f, true) {
+                128, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, javafx.scene.image.Image> eldest) {
-                return size() > IMAGE_CACHE_SIZE;
+                double pixels = values().stream().mapToDouble((image) -> image.getWidth() * image.getHeight()).sum();
+                Iterator<javafx.scene.image.Image> images = values().iterator();
+                while (pixels > IMAGE_CACHE_PIXELS && size() > 1) {
+                    javafx.scene.image.Image image = images.next();
+                    pixels -= image.getWidth() * image.getHeight();
+                    images.remove();
+                }
+                return false;
             }
         });
 
@@ -189,14 +205,14 @@ public class ThumbnailManager implements ThumbnailService {
                 if (!file.exists()) {
                     return null;
                 }
-                // Load image with size constraint (400x400) to reduce memory usage
+                // Load image with size constraint (MAX_THUMBNAIL_SIZE) to reduce memory usage
                 // This is the same size as our thumbnails, so originals are downscaled on load
                 // preserveRatio=true, smooth=true, backgroundLoading=false
                 // IMPORTANT: backgroundLoading must be FALSE so the image is fully loaded
                 // before being cached. Otherwise incomplete images get cached and cause flicker.
                 return new javafx.scene.image.Image(
                         file.toURI().toString(),
-                        400, 400, true, true, false);
+                        MAX_THUMBNAIL_SIZE, MAX_THUMBNAIL_SIZE, true, true, false);
             } catch (Exception e) {
                 logger.warn("Failed to load cached image: {}", path, e);
                 return null;
@@ -280,6 +296,42 @@ public class ThumbnailManager implements ThumbnailService {
         });
 
         return thumbnailFuture;
+    }
+
+    /**
+     * Creates the thumbnail of an image anew in the background once it is smaller than the original allows, like
+     * one of 400 px from before; the old thumbnail stays in use until then. Each thumbnail is checked once per run.
+     *
+     * @param originalImagePath the path to the original image file
+     * @return CompletableFuture that resolves to true once the thumbnail was created anew, to false if it already has
+     *         its full size or cannot be created
+     */
+    public CompletableFuture<Boolean> enlargeThumbnail(String originalImagePath) {
+        return enlargements.computeIfAbsent(originalImagePath, (path) -> CompletableFuture.supplyAsync(() -> {
+            File originalFile = new File(path);
+            String thumbnailPath = generateThumbnailPath(path);
+            File thumbnailFile = new File(thumbnailPath);
+            ImageSize original = ImageSize.read(originalFile.toPath());
+            ImageSize thumbnail = ImageSize.read(thumbnailFile.toPath());
+            if (original == null || thumbnail == null)
+                return false;
+            Dimension full = calculateThumbnailDimensions(original.width(), original.height());
+            if (Math.max(thumbnail.width(), thumbnail.height()) >= Math.max(full.width, full.height))
+                return false;
+            activeTasks.incrementAndGet();
+            try {
+                generateThumbnail(originalFile, thumbnailFile);
+                imageCache.remove(thumbnailPath);
+                return true;
+            }
+            catch (IOException e) {
+                logger.warn("Failed to enlarge thumbnail for: {}", path, e);
+                return false;
+            }
+            finally {
+                activeTasks.decrementAndGet();
+            }
+        }, thumbnailExecutor));
     }
 
     /**
@@ -408,8 +460,17 @@ public class ThumbnailManager implements ThumbnailService {
             parentDir.mkdirs();
         }
 
-        // Write as JPEG with 85% quality
-        ImageIO.write(thumbnailImage, THUMBNAIL_FORMAT, thumbnailFile);
+        /*  Written aside and moved in place at once, so a view reading a thumbnail while it is created anew never
+            gets half a file  */
+        Path temporary = Files.createTempFile(thumbnailFile.getAbsoluteFile().toPath().getParent(), "thumb-", ".tmp");
+        try {
+            ImageIO.write(thumbnailImage, THUMBNAIL_FORMAT, temporary.toFile());
+            Files.move(temporary, thumbnailFile.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        }
+        finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     /**

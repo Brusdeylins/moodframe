@@ -995,6 +995,9 @@ public class ChatEntryCard extends ManagedComponent {
         // Get the actual thumbnail path (considering trash)
         String thumbnailPath = getActualImagePath(generatedImage, true);
 
+        /*  A thumbnail too small for its tile on the screen is created anew at full size  */
+        SharpThumbnail.follow(imageView, localPath, thumbnailManager);
+
         // FAST PATH: Check if thumbnail is already in memory cache (no disk I/O!)
         if (thumbnailPath != null) {
             javafx.scene.image.Image cachedImage = thumbnailManager.getFromCacheOnly(thumbnailPath);
@@ -1103,7 +1106,9 @@ public class ChatEntryCard extends ManagedComponent {
 
                 javafx.scene.image.Image image = thumbnailManager != null
                         ? thumbnailManager.getCachedImage(imagePath)
-                        : new javafx.scene.image.Image(imageFile.toURI().toString(), 400, 400, true, true, false);
+                        : new javafx.scene.image.Image(imageFile.toURI().toString(),
+                                ThumbnailManager.MAX_THUMBNAIL_SIZE, ThumbnailManager.MAX_THUMBNAIL_SIZE, true, true,
+                                false);
 
                 Platform.runLater(() -> {
                     if (image != null) {

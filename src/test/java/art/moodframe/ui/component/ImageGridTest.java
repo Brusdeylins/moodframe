@@ -7,6 +7,10 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.ui.BoxInset;
 import javafx.application.Platform;
+import javafx.beans.binding.DoubleBinding;
+import javafx.beans.binding.NumberBinding;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.Event;
@@ -39,7 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The columns of the images view, the images it shows in their order and the line of an image in its full view. */
+/**
+ * The columns of the images view and their largest sizes on screens of different scale, the images it shows in their
+ * order and the line of an image in its full view.
+ */
 class ImageGridTest {
 
     /*  The grid is a control, which needs the toolkit before its class is loaded  */
@@ -115,6 +122,48 @@ class ImageGridTest {
         int columns = ImageGrid.columns(1000, 200, 200);
         assertEquals(5, columns);
         assertTrue((1000 - 10.0 * (columns - 1)) / columns <= 200);
+    }
+
+    @Test
+    void theLargestSizesFollowTheScaleOfTheScreen() {
+        DoubleProperty scale = new SimpleDoubleProperty(1.0);
+        DoubleBinding sharp = ImageGrid.sharpSize(scale);
+        NumberBinding choice = ImageGrid.largestChoice(scale);
+        assertEquals(800.0, sharp.get());
+        assertEquals(480.0, choice.doubleValue());
+
+        /*  The window moves to a Retina screen and back  */
+        scale.set(2.0);
+        assertEquals(400.0, sharp.get());
+        assertEquals(400.0, choice.doubleValue());
+        scale.set(1.5);
+        assertEquals(800.0 / 1.5, sharp.get(), 0.001);
+        assertEquals(480.0, choice.doubleValue());
+    }
+
+    @Test
+    void theTilesShrinkToTheSharpSizeOnceTheWindowMovesToARetinaScreen() throws Exception {
+        ObservableList<ChatEntry> chat = FXCollections.observableArrayList();
+        for (int i = 0; i < 12; i++)
+            chat.add(entry("a lighthouse, take " + i));
+        DoubleProperty scale = new SimpleDoubleProperty(1.0);
+        ImageGrid grid = onFxThread(() -> {
+            ImageGrid shown = new ImageGrid((image) -> null);
+            shown.tileSizeProperty().set(400);
+            shown.maxTileSizeProperty().bind(ImageGrid.sharpSize(scale));
+            new Scene(new StackPane(shown), 1100, 600);
+            shown.entriesProperty().set(chat);
+            tiles(shown);
+            return shown;
+        });
+        double[] cells = onFxThread(() -> {
+            double before = grid.getFixedCellSize() - 10.0;
+            scale.set(2.0);
+            tiles(grid);
+            return new double[] { before, grid.getFixedCellSize() - 10.0 };
+        });
+        assertTrue(cells[0] > 400.0);
+        assertTrue(cells[1] <= 400.0);
     }
 
     @Test

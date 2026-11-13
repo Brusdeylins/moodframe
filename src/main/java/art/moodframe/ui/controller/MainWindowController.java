@@ -14,7 +14,6 @@ import art.moodframe.model.MoodGroup;
 import art.moodframe.service.ChatHistoryService;
 import art.moodframe.service.FrameService;
 import art.moodframe.service.MoodService;
-import art.moodframe.service.ThumbnailManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.BoxInset;
@@ -31,6 +30,8 @@ import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -3400,8 +3401,8 @@ public class MainWindowController implements I18nChangeListener {
         });
     }
 
-    /*  The image size reaches from 100 px to the size of the thumbnails in screen pixels, so the images stay sharp;
-        Cmd/Ctrl + and - change it in steps  */
+    /*  The image size reaches from 100 px to the size of the thumbnails in screen pixels, at most 480, so the images
+        stay sharp; Cmd/Ctrl + and - change it in steps  */
     private static final double MIN_IMAGE_SIZE = 100.0;
     private static final double IMAGE_SIZE_STEP = 20.0;
 
@@ -3437,12 +3438,13 @@ public class MainWindowController implements I18nChangeListener {
         }, () -> modelComboBox != null && modelComboBox.getValue() != null
                 && !modelComboBox.getValue().toLowerCase().contains("gemini"));
 
-        /*  The largest size follows the scale of the screen the window is on  */
+        /*  The largest sizes follow the scale of the screen the window is on, also when it moves to another screen  */
+        DoubleProperty outputScale = new SimpleDoubleProperty(Screen.getPrimary().getOutputScaleX());
         imageSizeSlider.setMin(MIN_IMAGE_SIZE);
-        imageSizeSlider.setMax(ThumbnailManager.MAX_THUMBNAIL_SIZE / Screen.getPrimary().getOutputScaleX());
+        imageSizeSlider.maxProperty().bind(ImageGrid.largestChoice(outputScale));
         imageSizeSlider.setValue(config != null ? config.getImageTileSize() : 180.0);
         imageGrid.tileSizeProperty().bind(imageSizeSlider.valueProperty());
-        imageGrid.maxTileSizeProperty().bind(imageSizeSlider.maxProperty());
+        imageGrid.maxTileSizeProperty().bind(ImageGrid.sharpSize(outputScale));
         imageSizeSlider.valueProperty().addListener((obs, oldSize, size) -> {
             if (!imageSizeSlider.isValueChanging() && config != null)
                 config.setImageTileSize(size.doubleValue());
@@ -3457,9 +3459,7 @@ public class MainWindowController implements I18nChangeListener {
             scene.addEventFilter(KeyEvent.KEY_PRESSED, this::changeImageSize);
             scene.windowProperty().addListener((windowObs, oldWindow, window) -> {
                 if (window != null)
-                    imageSizeSlider.maxProperty().bind(Bindings.createDoubleBinding(
-                            () -> ThumbnailManager.MAX_THUMBNAIL_SIZE / window.getOutputScaleX(),
-                            window.outputScaleXProperty()));
+                    outputScale.bind(window.outputScaleXProperty());
             });
         });
 

@@ -9,11 +9,15 @@ import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.VideoPoster;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.DoubleBinding;
+import javafx.beans.binding.NumberBinding;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableDoubleValue;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -77,6 +81,9 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     private static final int MIN_COLUMNS = 2;
     private static final double TILE_RADIUS = 8.0;
     private static final double DOTS_MARGIN = 5.0;
+
+    /*  The largest size of a tile to choose; a tile only gets larger to fill the width, up to the sharp size  */
+    private static final double MAX_CHOSEN_SIZE = 480.0;
 
     /**
      * An image of the grid with the entry it belongs to.
@@ -168,6 +175,29 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         int fitting = (int) Math.floor((width + GAP) / (size + GAP));
         int sharp = (int) Math.ceil((width + GAP) / (maxSize + GAP));
         return Math.max(MIN_COLUMNS, Math.max(fitting, sharp));
+    }
+
+    /**
+     * The largest size a tile shows sharp on the screen the window is on: the size of the thumbnails in screen pixels,
+     * 800 on a screen of scale 1 and 400 on a Retina screen.
+     *
+     * @param outputScale the scale of the screen
+     * @return the size in screen pixels, following the scale
+     */
+    public static DoubleBinding sharpSize(ObservableDoubleValue outputScale) {
+        return Bindings.createDoubleBinding(() -> ThumbnailManager.MAX_THUMBNAIL_SIZE / outputScale.get(),
+                outputScale);
+    }
+
+    /**
+     * The largest size of a tile to choose on the screen the window is on: the sharp size, at most 480, so 400 on a
+     * Retina screen and 480 on a screen of scale 1.
+     *
+     * @param outputScale the scale of the screen
+     * @return the size in screen pixels, following the scale
+     */
+    public static NumberBinding largestChoice(ObservableDoubleValue outputScale) {
+        return Bindings.min(MAX_CHOSEN_SIZE, sharpSize(outputScale));
     }
 
     /**
@@ -395,7 +425,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /**
      * Loads the thumbnail of an image, or the poster of a video, into its view; an image whose file is gone shows a
-     * placeholder.
+     * placeholder. A thumbnail too small for its tile on the screen is created anew at full size.
      */
     private void load(GeneratedImage image, ImageView view, StackPane cell) {
         Runnable missing = () -> {
@@ -431,6 +461,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             return;
         }
         String thumbnailPath = thumbnails.getThumbnailPath(path);
+        SharpThumbnail.follow(view, path, thumbnails);
         Image cached = thumbnails.getFromCacheOnly(thumbnailPath);
         if (cached != null) {
             view.setImage(cached);
