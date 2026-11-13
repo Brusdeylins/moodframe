@@ -671,11 +671,6 @@
                                           visible="false" managed="false"
                                           spacing="0" />
 
-                                    <!-- Prompt Context Section (YouTube Video Analysis etc.) -->
-                                    <!-- Only visible when Gemini API key is configured -->
-                                    <VBox fx:id="promptContextContainer" spacing="5.0"
-                                          visible="false" managed="false" />
-
                                     <!-- Multi-Image Attachment Section -->
                                     <!-- Container for MultiImageAttachmentPanel (added programmatically) -->
                                     <VBox fx:id="multiImageAttachmentContainer" spacing="5.0" />

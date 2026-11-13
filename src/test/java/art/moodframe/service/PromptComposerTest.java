@@ -34,7 +34,7 @@ class PromptComposerTest {
 
     @Test
     void putsTheMediumFirstAndOneLabeledLinePerBlockInTheFixedOrder() {
-        String prompt = composer.compose("  a lighthouse on a cliff ", null,
+        String prompt = composer.compose("  a lighthouse on a cliff ",
                 new PromptComposer.Selection(PHOTO, FOG, WINDOW, WIDE, OCEAN));
 
         assertEquals("""
@@ -53,15 +53,15 @@ class PromptComposerTest {
     void leavesOutEmptyBlocks() {
         PromptBlock emptyLight = new PromptBlock("x", PromptBlock.Type.LIGHT, "Empty", "  ", null, true);
 
-        assertEquals("a lighthouse", composer.compose("a lighthouse", null,
+        assertEquals("a lighthouse", composer.compose("a lighthouse",
                 new PromptComposer.Selection(null, null, emptyLight, PromptBlockService.camera("any", "Any",
                         CameraSettings.ANY), new ColorStyle("None", List.of(), false))));
-        assertEquals("", composer.compose("   ", null, new PromptComposer.Selection(PHOTO, FOG, WINDOW, null, OCEAN)));
+        assertEquals("", composer.compose("   ", new PromptComposer.Selection(PHOTO, FOG, WINDOW, null, OCEAN)));
     }
 
     @Test
     void writesFramingInsteadOfCameraForAStyleThatIsNotPhotographic() {
-        String prompt = composer.compose("a fox", null,
+        String prompt = composer.compose("a fox",
                 new PromptComposer.Selection(WATERCOLOR, null, null, PORTRAIT, null));
 
         assertEquals("Image style: watercolor painting.\na fox\nFraming: close-up framing.", prompt);
@@ -69,7 +69,7 @@ class PromptComposerTest {
 
     @Test
     void givesLayoutStylesTheTextRuleOnceLeavesOutTheLightAndKeepsTheFraming() {
-        String prompt = composer.compose("how a heat pump works", null,
+        String prompt = composer.compose("how a heat pump works",
                 new PromptComposer.Selection(FLAT, FOG, WINDOW, PORTRAIT, OCEAN));
 
         assertTrue(prompt.startsWith("Image style: Flat vector infographic. " + PromptComposer.LAYOUT_TEXT_RULE + "\n"));
@@ -82,18 +82,10 @@ class PromptComposerTest {
     }
 
     @Test
-    void placesTheVideoContentRightBehindTheSubject() {
-        String prompt = composer.compose("a fox", "a fox runs through snow",
-                new PromptComposer.Selection(null, FOG, null, null, null));
-
-        assertEquals("a fox\nContent: a fox runs through snow\nAtmosphere: quiet morning fog.", prompt);
-    }
-
-    @Test
     void checksTheLengthOfTheWholePrompt() {
         PromptComposer small = new PromptComposer(60);
-        String subjectOnly = small.compose("a lighthouse", null, new PromptComposer.Selection(null, null, null, null, null));
-        String withBlocks = small.compose("a lighthouse", null, new PromptComposer.Selection(PHOTO, null, null, null, OCEAN));
+        String subjectOnly = small.compose("a lighthouse", new PromptComposer.Selection(null, null, null, null, null));
+        String withBlocks = small.compose("a lighthouse", new PromptComposer.Selection(PHOTO, null, null, null, OCEAN));
 
         assertTrue(small.fits(subjectOnly));
         assertFalse(small.fits(withBlocks));

@@ -60,11 +60,10 @@ public class PromptComposer {
      * Composes the prompt.
      *
      * @param subject the prompt of the user
-     * @param content additional content of the subject (for example a video analysis), null for none
      * @param selection the selected building blocks
      * @return the prompt, empty if the subject is empty
      */
-    public String compose(String subject, String content, Selection selection) {
+    public String compose(String subject, Selection selection) {
         if (subject == null || subject.isBlank())
             return "";
 
@@ -78,8 +77,6 @@ public class PromptComposer {
         if (style != null && !isBlank(style.getText()))
             lines.add("Image style: " + sentence(style.getText()) + (layout ? " " + LAYOUT_TEXT_RULE : ""));
         lines.add(subject.trim());
-        if (!isBlank(content))
-            lines.add("Content: " + content.trim());
         if (selection.atmosphere() != null && !isBlank(selection.atmosphere().getText()))
             lines.add("Atmosphere: " + sentence(selection.atmosphere().getText()));
         if (!layout && selection.light() != null && !isBlank(selection.light().getText()))

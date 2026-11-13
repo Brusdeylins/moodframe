@@ -9,6 +9,7 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +40,8 @@ public class BrainstormChat {
     /** Whether the stored messages were already shown in {@link #messageBox}. */
     boolean loaded;
     final VBox messageBox = new VBox(10.0);
+    /** The cards of the linked videos in the order of the chat, so a stored range change finds its card. */
+    final List<BrainstormVideoCard> videoCards = new ArrayList<>();
     double scrollPosition;
     String inputText = "";
     /** The language model of a new chat until it is stored with its first message ("gemini" or "openai"). */

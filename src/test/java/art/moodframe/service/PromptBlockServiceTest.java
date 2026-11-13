@@ -97,7 +97,7 @@ class PromptBlockServiceTest {
                 a market at dawn
                 Camera: shot on Leica M6, a 35mm compact film camera, candid analog snapshot look, 35mm lens, natural \
                 documentary perspective, f/11, deep depth of field, front and back in sharp focus, shot at eye \
-                level.""", new PromptComposer(2000).compose("a market at dawn", null, new PromptComposer.Selection(
+                level.""", new PromptComposer(2000).compose("a market at dawn", new PromptComposer.Selection(
                 service.find(PromptBlock.Type.STYLE, "Photography"), null, null, street, null)));
     }
 
@@ -129,7 +129,7 @@ class PromptBlockServiceTest {
     void composesAStandardLightAsTheLightingLine() {
         PromptBlockService service = new PromptBlockService();
         PromptBlock goldenHour = service.find(PromptBlock.Type.LIGHT, "std:light:golden-hour");
-        String prompt = new PromptComposer(2000).compose("a lighthouse on a cliff", null, new PromptComposer.Selection(
+        String prompt = new PromptComposer(2000).compose("a lighthouse on a cliff", new PromptComposer.Selection(
                 service.find(PromptBlock.Type.STYLE, "Photography"), null, goldenHour, null, null));
 
         assertEquals("Golden Hour", service.find(PromptBlock.Type.LIGHT, "Golden Hour").getName());
@@ -217,10 +217,10 @@ class PromptBlockServiceTest {
 
         for (PromptBlock atmosphere : service.getDefaults(PromptBlock.Type.ATMOSPHERE))
             assertEquals("Image style: " + photo.getText() + ".\na lighthouse on a cliff\nAtmosphere: "
-                    + atmosphere.getText() + ".", composer.compose("a lighthouse on a cliff", null,
+                    + atmosphere.getText() + ".", composer.compose("a lighthouse on a cliff",
                     new PromptComposer.Selection(photo, atmosphere, null, null, null)), atmosphere.getName());
         assertEquals("a lighthouse\nAtmosphere: dense fog drifting through the scene, distant shapes fading into haze, "
-                + "muffled and quiet.", composer.compose("a lighthouse", null, new PromptComposer.Selection(null,
+                + "muffled and quiet.", composer.compose("a lighthouse", new PromptComposer.Selection(null,
                 service.find(PromptBlock.Type.ATMOSPHERE, "std:atmosphere:fog"), null, null, null)));
     }
 

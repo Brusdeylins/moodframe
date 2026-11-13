@@ -75,7 +75,7 @@ class MoodServiceTest {
     @Test
     void keepsEveryPhraseOfTheFormerStyleBusinessPhotography() {
         Mood mood = moods.find("std:mood:business-photography");
-        String prompt = new PromptComposer(10000).compose("A team meeting in an office", null, moods.selection(mood));
+        String prompt = new PromptComposer(10000).compose("A team meeting in an office", moods.selection(mood));
 
         for (String phrase : FORMER_BUSINESS_PHOTOGRAPHY.split(","))
             assertTrue(prompt.contains(phrase.trim()), "the prompt of the mood lacks \"" + phrase.trim() + "\"");
@@ -116,7 +116,7 @@ class MoodServiceTest {
     @Test
     void putsTheCameraOfTheMoodIntoThePromptAndItsName() {
         Mood product = moods.find("std:mood:clean-product");
-        String prompt = new PromptComposer(10000).compose("a perfume bottle", null, moods.selection(product));
+        String prompt = new PromptComposer(10000).compose("a perfume bottle", moods.selection(product));
 
         assertTrue(prompt.contains("\nCamera: shot on Hasselblad X2D, a medium format camera, "), prompt);
         assertTrue(moods.describe(product).endsWith(" · Product Tabletop"), moods.describe(product));

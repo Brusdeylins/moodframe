@@ -20,6 +20,7 @@ import art.moodframe.ui.component.ColorBox;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.util.YouTubeClip;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -39,6 +40,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -141,6 +143,9 @@ public class BrainstormDialog extends Stage {
     private String geminiItem;
     private String openAiItem;
     private final ProgressIndicator progress = new ProgressIndicator();
+    /** The note under the input that only Gemini can watch a linked video, while OpenAI answers. */
+    private final HBox videoHint = new HBox(10.0);
+    private final Hyperlink switchToGeminiLink = new Hyperlink();
 
     // Result panel
     private final VBox resultPanel = new VBox(8.0);
@@ -466,16 +471,21 @@ public class BrainstormDialog extends Stage {
         /*  Flush with the message area at both sides, the gap above it is the divider  */
         HBox inputRow = new HBox(8.0, inputArea, actions);
         inputRow.setAlignment(Pos.BOTTOM_LEFT);
-        inputRow.setPadding(new Insets(0, 0, 15.0, 0));
-        inputRow.setMinHeight(90.0);
+        VBox.setVgrow(inputRow, Priority.ALWAYS);
+        VBox inputBox = new VBox(6.0, inputRow, createVideoHint());
+        inputBox.setPadding(new Insets(0, 0, 15.0, 0));
+        inputBox.setMinHeight(90.0);
+        inputArea.textProperty().addListener((obs, old, text) -> updateVideoHint());
+        if (engineBox != null)
+            engineBox.valueProperty().addListener((obs, old, item) -> updateVideoHint());
 
         // The divider above the input row can be dragged, like in the main window
         VBox messages = new VBox(messageScroll, statusLabel, quickReplyPane);
-        SplitPane chatSplit = new SplitPane(messages, inputRow);
+        SplitPane chatSplit = new SplitPane(messages, inputBox);
         chatSplit.getStyleClass().add("grip-split-pane");
         chatSplit.setOrientation(javafx.geometry.Orientation.VERTICAL);
         chatSplit.setDividerPositions(0.72);
-        SplitPane.setResizableWithParent(inputRow, false);
+        SplitPane.setResizableWithParent(inputBox, false);
 
         /*  The title starts on the left edge of the bubbles (15 px message padding), 1 px further out for the side
             bearing of its letters  */
@@ -483,6 +493,49 @@ public class BrainstormDialog extends Stage {
         box.getStyleClass().add("bg-default");
         VBox.setVgrow(chatSplit, Priority.ALWAYS);
         return box;
+    }
+
+    /**
+     * Creates the note that only Gemini can watch YouTube videos, with the choice to switch to Gemini or to send the
+     * message without its links.
+     */
+    private HBox createVideoHint() {
+        FontIcon icon = new FontIcon("mdi2y-youtube");
+        icon.setIconSize(16);
+        icon.getStyleClass().add("warning");
+        Label text = new Label(I18nManager.getText("brainstorm.video.openai.hint"));
+        text.setWrapText(true);
+        text.getStyleClass().add("text-small");
+        switchToGeminiLink.setText(I18nManager.getText("brainstorm.video.openai.switch"));
+        switchToGeminiLink.setOnAction(event -> engineBox.setValue(geminiItem));
+        switchToGeminiLink.managedProperty().bind(switchToGeminiLink.visibleProperty());
+        Hyperlink sendLink = new Hyperlink(I18nManager.getText("brainstorm.video.openai.send"));
+        sendLink.setOnAction(event -> sendWithoutVideo());
+        videoHint.getChildren().addAll(icon, text, switchToGeminiLink, sendLink);
+        videoHint.setAlignment(Pos.CENTER_LEFT);
+        videoHint.managedProperty().bind(videoHint.visibleProperty());
+        videoHint.setVisible(false);
+        return videoHint;
+    }
+
+    /**
+     * Shows the note under the input while OpenAI answers the shown chat and the input links a YouTube video, which
+     * only Gemini can watch. Until the user switches to Gemini or sends without the video, nothing is sent.
+     */
+    private void updateVideoHint() {
+        boolean show = !chat.busy && "openai".equals(chosenEngine())
+                && !YouTubeClip.findAll(inputArea.getText()).isEmpty();
+        videoHint.setVisible(show);
+        switchToGeminiLink.setVisible(engineBox != null && engineBox.getItems().contains(geminiItem));
+        sendButton.setDisable(chat.busy || show);
+    }
+
+    /** Sends the input without its YouTube links, as OpenAI cannot watch them. */
+    private void sendWithoutVideo() {
+        String text = YouTubeClip.withoutLinks(inputArea.getText().trim());
+        inputArea.clear();
+        if (!text.isEmpty() && !chat.busy)
+            send(text);
     }
 
     /** Shows an empty new session. The session is stored with the first message. */
@@ -546,7 +599,7 @@ public class BrainstormDialog extends Stage {
 
     private void sendInput() {
         String text = inputArea.getText().trim();
-        if (text.isEmpty() || chat.busy) {
+        if (text.isEmpty() || chat.busy || videoHint.isVisible()) {
             return;
         }
         inputArea.clear();
@@ -640,11 +693,11 @@ public class BrainstormDialog extends Stage {
     private void applyBusy(BrainstormChat target) {
         statusLabel.setText(target.statusText);
         statusLabel.setVisible(target.busy);
-        sendButton.setDisable(target.busy);
         inputArea.setDisable(target.busy);
         if (engineBox != null)
             engineBox.setDisable(target.busy || engineBox.getItems().size() < 2);
         resultPanel.setDisable(target.busy);
+        updateVideoHint();
     }
 
     /**
@@ -690,6 +743,51 @@ public class BrainstormDialog extends Stage {
         HBox row = new HBox(label);
         row.setAlignment(fromUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
         appendToChat(target, row, fromUser);
+        if (!fromUser)
+            return;
+
+        /*  Every linked video gets a card under the message, its range belongs to this message  */
+        for (YouTubeClip clip : YouTubeClip.findAll(text)) {
+            BrainstormVideoCard card = new BrainstormVideoCard(clip, service,
+                    (BrainstormVideoCard clicked) -> changeRange(target, clicked, text), this::openInBrowser);
+            target.videoCards.add(card);
+            HBox cardRow = new HBox(card);
+            cardRow.setAlignment(Pos.CENTER_RIGHT);
+            appendToChat(target, cardRow, true);
+        }
+    }
+
+    /**
+     * Asks for a new time range of a linked video and lets Gemini watch the new clip, with the message that linked
+     * the video as instruction. OpenAI cannot watch videos, so then the chat only shows the note.
+     */
+    private void changeRange(BrainstormChat target, BrainstormVideoCard card, String instruction) {
+        if (target != chat || target.session == null || target.busy)
+            return;
+        if ("openai".equals(chosenEngine())) {
+            addEvent(target, I18nManager.getText("brainstorm.video.openai.hint"));
+            return;
+        }
+
+        YouTubeClip clip = card.clip();
+        TextInputDialog dialog = new TextInputDialog(clip.hasRange() ? clip.rangeLabel() : "");
+        dialog.initOwner(this);
+        dialog.setTitle(I18nManager.getText("brainstorm.video.range.title"));
+        dialog.setHeaderText(null);
+        dialog.setContentText(I18nManager.getText("brainstorm.video.range.prompt"));
+        String text = dialog.showAndWait().orElse(null);
+        if (text == null)
+            return;
+
+        YouTubeClip changed = clip.withRange(text);
+        if (changed == null) {
+            addEvent(target, I18nManager.getText("brainstorm.video.range.invalid", text.trim()));
+            return;
+        }
+        if (changed.equals(clip))
+            return;
+        card.setClip(changed);
+        sendEvent(BrainstormService.videoRangeEvent(changed, instruction));
     }
 
     private void addEvent(BrainstormChat target, String text) {
@@ -738,14 +836,41 @@ public class BrainstormDialog extends Stage {
                 addResearch(target, ResearchNote.fromEventJson(event));
                 return;
             }
+
+            /*  The card of the video shows the changed range, as the message still names the old one  */
+            YouTubeClip changed = YouTubeClip.of(event.optString("url"), event.optInt("start_seconds"),
+                    event.optInt("end_seconds"));
+            if ("video_range_changed".equals(event.optString("event")) && changed != null) {
+                for (int i = target.videoCards.size() - 1; i >= 0; i--) {
+                    if (target.videoCards.get(i).clip().videoId().equals(changed.videoId())) {
+                        target.videoCards.get(i).setClip(changed);
+                        break;
+                    }
+                }
+            }
         } catch (JSONException | IndexOutOfBoundsException e) {
             logger.debug("Stored event is not JSON: {}", stored);
         }
         addEvent(target, describeEvent(stored));
     }
 
-    /** Shows what was researched with its sources as domains; a click opens the page in the browser. */
+    /**
+     * Shows what was researched with its sources as domains; a click opens the page in the browser. A watched video
+     * shows as its source with title and range.
+     */
     private void addResearch(BrainstormChat target, ResearchNote note) {
+        if (note.sources().size() == 1 && YouTubeClip.of(note.sources().get(0).url(), 0, 0) != null) {
+            Label watched = new Label(I18nManager.getText("brainstorm.event.video"));
+            watched.getStyleClass().addAll("text-muted", "text-small");
+            Hyperlink link = new Hyperlink(shorten(note.query(), 90));
+            link.setStyle("-fx-font-size: 11px;");
+            link.setOnAction(event -> openInBrowser(note.sources().get(0).url()));
+            HBox row = new HBox(4.0, watched, link);
+            row.setAlignment(Pos.CENTER);
+            appendToChat(target, row, false);
+            return;
+        }
+
         Label head = new Label(I18nManager.getText("brainstorm.event.research", shorten(note.query(), 90)));
         head.setWrapText(true);
         head.getStyleClass().addAll("text-muted", "text-small");
@@ -796,6 +921,12 @@ public class BrainstormDialog extends Stage {
                         event.optString("from"), event.optString("to"));
                 case "prompt_edited" -> I18nManager.getText("brainstorm.event.prompt");
                 case "draft_adopted" -> I18nManager.getText("brainstorm.event.adopted");
+                case "video_range_changed" -> {
+                    YouTubeClip clip = YouTubeClip.of(event.optString("url"), event.optInt("start_seconds"),
+                            event.optInt("end_seconds"));
+                    yield I18nManager.getText("brainstorm.event.video.range", clip != null && clip.hasRange()
+                            ? clip.rangeLabel() : I18nManager.getText("brainstorm.video.whole"));
+                }
                 case "fact_changed" -> I18nManager.getText(event.optBoolean("confirmed")
                         ? "brainstorm.event.fact.kept" : "brainstorm.event.fact.dropped",
                         shorten(event.optString("text"), 80));
@@ -1142,10 +1273,15 @@ public class BrainstormDialog extends Stage {
                 own.getStyleClass().addAll("text-muted", "text-small");
                 origin.getChildren().add(own);
             } else {
-                Hyperlink link = new Hyperlink(fact.getDomain());
+                /*  A fact from a video names its time in the video and opens the video there  */
+                YouTubeClip video = YouTubeClip.of(fact.getUrl(), 0, 0);
+                int seconds = YouTubeClip.parseTime(fact.getTime());
+                boolean timed = video != null && seconds >= 0;
+                Hyperlink link = new Hyperlink(fact.getDomain()
+                        + (timed ? " · " + YouTubeClip.formatTime(seconds) : ""));
                 link.setStyle("-fx-font-size: 11px; -fx-padding: 0;");
-                link.setOnAction(event -> openInBrowser(fact.getUrl().isEmpty()
-                        ? "https://" + fact.getDomain() : fact.getUrl()));
+                link.setOnAction(event -> openInBrowser(timed ? video.watchUrlAt(seconds)
+                        : fact.getUrl().isEmpty() ? "https://" + fact.getDomain() : fact.getUrl()));
                 origin.getChildren().add(link);
                 if (!fact.isVerified()) {
                     Label warning = new Label(I18nManager.getText("brainstorm.facts.unverified"));

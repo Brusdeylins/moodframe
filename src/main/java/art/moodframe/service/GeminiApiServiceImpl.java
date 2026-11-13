@@ -67,8 +67,9 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                             .put("required", new JSONArray().put("query"))))
             .put(new JSONObject()
                     .put("name", "analyze_video")
-                    .put("description", "Analyzes a public YouTube video and returns its content as text. "
-                            + "Use it only when the user gave a YouTube link.")
+                    .put("description", "Watches a public YouTube video of this chat again and returns its content "
+                            + "as text. The app already lets you see every video the user links in a message, so use "
+                            + "it only for a new question about such a video that its result does not answer.")
                     .put("parameters", new JSONObject()
                             .put("type", "object")
                             .put("properties", new JSONObject()
@@ -978,11 +979,11 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
         return CompletableFuture.supplyAsync(() -> {
             if (apiKey == null || apiKey.trim().isEmpty()) {
-                throw new IllegalStateException(I18nManager.getText("youtube.dialog.error.no.api.key"));
+                throw new IllegalStateException(I18nManager.getText("brainstorm.video.error.no.api.key"));
             }
 
             if (youtubeUrl == null || youtubeUrl.trim().isEmpty()) {
-                throw new IllegalArgumentException(I18nManager.getText("youtube.dialog.error.empty.url"));
+                throw new IllegalArgumentException(I18nManager.getText("brainstorm.video.error.empty.url"));
             }
 
             try {
@@ -1040,14 +1041,14 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
             } catch (java.net.SocketTimeoutException e) {
                 logger.error("YouTube video analysis timed out", e);
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.timeout"), e);
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.timeout"), e);
             } catch (IllegalStateException | IllegalArgumentException e) {
                 throw e; // Re-throw validation errors
             } catch (RuntimeException e) {
                 throw e; // Re-throw runtime errors with user-friendly messages
             } catch (Exception e) {
                 logger.error("Failed to analyze YouTube video", e);
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.analysis.failed", e.getMessage()), e);
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.analysis.failed", e.getMessage()), e);
             }
         });
     }
@@ -1107,7 +1108,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         JSONObject textPart = new JSONObject();
         String prompt = (analysisPrompt != null && !analysisPrompt.trim().isEmpty())
             ? analysisPrompt.trim()
-            : I18nManager.getText("youtube.dialog.prompt.default");
+            : I18nManager.getText("brainstorm.video.prompt.default");
         textPart.put("text", prompt);
         parts.put(textPart);
 
@@ -1140,7 +1141,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             if (json.has("error")) {
                 JSONObject error = json.getJSONObject("error");
                 String errorMessage = error.optString("message", "Unknown API error");
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.api", errorMessage));
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.api", errorMessage));
             }
 
             // Check for candidates
@@ -1151,16 +1152,16 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                     if (promptFeedback.has("blockReason")) {
                         String blockReason = promptFeedback.getString("blockReason");
                         logger.warn("Video analysis blocked: {}", blockReason);
-                        throw new RuntimeException(I18nManager.getText("youtube.dialog.error.blocked", blockReason));
+                        throw new RuntimeException(I18nManager.getText("brainstorm.video.error.blocked", blockReason));
                     }
                 }
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.no.response"));
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.no.response"));
             }
 
             // Navigate: candidates[0].content.parts
             JSONArray candidates = json.getJSONArray("candidates");
             if (candidates.length() == 0) {
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.no.response"));
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.no.response"));
             }
 
             JSONObject candidate = candidates.getJSONObject(0);
@@ -1171,7 +1172,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 if (!"STOP".equals(finishReason) && !"MAX_TOKENS".equals(finishReason)) {
                     logger.warn("Video analysis finished with reason: {}", finishReason);
                     if ("SAFETY".equals(finishReason)) {
-                        throw new RuntimeException(I18nManager.getText("youtube.dialog.error.safety"));
+                        throw new RuntimeException(I18nManager.getText("brainstorm.video.error.safety"));
                     }
                 }
             }
@@ -1191,14 +1192,14 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             }
 
             if (textBuilder.length() == 0) {
-                throw new RuntimeException(I18nManager.getText("youtube.dialog.error.no.text"));
+                throw new RuntimeException(I18nManager.getText("brainstorm.video.error.no.text"));
             }
 
             return textBuilder.toString().trim();
 
         } catch (JSONException e) {
             logger.error("Failed to parse video analysis response: {}", e.getMessage());
-            throw new RuntimeException(I18nManager.getText("youtube.dialog.error.parse"), e);
+            throw new RuntimeException(I18nManager.getText("brainstorm.video.error.parse"), e);
         }
     }
 
@@ -1219,20 +1220,20 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
                     // Check for common video-specific errors
                     if (message.contains("Video not found") || message.contains("not available")) {
-                        return I18nManager.getText("youtube.dialog.error.not.found");
+                        return I18nManager.getText("brainstorm.video.error.not.found");
                     }
                     if (message.contains("private") || message.contains("not public")) {
-                        return I18nManager.getText("youtube.dialog.error.not.public");
+                        return I18nManager.getText("brainstorm.video.error.not.public");
                     }
                     if (message.contains("quota")) {
-                        return I18nManager.getText("youtube.dialog.error.quota");
+                        return I18nManager.getText("brainstorm.video.error.quota");
                     }
                     if (message.contains("Invalid YouTube URL") || message.contains("invalid URL")) {
-                        return I18nManager.getText("youtube.dialog.error.invalid.url");
+                        return I18nManager.getText("brainstorm.video.error.invalid.url");
                     }
 
                     if (!message.isEmpty()) {
-                        return I18nManager.getText("youtube.dialog.error.api", extractShortMessage(message));
+                        return I18nManager.getText("brainstorm.video.error.api", extractShortMessage(message));
                     }
                 }
             }
@@ -1242,12 +1243,12 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
         // Fallback based on status code
         return switch (statusCode) {
-            case 400 -> I18nManager.getText("youtube.dialog.error.invalid.url");
-            case 401, 403 -> I18nManager.getText("youtube.dialog.error.auth");
-            case 404 -> I18nManager.getText("youtube.dialog.error.not.found");
-            case 429 -> I18nManager.getText("youtube.dialog.error.quota");
-            case 500, 502, 503, 504 -> I18nManager.getText("youtube.dialog.error.server");
-            default -> I18nManager.getText("youtube.dialog.error.http", statusCode);
+            case 400 -> I18nManager.getText("brainstorm.video.error.invalid.url");
+            case 401, 403 -> I18nManager.getText("brainstorm.video.error.auth");
+            case 404 -> I18nManager.getText("brainstorm.video.error.not.found");
+            case 429 -> I18nManager.getText("brainstorm.video.error.quota");
+            case 500, 502, 503, 504 -> I18nManager.getText("brainstorm.video.error.server");
+            default -> I18nManager.getText("brainstorm.video.error.http", statusCode);
         };
     }
 

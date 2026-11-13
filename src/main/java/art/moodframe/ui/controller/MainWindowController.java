@@ -326,8 +326,6 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private VBox geminiAdvancedFeaturesContainer;
     @FXML
-    private VBox promptContextContainer;
-    @FXML
     private VBox multiImageAttachmentContainer;
     @FXML
     private VBox imageAttachmentSection;
@@ -471,11 +469,6 @@ public class MainWindowController implements I18nChangeListener {
     // Multi-Image Attachment Panel (FLUX.2 & Gemini)
     private art.moodframe.ui.component.MultiImageAttachmentPanel multiImagePanel;
 
-    // Prompt Context Section (YouTube Video Analysis)
-    private art.moodframe.ui.component.PromptContextSection promptContextSection;
-    private String currentVideoContextContent; // Stores the video analysis result for prompt attachment
-    private art.moodframe.ui.dialog.YouTubeAnalysisDialog.VideoDirectResult currentVideoSource; // Direct video-to-image source (gemini-3.1-flash-image)
-
     /*  The moods: the blocks of the fields right after the chosen mood was applied or saved (a field that differs
         marks the mood as changed), whether it is changed, and a guard while the mood selection sets the fields  */
     private MoodService moodService;
@@ -533,7 +526,6 @@ public class MainWindowController implements I18nChangeListener {
         setupEventHandlers();
         setupDragAndDrop();
         setupMultiImageAttachmentPanel();
-        setupPromptContextSection();
         checkApiKeyStatus();
         setupServices();
         setupMemoryMonitoring();
@@ -643,194 +635,6 @@ public class MainWindowController implements I18nChangeListener {
             logger.error("Failed to setup multi-image attachment panel", e);
         }
     }
-
-    /**
-     * Sets up the Prompt Context Section for YouTube video analysis.
-     * This section is only visible when a Gemini API key is configured.
-     */
-    private void setupPromptContextSection() {
-        if (promptContextContainer == null) {
-            logger.warn("Cannot setup prompt context section: container is null");
-            return;
-        }
-
-        try {
-            // Create the prompt context section
-            promptContextSection = new art.moodframe.ui.component.PromptContextSection();
-
-            // Configure callbacks
-            promptContextSection.setOnAddYouTubeClicked(() -> {
-                openYouTubeAnalysisDialog(null);
-            });
-
-            promptContextSection.setOnEditYouTubeClicked(existingContent -> {
-                openYouTubeAnalysisDialog(existingContent);
-            });
-
-            promptContextSection.setOnDeleteClicked(() -> {
-                clearVideoContextAttachment();
-            });
-
-            // Add to container
-            promptContextContainer.getChildren().clear();
-            promptContextContainer.getChildren().add(promptContextSection);
-
-            // Initial visibility check
-            updatePromptContextVisibility();
-            updateBrainstormButton();
-
-            logger.info("Prompt context section initialized");
-
-        } catch (Exception e) {
-            logger.error("Failed to setup prompt context section", e);
-        }
-    }
-
-    /**
-     * Opens the YouTube video analysis dialog.
-     *
-     * @param existingContent existing content to edit (null for new analysis)
-     */
-    private void openYouTubeAnalysisDialog(String existingContent) {
-        try {
-            Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-
-            art.moodframe.ui.dialog.YouTubeAnalysisDialog dialog =
-                new art.moodframe.ui.dialog.YouTubeAnalysisDialog(ownerStage,
-                    this::setVideoContextAttachment, this::setVideoDirectAttachment);
-
-            if (existingContent != null) {
-                dialog.setInitialResult(existingContent);
-            }
-
-            dialog.showAndWait();
-
-        } catch (Exception e) {
-            logger.error("Failed to open YouTube analysis dialog", e);
-            setStatus(I18nManager.getText("error.unknown", "An error occurred"));
-        }
-    }
-
-    /**
-     * Sets the video context attachment from YouTube analysis.
-     *
-     * @param content the analysis result content
-     */
-    private void setVideoContextAttachment(String content) {
-        if (content == null || content.trim().isEmpty()) {
-            return;
-        }
-
-        currentVideoContextContent = content.trim();
-        currentVideoSource = null; // analysis text and direct video are mutually exclusive
-
-        // Update the UI to show the attachment card
-        if (promptContextSection != null) {
-            // Extract a short title from the content (first 30 chars or first line)
-            String title = content.trim();
-            int firstLineEnd = title.indexOf('\n');
-            if (firstLineEnd > 0) {
-                title = title.substring(0, firstLineEnd);
-            }
-            if (title.length() > 30) {
-                title = title.substring(0, 30);
-            }
-
-            promptContextSection.setYouTubeContext(title, content);
-        }
-        updateUIState();
-
-        logger.info("Video context attachment set ({} characters)", content.length());
-    }
-
-    /**
-     * Clears the video context attachment (both analysis text and direct video).
-     */
-    private void clearVideoContextAttachment() {
-        currentVideoContextContent = null;
-        currentVideoSource = null;
-
-        if (promptContextSection != null) {
-            promptContextSection.clearContext();
-        }
-        updateUIState();
-
-        logger.info("Video context attachment cleared");
-    }
-
-    /**
-     * Sets a direct video-to-image source from the YouTube dialog's "Direkt verwenden"
-     * mode. The video itself is passed to gemini-3.1-flash-image, so this auto-switches
-     * the model to Nano Banana 2 and (optionally) prefills the prompt with the chosen
-     * task-preset instruction.
-     *
-     * @param result the direct video result (URL, time range, instruction)
-     */
-    private void setVideoDirectAttachment(art.moodframe.ui.dialog.YouTubeAnalysisDialog.VideoDirectResult result) {
-        if (result == null || result.url() == null || result.url().trim().isEmpty()) {
-            return;
-        }
-
-        currentVideoSource = result;
-        currentVideoContextContent = null; // mutually exclusive with analysis text
-
-        // Auto-switch to Nano Banana 2 unless the selected model (Nano Banana 2 or Lite) supports video-to-image.
-        String nanoBanana2 = art.moodframe.model.GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName();
-        art.moodframe.model.GenerationModel selectedForVideo = modelComboBox != null
-                ? art.moodframe.model.GenerationModel.fromLocalizedDisplayName(modelComboBox.getValue()) : null;
-        if (modelComboBox != null && (selectedForVideo == null || !selectedForVideo.supportsVideoSource())) {
-            modelComboBox.setValue(nanoBanana2);
-            setStatus(I18nManager.getText("video.direct.model.switched", "Modell auf Nano Banana 2 umgestellt (Video-zu-Bild)"));
-        }
-
-        // Show a direct-video card in the sidebar.
-        if (promptContextSection != null) {
-            String title = result.url();
-            String detail = result.url();
-            if (result.startSeconds() > 0 || result.endSeconds() > 0) {
-                detail = detail + "\n" + result.startSeconds() + "s – "
-                        + (result.endSeconds() > 0 ? result.endSeconds() + "s" : "Ende");
-            }
-            promptContextSection.setDirectVideoContext(title, detail);
-        }
-        updateUIState();
-
-        logger.info("Direct video source set: {} ({}s - {}s)",
-                result.url(), result.startSeconds(), result.endSeconds());
-    }
-
-    /**
-     * Updates the visibility of the prompt context section.
-     * The section is only visible when:
-     * 1. A Gemini API key is configured
-     * 2. A chat is selected
-     */
-    private void updatePromptContextVisibility() {
-        if (promptContextContainer == null || promptContextSection == null) {
-            return;
-        }
-
-        // Check if Gemini API key is configured
-        boolean hasGeminiKey = false;
-        if (config != null) {
-            String geminiKey = config.getGeminiApiKey();
-            hasGeminiKey = geminiKey != null && !geminiKey.trim().isEmpty();
-        }
-
-        // Check if a chat is selected
-        boolean hasChatSelected = currentChat != null;
-
-        // Show section only if both conditions are met
-        boolean shouldBeVisible = hasGeminiKey && hasChatSelected;
-
-        promptContextContainer.setVisible(shouldBeVisible);
-        promptContextContainer.setManaged(shouldBeVisible);
-        promptContextSection.setSectionVisible(shouldBeVisible);
-
-        logger.debug("Prompt context section visibility: {} (geminiKey={}, chatSelected={})",
-            shouldBeVisible, hasGeminiKey, hasChatSelected);
-    }
-
 
     /**
      * Enables the brainstorm button only if Gemini (key and provider) or OpenAI (provider and language model) is usable and
@@ -1059,11 +863,11 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Builds the final prompt from the user input, the selected building blocks and the
-     * video context attachment (if present), see {@link art.moodframe.service.PromptComposer}.
+     * Builds the final prompt from the user input and the selected building blocks,
+     * see {@link art.moodframe.service.PromptComposer}.
      */
     public String buildFinalPrompt() {
-        return promptComposer().compose(promptTextArea.getText(), currentVideoContextContent, selectedBlocks());
+        return promptComposer().compose(promptTextArea.getText(), selectedBlocks());
     }
 
     /** The composer for the length limit of the selected model. */
@@ -3235,14 +3039,6 @@ public class MainWindowController implements I18nChangeListener {
                             config.setDefaultModel(art.moodframe.model.GenerationModel.openAiModelId(newVal) != null
                                     ? newVal : model.getDisplayName());
 
-                            // A direct video source only works with Nano Banana 2 and Lite;
-                            // drop it (and its sidebar card) if the user switches to another model.
-                            if (currentVideoSource != null && !model.supportsVideoSource()) {
-                                clearVideoContextAttachment();
-                                setStatus(I18nManager.getText("video.direct.cleared.model",
-                                        "Direkt-Video entfernt (nur mit Nano Banana 2 und Lite möglich)"));
-                            }
-
                             // Provider switch: Google → BFL → clear attachments
                             if (previousModel != null && multiImagePanel != null
                                     && multiImagePanel.hasAttachments()) {
@@ -4473,8 +4269,6 @@ public class MainWindowController implements I18nChangeListener {
         // UI elements that require API key and chat selection to function
         updateChatDependentElements(hasApiKeyForSelectedModel, hasChatSelected);
 
-        // Update prompt context (YouTube button) visibility - requires Gemini key AND chat selection
-        updatePromptContextVisibility();
         updateBrainstormButton();
     }
 
@@ -4746,8 +4540,6 @@ public class MainWindowController implements I18nChangeListener {
      */
     public void refreshApiKeyStatus() {
         checkApiKeyStatus();
-        // Also update prompt context visibility (depends on Gemini API key)
-        updatePromptContextVisibility();
         updateBrainstormButton();
     }
 
@@ -5065,10 +4857,10 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        // Build final prompt including style and YouTube content
+        // Build final prompt including the building blocks
         art.moodframe.service.PromptComposer composer = promptComposer();
         art.moodframe.service.PromptComposer.Selection blocks = selectedBlocks();
-        String prompt = composer.compose(userPrompt, currentVideoContextContent, blocks);
+        String prompt = composer.compose(userPrompt, blocks);
         if (prompt.isEmpty()) {
             return;
         }
@@ -5168,7 +4960,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Create new ChatEntry
         // Note: userPrompt stores only the raw user input (for copy button)
-        // The full prompt with style + YouTube content is used for API calls
+        // The full prompt with the building blocks is used for API calls
         ChatEntry newEntry = new ChatEntry.Builder()
                 .chatId(currentChat.getId())
                 .userPrompt(userPrompt)
@@ -5226,8 +5018,6 @@ public class MainWindowController implements I18nChangeListener {
 
         // Clear the prompt area
         promptTextArea.clear();
-
-        // Note: YouTube context is NOT cleared after sending - user may want multiple attempts
 
         // Create ImageGenerationRequest
         art.moodframe.model.ImageGenerationRequest request = createImageGenerationRequest(prompt, newEntry,
@@ -5416,14 +5206,6 @@ public class MainWindowController implements I18nChangeListener {
             if (!base64Images.isEmpty()) {
                 request.setInputImages(base64Images);
             }
-        }
-
-        // Direct video-to-image source (only gemini-3.1-flash-image supports it)
-        if (currentVideoSource != null && generationModel != null && generationModel.supportsVideoSource()) {
-            request.setVideoSourceUrl(currentVideoSource.url());
-            request.setVideoStartOffsetSeconds(currentVideoSource.startSeconds());
-            request.setVideoEndOffsetSeconds(currentVideoSource.endSeconds());
-            logger.info("Attached direct video source to request: {}", currentVideoSource.url());
         }
 
         // FLUX 3: resolution tier of the variant and up to 10 reference images

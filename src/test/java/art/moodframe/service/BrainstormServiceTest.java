@@ -9,6 +9,7 @@ import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.repository.BrainstormRepository;
+import art.moodframe.util.YouTubeClip;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -316,7 +317,95 @@ class BrainstormServiceTest {
 
         BrainstormReply reply = service.sendUserMessage(session, "Thema", context).join();
 
-        assertEquals("youtube.com", reply.getResearch().get(0).sources().get(0).domain());
+        assertEquals("YouTube · dQw4w9WgXcQ", reply.getResearch().get(0).sources().get(0).domain());
+    }
+
+    private void videoShows(String text) {
+        when(gemini.analyzeYouTubeVideo(anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(text));
+    }
+
+    @Test
+    void geminiWatchesTheClipALinkNamesWithTheMessageAsInstructionBeforeTheAnswer() {
+        videoShows("Er nennt drei Zahlen.\n- [0:50] 42 % Wachstum");
+        answers(text(VALID_REPLY));
+        String message = "Welche Zahlen nennt er von 0:42 bis 1:05? https://youtu.be/dQw4w9WgXcQ";
+
+        BrainstormReply reply = service.sendUserMessage(session, message, context).join();
+
+        verify(gemini).analyzeYouTubeVideo(eq("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), eq(42), eq(65),
+                org.mockito.ArgumentMatchers.contains(message));
+        ResearchNote note = reply.getResearch().get(0);
+        assertEquals("YouTube · dQw4w9WgXcQ · 0:42–1:05", note.query());
+        assertEquals(new ResearchNote.Source("YouTube · dQw4w9WgXcQ",
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s"), note.sources().get(0));
+        ArgumentCaptor<JSONArray> contents = ArgumentCaptor.forClass(JSONArray.class);
+        verify(gemini).chatTurn(anyString(), contents.capture(), anyBoolean(), anyBoolean());
+        String videoTurn = contents.getValue().getJSONObject(1).toString();
+        assertTrue(videoTurn.contains(ResearchNote.EVENT) && videoTurn.contains("42 % Wachstum"),
+                "the result follows the message in the same turn");
+        assertTrue(stored.stream().anyMatch((BrainstormMessage event) -> event.getContent().contains("42 % Wachstum")),
+                "the result is stored for the later turns");
+    }
+
+    @Test
+    void aFactFromAVideoKeepsItsTimeAndGetsTheVideoAsSource() {
+        videoShows("- [0:50] 42 %");
+        answers(text("{\"step\": 5, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"facts\": ["
+                + "{\"text\": \"42 %\", \"domain\": \"YouTube\", \"origin\": \"source\", \"time\": \"0:50\", "
+                + "\"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=50s\"}]}}"));
+
+        BrainstormReply reply = service.sendUserMessage(session, "https://youtu.be/dQw4w9WgXcQ", context).join();
+
+        var fact = reply.getDraft().getFacts().get(0);
+        assertTrue(fact.isVerified());
+        assertEquals("YouTube · dQw4w9WgXcQ", fact.getDomain());
+        assertEquals("https://www.youtube.com/watch?v=dQw4w9WgXcQ", fact.getUrl());
+        assertEquals("0:50", fact.getTime());
+    }
+
+    @Test
+    void aChangedRangeLetsGeminiWatchTheNewClip() {
+        videoShows("neu");
+        answers(text(VALID_REPLY));
+        YouTubeClip clip = YouTubeClip.of("https://youtu.be/dQw4w9WgXcQ", 10, 20);
+
+        service.sendEvent(session, BrainstormService.videoRangeEvent(clip, "Was zeigt er?").toString(), context).join();
+
+        verify(gemini).analyzeYouTubeVideo(eq("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), eq(10), eq(20),
+                org.mockito.ArgumentMatchers.contains("Was zeigt er?"));
+    }
+
+    @Test
+    void tellsTheModelWhenAVideoCannotBeWatched() {
+        when(gemini.analyzeYouTubeVideo(anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(), anyString()))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("Video is not publicly accessible")));
+        answers(text(VALID_REPLY));
+
+        BrainstormReply reply = service.sendUserMessage(session, "https://youtu.be/dQw4w9WgXcQ", context).join();
+
+        assertTrue(reply.getResearch().isEmpty());
+        ArgumentCaptor<JSONArray> contents = ArgumentCaptor.forClass(JSONArray.class);
+        verify(gemini).chatTurn(anyString(), contents.capture(), anyBoolean(), anyBoolean());
+        assertTrue(contents.getValue().getJSONObject(1).toString().contains("video_failed"));
+    }
+
+    @Test
+    void openAiWatchesNoVideo() {
+        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
+        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
+        when(config.getOpenAiChatModel()).thenReturn("m");
+        OpenAiApiService openAi = mock(OpenAiApiService.class);
+        when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
+                .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
+        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+
+        openAiService.sendUserMessage(session, "https://youtu.be/dQw4w9WgXcQ", context).join();
+
+        org.mockito.Mockito.verifyNoInteractions(gemini);
     }
 
     @Test
