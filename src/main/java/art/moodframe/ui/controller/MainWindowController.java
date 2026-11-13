@@ -151,10 +151,6 @@ public class MainWindowController implements I18nChangeListener {
     private TextArea promptTextArea;
     @FXML
     private Label characterCountLabel;
-    @FXML
-    private ToggleButton promptPreviewToggle;
-    @FXML
-    private TextArea promptPreviewTextArea;
 
     // Parameter Panel Controls
     @FXML
@@ -1033,17 +1029,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Shows the final prompt in the fold below the input field and counts its characters.
-     *
-     * @param prompt the composed prompt
-     */
-    private void updatePromptPreview(String prompt) {
-        if (promptPreviewTextArea != null)
-            promptPreviewTextArea.setText(prompt);
-        updateCharacterCount(prompt);
-    }
-
-    /**
      * Builds the final prompt from the user input, the selected building blocks and the
      * video context attachment (if present), see {@link art.moodframe.service.PromptComposer}.
      */
@@ -1146,9 +1131,7 @@ public class MainWindowController implements I18nChangeListener {
         /*  The items of the SplitPane get their styles after its first layout, the default height needs them  */
         chatInputSplitPane.applyCss();
         double savedHeight = config != null ? config.getChatInputHeight() : 0;
-        resizeChatInputArea(savedHeight > 0
-                ? savedHeight + (promptPreviewToggle.isSelected() ? promptPreviewHeight() : 0)
-                : chatInputArea.prefHeight(chatInputArea.getWidth()));
+        resizeChatInputArea(savedHeight > 0 ? savedHeight : chatInputArea.prefHeight(chatInputArea.getWidth()));
     }
 
     /**
@@ -1164,15 +1147,6 @@ public class MainWindowController implements I18nChangeListener {
         if (size > 0)
             chatInputSplitPane.setDividerPosition(0,
                     chatInputSplitPane.getDividerPositions()[0] + (chatInputArea.getHeight() - height) / size);
-    }
-
-    /**
-     * The height the unfolded final prompt adds to the input area below the chat.
-     *
-     * @return the height of the final prompt plus its spacing in pixels
-     */
-    private double promptPreviewHeight() {
-        return promptPreviewTextArea.prefHeight(-1) + chatInputArea.getSpacing();
     }
 
     /**
@@ -1235,7 +1209,7 @@ public class MainWindowController implements I18nChangeListener {
                     Platform.runLater(() -> restoreChatInputHeight(config));
             });
 
-            // Save the height when the user drags the divider, related to the folded final prompt
+            // Save the height when the user drags the divider
             if (config != null) {
                 chatInputSplitPane.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_RELEASED, (event) -> {
                     Node node = event.getTarget() instanceof Node target ? target : null;
@@ -1243,8 +1217,7 @@ public class MainWindowController implements I18nChangeListener {
                         node = node.getParent();
                     if (node != null) {
                         chatInputSplitPane.layout();
-                        config.setChatInputHeight(chatInputArea.getHeight()
-                                - (promptPreviewToggle.isSelected() ? promptPreviewHeight() : 0));
+                        config.setChatInputHeight(chatInputArea.getHeight());
                     }
                 });
             }
@@ -4084,7 +4057,7 @@ public class MainWindowController implements I18nChangeListener {
      * Sets up event handlers for interactive components.
      */
     private void setupEventHandlers() {
-        /*  Update UI state (final prompt and its character count) when the prompt text, a building block or
+        /*  Update UI state (character count of the final prompt) when the prompt text, a building block or
             the "Apply mood" switch changes  */
         promptTextArea.textProperty().addListener((obs, oldText, newText) -> updateUIState());
         for (javafx.beans.value.ObservableValue<?> value : List.<javafx.beans.value.ObservableValue<?>>of(
@@ -4092,19 +4065,6 @@ public class MainWindowController implements I18nChangeListener {
                 colorStyleComboBox.valueProperty(), lightComboBox.valueProperty(), cameraComboBox.valueProperty(),
                 moodApplyCheckBox.selectedProperty()))
             value.addListener((obs, oldVal, newVal) -> updateUIState());
-
-        /*  The fold of the final prompt below the input field  */
-        promptPreviewTextArea.visibleProperty().bind(promptPreviewToggle.selectedProperty());
-        promptPreviewTextArea.managedProperty().bind(promptPreviewToggle.selectedProperty());
-        promptPreviewToggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            ((FontIcon) promptPreviewToggle.getGraphic()).setIconLiteral(
-                    newVal ? "mdi2c-chevron-down" : "mdi2c-chevron-right");
-
-            /*  Unfolding pushes the divider up by the height of the final prompt, folding pushes it back down,
-                so the prompt field keeps its height  */
-            double height = chatInputArea.getHeight();
-            resizeChatInputArea(newVal ? height + promptPreviewHeight() : height - promptPreviewHeight());
-        });
 
         // Handle Enter key in prompt area (Enter for line break, Shift+Enter to send)
         promptTextArea.setOnKeyPressed(event -> {
@@ -4185,9 +4145,9 @@ public class MainWindowController implements I18nChangeListener {
         String promptText = promptTextArea.getText();
         boolean hasText = promptText != null && !promptText.trim().isEmpty();
 
-        /*  the limit of the model applies to the final prompt, which the fold shows and the counter counts  */
+        /*  the limit of the model applies to the final prompt, which the counter counts  */
         String finalPrompt = buildFinalPrompt();
-        updatePromptPreview(finalPrompt);
+        updateCharacterCount(finalPrompt);
         boolean hasValidText = hasText && promptComposer().fits(finalPrompt);
 
         // Check if the currently selected model's provider has a valid API key
@@ -6347,7 +6307,7 @@ public class MainWindowController implements I18nChangeListener {
 
         if (characterCountLabel != null) {
             // Update character count with the length of the final prompt and dynamic limit
-            updatePromptPreview(buildFinalPrompt());
+            updateCharacterCount(buildFinalPrompt());
         }
     }
 
@@ -6610,7 +6570,7 @@ public class MainWindowController implements I18nChangeListener {
      * Updates FXML hardcoded texts that need to be replaced programmatically.
      */
     private void updateFXMLTexts() {
-        // Update the titles of the mood, frame and generation groups, the "Apply mood" switch and the final prompt fold
+        // Update the titles of the mood, frame and generation groups and the "Apply mood" switch
         if (moodTitleLabel != null)
             moodTitleLabel.setText(I18nManager.getText("params.mood.title"));
         if (frameTitleLabel != null)
@@ -6637,8 +6597,6 @@ public class MainWindowController implements I18nChangeListener {
         if (manageFramesButton != null)
             manageFramesButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.manage.tooltip")));
         refreshFrames();
-        if (promptPreviewToggle != null)
-            promptPreviewToggle.setText(I18nManager.getText("input.prompt.preview"));
 
         // Update parameter labels that are hardcoded in FXML
         updateParameterLabels();

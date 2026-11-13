@@ -177,12 +177,10 @@
                             </StackPane>
 
                             <!-- Bottom: Input Area - height in pixels set via the divider, kept on window resize; flush
-                                 with the chat area at both sides, the gap above it is the divider -->
+                                 with the chat area at both sides and with the chat list at the bottom, the gap above it
+                                 is the divider -->
                             <VBox fx:id="chatInputArea" spacing="10.0" styleClass="bg-inset, see-through"
                                   SplitPane.resizableWithParent="false">
-                                <padding>
-                                    <Insets bottom="10.0" left="0.0" right="0.0" top="0.0" />
-                                </padding>
 
                                 <!-- Main Input Row -->
                                 <HBox spacing="10.0" alignment="BOTTOM_LEFT" VBox.vgrow="ALWAYS">
@@ -227,17 +225,6 @@
                                                style="-fx-alignment: center-left;" />
                                     </VBox>
                                 </HBox>
-
-                                <!-- Final prompt: the composed text the model receives, folded by default; never shrinks,
-                                     so unfolding leaves the height of the prompt field alone -->
-                                <ToggleButton fx:id="promptPreviewToggle" text="Final prompt" styleClass="prompt-preview-toggle">
-                                    <graphic>
-                                        <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
-                                    </graphic>
-                                </ToggleButton>
-                                <TextArea fx:id="promptPreviewTextArea" editable="false" wrapText="true"
-                                          prefRowCount="4" minHeight="-Infinity" focusTraversable="false"
-                                          visible="false" managed="false" />
 
                             </VBox>
 

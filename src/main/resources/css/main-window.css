@@ -218,14 +218,3 @@
 .menu-button.button-icon > .label {
     -fx-padding: 8px;
 }
-
-/*  The fold of the final prompt below the input field: a muted line of text with a chevron  */
-.prompt-preview-toggle,
-.prompt-preview-toggle:selected {
-    -fx-background-color: transparent;
-    -fx-text-fill: -color-fg-muted;
-    -fx-padding: 0;
-}
-.prompt-preview-toggle .ikonli-font-icon {
-    -fx-icon-color: -color-fg-muted;
-}

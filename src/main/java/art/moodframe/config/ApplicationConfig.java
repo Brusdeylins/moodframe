@@ -481,7 +481,7 @@ public class ApplicationConfig {
     }
 
     /**
-     * Gets the height of the input area below the chat, with the final prompt folded.
+     * Gets the height of the input area below the chat.
      * @return height in pixels, 0 if none is remembered (default height)
      */
     public double getChatInputHeight() {
@@ -489,7 +489,7 @@ public class ApplicationConfig {
     }
 
     /**
-     * Remembers the height of the input area below the chat, with the final prompt folded.
+     * Remembers the height of the input area below the chat.
      * @param height height in pixels
      */
     public void setChatInputHeight(double height) {
