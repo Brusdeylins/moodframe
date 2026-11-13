@@ -210,7 +210,7 @@ public class ChatEntryCard extends ManagedComponent {
         setCache(true);
         setCacheHint(javafx.scene.CacheHint.SPEED);
 
-        /*  The prompt row: the prompt, "Reuse" and the menu with the single parts and "Delete entry"  */
+        /*  The prompt row: the prompt, "Use all" and the menu with the parts to use, saving and "Delete entry"  */
         HBox promptContainer = new HBox(4);
         promptContainer.setAlignment(Pos.CENTER_LEFT);
 
@@ -237,7 +237,8 @@ public class ChatEntryCard extends ManagedComponent {
                 onMoodTakeOver.accept(chatEntry, true);
         });
         MenuItem saveFrame = menuItem("entry.frame.save", this::saveFrame);
-        this.moreButton = new MenuButton(null, moreIcon, menuItem("entry.reuse.prompt", () -> reuse(Reuse.PROMPT)),
+        this.moreButton = new MenuButton(null, moreIcon, menuItem("entry.reuse.all", () -> reuse(Reuse.ALL)),
+                menuItem("entry.reuse.prompt", () -> reuse(Reuse.PROMPT)),
                 menuItem("entry.reuse.mood", () -> reuse(Reuse.MOOD)),
                 menuItem("entry.reuse.frame", () -> reuse(Reuse.FRAME)), new SeparatorMenuItem(), saveMood, saveFrame,
                 new SeparatorMenuItem(), menuItem("entry.delete", () -> {
@@ -1527,14 +1528,14 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Shows the context menu with "Take over mood" and "Save as mood...", available for an entry with building blocks
+     * Shows the context menu with "Use mood" and "Save as mood...", available for an entry with building blocks
      * or with a former look style (1.x), which lives on as the standard mood of its name.
      */
     private void showMoodMenu(ContextMenuEvent event) {
         if (onMoodTakeOver == null)
             return;
         boolean available = hasMood();
-        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.mood.take.over"));
+        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.reuse.mood"));
         takeOver.setOnAction((action) -> onMoodTakeOver.accept(chatEntry, false));
         takeOver.setDisable(!available);
         MenuItem save = new MenuItem(I18nManager.getText("entry.mood.save"));
@@ -1559,11 +1560,11 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Shows the context menu of the frame badge with "Take over frame" and "Save as frame...", the latter available
+     * Shows the context menu of the frame badge with "Use frame" and "Save as frame...", the latter available
      * for an entry that carries its frame.
      */
     private void showFrameMenu(ContextMenuEvent event) {
-        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.frame.take.over"));
+        MenuItem takeOver = new MenuItem(I18nManager.getText("entry.reuse.frame"));
         takeOver.setOnAction((action) -> reuse(Reuse.FRAME));
         MenuItem save = new MenuItem(I18nManager.getText("entry.frame.save"));
         save.setOnAction((action) -> saveFrame());
@@ -1720,7 +1721,7 @@ public class ChatEntryCard extends ManagedComponent {
      * Sets "Reuse", the menu of the entry and the action bars of the images in the current language.
      */
     private void updateTooltips() {
-        reuseButton.setTooltip(new Tooltip(I18nManager.getText("entry.reuse.tooltip")));
+        reuseButton.setTooltip(new Tooltip(I18nManager.getText("entry.reuse.all")));
         moreButton.setTooltip(new Tooltip(I18nManager.getText("entry.more.tooltip")));
         moreButton.getItems().forEach((item) -> {
             if (item.getUserData() instanceof String key)
