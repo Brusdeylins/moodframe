@@ -900,6 +900,26 @@ public class BflApiServiceImpl implements BflApiService {
         public String getResponseBody() {
             return responseBody;
         }
+
+        /**
+         * The highest safety tolerance BFL approved for the account, from an HTTP 422 with the code
+         * {@code safety_tolerance_not_approved}.
+         *
+         * @return the approved maximum, or null for any other error or without the value
+         */
+        public Integer getMaximumApprovedSafetyTolerance() {
+            if (statusCode != 422 || responseBody == null)
+                return null;
+            try {
+                var detail = new ObjectMapper().readTree(responseBody).path("detail");
+                var maximum = detail.path("maximum_approved_safety_tolerance");
+                if ("safety_tolerance_not_approved".equals(detail.path("code").asText()) && maximum.isIntegralNumber())
+                    return maximum.asInt();
+            } catch (Exception e) {
+                /*  no JSON body: no approved maximum  */
+            }
+            return null;
+        }
         
         @Override
         public String toString() {

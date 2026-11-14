@@ -5,6 +5,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Interface for managing BFL API requests and responses.
@@ -32,6 +33,17 @@ public interface RequestResponseService {
      * @param callback the callback to invoke with updated GeneratedImage
      */
     void setOnImageUpdated(Consumer<GeneratedImage> callback);
+
+    /**
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     *
+     * <p>BFL rejects a safety tolerance the account is not approved for; the request is then repeated once
+     * with the approved maximum, which is also stored as the new FLUX.2 safety tolerance. The callback is
+     * invoked on a worker thread.</p>
+     *
+     * @param callback the callback to invoke with the lowered safety tolerance
+     */
+    void setOnSafetyToleranceLowered(IntConsumer callback);
     
     /**
      * Submits an image generation request to the BFL API.

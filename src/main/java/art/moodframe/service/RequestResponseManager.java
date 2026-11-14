@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import javafx.application.Platform;
 import javax.net.ssl.SSLContext;
 
@@ -146,6 +147,14 @@ public class RequestResponseManager implements RequestResponseService {
     @Override
     public void setOnImageUpdated(Consumer<GeneratedImage> callback) {
         tracker.setOnImageUpdated(callback);
+    }
+
+    /**
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     */
+    @Override
+    public void setOnSafetyToleranceLowered(IntConsumer callback) {
+        bflFlow.setOnSafetyToleranceLowered(callback);
     }
 
     /**

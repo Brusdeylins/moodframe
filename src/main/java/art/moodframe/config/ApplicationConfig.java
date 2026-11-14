@@ -445,10 +445,10 @@ public class ApplicationConfig {
      * Gets the default safety tolerance for FLUX.2 models (0-5 scale).
      * FLUX 3 uses the same value (it accepts 0-7).
      *
-     * @return safety tolerance for FLUX.2 (0=strictest, 5=most permissive), defaults to 5
+     * @return safety tolerance for FLUX.2 (0=strictest, 5=most permissive), defaults to 2 like at BFL
      */
     public int getFlux2SafetyTolerance() {
-        return Integer.parseInt(properties.getProperty("model.flux2_safety_tolerance", "5"));
+        return Integer.parseInt(properties.getProperty("model.flux2_safety_tolerance", "2"));
     }
 
     /**

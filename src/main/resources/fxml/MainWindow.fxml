@@ -563,10 +563,10 @@
                                               visible="false" managed="false">
                                             <Label fx:id="flux2SafetyLabel" text="Safety Tolerance:" styleClass="text-bold" />
                                             <Slider fx:id="flux2SafetySlider"
-                                                    min="0" max="5" value="5"
+                                                    min="0" max="5" value="2"
                                                     showTickLabels="true" showTickMarks="true"
                                                     majorTickUnit="1" minorTickCount="0" snapToTicks="true" />
-                                            <Label fx:id="flux2SafetyValueLabel" text="Maximum (5)"
+                                            <Label fx:id="flux2SafetyValueLabel" text="Default (2)"
                                                    styleClass="text-small" />
                                         </VBox>
 

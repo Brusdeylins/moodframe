@@ -1232,6 +1232,11 @@ public class MainWindowController implements I18nChangeListener {
                 // Set up event handlers for real-time UI updates
                 requestResponseManager.setOnEntryUpdated(this::onChatEntryUpdated);
                 requestResponseManager.setOnImageUpdated(this::onImageUpdated);
+                requestResponseManager.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
+                    if (flux2SafetySlider != null)
+                        flux2SafetySlider.setValue(value);
+                    setStatus(I18nManager.getText("status.bfl.safety.lowered", value));
+                }));
 
                 if (config != null && config.getLoggingEnabled()) {
                     logger.info("RequestResponseManager configured with UI callbacks");
@@ -5268,7 +5273,7 @@ public class MainWindowController implements I18nChangeListener {
                 safetyTolerance = (int) flux2SafetySlider.getValue();
             } else {
                 // Fallback to config if slider not available
-                safetyTolerance = config != null ? config.getFlux2SafetyTolerance() : 5;
+                safetyTolerance = config != null ? config.getFlux2SafetyTolerance() : 2;
             }
             logger.debug("Using FLUX.2 safety tolerance: {} for model: {}", safetyTolerance, generationModel.getApiModelId());
         } else {

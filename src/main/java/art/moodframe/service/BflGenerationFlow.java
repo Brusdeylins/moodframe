@@ -17,10 +17,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntConsumer;
 
 /**
  * The asynchronous BFL flow of a generation: submit a job per image, poll its status until the image is ready,
@@ -40,6 +42,7 @@ public class BflGenerationFlow {
     private final ScheduledExecutorService scheduler;
     private final Map<String, PendingRequest> activeRequests = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom = new SecureRandom(); // High-entropy random for seed generation
+    private volatile IntConsumer onSafetyToleranceLowered = (value) -> { };
 
     /**
      * Creates the flow.
@@ -84,6 +87,16 @@ public class BflGenerationFlow {
      */
     public boolean isActive(String jobId) {
         return activeRequests.containsKey(jobId);
+    }
+
+    /**
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     * It is called on a worker thread.
+     *
+     * @param callback receives the lowered safety tolerance
+     */
+    public void setOnSafetyToleranceLowered(IntConsumer callback) {
+        this.onSafetyToleranceLowered = callback;
     }
 
     /** Stops the polling of all jobs. */
@@ -184,6 +197,21 @@ public class BflGenerationFlow {
 
             // Submit request through BflApiService with timeout
             bflApiService.submitGenerationRequest(imageRequest)
+                .exceptionallyCompose((throwable) -> {
+                    /*  An account without approval for the safety tolerance gets one retry with its approved
+                        maximum, which also becomes the value of the FLUX.2 slider  */
+                    Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
+                    Integer approved = cause instanceof BflApiServiceImpl.BflApiException bflError
+                            ? bflError.getMaximumApprovedSafetyTolerance() : null;
+                    if (approved == null)
+                        return CompletableFuture.failedFuture(throwable);
+                    logger.info("Safety tolerance {} not approved for the BFL account, retrying with {}",
+                        imageRequest.getSafetyTolerance(), approved);
+                    imageRequest.setSafetyTolerance(approved);
+                    config.setFlux2SafetyTolerance(approved);
+                    onSafetyToleranceLowered.accept(approved);
+                    return bflApiService.submitGenerationRequest(imageRequest);
+                })
                 .orTimeout(30, TimeUnit.SECONDS) // 30 second timeout
                 .thenAccept(jobInfo -> {
                     // Handle successful submission
