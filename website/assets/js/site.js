@@ -32,6 +32,7 @@ const TEXT = {
         "mood.title": "Switch the mood, keep the picture",
         "mood.lead": "One picture, five moods. A mood is made of lockable building blocks, or taken from any picture you drop in.",
         "mood.panel": "Mood settings in MoodFrame:",
+        "mood.caption": "Vintage Film is generated from a prompt; the other four use it as reference image (Edit). Nano Banana Pro.",
         "mood.golden.name": "Vintage Film",
         "mood.fog.name": "Quiet Morning",
         "mood.noir.name": "Sci-Fi Cinema",
@@ -87,6 +88,7 @@ const TEXT = {
         "mood.title": "Mood wechseln, Bild behalten",
         "mood.lead": "Ein Bild, fünf Moods. Eine Mood besteht aus sperrbaren Bausteinen oder entsteht aus einem Bild, das du hineinziehst.",
         "mood.panel": "Mood-Einstellungen in MoodFrame:",
+        "mood.caption": "Vintage Film entstand aus einem Prompt, die anderen vier mit ihm als Referenzbild (Bearbeiten). Nano Banana Pro.",
         "mood.golden.name": "Vintage Film",
         "mood.fog.name": "Quiet Morning",
         "mood.noir.name": "Sci-Fi Cinema",
@@ -180,9 +182,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114h`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114i`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114h`
+    panel.src = `assets/img/${mood.panel}?v=20261114i`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
