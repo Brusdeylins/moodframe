@@ -273,8 +273,9 @@
                     
                 </BorderPane>
                 
-                <!-- Right: Parameters Panel with Scroll, starting at the top of the chat area below the 45 px chat header -->
-                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                <!-- Right: Parameters Panel with Scroll, starting at the top of the chat area below the 45 px chat header;
+                     with the scroll bar the controller narrows the right padding to a gap to it -->
+                <ScrollPane fx:id="panelScrollPane" fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
                             prefWidth="250.0" maxWidth="250.0" minWidth="250.0"
                             styleClass="see-through"
                             style="-fx-background: transparent; -fx-background-color: transparent;">

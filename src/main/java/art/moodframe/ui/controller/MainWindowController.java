@@ -224,6 +224,8 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label generationTitleLabel;
     @FXML
+    private ScrollPane panelScrollPane;
+    @FXML
     private TitledPane moodGroupPane;
     @FXML
     private TitledPane frameGroupPane;
@@ -2654,10 +2656,13 @@ public class MainWindowController implements I18nChangeListener {
     /*  the fold arrow and the paddings beside the header of a group of the right panel  */
     private static final double PANEL_GROUP_HEADER_INSETS = 28.0;
 
+    /*  the gap of the groups to the scroll bar of the right panel, in place of their padding to the window edge  */
+    private static final double PANEL_SCROLL_BAR_GAP = 6.0;
+
     /**
      * Folds the groups of the right panel (Mood, Frame, Generation) as the user left them. The header of a group spans
      * its width, so that its actions sit on the right; its content starts on the inset of the boxes, behind its 1 px
-     * border.
+     * border. With the scroll bar of the panel, the groups get narrower and keep a gap to it.
      */
     private void setupPanelGroups() {
         java.util.Map<String, TitledPane> groups = java.util.Map.of("mood", moodGroupPane, "frame", frameGroupPane,
@@ -2671,8 +2676,23 @@ public class MainWindowController implements I18nChangeListener {
             });
             ((javafx.scene.layout.Region) pane.getGraphic()).prefWidthProperty()
                     .bind(pane.widthProperty().subtract(PANEL_GROUP_HEADER_INSETS));
+
+            /*  The minimum width of a group is the width of its header, which follows the group: without this, a
+                group could never get narrower again, e.g. when the scroll bar shows  */
+            pane.setMinWidth(0);
             ((javafx.scene.layout.Region) pane.getContent()).setPadding(
                     new javafx.geometry.Insets(0, 0, 0, BoxInset.LEFT - 1.0));
+        });
+
+        /*  The scroll bar narrows the viewport: the right padding of the panel then shrinks to the gap to it  */
+        javafx.scene.layout.Region panel = (javafx.scene.layout.Region) panelScrollPane.getContent();
+        javafx.geometry.Insets padding = panel.getPadding();
+        panelScrollPane.viewportBoundsProperty().addListener((obs, oldVal, newVal) -> {
+            javafx.geometry.Insets insets = panelScrollPane.getInsets();
+            boolean scrollBar = newVal.getWidth()
+                    < panelScrollPane.getWidth() - insets.getLeft() - insets.getRight() - 1.0;
+            panel.setPadding(new javafx.geometry.Insets(padding.getTop(),
+                    scrollBar ? PANEL_SCROLL_BAR_GAP : padding.getRight(), padding.getBottom(), padding.getLeft()));
         });
     }
 
