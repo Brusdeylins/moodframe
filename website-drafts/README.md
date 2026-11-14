@@ -1,4 +1,7 @@
-# moodframe.art
+# moodframe.art: notes and drafts
+
+This folder holds the notes, the shot list and the design proposals (`mock/`); the site itself is in
+[`../website/`](../website/), whose content goes online unchanged.
 
 The website of MoodFrame: static pages (`index.html`, `imprint.html`, `privacy.html`, `assets/`), no build step, no requests to
 third parties. It matches the splash screen: dark petrol-teal stage, the colored cloud, the
@@ -39,7 +42,7 @@ GitHub release `v<version>`). Locally, or without JavaScript, the page shows ver
 - [ ] GitHub release `v2.0.0`
 - [x] Imprint and privacy notice (`imprint.html`, `privacy.html`; German binding, English translation)
 - [ ] Confirm the hosting paragraph of the privacy notice (copied from brusdeylins.info: own EU server, no access logs)
-- [ ] Upload: the content of `website/` (without `mock/`) to the root of `https://moodframe.art`, next to `/download`
+- [ ] Upload: the content of `website/` to the root of `https://moodframe.art`, next to `/download`
 
 ## Mockups
 
