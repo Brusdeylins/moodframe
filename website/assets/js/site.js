@@ -24,8 +24,8 @@ const TEXT = {
         "feature.prompt.full": "write what you want to see in the picture",
         "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "develop ideas and prompts", "feature.brainstorm.2": "with an AI assistant",
         "feature.brainstorm.full": "develop ideas and prompts with an AI assistant",
-        "feature.mood.1": "style, atmosphere, light,", "feature.mood.2": "color and camera",
-        "feature.mood.full": "style, atmosphere, light, color and camera",
+        "feature.mood.1": "atmosphere, style, color,", "feature.mood.2": "light and camera",
+        "feature.mood.full": "atmosphere, style, color, light and camera",
         "feature.frame.1": "aspect ratio and resolution",
         "feature.generation": "Generation", "feature.generation.1": "model, number of images,", "feature.generation.2": "reference images and", "feature.generation.3": "Google grounding",
         "feature.generation.full": "model, number of images, reference images and Google grounding",
@@ -88,8 +88,8 @@ const TEXT = {
         "feature.prompt.full": "schreiben, was du im Bild sehen willst",
         "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "Ideen und Prompts mit", "feature.brainstorm.2": "einem KI-Assistenten entwickeln",
         "feature.brainstorm.full": "Ideen und Prompts mit einem KI-Assistenten entwickeln",
-        "feature.mood.1": "Stil, Atmosphäre, Licht,", "feature.mood.2": "Farbe und Kamera",
-        "feature.mood.full": "Stil, Atmosphäre, Licht, Farbe und Kamera",
+        "feature.mood.1": "Atmosphäre, Stil, Farbe,", "feature.mood.2": "Licht und Kamera",
+        "feature.mood.full": "Atmosphäre, Stil, Farbe, Licht und Kamera",
         "feature.frame.1": "Seitenverhältnis und Auflösung",
         "feature.generation": "Generierung", "feature.generation.1": "Modell, Anzahl der Bilder,", "feature.generation.2": "Referenzbilder und", "feature.generation.3": "Google-Grounding",
         "feature.generation.full": "Modell, Anzahl der Bilder, Referenzbilder und Google-Grounding",
@@ -198,7 +198,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114b`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114c`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
