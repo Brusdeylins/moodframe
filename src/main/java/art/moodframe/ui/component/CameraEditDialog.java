@@ -217,6 +217,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         settingsBox.setPrefWidth(SETTINGS_WIDTH);
         bodyTiles.setPrefWrapLength(SETTINGS_WIDTH);
         VBox previewBox = new VBox(10, preview, example);
+        previewBox.setAlignment(Pos.TOP_CENTER);
 
         /*  Generated prompt, below both columns  */
         promptArea.setEditable(false);

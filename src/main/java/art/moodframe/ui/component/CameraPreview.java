@@ -28,6 +28,12 @@ public class CameraPreview extends VBox {
     private static final Color FOCUS = Color.rgb(255, 170, 40, 0.45);
     private static final Color SUBJECT = Color.rgb(74, 144, 217);
 
+    /*  a person facing the viewer, below the head: neck, shoulders, hanging arms, body and legs, from the feet up  */
+    private static final String FIGURE = "M -2.5 -66 L -2.5 -62 Q -10 -61.5 -11.5 -57 L -15 -33 Q -14 -28.5 -11.5 -31.5"
+            + " L -9 -52 L -8 -52 L -7 -44 L -8.5 -36 L -6 -2 L -7.5 0 L -1.5 0 L -1 -31 Q 0 -33 1 -31 L 1.5 0 L 7.5 0"
+            + " L 6 -2 L 8.5 -36 L 7 -44 L 8 -52 L 9 -52 L 11.5 -31.5 Q 14 -28.5 15 -33 L 11.5 -57 Q 10 -61.5 2.5 -62"
+            + " L 2.5 -66 Z";
+
     private final Label topCaption = new Label();
     private final Label sideCaption = new Label();
     private final Canvas top = new Canvas(WIDTH, 190);
@@ -60,25 +66,25 @@ public class CameraPreview extends VBox {
         drawSide(settings.perspective());
     }
 
-    /*  The cone opens with the horizontal angle of view of the focal length on full frame, the subject stands at the
-        distance of the shot size, the band of focus is as deep as the aperture allows  */
+    /*  The cone opens with the horizontal angle of view of the focal length on full frame and ends in an arc with a
+        margin to the edges, the subject stands at the distance of the shot size, the band of focus is as deep as the
+        aperture allows  */
     private void drawTop(CameraSettings settings) {
         GraphicsContext gc = top.getGraphicsContext2D();
         double height = top.getHeight();
         double x = WIDTH / 2;
         double y = height - 14;
-        double length = height - 26;
         gc.clearRect(0, 0, WIDTH, height);
 
         double angle = angleOfView(settings.lens());
+        double length = Math.min(height - 26, (WIDTH / 2 - 12) / Math.sin(Math.toRadians(angle / 2)));
         double subject = length * subjectDistance(settings.lens(), settings.shot());
-        double radius = Math.min(length / Math.cos(Math.toRadians(Math.min(angle, 120) / 2)), length * 1.4);
 
-        /*  the cone, clipped to the canvas  */
+        /*  the cone up to its arc, which clips the band of focus  */
         gc.save();
         gc.beginPath();
         gc.moveTo(x, y);
-        gc.arc(x, y, radius, radius, 90 - angle / 2, angle);
+        gc.arc(x, y, length, length, 90 - angle / 2, angle);
         gc.closePath();
         gc.setFill(CONE);
         gc.fill();
@@ -91,7 +97,7 @@ public class CameraPreview extends VBox {
         double[] focus = focusRange(settings.aperture(), settings.lens());
         if (focus != null) {
             double near = Math.max(subject - focus[0] * length, 0);
-            double far = Math.min(subject + focus[1] * length, radius);
+            double far = Math.min(subject + focus[1] * length, length);
             gc.setFill(FOCUS);
             gc.fillRect(0, y - far, WIDTH, far - near);
         }
@@ -116,15 +122,6 @@ public class CameraPreview extends VBox {
         gc.setLineWidth(1);
         gc.strokeLine(10, ground, WIDTH - 10, ground);
 
-        gc.setStroke(SUBJECT);
-        gc.setLineWidth(3);
-        gc.strokeOval(figure - 7, head - 7, 14, 14);
-        gc.strokeLine(figure, head + 7, figure, ground - 26);
-        gc.strokeLine(figure, ground - 26, figure - 9, ground);
-        gc.strokeLine(figure, ground - 26, figure + 9, ground);
-        gc.strokeLine(figure - 12, head + 20, figure + 12, head + 20);
-        gc.setLineWidth(1);
-
         Perspective shown = perspective != null ? perspective : Perspective.EYE_LEVEL;
         double cameraX = shown == Perspective.TOP_DOWN ? figure : WIDTH * 0.2;
         double cameraY = switch (shown) {
@@ -134,12 +131,21 @@ public class CameraPreview extends VBox {
             default -> head;
         };
         double targetX = shown == Perspective.TOP_DOWN ? figure : figure - 10;
-        double targetY = shown == Perspective.LOW_ANGLE || shown == Perspective.HIGH_ANGLE ? ground - 40 : head;
+        double targetY = shown == Perspective.LOW_ANGLE || shown == Perspective.HIGH_ANGLE ? ground - 48 : head;
         double aim = Math.toDegrees(Math.atan2(targetY - cameraY, targetX - cameraX));
 
-        gc.setStroke(LINE);
         gc.setLineDashes(4);
         gc.strokeLine(cameraX, cameraY, targetX, targetY);
+
+        /*  the figure over the line of sight, so the line ends at its outline  */
+        gc.setFill(SUBJECT);
+        gc.fillOval(figure - 6.5, head - 6.5, 13, 13);
+        gc.save();
+        gc.translate(figure, ground);
+        gc.beginPath();
+        gc.appendSVGPath(FIGURE);
+        gc.fill();
+        gc.restore();
         drawCamera(gc, cameraX, cameraY, aim, shown == Perspective.DUTCH_ANGLE ? 25 : 0, perspective == null);
     }
 

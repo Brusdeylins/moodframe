@@ -5,6 +5,7 @@ import art.moodframe.model.CameraSettings.Iso;
 import art.moodframe.model.CameraSettings.Lens;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -65,6 +66,8 @@ public class CameraExample extends VBox {
         caption.getStyleClass().add("text-small");
         hint.getStyleClass().addAll("text-small", "text-muted");
         hint.setWrapText(true);
+        hint.setTextAlignment(TextAlignment.CENTER);
+        setAlignment(Pos.TOP_CENTER);
         setMaxWidth(SIZE);
         getChildren().addAll(frame, caption, hint);
         updateTexts();
