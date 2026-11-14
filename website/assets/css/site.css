@@ -52,15 +52,21 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 img, svg { display: block; max-width: 100%; height: auto; }
-/*  a faint cloud at the end of the page answers the one in the hero; it sits behind all content, centered and
-    whole, and its dark background disappears through the screen blend  */
-body { position: relative; }
+/*  a faint cloud rises out of the lower edge of the page and answers the one in the hero; it sits behind all
+    content, its sides and top fade out, the body clips what lies below the page (html scrolls, so the clip of the
+    body does not reach the viewport), and its dark background disappears through the screen blend  */
+html { overflow: auto; }
+body { position: relative; overflow: clip; }
 body::after {
-    content: ""; position: absolute; left: 50%; bottom: 0; z-index: -1; transform: translateX(-50%);
+    content: ""; position: absolute; left: 50%; bottom: -170px; z-index: -1; transform: translateX(-50%);
     width: min(1100px, 100%); aspect-ratio: 21 / 9; pointer-events: none;
     background: url("../img/cloud-footer.jpg") center / contain no-repeat;
-    -webkit-mask-image: radial-gradient(ellipse 50% 50% at center, #000 55%, transparent 100%);
-    mask-image: radial-gradient(ellipse 50% 50% at center, #000 55%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%),
+        linear-gradient(180deg, transparent 0, #000 40%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%),
+        linear-gradient(180deg, transparent 0, #000 40%);
+    mask-composite: intersect;
     opacity: .45; mix-blend-mode: screen;
 }
 a { color: inherit; text-decoration: none; }
