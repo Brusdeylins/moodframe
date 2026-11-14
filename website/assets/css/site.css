@@ -52,20 +52,20 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 img, svg { display: block; max-width: 100%; height: auto; }
-/*  a faint cloud rises out of the lower edge of the page and answers the one in the hero; it sits behind all
-    content, its sides and top fade out, the body clips what lies below the page (html scrolls, so the clip of the
-    body does not reach the viewport), and its dark background disappears through the screen blend  */
+/*  a faint cloud, a little stretched upward, rises out of the lower edge of the page behind Install and answers
+    the one in the hero; sides and top fade out, the body clips what lies below the page (html scrolls, so the clip
+    stays on the body), and the dark background of the image disappears through the screen blend  */
 html { overflow: auto; }
 body { position: relative; overflow: clip; }
 body::after {
-    content: ""; position: absolute; left: 50%; bottom: -170px; z-index: -1; transform: translateX(-50%);
-    width: min(1100px, 100%); aspect-ratio: 21 / 9; pointer-events: none;
-    background: url("../img/cloud-footer.jpg") center / contain no-repeat;
+    content: ""; position: absolute; left: 50%; bottom: -150px; z-index: -1; transform: translateX(-50%);
+    width: min(1600px, 100%); aspect-ratio: 16 / 10; pointer-events: none;
+    background: url("../img/cloud-footer.jpg") center / 100% 100% no-repeat;
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%),
-        linear-gradient(180deg, transparent 0, #000 40%);
+        linear-gradient(180deg, transparent 0, #000 30%);
     -webkit-mask-composite: source-in;
     mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%),
-        linear-gradient(180deg, transparent 0, #000 40%);
+        linear-gradient(180deg, transparent 0, #000 30%);
     mask-composite: intersect;
     opacity: .45; mix-blend-mode: screen;
 }
