@@ -69,9 +69,13 @@ button { font: inherit; color: inherit; }
 .nav.scrolled { background: rgb(10 20 24 / 72%); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .nav .brand img { width: 140px; height: auto; }
 .nav .links { display: flex; gap: 28px; margin-left: auto; font-size: 15px; color: #dfe9ea; }
-.nav .lang { display: flex; gap: 6px; font-size: 15px; }
+.nav .lang { display: flex; gap: 8px; font-size: 15px; }
 .nav .lang button { background: none; border: 0; padding: 0 2px; cursor: pointer; color: var(--fg-faint); }
 .nav .lang button[aria-pressed="true"] { color: var(--fg-strong); font-weight: 600; }
+/*  a thin divider between the languages shows the toggle  */
+.nav .lang button + button::before {
+    content: "/"; display: inline-block; margin-right: 8px; color: var(--fg-faint); font-weight: 400;
+}
 .pill {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 6px 18px; border-radius: 999px; font-size: 13px; color: var(--fg);
