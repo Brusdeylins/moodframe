@@ -58,7 +58,7 @@ const TEXT = {
         "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
         "install.title": "Up and running in a minute", "install.version": "Version",
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
-        "install.mac.command": "Paste into a terminal: the command installs and starts MoodFrame.",
+        "install.mac.command": "Paste into a terminal: the command downloads MoodFrame, installs it in Applications and starts it. A download in the terminal carries no quarantine flag, so macOS opens the app right away, without the block on the first launch.",
         "install.mac.zip": "Or download the .zip:",
         "install.mac.notarized": "The app is not notarized by Apple, so macOS blocks the first launch: then click Open Anyway in System Settings → Privacy & Security.",
         "install.windows.button": "Download and install",
@@ -123,7 +123,7 @@ const TEXT = {
         "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
         "install.title": "In einer Minute startklar", "install.version": "Version",
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
-        "install.mac.command": "Im Terminal einfügen: Der Befehl installiert und startet MoodFrame.",
+        "install.mac.command": "Im Terminal einfügen: Der Befehl lädt MoodFrame, installiert es unter Programme und startet es. Ein Download im Terminal trägt kein Quarantäne-Kennzeichen, deshalb öffnet macOS die App sofort, ohne die Sperre beim ersten Start.",
         "install.mac.zip": "Oder die .zip laden:",
         "install.mac.notarized": "Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: dann in Systemeinstellungen → Datenschutz & Sicherheit auf „Dennoch öffnen“ klicken.",
         "install.windows.button": "Laden und installieren",
@@ -200,9 +200,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114s`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114t`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114s`
+    panel.src = `assets/img/${mood.panel}?v=20261114t`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
