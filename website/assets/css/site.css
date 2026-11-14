@@ -179,12 +179,12 @@ button { font: inherit; color: inherit; }
 .tabs [role="tab"] .hint { margin-left: 8px; font-size: 11px; color: var(--logo-yellow); }
 #mood .tabs { --tab-color: rgb(255 107 74 / 28%); }
 #install .tabs { --tab-color: rgb(245 184 61 / 25%); }
-/*  the columns keep the 3:2 image and the 228:549 panel at the same height  */
+/*  the columns keep the 3:2 image and the 456:1098 panel at the same height  */
 .mood-body {
     display: grid; grid-template-columns: minmax(0, 1500fr) minmax(0, 415fr); gap: 32px; margin-top: 28px;
 }
 .mood-body img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 10px; }
-.mood-body img.panel { aspect-ratio: 228 / 549; height: auto; }
+.mood-body img.panel { aspect-ratio: 456 / 1098; height: auto; }
 .frame-text ul { margin: 0; padding: 18px 0 0; list-style: none; font-size: 14px; border-top: 1px solid rgb(255 255 255 / 12%); }
 /*  the star hangs in its own column, so wrapped lines stay flush with the text  */
 .frame-text li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; margin-bottom: 8px; }
