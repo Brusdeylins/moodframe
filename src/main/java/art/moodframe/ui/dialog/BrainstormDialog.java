@@ -756,13 +756,20 @@ public class BrainstormDialog extends Stage {
     }
 
     private void addBubble(BrainstormChat target, String text, boolean fromUser) {
-        Label label = new Label(text);
-        label.setWrapText(true);
-        label.setMaxWidth(520.0);
-        label.setStyle(BUBBLE_STYLE + (fromUser
+        Region bubble;
+        if (fromUser) {
+            Label label = new Label(text);
+            label.setWrapText(true);
+            bubble = label;
+        } else {
+            /*  The AI writes light Markdown: bold, italic and bullets show, the markers vanish  */
+            bubble = BrainstormMarkdown.toFlow(text);
+        }
+        bubble.setMaxWidth(520.0);
+        bubble.setStyle(BUBBLE_STYLE + (fromUser
                 ? "-fx-background-color: -color-accent-emphasis; -fx-text-fill: -color-fg-emphasis;"
                 : "-fx-background-color: -color-bg-subtle;"));
-        HBox row = new HBox(label);
+        HBox row = new HBox(bubble);
         row.setAlignment(fromUser ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
         appendToChat(target, row, fromUser);
         if (!fromUser)
