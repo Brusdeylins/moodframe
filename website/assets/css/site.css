@@ -67,7 +67,7 @@ body::after {
     mask-image: linear-gradient(90deg, transparent 0, #000 20%, #000 80%, transparent 100%),
         linear-gradient(180deg, transparent 0, #000 30%);
     mask-composite: intersect;
-    opacity: .45; mix-blend-mode: screen;
+    opacity: .3; mix-blend-mode: screen;
 }
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--fg-strong); }
