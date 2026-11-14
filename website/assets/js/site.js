@@ -7,7 +7,7 @@ const DOWNLOAD = "https://moodframe.art/download/"
 
 const TEXT = {
     en: {
-        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Models", "nav.install": "Install",
+        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Models", "nav.more": "More", "nav.install": "Install",
         "hero.eyebrow": "Desktop studio for AI images",
         "hero.claim": "The mood sets how an image feels, the frame its shape and size. One app for FLUX, Nano Banana, OpenAI and any compatible image API.",
         "hero.install.mac": "Install for macOS", "hero.install.windows": "Install for Windows",
@@ -56,6 +56,16 @@ const TEXT = {
         "models.title": "Bring your own API key",
         "models.lead": "Three providers in one app. Your keys stay on your machine, encrypted.",
         "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
+        "more.title": "And there's more", "more.lead": "The details that make everyday work easier.",
+        "more.combine": "Combine and edit", "more.combine.text": "Attach up to 10 images (depending on the model) for a collage, a combination or an edit with a new prompt or mood.",
+        "more.infographic": "Infographics", "more.infographic.text": "Brainstorm gathers the facts from the web or a YouTube video and lays them out as an infographic, with the frame Text in Image.",
+        "more.camera": "Camera dialog", "more.camera.text": "Camera type, focal length, aperture, perspective and shot size, with an example image for every stage.",
+        "more.video": "Video", "more.video.text": "Video clips with Gemini Omni, in the same chats as your images.",
+        "more.costs": "Costs in view", "more.costs.text": "The price shows before you send, the costs per image and per chat afterwards.",
+        "more.trash": "One trash", "more.trash.text": "Chats, images, building blocks, moods and frames, all restorable.",
+        "more.share": "Share moods", "more.share.text": "Export your moods as a file and import them on another machine.",
+        "more.themes": "Seven themes", "more.themes.text": "Light and dark, from Primer and Nord to Cupertino and Dracula.",
+        "more.network": "Corporate networks", "more.network.text": "Proxy settings and your own root certificates, also for networks with TLS inspection.",
         "install.title": "Up and running in a minute", "install.version": "Version",
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
         "install.mac.command": "Paste into a terminal: the command downloads <b>Mood</b>Frame, installs it in Applications and starts it. A download in the terminal carries no quarantine flag, so macOS opens the app right away, without the block on the first launch.",
@@ -72,7 +82,7 @@ const TEXT = {
         "copy": "Copy", "copied": "Copied"
     },
     de: {
-        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Modelle", "nav.install": "Installieren",
+        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Modelle", "nav.more": "Mehr", "nav.install": "Installieren",
         "hero.eyebrow": "Desktop-Studio für KI-Bilder",
         "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame Format und Auflösung. Eine App für FLUX, Nano Banana, OpenAI und jede kompatible Bild-API.",
         "hero.install.mac": "Für macOS installieren", "hero.install.windows": "Für Windows installieren",
@@ -121,6 +131,16 @@ const TEXT = {
         "models.title": "Mit deinem eigenen API-Schlüssel",
         "models.lead": "Drei Anbieter in einer App. Deine Schlüssel bleiben verschlüsselt auf deinem Rechner.",
         "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
+        "more.title": "Und noch mehr", "more.lead": "Die Details, die den Alltag leichter machen.",
+        "more.combine": "Kombinieren und bearbeiten", "more.combine.text": "Bis zu 10 Bilder anhängen (je nach Modell): für eine Collage, eine Kombination oder eine Bearbeitung mit neuem Prompt oder neuer Mood.",
+        "more.infographic": "Infografiken", "more.infographic.text": "Brainstorm sammelt die Fakten aus dem Web oder einem YouTube-Video und setzt sie als Infografik um, mit dem Frame Text in Image.",
+        "more.camera": "Kamera-Dialog", "more.camera.text": "Kameratyp, Brennweite, Blende, Perspektive und Bildausschnitt, mit einem Beispielbild für jede Stufe.",
+        "more.video": "Video", "more.video.text": "Videoclips mit Gemini Omni, in denselben Chats wie deine Bilder.",
+        "more.costs": "Kosten im Blick", "more.costs.text": "Der Preis steht vor dem Senden fest, danach die Kosten je Bild und je Chat.",
+        "more.trash": "Ein Papierkorb", "more.trash.text": "Chats, Bilder, Bausteine, Moods und Frames, alles wiederherstellbar.",
+        "more.share": "Moods teilen", "more.share.text": "Moods als Datei exportieren und auf einem anderen Rechner importieren.",
+        "more.themes": "Sieben Themes", "more.themes.text": "Hell und dunkel, von Primer und Nord bis Cupertino und Dracula.",
+        "more.network": "Firmennetze", "more.network.text": "Proxy und eigene Root-Zertifikate, auch für Netze mit TLS-Inspektion.",
         "install.title": "In einer Minute startklar", "install.version": "Version",
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
         "install.mac.command": "Im Terminal einfügen: Der Befehl lädt <b>Mood</b>Frame, installiert es unter Programme und startet es. Ein Download im Terminal trägt kein Quarantäne-Kennzeichen, deshalb öffnet macOS die App sofort, ohne die Sperre beim ersten Start.",
@@ -204,9 +224,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114w`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114x`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114w`
+    panel.src = `assets/img/${mood.panel}?v=20261114x`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
