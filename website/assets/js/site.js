@@ -9,7 +9,7 @@ const TEXT = {
     en: {
         "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Models", "nav.install": "Install",
         "hero.eyebrow": "Desktop studio for AI images",
-        "hero.claim": "The mood decides how an image feels, the frame how it is rendered. One app for FLUX, Nano Banana and every OpenAI-compatible image API.",
+        "hero.claim": "The mood sets how an image feels, the frame its shape and size. One app for FLUX, Nano Banana, OpenAI and any compatible image API.",
         "hero.install.mac": "Install for macOS", "hero.install.windows": "Install for Windows",
         "hero.install.linux": "Install for Linux", "hero.install.other": "Install",
         "hero.github": "View on GitHub",
@@ -73,7 +73,7 @@ const TEXT = {
     de: {
         "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Modelle", "nav.install": "Installieren",
         "hero.eyebrow": "Desktop-Studio für KI-Bilder",
-        "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame, wie es ausgegeben wird. Eine App für FLUX, Nano Banana und jede OpenAI-kompatible Bild-API.",
+        "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame Format und Auflösung. Eine App für FLUX, Nano Banana, OpenAI und jede kompatible Bild-API.",
         "hero.install.mac": "Für macOS installieren", "hero.install.windows": "Für Windows installieren",
         "hero.install.linux": "Für Linux installieren", "hero.install.other": "Installieren",
         "hero.github": "Auf GitHub ansehen",
@@ -198,7 +198,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114d`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114e`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
