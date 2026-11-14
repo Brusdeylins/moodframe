@@ -230,6 +230,7 @@ button { font: inherit; color: inherit; }
 .install-panel .actions { margin-top: 24px; }
 .packaged { margin: 28px 0 0; padding-top: 20px; font-size: 14px; color: var(--fg-muted); border-top: 1px solid rgb(255 255 255 / 12%); }
 .packaged a { color: var(--fg); }
+.packaged b { color: var(--fg-strong); font-weight: 700; }
 
 /*  footer  */
 footer { margin-top: 120px; border-top: 1px solid rgb(255 255 255 / 10%); }

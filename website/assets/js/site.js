@@ -66,7 +66,7 @@ const TEXT = {
         "install.windows.also": "Also as",
         "install.linux.text": "For Debian and Ubuntu; updates come with apt.", "install.linux.other": "Other distributions:",
         "install.packaged": "Packaged with",
-        "install.updates": "by Hydraulic · MoodFrame checks for updates on every launch and updates itself",
+        "install.by": "by Hydraulic ·", "install.updates": "checks for updates on every launch and updates itself",
         "footer.built": "Built with Agentic Coding using", "footer.and": "and",
         "footer.changelog": "Changelog", "footer.releases": "Releases", "footer.imprint": "Imprint", "footer.privacy": "Privacy", "legal.back": "Back to moodframe.art",
         "copy": "Copy", "copied": "Copied"
@@ -131,7 +131,7 @@ const TEXT = {
         "install.windows.also": "Auch als",
         "install.linux.text": "Für Debian und Ubuntu; Updates kommen über apt.", "install.linux.other": "Andere Distributionen:",
         "install.packaged": "Paketiert mit",
-        "install.updates": "von Hydraulic · MoodFrame prüft bei jedem Start auf Updates und aktualisiert sich selbst",
+        "install.by": "von Hydraulic ·", "install.updates": "prüft bei jedem Start auf Updates und aktualisiert sich selbst",
         "footer.built": "Entwickelt mit Agentic Coding über", "footer.and": "und",
         "footer.changelog": "Änderungen", "footer.releases": "Releases", "footer.imprint": "Impressum", "footer.privacy": "Datenschutz", "legal.back": "Zurück zu moodframe.art",
         "copy": "Kopieren", "copied": "Kopiert"
@@ -200,9 +200,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114t`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114u`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114t`
+    panel.src = `assets/img/${mood.panel}?v=20261114u`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
