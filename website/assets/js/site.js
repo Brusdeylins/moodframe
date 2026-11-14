@@ -60,7 +60,7 @@ const TEXT = {
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
         "install.mac.command": "Paste into a terminal: the command installs and starts MoodFrame.",
         "install.mac.zip": "Or download the .zip:",
-        "install.mac.notarized": "The app is not notarized by Apple, so open it the first time with Control-click → Open.",
+        "install.mac.notarized": "The app is not notarized by Apple, so macOS blocks the first launch: then click Open Anyway in System Settings → Privacy & Security.",
         "install.windows.button": "Download and install",
         "install.windows.text": "Runs the installer, which also keeps MoodFrame up to date.",
         "install.windows.also": "Also as",
@@ -125,7 +125,7 @@ const TEXT = {
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
         "install.mac.command": "Im Terminal einfügen: Der Befehl installiert und startet MoodFrame.",
         "install.mac.zip": "Oder die .zip laden:",
-        "install.mac.notarized": "Die App ist nicht von Apple notarisiert; beim ersten Start mit Control-Klick → Öffnen starten.",
+        "install.mac.notarized": "Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: dann in Systemeinstellungen → Datenschutz & Sicherheit auf „Dennoch öffnen“ klicken.",
         "install.windows.button": "Laden und installieren",
         "install.windows.text": "Startet das Installationsprogramm, das MoodFrame auch aktuell hält.",
         "install.windows.also": "Auch als",
@@ -200,9 +200,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114r`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114s`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114r`
+    panel.src = `assets/img/${mood.panel}?v=20261114s`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
