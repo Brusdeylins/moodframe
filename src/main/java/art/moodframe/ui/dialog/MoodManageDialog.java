@@ -36,8 +36,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Window for the moods of the user: order, rename, delete (into the central trash), favorite (by the star of a row),
- * import and export as JSON, and a link to the moods in the trash. Every change is stored at once.
+ * Window for the moods of the user: order, rename, delete (into the central trash), favorite (by the star or the
+ * context menu of a row), import and export as JSON, and a link to the moods in the trash. Every change is stored at
+ * once.
  *
  * @since 2.0.0
  */
@@ -68,7 +69,6 @@ public class MoodManageDialog extends Stage {
                 && favorites.isFavorite(FavoriteService.Kind.MOOD, mood.getId()), (mood) -> {
                     if (favorites != null)
                         favorites.toggle(FavoriteService.Kind.MOOD, mood.getId());
-                    list.refresh();
                 });
         list.setCellFactory((view) -> new ListCell<>() {
             private final Label nameLabel = new Label();

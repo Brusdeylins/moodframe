@@ -1814,12 +1814,13 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * The favorites of a list, for the stars of its rows; a switched favorite is stored, then the list is shown anew.
+     * The favorites of a list, for the stars of its rows; a switched favorite is stored at once, while the open list
+     * of a field keeps its order until the field opens it the next time, so no row moves away under the pointer.
      *
      * @param field  the field whose open list shows the rows, null for a list in a dialog
      * @param kind   the kind of the entries
      * @param id     tells the id of an entry
-     * @param reload shows the list anew, a field in the new order of its entries
+     * @param reload loads the list of the field again, in the new order of its entries; null for a list in a dialog
      */
     private <T> FavoriteStar.Favorites<T> favorites(ComboBox<?> field, FavoriteService.Kind kind,
             java.util.function.Function<T, String> id, Runnable reload) {
@@ -1828,7 +1829,11 @@ public class MainWindowController implements I18nChangeListener {
                     .getService(FavoriteService.class);
             if (service != null) {
                 service.toggle(kind, id.apply(entry));
-                reload.run();
+                if (field != null)
+                    field.setOnShowing((event) -> {
+                        field.setOnShowing(null);
+                        reload.run();
+                    });
             }
         });
     }
@@ -2027,7 +2032,7 @@ public class MainWindowController implements I18nChangeListener {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.StylePresetListCell(null, favorites(null,
-                        FavoriteService.Kind.of(type), MainWindowController::blockId, listView::refresh)))
+                        FavoriteService.Kind.of(type), MainWindowController::blockId, null)))
                 .showAndWait();
         refreshBlockChoices();
     }
@@ -2097,7 +2102,7 @@ public class MainWindowController implements I18nChangeListener {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell(favorites(null,
-                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, listView::refresh)))
+                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, null)))
                 .showAndWait();
         refreshBlockChoices();
     }
