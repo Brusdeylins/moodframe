@@ -169,12 +169,13 @@ button { font: inherit; color: inherit; }
 .frame-text li::before { content: "✦ "; color: var(--fg-faint); }
 
 /*  frame: nested aspect ratios over one image, what each model makes of the target  */
-/*  brainstorm: four steps in logo colors, the extras below a line  */
-.brainstorm-body { display: grid; gap: 28px; }
-.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
-.steps li { counter-increment: step; display: grid; gap: 6px; align-content: start; }
+/*  brainstorm: the dialog beside four steps in logo colors, the extras below a line  */
+.brainstorm-body { display: grid; grid-template-columns: minmax(0, 660fr) minmax(0, 460fr); gap: 40px; align-items: center; }
+.brainstorm-body > img { width: 100%; height: auto; }
+.steps { display: grid; gap: 22px; margin: 0 0 24px; padding: 0; list-style: none; counter-reset: step; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 16px; row-gap: 4px; }
 .steps li::before {
-    content: counter(step); display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 8px;
+    content: counter(step); grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px;
     border-radius: 50%; border: 2px solid var(--dot); color: var(--dot); font: 700 15px var(--font-display);
 }
 .steps b { font: 600 17px var(--font-text); color: var(--fg-strong); }
@@ -269,7 +270,7 @@ footer .links { display: flex; gap: 20px; margin-left: auto; }
     .overview-list li::before { content: ""; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--dot, #fff); }
     .overview-list b { color: var(--fg-strong); font-weight: 600; }
     .mood-body, .frame-body, .providers { grid-template-columns: minmax(0, 1fr); }
-    .steps { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .brainstorm-body { grid-template-columns: minmax(0, 1fr); }
     .mood-body img.panel { width: min(100%, 228px); justify-self: center; }
     .tabs { display: flex; width: 100%; overflow-x: auto; }
     .tabs [role="tab"] { flex: 1 0 auto; padding-inline: 12px; white-space: nowrap; }
