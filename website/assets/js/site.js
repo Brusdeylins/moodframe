@@ -7,7 +7,7 @@ const DOWNLOAD = "https://moodframe.art/download/"
 
 const TEXT = {
     en: {
-        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Models", "nav.install": "Install",
+        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Models", "nav.install": "Install",
         "hero.eyebrow": "Desktop studio for AI images",
         "hero.claim": "The mood sets how an image feels, the frame its shape and size. One app for FLUX, Nano Banana, OpenAI and any compatible image API.",
         "hero.install.mac": "Install for macOS", "hero.install.windows": "Install for Windows",
@@ -44,6 +44,15 @@ const TEXT = {
         "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Model", "frame.gets": "Gets",
         "frame.exact": "exact", "frame.closest": "closest",
         "frame.point.saved": "Saved frames for your recurring formats", "frame.point.group": "Group your library by frame",
+        "brainstorm.title": "From a rough idea to a finished prompt",
+        "brainstorm.lead": "A guided chat with Gemini or an OpenAI-compatible model works out the scene with you.",
+        "brainstorm.step1": "Describe your idea", "brainstorm.step1.text": "A sentence is enough, or a link to a YouTube video.",
+        "brainstorm.step2": "Answer a few questions", "brainstorm.step2.text": "The assistant asks back, researches the web and checks the facts.",
+        "brainstorm.step3": "Adopt the draft", "brainstorm.step3.text": "Prompt, mood, model and resolution go to the main window with one click.",
+        "brainstorm.step4": "Next round", "brainstorm.step4.text": "Ask for the next image: one chat can plan a whole series.",
+        "brainstorm.point.blocks": "Knows your moods and building blocks",
+        "brainstorm.point.video": "Watches the YouTube videos you link, in the time range you choose (Gemini)",
+        "brainstorm.point.sessions": "Every brainstorm is kept, several run side by side",
         "models.title": "Bring your own API key",
         "models.lead": "Three providers in one app. Your keys stay on your machine, encrypted.",
         "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
@@ -63,7 +72,7 @@ const TEXT = {
         "copy": "Copy", "copied": "Copied"
     },
     de: {
-        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.models": "Modelle", "nav.install": "Installieren",
+        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Modelle", "nav.install": "Installieren",
         "hero.eyebrow": "Desktop-Studio für KI-Bilder",
         "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame Format und Auflösung. Eine App für FLUX, Nano Banana, OpenAI und jede kompatible Bild-API.",
         "hero.install.mac": "Für macOS installieren", "hero.install.windows": "Für Windows installieren",
@@ -100,6 +109,15 @@ const TEXT = {
         "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Modell", "frame.gets": "Ergebnis",
         "frame.exact": "exakt", "frame.closest": "nächstliegend",
         "frame.point.saved": "Gespeicherte Frames für wiederkehrende Formate", "frame.point.group": "Bibliothek nach Frame gruppieren",
+        "brainstorm.title": "Von der vagen Idee zum fertigen Prompt",
+        "brainstorm.lead": "Ein geführter Chat mit Gemini oder einem OpenAI-kompatiblen Modell arbeitet die Szene mit dir aus.",
+        "brainstorm.step1": "Idee beschreiben", "brainstorm.step1.text": "Ein Satz genügt, oder ein Link zu einem YouTube-Video.",
+        "brainstorm.step2": "Ein paar Fragen beantworten", "brainstorm.step2.text": "Der Assistent fragt nach, recherchiert im Web und prüft die Fakten.",
+        "brainstorm.step3": "Entwurf übernehmen", "brainstorm.step3.text": "Prompt, Mood, Modell und Auflösung gehen mit einem Klick ins Hauptfenster.",
+        "brainstorm.step4": "Nächste Runde", "brainstorm.step4.text": "Nach dem nächsten Bild fragen: Ein Chat kann eine ganze Serie planen.",
+        "brainstorm.point.blocks": "Kennt deine Moods und Bausteine",
+        "brainstorm.point.video": "Sieht sich verlinkte YouTube-Videos an, im gewählten Zeitbereich (Gemini)",
+        "brainstorm.point.sessions": "Jedes Brainstorming bleibt erhalten, mehrere laufen nebeneinander",
         "models.title": "Mit deinem eigenen API-Schlüssel",
         "models.lead": "Drei Anbieter in einer App. Deine Schlüssel bleiben verschlüsselt auf deinem Rechner.",
         "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
@@ -182,9 +200,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114j`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114k`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114j`
+    panel.src = `assets/img/${mood.panel}?v=20261114k`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 

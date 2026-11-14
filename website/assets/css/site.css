@@ -130,6 +130,7 @@ button { font: inherit; color: inherit; }
 .note { margin: 12px 0 0; font-size: 13px; color: var(--fg-faint); }
 #mood .eyebrow   { color: var(--logo-orange); }
 #frame .eyebrow  { color: var(--logo-green); }
+#brainstorm .eyebrow { color: var(--fg-strong); }
 #models .eyebrow { color: var(--logo-blue); }
 #install .eyebrow { color: var(--logo-yellow); }
 
@@ -164,6 +165,20 @@ button { font: inherit; color: inherit; }
 .frame-text li::before { content: "✦ "; color: var(--fg-faint); }
 
 /*  frame: nested aspect ratios over one image, what each model makes of the target  */
+/*  brainstorm: four steps in logo colors, the extras below a line  */
+.brainstorm-body { display: grid; gap: 28px; }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.steps li { counter-increment: step; display: grid; gap: 6px; align-content: start; }
+.steps li::before {
+    content: counter(step); display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 8px;
+    border-radius: 50%; border: 2px solid var(--dot); color: var(--dot); font: 700 15px var(--font-display);
+}
+.steps b { font: 600 17px var(--font-text); color: var(--fg-strong); }
+.steps span { font: 300 15px/1.5 var(--font-text); color: var(--fg-body); }
+.points { margin: 0; padding: 18px 0 0; list-style: none; font-size: 14px; border-top: 1px solid rgb(255 255 255 / 12%); }
+.points li { margin-bottom: 8px; }
+.points li::before { content: "✦ "; color: var(--fg-faint); }
+
 .frame-body { display: grid; grid-template-columns: minmax(0, 600fr) minmax(0, 520fr); gap: 48px; align-items: start; }
 .frame-figure { position: relative; }
 .frame-figure img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 8px; opacity: .6; }
@@ -250,6 +265,7 @@ footer .links { display: flex; gap: 20px; margin-left: auto; }
     .overview-list li::before { content: ""; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--dot, #fff); }
     .overview-list b { color: var(--fg-strong); font-weight: 600; }
     .mood-body, .frame-body, .providers { grid-template-columns: minmax(0, 1fr); }
+    .steps { grid-template-columns: minmax(0, 1fr); gap: 20px; }
     .mood-body img.panel { width: min(100%, 228px); justify-self: center; }
     .tabs { display: flex; width: 100%; overflow-x: auto; }
     .tabs [role="tab"] { flex: 1 0 auto; padding-inline: 12px; white-space: nowrap; }
