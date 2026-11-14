@@ -1872,6 +1872,29 @@ public class ApplicationConfig {
         return "none".equals(source) || "configuration".equals(source);
     }
 
+    /*  Update check of the Linux packages  */
+
+    /**
+     * Gets the version whose update hint the user hid.
+     *
+     * @return the version, or null if no hint was hidden
+     * @since 2.1.0
+     */
+    public String getUpdateDismissedVersion() {
+        return properties.getProperty("update.dismissed.version");
+    }
+
+    /**
+     * Hides the update hint for a version; a later version shows it again.
+     *
+     * @param version the version
+     * @since 2.1.0
+     */
+    public void setUpdateDismissedVersion(String version) {
+        properties.setProperty("update.dismissed.version", version);
+        saveConfiguration();
+    }
+
     // API Provider Validation Status
 
     /**

@@ -361,6 +361,11 @@ public class MoodframeApplication extends Application {
                                         favorites, trash));
                     });
 
+            /*  The newer version on the update site: hint at the start on Linux, check from the info window  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.UpdateCheckService.class,
+                    () -> new art.moodframe.service.UpdateCheckService(config));
+
             // Initialize ThumbnailManager for image optimization
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ThumbnailManager.class,

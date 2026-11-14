@@ -225,3 +225,11 @@
 .entry-image-failed .ikonli-font-icon {
     -fx-icon-color: -color-danger-fg;
 }
+
+/*  The hint of a newer version in the header: an icon button with its text, the icon in the accent color  */
+.update-hint {
+    -fx-content-display: left;
+}
+.update-hint .ikonli-font-icon {
+    -fx-icon-color: -color-accent-fg;
+}

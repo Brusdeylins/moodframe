@@ -127,6 +127,11 @@ public class MainWindowController implements I18nChangeListener {
     private Label appVersionLabel;
     @FXML
     private HBox appHeader;
+    @FXML
+    private Button updateButton;
+
+    /*  The newer version the update hint in the header stands for, null while there is none  */
+    private art.moodframe.service.UpdateCheckService.Result update;
 
     // Sidebar Controls
     @FXML
@@ -546,6 +551,7 @@ public class MainWindowController implements I18nChangeListener {
         checkApiKeyStatus();
         setupServices();
         setupMemoryMonitoring();
+        setupUpdateCheck();
 
         // Apply initial localization
         onLanguageChanged();
@@ -4842,6 +4848,37 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
+     * Looks for a newer version in the background, on Linux only, and shows the hint in the header if there is one.
+     */
+    private void setupUpdateCheck() {
+        art.moodframe.service.UpdateCheckService updates = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.UpdateCheckService.class);
+        if (updates != null)
+            updates.checkAtStart().thenAccept((found) -> found.ifPresent((result) ->
+                    Platform.runLater(() -> showUpdateHint(result))));
+    }
+
+    /*  Shows the hint of a newer version in the header, or hides it for null  */
+    private void showUpdateHint(art.moodframe.service.UpdateCheckService.Result result) {
+        update = result;
+        updateButton.setVisible(result != null);
+        updateButton.setManaged(result != null);
+        updateButton.setText(result != null ? I18nManager.getText("update.newer", result.available()) : "");
+    }
+
+    /**
+     * Opens the steps of the update; hiding the hint for this version removes it from the header.
+     */
+    @FXML
+    private void onUpdateClicked() {
+        art.moodframe.service.UpdateCheckService updates = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.UpdateCheckService.class);
+        if (art.moodframe.ui.dialog.UpdateDialog.showAndWait(updateButton.getScene().getWindow(), updates,
+                CompletableFuture.completedFuture(update)))
+            showUpdateHint(null);
+    }
+
+    /**
      * Handles the settings button click event.
      */
     @FXML
@@ -6476,6 +6513,8 @@ public class MainWindowController implements I18nChangeListener {
         if (settingsTooltip != null) {
             settingsTooltip.setText(I18nManager.getText("main.settings.tooltip"));
         }
+        if (update != null)
+            showUpdateHint(update);
 
         if (newChatTooltip != null) {
             newChatTooltip.setText(I18nManager.getText("chat.new.tooltip"));

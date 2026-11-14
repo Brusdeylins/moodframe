@@ -38,6 +38,15 @@
             <!-- Spacer to push settings button to the right -->
             <Region HBox.hgrow="ALWAYS" />
             
+            <!-- Update hint, Linux only (Conveyor updates the other systems): shown by the controller once the update
+                 site has a newer version, opens the steps of the update -->
+            <Button fx:id="updateButton" styleClass="icon-button, update-hint"
+                    visible="false" managed="false" onAction="#onUpdateClicked">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2a-arrow-up-circle-outline" iconSize="20" styleClass="ikonli-font-icon" />
+                </graphic>
+            </Button>
+
             <!-- Info Button: shows the splash screen again, closes with Esc -->
             <Button fx:id="infoButton" styleClass="icon-button"
                     onAction="#onInfoClicked">

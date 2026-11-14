@@ -2,8 +2,12 @@ package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.service.UpdateCheckService;
+import art.moodframe.ui.dialog.UpdateDialog;
+import art.moodframe.util.I18nManager;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -148,6 +152,23 @@ public class SplashScreen {
             Region gap = new Region();
             gap.setMinHeight(6.0);
             versionOverlay.getChildren().addAll(versionLabel, gap, aiCreditLine1, aiCreditLine2);
+
+            /*  in the info window of the packaged app: the check for a newer version  */
+            UpdateCheckService updates = info
+                    ? ServiceFactory.getInstance().getService(UpdateCheckService.class) : null;
+            if (updates != null && updates.isAvailable()) {
+                Hyperlink check = new Hyperlink(I18nManager.getText("update.check"));
+                check.setStyle(creditStyle + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
+                check.setFocusTraversable(false);
+                check.setOnAction((event) -> {
+                    Window owner = splashStage.getOwner();
+                    close();
+                    Platform.runLater(() -> UpdateDialog.showAndWait(owner, updates, updates.check()));
+                });
+                Region checkGap = new Region();
+                checkGap.setMinHeight(6.0);
+                versionOverlay.getChildren().addAll(checkGap, check);
+            }
 
             // Stack image and overlay
             StackPane root = new StackPane();
