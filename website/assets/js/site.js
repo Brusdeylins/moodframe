@@ -26,9 +26,9 @@ const TEXT = {
         "feature.brainstorm.full": "develop ideas and prompts with an AI assistant",
         "feature.mood.1": "style, atmosphere, light,", "feature.mood.2": "color and camera",
         "feature.mood.full": "style, atmosphere, light, color and camera",
-        "feature.frame.1": "aspect ratio and size",
-        "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-compatible",
-        "feature.models.full": "FLUX, Nano Banana, OpenAI-compatible",
+        "feature.frame.1": "aspect ratio and resolution",
+        "feature.generation": "Generation", "feature.generation.1": "model, number of images,", "feature.generation.2": "reference images and", "feature.generation.3": "Google grounding",
+        "feature.generation.full": "model, number of images, reference images and Google grounding",
         "mood.title": "Switch the mood, keep the picture",
         "mood.lead": "One picture, five moods. A mood is made of building blocks, each one lockable.",
         "block.style": "Style", "block.atmosphere": "Atmosphere", "block.light": "Light", "block.color": "Color", "block.camera": "Camera",
@@ -90,9 +90,9 @@ const TEXT = {
         "feature.brainstorm.full": "Ideen und Prompts mit einem KI-Assistenten entwickeln",
         "feature.mood.1": "Stil, Atmosphäre, Licht,", "feature.mood.2": "Farbe und Kamera",
         "feature.mood.full": "Stil, Atmosphäre, Licht, Farbe und Kamera",
-        "feature.frame.1": "Seitenverhältnis und Größe",
-        "feature.models.1": "FLUX, Nano Banana,", "feature.models.2": "OpenAI-kompatibel",
-        "feature.models.full": "FLUX, Nano Banana, OpenAI-kompatibel",
+        "feature.frame.1": "Seitenverhältnis und Auflösung",
+        "feature.generation": "Generierung", "feature.generation.1": "Modell, Anzahl der Bilder,", "feature.generation.2": "Referenzbilder und", "feature.generation.3": "Google-Grounding",
+        "feature.generation.full": "Modell, Anzahl der Bilder, Referenzbilder und Google-Grounding",
         "mood.title": "Mood wechseln, Bild behalten",
         "mood.lead": "Ein Bild, fünf Moods. Eine Mood besteht aus Bausteinen, jeder einzeln sperrbar.",
         "block.style": "Stil", "block.atmosphere": "Atmosphäre", "block.light": "Licht", "block.color": "Farbe", "block.camera": "Kamera",
@@ -198,7 +198,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114b`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
