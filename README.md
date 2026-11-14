@@ -8,7 +8,7 @@
 </p>
 
 <p align="center"><b>Mood in. Frame out.</b><br>
-<a href="https://moodframe.art">moodframe.art</a> · <a href="https://moodframe.art/download">Download</a></p>
+<a href="https://moodframe.art">moodframe.art</a></p>
 
 MoodFrame is a desktop studio for AI images. The mood sets how an image feels, the frame its shape and size. One app
 for FLUX, Nano Banana, OpenAI and any compatible image API.
