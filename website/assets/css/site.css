@@ -85,12 +85,22 @@ button { font: inherit; color: inherit; }
     position: relative; min-height: 722px;
     background: url("../img/hero-wide.jpg") 62% 0 / auto 722px no-repeat;
 }
+/*  on screens wider than the scene (1703 px at 722 px height) its side edges fade into the page  */
+.hero::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+        linear-gradient(90deg, var(--bg-top) calc((100% - 1703px) * 0.62),
+            transparent calc((100% - 1703px) * 0.62 + 160px)),
+        linear-gradient(270deg, var(--bg-top) calc((100% - 1703px) * 0.38),
+            transparent calc((100% - 1703px) * 0.38 + 160px));
+}
 .hero::after {
     content: ""; position: absolute; inset: auto 0 0 0; height: 200px;
     background: linear-gradient(180deg, transparent, var(--bg-top));
     pointer-events: none;
 }
-.hero .wrap { position: relative; z-index: 1; padding-top: 168px; }
+/*  the buttons end level with the lower edge of the glass pane in the scene  */
+.hero .wrap { position: relative; z-index: 1; padding-top: 140px; }
 .eyebrow { margin: 0; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: var(--teal-soft); }
 .hero h1 {
     margin: 16px 0 0; font: 700 96px/1 var(--font-display); color: var(--fg-strong); letter-spacing: -1px;
