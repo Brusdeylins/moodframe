@@ -153,12 +153,12 @@ button { font: inherit; color: inherit; }
 .tabs [role="tab"] .hint { margin-left: 8px; font-size: 11px; color: var(--logo-yellow); }
 #mood .tabs { --tab-color: rgb(255 107 74 / 28%); }
 #install .tabs { --tab-color: rgb(245 184 61 / 25%); }
-/*  the columns keep the 3:2 image and the 231:551 panel at the same height  */
+/*  the columns keep the 3:2 image and the 228:549 panel at the same height  */
 .mood-body {
-    display: grid; grid-template-columns: minmax(0, 1500fr) minmax(0, 419fr); gap: 32px; margin-top: 28px;
+    display: grid; grid-template-columns: minmax(0, 1500fr) minmax(0, 415fr); gap: 32px; margin-top: 28px;
 }
 .mood-body img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 10px; }
-.mood-body img.panel { aspect-ratio: 231 / 551; height: auto; border-radius: 6px; }
+.mood-body img.panel { aspect-ratio: 228 / 549; height: auto; }
 .frame-text ul { margin: 0; padding: 18px 0 0; list-style: none; font-size: 14px; border-top: 1px solid rgb(255 255 255 / 12%); }
 .frame-text li { margin-bottom: 8px; }
 .frame-text li::before { content: "✦ "; color: var(--fg-faint); }
@@ -250,7 +250,7 @@ footer .links { display: flex; gap: 20px; margin-left: auto; }
     .overview-list li::before { content: ""; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--dot, #fff); }
     .overview-list b { color: var(--fg-strong); font-weight: 600; }
     .mood-body, .frame-body, .providers { grid-template-columns: minmax(0, 1fr); }
-    .mood-body img.panel { width: min(100%, 231px); justify-self: center; }
+    .mood-body img.panel { width: min(100%, 228px); justify-self: center; }
     .tabs { display: flex; width: 100%; overflow-x: auto; }
     .tabs [role="tab"] { flex: 1 0 auto; padding-inline: 12px; white-space: nowrap; }
     .terminal pre { font-size: 13px; }
