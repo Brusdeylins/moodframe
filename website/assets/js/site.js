@@ -81,17 +81,17 @@ const TEXT = {
         "overview.title": "Ein Studio für jedes Bildmodell",
         "overview.lead": "Alles in einem Fenster. Die Kapitel darunter gehen ins Detail.",
         "overview.alt": "Das Hauptfenster von MoodFrame mit Bibliothek, Bildern, Prompt und den Gruppen Mood, Frame und Generierung",
-        "feature.library": "Bibliothek", "feature.library.1": "Chats, oder alle Bilder", "feature.library.2": "einer Mood oder eines Frames",
-        "feature.library.full": "Chats, oder alle Bilder einer Mood oder eines Frames",
+        "feature.library": "Bibliothek", "feature.library.1": "Chats oder alle Bilder", "feature.library.2": "nach Mood oder Frame",
+        "feature.library.full": "Chats oder alle Bilder nach Mood oder Frame",
         "feature.images": "Bilder", "feature.images.1": "im Detail ansehen, als", "feature.images.2": "Referenz nutzen, löschen",
         "feature.images.full": "im Detail ansehen, als Referenz nutzen oder löschen",
         "feature.prompt": "Prompt", "feature.prompt.1": "schreiben, was du", "feature.prompt.2": "im Bild sehen willst",
         "feature.prompt.full": "schreiben, was du im Bild sehen willst",
-        "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "Ideen und Prompts mit", "feature.brainstorm.2": "einem KI-Assistenten entwickeln",
-        "feature.brainstorm.full": "Ideen und Prompts mit einem KI-Assistenten entwickeln",
+        "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "Ideen und Prompts", "feature.brainstorm.2": "mit KI entwickeln",
+        "feature.brainstorm.full": "Ideen und Prompts mit KI entwickeln",
         "feature.mood.1": "Atmosphäre, Stil, Farbe,", "feature.mood.2": "Licht und Kamera",
         "feature.mood.full": "Atmosphäre, Stil, Farbe, Licht und Kamera",
-        "feature.frame.1": "Seitenverhältnis und Auflösung",
+        "feature.frame.1": "Format und Auflösung",
         "feature.generation": "Generierung", "feature.generation.1": "Modell, Anzahl der Bilder,", "feature.generation.2": "Referenzbilder und", "feature.generation.3": "Google-Grounding",
         "feature.generation.full": "Modell, Anzahl der Bilder, Referenzbilder und Google-Grounding",
         "mood.title": "Mood wechseln, Bild behalten",
@@ -200,9 +200,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114o`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114q`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114o`
+    panel.src = `assets/img/${mood.panel}?v=20261114q`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
