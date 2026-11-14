@@ -70,7 +70,7 @@ const TEXT = {
         "ai.lead": "Not one line of <b>Mood</b>Frame's code was typed by a human.",
         "ai.plan": "Planned together", "ai.plan.text": "A person plans every task together with the AI: what (function, UI and UX), how (architecture) and when it is done (the goals to reach).",
         "ai.agents": "Written by AI agents", "ai.agents.text": "The agents write the code with", "ai.agents.and": "and the", "ai.agents.fleet": "agent fleet and deliver the evidence that it is right: tests, an automated review and visual checks.",
-        "ai.accept": "Accepted on evidence", "ai.accept.text": "The person checks that evidence and accepts the change.",
+        "ai.accept": "Accepted on evidence", "ai.accept.text": "The person checks that evidence, not the code, and then tries the change live in the app.",
         "ai.stat.code.value": "36,000", "ai.stat.code": "lines of Java code",
         "ai.stat.tests.value": "8,000", "ai.stat.tests": "lines of test code", "ai.stat.count": "automated tests",
         "install.title": "Up and running in a minute", "install.version": "Version",
@@ -152,7 +152,7 @@ const TEXT = {
         "ai.lead": "Keine einzige Zeile Code von <b>Mood</b>Frame hat ein Mensch getippt.",
         "ai.plan": "Gemeinsam geplant", "ai.plan.text": "Ein Mensch plant jede Aufgabe zusammen mit der KI: was (Funktion, UI und UX), wie (Architektur) und wann sie fertig ist (die zu erreichenden Ziele).",
         "ai.agents": "Von KI-Agenten geschrieben", "ai.agents.text": "Die Agenten schreiben den Code mit", "ai.agents.and": "und der", "ai.agents.fleet": "Agenten-Flotte und liefern den Nachweis, dass er stimmt: Tests, ein automatisches Review und Sichtprüfungen.",
-        "ai.accept": "Auf Nachweis abgenommen", "ai.accept.text": "Der Mensch prüft diesen Nachweis und nimmt die Änderung ab.",
+        "ai.accept": "Auf Nachweis abgenommen", "ai.accept.text": "Der Mensch prüft diesen Nachweis, nicht den Code, und testet die Änderung danach live in der App.",
         "ai.stat.code.value": "36.000", "ai.stat.code": "Zeilen Java-Code",
         "ai.stat.tests.value": "8.000", "ai.stat.tests": "Zeilen Testcode", "ai.stat.count": "automatische Tests",
         "install.title": "In einer Minute startklar", "install.version": "Version",
@@ -238,9 +238,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115m`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115n`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115m`
+    panel.src = `assets/img/${mood.panel}?v=20261115n`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
