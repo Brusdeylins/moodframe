@@ -186,7 +186,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             button.setUserData(lens);
             button.setSelected(lens == settings.lens());
             StackPane wrapper = blockable(lens, button);
-            hover(wrapper, (event) -> lens);
+            hover(button, (event) -> lens);
             specialRow.getChildren().add(wrapper);
         }
         focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -386,7 +386,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                     : () -> label.substring("ISO ".length()));
             join(group, button, value, value == selected);
             StackPane wrapper = blockable(value, button);
-            hover(wrapper, (event) -> value);
+            hover(button, (event) -> value);
             row.getChildren().add(wrapper);
         }
 
