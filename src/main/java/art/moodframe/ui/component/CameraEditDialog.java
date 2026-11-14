@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntToDoubleFunction;
+import java.util.function.Supplier;
 
 /**
  * Dialog for creating and editing a camera: no free text, but settings from which the app builds the fragment.
@@ -86,6 +87,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private static final Map<Shutter, String> SHUTTER_ICONS = Map.of(Shutter.FROZEN, "mdi2s-snowflake",
             Shutter.NORMAL, "mdi2c-camera-iris", Shutter.MOTION_BLUR, "mdi2r-run-fast",
             Shutter.LONG_EXPOSURE, "mdi2t-timer-sand");
+    private static final Map<Iso, String> ISO_ICONS = Map.of(Iso.ISO_100, "mdi2w-weather-sunny",
+            Iso.ISO_3200, "mdi2g-grain");
     private static final Map<Perspective, String> PERSPECTIVE_ICONS = Map.of(
             Perspective.EYE_LEVEL, "mdi2e-eye-outline", Perspective.LOW_ANGLE, "mdi2a-arrow-up-bold-outline",
             Perspective.HIGH_ANGLE, "mdi2a-arrow-down-bold-outline", Perspective.TOP_DOWN, "mdi2a-arrow-collapse-down",
@@ -198,7 +201,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         /*  Shutter, ISO, perspective and shot size: rows of symbols  */
         VBox shutter = symbols("camera.dialog.shutter", shutterGroup, Shutter.values(),
                 (value) -> "camera.shutter." + key(value), SHUTTER_ICONS, settings.shutter());
-        VBox iso = symbols("camera.dialog.iso", isoGroup, Iso.values(), null, null, settings.iso());
+        VBox iso = symbols("camera.dialog.iso", isoGroup, Iso.values(), null, ISO_ICONS, settings.iso());
         VBox perspective = symbols("camera.dialog.perspective", perspectiveGroup, Perspective.values(),
                 (value) -> "camera.perspective." + key(value), PERSPECTIVE_ICONS, settings.perspective());
         VBox shot = symbols("camera.dialog.shot", shotGroup, Shot.values(), (value) -> "camera.shot." + key(value),
@@ -359,34 +362,28 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         return tile;
     }
 
-    /*  A setting as a row of symbols, "Any" first, each named by its tooltip; the heading names the chosen one. The
-        ISO values show their number instead, below the heading "ISO".  */
+    /*  A setting as a row of icon buttons, "Any" first, each named by its tooltip; the heading names the chosen one.
+        The ISO values have no key: the tooltip names the ISO value, the heading its number, in every language.  */
     private <E extends Enum<E>> VBox symbols(String headingKey, ToggleGroup group, E[] values,
             Function<E, String> key, Map<E, String> icons, E selected) {
         HBox row = new HBox(4);
-        Map<Toggle, String> names = new IdentityHashMap<>();
+        Map<Toggle, Supplier<String>> names = new IdentityHashMap<>();
         List<E> choices = new ArrayList<>();
         choices.add(null);
         choices.addAll(List.of(values));
         for (E value : choices) {
-            String name = value == null ? "camera.dialog.any" : key != null ? key.apply(value) : null;
+            String name  = value == null ? "camera.dialog.any" : key != null ? key.apply(value) : null;
+            String label = name == null ? ((Iso) value).label() : null;
             ToggleButton button = new ToggleButton();
-            if (value == null || icons != null) {
-                button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
-                button.setPrefSize(38, 34);
-
-                /*  A row of icons only is a row of icon buttons; "Any" beside the ISO values stays a chip like them  */
-                if (icons != null)
-                    button.getStyleClass().add("icon-button");
-                Tooltip tooltip = new Tooltip();
+            button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
+            button.setPrefSize(38, 34);
+            button.getStyleClass().add("icon-button");
+            Tooltip tooltip = new Tooltip(label);
+            if (name != null)
                 texts.put(tooltip, name);
-                button.setTooltip(tooltip);
-            }
-            else {
-                button.setText(((Iso) value).label().substring("ISO ".length()));
-                button.setPrefHeight(34);
-            }
-            names.put(button, name);
+            button.setTooltip(tooltip);
+            names.put(button, name != null ? () -> I18nManager.getText(name)
+                    : () -> label.substring("ISO ".length()));
             join(group, button, value, value == selected);
             StackPane wrapper = blockable(value, button);
             hover(wrapper, (event) -> value);
@@ -395,9 +392,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
         Label heading = heading(null);
         Runnable naming = () -> {
-            String name = names.get(group.getSelectedToggle());
-            heading.setText(I18nManager.getText(headingKey) + (icons != null && name != null
-                    ? ": " + I18nManager.getText(name) : ""));
+            Supplier<String> name = names.get(group.getSelectedToggle());
+            heading.setText(I18nManager.getText(headingKey) + (name != null ? ": " + name.get() : ""));
         };
         group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> naming.run());
         headings.add(naming);

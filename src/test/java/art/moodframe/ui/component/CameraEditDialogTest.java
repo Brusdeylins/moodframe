@@ -7,6 +7,7 @@ import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
@@ -78,6 +79,25 @@ class CameraEditDialogTest {
     }
 
     @Test
+    void showsTheIsoValuesAsIconButtonsLikeTheOtherRows() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+        ToggleButton iso3200 = toggle(dialog, CameraSettings.Iso.ISO_3200);
+        String iso = I18nManager.getText("camera.dialog.iso");
+        String any = onFxThread(() -> heading(dialog, iso));
+        String chosen = onFxThread(() -> {
+            iso3200.fire();
+            return heading(dialog, iso);
+        });
+
+        assertTrue(iso3200.getToggleGroup().getToggles().stream().map(ToggleButton.class::cast)
+                .allMatch((button) -> button.getStyleClass().contains("icon-button") && button.getGraphic() != null),
+                "\"Any\" and both ISO values are icon buttons");
+        assertEquals("ISO 3200", iso3200.getTooltip().getText());
+        assertEquals(iso + ": " + I18nManager.getText("camera.dialog.any"), any);
+        assertEquals(iso + ": 3200", chosen);
+    }
+
+    @Test
     void blocksWhatContradictsTheTypeAndResetsAChosenStageToAny() throws Exception {
         CameraSettings settings = new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85,
                 null, null, null, CameraSettings.Perspective.EYE_LEVEL, CameraSettings.Shot.CLOSE_UP);
@@ -129,5 +149,10 @@ class CameraEditDialogTest {
     private static ToggleButton toggle(CameraEditDialog dialog, Enum<?> stage) {
         return dialog.getDialogPane().lookupAll(".toggle-button").stream().map(ToggleButton.class::cast)
                 .filter((button) -> button.getUserData() == stage).findFirst().orElseThrow();
+    }
+
+    private static String heading(CameraEditDialog dialog, String setting) {
+        return dialog.getDialogPane().lookupAll(".label").stream().map(Label.class::cast).map(Label::getText)
+                .filter((text) -> text != null && text.startsWith(setting + ": ")).findFirst().orElseThrow();
     }
 }
