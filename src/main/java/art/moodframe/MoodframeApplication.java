@@ -104,6 +104,9 @@ public class MoodframeApplication extends Application {
             // Show the application
             primaryStage.show();
 
+            /*  Start the MCP server if it is enabled  */
+            startMcpServer();
+
         } catch (Exception e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
@@ -328,6 +331,21 @@ public class MoodframeApplication extends Application {
                                 requests) : null;
                     });
 
+            /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.mcp.McpService.class,
+                    () -> {
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return new art.moodframe.mcp.McpService(config, art.moodframe.mcp.McpTools.reading(config,
+                                services.getService(art.moodframe.service.ChatLibrary.class),
+                                services.getService(art.moodframe.service.MoodService.class),
+                                services.getService(art.moodframe.service.PromptBlockService.class),
+                                services.getService(art.moodframe.service.ColorStyleService.class),
+                                services.getService(art.moodframe.service.FrameService.class),
+                                services.getService(art.moodframe.service.FavoriteService.class),
+                                services.getService(art.moodframe.service.TrashCenter.class)));
+                    });
+
             // Initialize ThumbnailManager for image optimization
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ThumbnailManager.class,
@@ -409,6 +427,21 @@ public class MoodframeApplication extends Application {
         } catch (Exception e) {
             // Don't let thumbnail generation failure prevent app startup
             logger.error("Failed to start retroactive thumbnail generation", e);
+        }
+    }
+
+    /**
+     * Starts the MCP server in the background if it is enabled. Neither a port in use nor an error blocks the app.
+     */
+    private void startMcpServer() {
+        try {
+            art.moodframe.mcp.McpService mcp = ServiceFactory.getInstance()
+                    .getService(art.moodframe.mcp.McpService.class);
+            if (mcp != null)
+                mcp.applyAsync();
+        }
+        catch (Exception e) {
+            logger.error("Failed to start the MCP server", e);
         }
     }
 
@@ -657,6 +690,12 @@ public class MoodframeApplication extends Application {
             if (thumbnailManager != null) {
                 thumbnailManager.shutdown();
             }
+
+            /*  The MCP server stops before the database closes  */
+            art.moodframe.mcp.McpService mcp = ServiceFactory.getInstance()
+                    .getService(art.moodframe.mcp.McpService.class);
+            if (mcp != null)
+                mcp.stop();
 
             // Close database connections
             DatabaseConfig.close();

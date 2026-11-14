@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.config.CorporateProxyConfig;
+import art.moodframe.mcp.McpService;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
@@ -21,6 +22,8 @@ import art.moodframe.service.BflApiService;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -93,6 +96,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private VBox languagePane;
     @FXML
     private VBox advancedPane;
+    @FXML
+    private VBox mcpPane;
 
     // API Configuration Tab Controls
     @FXML
@@ -320,6 +325,41 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private Button openConfigDirectoryButton;
 
+    /*  MCP Tab Controls  */
+    @FXML
+    private Label mcpTitleLabel;
+    @FXML
+    private Label mcpDescLabel;
+    @FXML
+    private CheckBox mcpEnabledCheckBox;
+    @FXML
+    private HBox mcpStatusContainer;
+    @FXML
+    private FontIcon mcpStatusIcon;
+    @FXML
+    private Label mcpStatusLabel;
+    private ProgressIndicator mcpStatusProgress;
+    @FXML
+    private Label mcpPortLabel;
+    @FXML
+    private Spinner<Integer> mcpPortSpinner;
+    @FXML
+    private Label mcpTokenLabel;
+    @FXML
+    private PasswordField mcpTokenField;
+    @FXML
+    private Button copyMcpTokenButton;
+    @FXML
+    private Button newMcpTokenButton;
+    @FXML
+    private Label mcpCommandLabel;
+    @FXML
+    private Label mcpCommandDescLabel;
+    @FXML
+    private TextField mcpCommandField;
+    @FXML
+    private Button copyMcpCommandButton;
+
     // State management
     private ApplicationConfig config;
     private ToggleGroup themeToggleGroup;
@@ -339,6 +379,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
     // Removed animation variables - now using ProgressIndicators instead
     private ObservableList<String> certificatesList;
     private ObservableList<String> categories;
+    private McpService mcpService;
+    private McpService.Status mcpStatus = new McpService.Status(McpService.State.OFF, 0);
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -362,6 +404,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             initializeLanguageTab();
             initializeCorporateProxyTab();
             initializeAdvancedTab();
+            initializeMcpTab();
 
             // Load current settings
             loadCurrentSettings();
@@ -428,7 +471,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 I18nManager.getText("settings.category.proxy"),
                 I18nManager.getText("settings.category.appearance"),
                 I18nManager.getText("settings.category.language"),
-                I18nManager.getText("settings.category.advanced"));
+                I18nManager.getText("settings.category.advanced"),
+                I18nManager.getText("settings.category.mcp"));
 
         // Restore selection after updating
         if (settingsCategoryList != null && selectedIndex >= 0 && selectedIndex < categories.size()) {
@@ -451,6 +495,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
         languagePane.setManaged(false);
         advancedPane.setVisible(false);
         advancedPane.setManaged(false);
+        mcpPane.setVisible(false);
+        mcpPane.setManaged(false);
 
         // Show the selected content pane
         switch (categoryIndex) {
@@ -473,6 +519,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
             case 4: // Advanced
                 advancedPane.setVisible(true);
                 advancedPane.setManaged(true);
+                break;
+
+            /*  MCP  */
+            case 5:
+                mcpPane.setVisible(true);
+                mcpPane.setManaged(true);
                 break;
             default:
                 // Default to API Configuration if unknown category
@@ -764,6 +816,115 @@ public class SettingsController implements Initializable, I18nChangeListener {
         // Set version and config path
         versionLabel.setText(art.moodframe.util.VersionManager.getApplicationNameWithVersion());
         configPathLabel.setText(System.getProperty("user.home") + "/.moodframe/");
+    }
+
+    /**
+     * Initializes the MCP tab. A change applies at once: the server starts, starts anew or stops in the background,
+     * and the status line shows what it does.
+     */
+    private void initializeMcpTab() {
+        mcpService = ServiceFactory.getInstance().getService(McpService.class);
+        mcpPortSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535,
+                ApplicationConfig.MCP_DEFAULT_PORT));
+
+        mcpStatusProgress = new ProgressIndicator();
+        mcpStatusProgress.setMaxSize(16.0, 16.0);
+        mcpStatusProgress.setPrefSize(16.0, 16.0);
+        mcpStatusProgress.setMinSize(16.0, 16.0);
+        mcpStatusProgress.setVisible(false);
+        StackPane mcpIconContainer = new StackPane();
+        mcpIconContainer.setPrefSize(16.0, 16.0);
+        mcpIconContainer.setMinSize(16.0, 16.0);
+        mcpIconContainer.setMaxSize(16.0, 16.0);
+        mcpIconContainer.getChildren().addAll(mcpStatusIcon, mcpStatusProgress);
+        mcpStatusContainer.getChildren().remove(mcpStatusIcon);
+        mcpStatusContainer.getChildren().add(0, mcpIconContainer);
+
+        mcpEnabledCheckBox.setSelected(config.isMcpEnabled());
+        mcpPortSpinner.getValueFactory().setValue(config.getMcpPort());
+        showMcpToken();
+        if (mcpService != null)
+            mcpStatus = mcpService.getStatus();
+        showMcpStatus();
+
+        /*  The first activation creates the token  */
+        mcpEnabledCheckBox.selectedProperty().addListener((obs, was, enabled) -> {
+            if (enabled && config.getMcpToken() == null)
+                config.setMcpToken(McpService.newToken());
+            config.setMcpEnabled(enabled);
+            showMcpToken();
+            applyMcp();
+        });
+        mcpPortSpinner.valueProperty().addListener((obs, old, port) -> {
+            if (port == null || port == config.getMcpPort())
+                return;
+            config.setMcpPort(port);
+            showMcpToken();
+            applyMcp();
+        });
+    }
+
+    /*  the token hidden in its field, the command with the token hidden; the copy buttons take the real ones  */
+    private void showMcpToken() {
+        String token = config.getMcpToken();
+        mcpTokenField.setText(token != null ? token : "");
+        mcpCommandField.setText(token != null ? McpService.command(config.getMcpPort(), "\u2022".repeat(12)) : "");
+        copyMcpTokenButton.setDisable(token == null);
+        copyMcpCommandButton.setDisable(token == null);
+        newMcpTokenButton.setDisable(!config.isMcpTokenEditable());
+    }
+
+    /*  applies the MCP settings in the background and shows the status once it is known  */
+    private void applyMcp() {
+        if (mcpService == null)
+            return;
+        showStatus(mcpStatusContainer, mcpStatusLabel, mcpStatusIcon, mcpStatusProgress, "testing",
+                I18nManager.getText("settings.mcp.status.applying"));
+        mcpService.applyAsync().thenAccept((McpService.Status status) -> Platform.runLater(() -> {
+            mcpStatus = status;
+            showMcpStatus();
+        }));
+    }
+
+    private void showMcpStatus() {
+        String port = String.valueOf(mcpStatus.port());
+        switch (mcpStatus.state()) {
+            case RUNNING -> showStatus(mcpStatusContainer, mcpStatusLabel, mcpStatusIcon, mcpStatusProgress, "success",
+                    I18nManager.getText("settings.mcp.status.running", port));
+            case PORT_IN_USE -> showStatus(mcpStatusContainer, mcpStatusLabel, mcpStatusIcon, mcpStatusProgress,
+                    "error", I18nManager.getText("settings.mcp.status.port.in.use", port));
+            case FAILED -> showStatus(mcpStatusContainer, mcpStatusLabel, mcpStatusIcon, mcpStatusProgress, "error",
+                    I18nManager.getText("settings.mcp.status.failed", port));
+            case OFF -> showStatus(mcpStatusContainer, mcpStatusLabel, mcpStatusIcon, mcpStatusProgress, "info",
+                    I18nManager.getText("settings.mcp.status.off"));
+        }
+    }
+
+    @FXML
+    private void onCopyMcpToken() {
+        copyToClipboard(config.getMcpToken());
+    }
+
+    @FXML
+    private void onCopyMcpCommand() {
+        String token = config.getMcpToken();
+        copyToClipboard(token != null ? McpService.command(config.getMcpPort(), token) : null);
+    }
+
+    /*  A new token locks out the clients with the old one, the server starts anew  */
+    @FXML
+    private void onNewMcpToken() {
+        config.setMcpToken(McpService.newToken());
+        showMcpToken();
+        applyMcp();
+    }
+
+    private static void copyToClipboard(String text) {
+        if (text == null)
+            return;
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        Clipboard.getSystemClipboard().setContent(content);
     }
 
     /**
@@ -2192,6 +2353,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
             // Refresh advanced settings
             enableLoggingCheckBox.setSelected(config.getLoggingEnabled());
 
+            /*  The reset disables the MCP server and removes its token  */
+            mcpEnabledCheckBox.setSelected(config.isMcpEnabled());
+            mcpPortSpinner.getValueFactory().setValue(config.getMcpPort());
+            showMcpToken();
+            applyMcp();
+
         } catch (Exception e) {
             logger.error("Failed to refresh settings UI from configuration", e);
         }
@@ -2311,6 +2478,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             // Save proxy settings (only if editable)
             saveProxySettings();
+
+            /*  A port typed but not confirmed counts as well; the MCP server follows at once  */
+            try {
+                mcpPortSpinner.commitValue();
+            }
+            catch (NumberFormatException e) {
+                mcpPortSpinner.cancelEdit();
+            }
 
             // No success message shown per user requirement
 
@@ -2486,6 +2661,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             // Update Advanced tab
             updateAdvancedTexts();
+
+            /*  Update MCP tab  */
+            updateMcpTexts();
 
             // Update navigation categories
             updateNavigationCategories();
@@ -2809,6 +2987,26 @@ public class SettingsController implements Initializable, I18nChangeListener {
         if (enableLoggingCheckBox != null) {
             enableLoggingCheckBox.setText(I18nManager.getText("settings.performance.logging"));
         }
+    }
+
+    /**
+     * Updates MCP tab texts.
+     */
+    private void updateMcpTexts() {
+        if (mcpTitleLabel == null)
+            return;
+        mcpTitleLabel.setText(I18nManager.getText("settings.mcp.title"));
+        mcpDescLabel.setText(I18nManager.getText("settings.mcp.description"));
+        mcpEnabledCheckBox.setText(I18nManager.getText("settings.mcp.enable"));
+        mcpPortLabel.setText(I18nManager.getText("settings.mcp.port"));
+        mcpTokenLabel.setText(I18nManager.getText("settings.mcp.token"));
+        copyMcpTokenButton.setText(I18nManager.getText("settings.mcp.token.copy"));
+        newMcpTokenButton.setText(I18nManager.getText("settings.mcp.token.new"));
+        mcpCommandLabel.setText(I18nManager.getText("settings.mcp.command"));
+        mcpCommandDescLabel.setText(I18nManager.getText("settings.mcp.command.description"));
+        copyMcpCommandButton.setText(I18nManager.getText("settings.mcp.command.copy"));
+        if (mcpStatusProgress != null && !mcpStatusProgress.isVisible())
+            showMcpStatus();
     }
 
     /**

@@ -211,6 +211,8 @@ public class ApplicationConfig {
             "Gemini API key");
     private static final TokenSource OPENAI = new TokenSource("OPENAI_API_KEY", "openai.api.key", "openai.api.key",
             "OpenAI API key");
+    private static final TokenSource MCP = new TokenSource("MOODFRAME_MCP_TOKEN", "moodframe.mcp.token", "mcp.token",
+            "MCP token");
 
     /** Reads a token: environment, then system property, then the decrypted configuration value; null if none. */
     private String readKey(TokenSource source) {
@@ -1781,6 +1783,93 @@ public class ApplicationConfig {
      */
     public boolean hasOpenAiProviderEnabledPreference() {
         return properties.containsKey("provider.openai.enabled");
+    }
+
+    /*  MCP server  */
+
+    /** Default port of the MCP server. */
+    public static final int MCP_DEFAULT_PORT = 8765;
+
+    /**
+     * Checks if the MCP server is enabled.
+     *
+     * @return true if it runs while the app runs (default false)
+     * @since 2.1.0
+     */
+    public boolean isMcpEnabled() {
+        return Boolean.parseBoolean(properties.getProperty("mcp.enabled", "false"));
+    }
+
+    /**
+     * Enables or disables the MCP server.
+     *
+     * @param enabled true to run it while the app runs
+     * @since 2.1.0
+     */
+    public void setMcpEnabled(boolean enabled) {
+        properties.setProperty("mcp.enabled", String.valueOf(enabled));
+        saveConfiguration();
+    }
+
+    /**
+     * Gets the port of the MCP server on 127.0.0.1.
+     *
+     * @return the port from 1024 to 65535, {@link #MCP_DEFAULT_PORT} for a missing or invalid value
+     * @since 2.1.0
+     */
+    public int getMcpPort() {
+        try {
+            int port = Integer.parseInt(properties.getProperty("mcp.port", String.valueOf(MCP_DEFAULT_PORT)).trim());
+            return port >= 1024 && port <= 65535 ? port : MCP_DEFAULT_PORT;
+        }
+        catch (NumberFormatException e) {
+            return MCP_DEFAULT_PORT;
+        }
+    }
+
+    /**
+     * Sets the port of the MCP server.
+     *
+     * @param port the port from 1024 to 65535
+     * @since 2.1.0
+     */
+    public void setMcpPort(int port) {
+        properties.setProperty("mcp.port", String.valueOf(port));
+        saveConfiguration();
+    }
+
+    /**
+     * Gets the bearer token of the MCP server.
+     *
+     * <p>Sources in order of priority: environment variable {@code MOODFRAME_MCP_TOKEN}, system property
+     * {@code moodframe.mcp.token}, encrypted token from the configuration file.</p>
+     *
+     * @return the token, or null if none is set
+     * @since 2.1.0
+     */
+    public String getMcpToken() {
+        return readKey(MCP);
+    }
+
+    /**
+     * Sets the bearer token of the MCP server (stored encrypted); null or empty removes it.
+     *
+     * @param token the token
+     * @since 2.1.0
+     */
+    public void setMcpToken(String token) {
+        storeKey(MCP, token);
+    }
+
+    /**
+     * Checks if the token of the MCP server can be replaced through the UI.
+     *
+     * @return true if the token comes from the configuration file or is not set
+     * @since 2.1.0
+     */
+    public boolean isMcpTokenEditable() {
+        String source = keySource(MCP);
+        return "none".equals(source) || "configuration".equals(source);
     }
 
     // API Provider Validation Status

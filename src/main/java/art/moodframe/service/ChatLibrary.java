@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -78,6 +79,18 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public ObservableList<Chat> getChats() {
         return chats;
+    }
+
+    /**
+     * Reads the chats on the JavaFX thread and waits for the result, so a caller on another thread sees them in a
+     * consistent state. The reader must not change them.
+     *
+     * @param reader reads the chats and returns what it found
+     * @param <T>    the type of the result
+     * @return the result of the reader
+     */
+    public <T> T read(Function<List<Chat>, T> reader) {
+        return onFxThread(() -> reader.apply(chats));
     }
 
     /**

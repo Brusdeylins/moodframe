@@ -6,6 +6,9 @@ module art.moodframe {
     requires java.desktop;
     requires java.sql;
     requires java.net.http;
+
+    /*  The HTTP server of the MCP server  */
+    requires jdk.httpserver;
     
     // Jackson JSON
     requires com.fasterxml.jackson.core;
