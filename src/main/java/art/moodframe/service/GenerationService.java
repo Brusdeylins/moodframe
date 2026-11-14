@@ -101,6 +101,29 @@ public class GenerationService {
             CompletableFuture<ChatEntry.Status> finished) {
     }
 
+    /**
+     * What an order would make, without storing or sending anything, as the main window shows it.
+     *
+     * @param prompt the final prompt with the building blocks
+     * @param maxPromptLength the prompt limit of the model in characters
+     * @param aspectRatio the aspect ratio the model makes of the target, null without target (then a square)
+     * @param resolution the resolution the model makes, null for a model with a fixed size
+     * @param costPerImage the estimated cost of one image (video: of the video) in USD, 0 if unknown
+     * @param cost the estimated cost of all images in USD, 0 if unknown
+     */
+    public record Preview(String prompt, int maxPromptLength, String aspectRatio, String resolution,
+            double costPerImage, double cost) {
+
+        /**
+         * Tells whether the model takes the prompt.
+         *
+         * @return true if the prompt is within the limit
+         */
+        public boolean fits() {
+            return prompt.length() <= maxPromptLength;
+        }
+    }
+
     private final ApplicationConfig config;
     private final ChatLibrary chats;
     private final MoodService moodService;
@@ -157,6 +180,42 @@ public class GenerationService {
      */
     public String modelFor(String family, String resolution) {
         return GenerationModel.idOf(ModelFamilies.variantForTarget(availableItems(config), family, resolution));
+    }
+
+    /**
+     * Tells what an order would make: the final prompt, the format the model makes of the target and the estimated
+     * cost, as {@link #submit(GenerationOrder)} takes them; nothing is stored or sent.
+     *
+     * @param order the order with a known model
+     * @return the preview
+     */
+    public Preview preview(GenerationOrder order) {
+        String item = GenerationModel.itemOf(order.modelId());
+        int maxLength = maxPromptLength(order.modelId());
+        String prompt = new PromptComposer(maxLength).compose(order.prompt(),
+                order.blocks() != null ? order.blocks() : NO_BLOCKS);
+
+        /*  The format as the hints of the main window name it: the closest aspect ratio and resolution of the model  */
+        GenerationOrder.Target target = order.target();
+        String aspectRatio = target.aspectRatio() != null
+                ? AspectRatios.nearestForItem(target.aspectRatio(), item) : null;
+        List<String> free = ModelFamilies.freeResolutions(item);
+        String resolution = free != null ? ModelFamilies.nearest(target.resolution(), free)
+                : ModelFamilies.resolutionOf(item);
+        double costPerImage = GenerationCost.estimate(GenerationModel.fromId(order.modelId()),
+                order.parameters().videoSeconds());
+        return new Preview(prompt, maxLength, aspectRatio, resolution, costPerImage,
+                costPerImage * order.imageCount());
+    }
+
+    /**
+     * Cancels a running entry, see {@link RequestResponseService#cancelEntry(ChatEntry)}.
+     *
+     * @param entry the entry
+     * @return completes with true if it was pending or processing
+     */
+    public CompletableFuture<Boolean> cancel(ChatEntry entry) {
+        return requests.cancelEntry(entry);
     }
 
     /**

@@ -331,19 +331,34 @@ public class MoodframeApplication extends Application {
                                 requests) : null;
                     });
 
-            /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled  */
+            /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled. Without the
+                generation service, it only reads  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.mcp.McpService.class,
                     () -> {
                         ServiceFactory services = ServiceFactory.getInstance();
-                        return new art.moodframe.mcp.McpService(config, art.moodframe.mcp.McpTools.reading(config,
-                                services.getService(art.moodframe.service.ChatLibrary.class),
-                                services.getService(art.moodframe.service.MoodService.class),
-                                services.getService(art.moodframe.service.PromptBlockService.class),
-                                services.getService(art.moodframe.service.ColorStyleService.class),
-                                services.getService(art.moodframe.service.FrameService.class),
-                                services.getService(art.moodframe.service.FavoriteService.class),
-                                services.getService(art.moodframe.service.TrashCenter.class)));
+                        art.moodframe.service.ChatLibrary chats = services.getService(
+                                art.moodframe.service.ChatLibrary.class);
+                        art.moodframe.service.MoodService moods = services.getService(
+                                art.moodframe.service.MoodService.class);
+                        art.moodframe.service.PromptBlockService blocks = services.getService(
+                                art.moodframe.service.PromptBlockService.class);
+                        art.moodframe.service.ColorStyleService colors = services.getService(
+                                art.moodframe.service.ColorStyleService.class);
+                        art.moodframe.service.FrameService frames = services.getService(
+                                art.moodframe.service.FrameService.class);
+                        art.moodframe.service.FavoriteService favorites = services.getService(
+                                art.moodframe.service.FavoriteService.class);
+                        art.moodframe.service.TrashCenter trash = services.getService(
+                                art.moodframe.service.TrashCenter.class);
+                        art.moodframe.service.GenerationService generation = services.getService(
+                                art.moodframe.service.GenerationService.class);
+                        return new art.moodframe.mcp.McpService(config, generation != null
+                                ? art.moodframe.mcp.McpTools.all(config, chats, moods, blocks, colors, frames,
+                                        favorites, trash, generation,
+                                        art.moodframe.service.MoodAnalysisService.create(config))
+                                : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
+                                        favorites, trash));
                     });
 
             // Initialize ThumbnailManager for image optimization

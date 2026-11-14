@@ -99,6 +99,8 @@ public class ChatEntryTracker {
      */
     public void markFailed(ChatEntry chatEntry, String errorMessage) {
         Platform.runLater(() -> {
+            if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
+                return;
             chatEntry.setStatus(ChatEntry.Status.FAILED);
             chatEntry.setErrorMessage(errorMessage);
 
@@ -117,6 +119,38 @@ public class ChatEntryTracker {
                 }
             }
         }, executor);
+    }
+
+    /**
+     * Cancels a running entry on the FX thread: its images not finished yet fail, the entry ends as cancelled and is
+     * stored. It keeps its estimated cost, as the provider may have started already.
+     *
+     * @param chatEntry the entry
+     * @return true if it was pending or processing
+     */
+    public boolean cancel(ChatEntry chatEntry) {
+        if (chatEntry.getStatus() != ChatEntry.Status.PENDING && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
+            return false;
+        List<GeneratedImage> stopped = chatEntry.getImages().stream()
+                .filter((GeneratedImage image) -> image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED
+                        && image.getDownloadStatus() != GeneratedImage.DownloadStatus.FAILED).toList();
+        stopped.forEach((GeneratedImage image) -> {
+            image.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+            image.setErrorMessage("Cancelled");
+        });
+        chatEntry.setStatus(ChatEntry.Status.CANCELLED);
+        chatEntry.setCompletedAt(LocalDateTime.now());
+        CompletableFuture.runAsync(() -> {
+            try {
+                chatRepository.saveChatEntry(chatEntry);
+                for (GeneratedImage image : stopped)
+                    chatRepository.saveGeneratedImage(image);
+            } catch (Exception e) {
+                logger.error("Failed to store the cancelled entry {}", chatEntry.getId(), e);
+            }
+        }, executor);
+        notifyEntryUpdated(chatEntry);
+        return true;
     }
 
     /**
@@ -158,6 +192,9 @@ public class ChatEntryTracker {
             recalculateCost(chatEntry);
 
             Platform.runLater(() -> {
+                /*  A cancelled entry keeps its state, also if an image still arrives  */
+                if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
+                    return;
                 if (hasCached) {
                     // At least one image succeeded - mark as COMPLETED
                     chatEntry.setStatus(ChatEntry.Status.COMPLETED);

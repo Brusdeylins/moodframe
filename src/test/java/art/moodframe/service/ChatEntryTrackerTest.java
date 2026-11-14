@@ -2,18 +2,22 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -61,5 +65,44 @@ class ChatEntryTrackerTest {
         tracker.notifyEntryUpdated(entry);
         drainFxThread();
         assertEquals(List.of("first:true", "second", "second"), calls);
+    }
+
+    /*  runs on the JavaFX thread and waits for the result  */
+    private static <T> T onFxThread(Callable<T> call) throws Exception {
+        FutureTask<T> task = new FutureTask<>(call);
+        Platform.runLater(task);
+        return task.get(10, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void cancelEndsARunningEntryForGood() throws Exception {
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ApplicationConfig.class), mock(ChatRepository.class),
+                Runnable::run);
+        GeneratedImage done = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .baseCost(0.03).build();
+        GeneratedImage pending = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.PENDING)
+                .baseCost(0.03).build();
+        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
+        entry.getImages().addAll(done, pending);
+        List<ChatEntry.Status> told = new CopyOnWriteArrayList<>();
+        tracker.addEntryListener((ChatEntry updated) -> told.add(updated.getStatus()));
+
+        assertTrue(onFxThread(() -> tracker.cancel(entry)));
+        drainFxThread();
+        assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, done.getDownloadStatus(), "a finished image stays");
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, pending.getDownloadStatus());
+        assertEquals(List.of(ChatEntry.Status.CANCELLED), told, "the listeners learn of the end");
+
+        /*  What arrives later changes the state no more; a finished entry cannot be cancelled  */
+        onFxThread(() -> {
+            tracker.refresh(entry);
+            tracker.markFailed(entry, "late failure");
+            return null;
+        });
+        drainFxThread();
+        drainFxThread();
+        assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+        assertFalse(onFxThread(() -> tracker.cancel(entry)));
     }
 }

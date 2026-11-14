@@ -277,6 +277,18 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     @Override
+    public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
+        CompletableFuture<Boolean> cancelled = new CompletableFuture<>();
+        Platform.runLater(() -> {
+            boolean running = tracker.cancel(chatEntry);
+            if (running)
+                bflFlow.cancelEntry(chatEntry.getId());
+            cancelled.complete(running);
+        });
+        return cancelled;
+    }
+
+    @Override
     public boolean isGenerationActive(String jobId) {
         return bflFlow.isActive(jobId);
     }

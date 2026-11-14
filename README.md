@@ -72,6 +72,40 @@ and keeps every brainstorm; several run side by side.
 
 Your keys stay on your machine, encrypted.
 
+## Control MoodFrame from an AI agent (MCP)
+
+AI agents on your computer, like Claude Code, read your library, change it and generate images through the MCP server
+of MoodFrame. Whatever an agent creates shows in MoodFrame at once, without changing the chat, mood or frame you are
+working on.
+
+1. **Enable:** Settings → MCP → Enable MCP server. The server listens on 127.0.0.1 only, on port 8765 unless you choose
+   another one.
+2. **Token:** every request has to carry the token MoodFrame creates; Generate New replaces it.
+3. **Connect Claude Code:** copy the command from the settings, which includes the token, and run it in a terminal:
+
+```bash
+claude mcp add --transport http moodframe http://127.0.0.1:8765/mcp --header "Authorization: Bearer <token>"
+```
+
+The tools:
+
+- **Read:** `list_chats`, `get_chat`, `get_entry`, `get_image`, `get_capabilities`, `list_moods`, `get_mood`,
+  `list_blocks`, `get_block`, `list_frames` and `list_trash` read the chats, the images, the library, the trash and the
+  models you can generate with.
+- **Chats:** `create_chat`, `rename_chat`, `delete_chat`, `delete_entry`, `delete_image` and `cancel_generation` manage
+  chats, entries and images.
+- **Moods:** `create_mood`, `update_mood`, `delete_mood` and `mood_from_image`, which finds the building blocks of an
+  image like Mood from image (one request to the language model of Brainstorm).
+- **Building blocks and frames:** `create_block`, `update_block`, `delete_block`, `create_frame`, `update_frame` and
+  `delete_frame`; the standard ones can only be read.
+- **Favorites and trash:** `set_favorite` marks favorites, `restore` takes anything out of the trash; deleting always
+  goes to the trash.
+- **Generate:** `preview_generation` shows prompt, format and estimated cost without any request, `generate` creates
+  images or a video in a chat like the send button.
+
+> **Costs:** `generate` costs money at the provider, just like the send button; `preview_generation` tells the estimate
+> first.
+
 ## Install
 
 The installers bring their own Java runtime. MoodFrame checks for updates on every launch and updates itself.

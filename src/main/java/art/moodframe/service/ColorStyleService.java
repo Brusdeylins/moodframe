@@ -141,8 +141,14 @@ public class ColorStyleService implements ColorStyles {
         }
     }
 
-    /*  the name unchanged if it is free, else with the next free counter, e.g. "Silver Screen (1)"  */
-    private String freeName(String name) {
+    /**
+     * Returns the name unchanged if no palette has it yet, else the name with the next free counter,
+     * e.g. {@code "Silver Screen (1)"}.
+     *
+     * @param name the wanted name
+     * @return a name no palette has
+     */
+    public String freeName(String name) {
         if (!styleExists(name))
             return name;
         int counter = 1;

@@ -8,5 +8,7 @@
  * - McpServer: transport and JSON-RPC
  * - McpTools: the tools with their input schemas
  * - ChatTools, LibraryTools: the reading tools
+ * - ChatEditTools, LibraryEditTools: the tools that change chats and library
+ * - GenerateTools: preview and generation
  */
 package art.moodframe.mcp;

@@ -93,6 +93,16 @@ public interface RequestResponseService {
     boolean cancelGeneration(String jobId);
     
     /**
+     * Cancels a running chat entry: the polling of its BFL jobs stops, its images not finished yet fail and it ends
+     * as cancelled. A request Gemini or OpenAI got already cannot be called back; an image it still delivers is
+     * kept, the entry stays cancelled.
+     *
+     * @param chatEntry the entry
+     * @return completes with true if the entry was pending or processing
+     */
+    CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry);
+
+    /**
      * Checks if a generation request is currently active.
      * 
      * @param jobId the job ID to check

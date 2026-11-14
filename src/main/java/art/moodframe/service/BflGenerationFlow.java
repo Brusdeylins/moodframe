@@ -80,6 +80,20 @@ public class BflGenerationFlow {
     }
 
     /**
+     * Stops the polling of all jobs of a chat entry.
+     *
+     * @param entryId the ID of the entry
+     */
+    public void cancelEntry(String entryId) {
+        activeRequests.values().removeIf((PendingRequest request) -> {
+            boolean ofEntry = request.chatEntry.getId().equals(entryId);
+            if (ofEntry)
+                request.cancelPolling();
+            return ofEntry;
+        });
+    }
+
+    /**
      * Checks if a job is currently polled.
      *
      * @param jobId the job ID to check

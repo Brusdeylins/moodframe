@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.GeneratedImage;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -278,6 +279,58 @@ public class ChatLibrary implements TrashCenter.Listener {
             }
         }
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
+    }
+
+    /**
+     * Moves an entry with its images to the trash; it leaves its chat, whose deleted cost grows by its cost.
+     *
+     * @param entry the entry of a chat of the list
+     * @throws SQLException if it cannot be marked as deleted
+     */
+    public void deleteEntry(ChatEntry entry) throws SQLException {
+        if (history != null)
+            history.deleteEntry(entry.getId(), history.findGeneratedImagesByEntry(entry.getId()));
+        Optional<Double> deletedCost = deletedCost(entry.getChatId());
+        runOnFxThread(() -> owner(entry).ifPresent((Chat chat) -> {
+            chat.getEntries().remove(entry);
+            chat.setDeletedCost(deletedCost.orElse(chat.getDeletedCost() + entry.getCost() - entry.getDeletedCost()));
+        }));
+        events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
+    }
+
+    /**
+     * Moves an image to the trash; with its last image the entry leaves its chat as well.
+     *
+     * @param entry the entry of the image
+     * @param image the image
+     * @return true if the entry went to the trash with it
+     * @throws SQLException if it cannot be marked as deleted
+     */
+    public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
+        ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
+                : new ChatHistoryService.ImageDeletion(entry.getImages().size() == 1, entry.getDeletedCost());
+        Optional<Double> deletedCost = deletedCost(entry.getChatId());
+        runOnFxThread(() -> {
+            entry.getImages().remove(image);
+            entry.setDeletedCost(deletion.entryDeletedCost());
+            owner(entry).ifPresent((Chat chat) -> {
+                if (deletion.entryDeleted())
+                    chat.getEntries().remove(entry);
+                deletedCost.ifPresent(chat::setDeletedCost);
+            });
+        });
+        events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
+        return deletion.entryDeleted();
+    }
+
+    /*  the chat of an entry in the list, on the JavaFX thread  */
+    private Optional<Chat> owner(ChatEntry entry) {
+        return chats.stream().filter((Chat chat) -> chat.getId().equals(entry.getChatId())).findFirst();
+    }
+
+    /*  the deleted cost of a chat as stored, empty without database  */
+    private Optional<Double> deletedCost(String chatId) throws SQLException {
+        return history != null ? history.findChat(chatId).map(Chat::getDeletedCost) : Optional.empty();
     }
 
     /**

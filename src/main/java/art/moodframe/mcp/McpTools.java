@@ -5,6 +5,8 @@ import art.moodframe.service.ChatLibrary;
 import art.moodframe.service.ColorStyleService;
 import art.moodframe.service.FavoriteService;
 import art.moodframe.service.FrameService;
+import art.moodframe.service.GenerationService;
+import art.moodframe.service.MoodAnalysisService;
 import art.moodframe.service.MoodService;
 import art.moodframe.service.PromptBlockService;
 import art.moodframe.service.TrashCenter;
@@ -17,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -88,8 +91,9 @@ public class McpTools {
          * @return the result
          * @throws ToolException for an unknown ID or an invalid input
          * @throws IOException   if a file cannot be read
+         * @throws SQLException  if the database cannot be written
          */
-        Result call(JsonNode arguments) throws ToolException, IOException;
+        Result call(JsonNode arguments) throws ToolException, IOException, SQLException;
     }
 
     private record Tool(String description, ObjectNode inputSchema, Handler handler) {
@@ -116,6 +120,31 @@ public class McpTools {
         McpTools tools = new McpTools();
         new ChatTools(chats).addTo(tools);
         new LibraryTools(config, moods, blocks, colors, frames, favorites, trash).addTo(tools);
+        return tools;
+    }
+
+    /**
+     * Creates all tools: those that read, those that change the chats and the library, and those that generate.
+     *
+     * @param config     the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param chats      the chats of the main window
+     * @param moods      the moods
+     * @param blocks     the text building blocks
+     * @param colors     the palettes
+     * @param frames     the frames
+     * @param favorites  the favorites
+     * @param trash      the trash
+     * @param generation carries out and cancels the generation orders
+     * @param analysis   finds the building blocks of an image
+     * @return the tools
+     */
+    public static McpTools all(ApplicationConfig config, ChatLibrary chats, MoodService moods,
+            PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
+            TrashCenter trash, GenerationService generation, MoodAnalysisService analysis) {
+        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash);
+        new ChatEditTools(chats, generation).addTo(tools);
+        new LibraryEditTools(chats, moods, blocks, colors, frames, favorites, trash, analysis).addTo(tools);
+        new GenerateTools(config, chats, moods, blocks, colors, frames, generation).addTo(tools);
         return tools;
     }
 
@@ -219,6 +248,26 @@ public class McpTools {
                 .put("maximum", maximum).put("default", defaultValue);
     }
 
+    /** The schema of a string or null. */
+    static ObjectNode nullableString(String description) {
+        ObjectNode schema = JSON.createObjectNode().put("description", description);
+        schema.set("type", JSON.valueToTree(List.of("string", "null")));
+        return schema;
+    }
+
+    /** The schema of a boolean. */
+    static ObjectNode bool(String description) {
+        return JSON.createObjectNode().put("type", "boolean").put("description", description);
+    }
+
+    /** The schema of a list of strings with at most this many items. */
+    static ObjectNode strings(String description, int maxItems) {
+        ObjectNode schema = JSON.createObjectNode().put("type", "array").put("description", description)
+                .put("maxItems", maxItems);
+        schema.putObject("items").put("type", "string");
+        return schema;
+    }
+
     /** The schema of a string out of fixed values, with a default (null for none). */
     static ObjectNode choice(String description, List<String> values, String defaultValue) {
         ObjectNode schema = string(description);
@@ -241,6 +290,37 @@ public class McpTools {
         if (value == null || !value.isTextual() || value.asText().isBlank())
             throw new ToolException("The argument '" + name + "' is required and must be a non-empty string");
         return value.asText().trim();
+    }
+
+    /**
+     * An optional string argument.
+     *
+     * @param arguments the arguments
+     * @param name      the name of the argument
+     * @return the trimmed value, null if it is missing or null
+     * @throws ToolException if it is empty or no string
+     */
+    static String optionalText(JsonNode arguments, String name) throws ToolException {
+        JsonNode value = arguments.get(name);
+        return value == null || value.isNull() ? null : text(arguments, name);
+    }
+
+    /**
+     * An optional boolean argument.
+     *
+     * @param arguments    the arguments
+     * @param name         the name of the argument
+     * @param defaultValue the value if it is missing
+     * @return the value
+     * @throws ToolException if it is no boolean
+     */
+    static boolean flag(JsonNode arguments, String name, boolean defaultValue) throws ToolException {
+        JsonNode value = arguments.get(name);
+        if (value == null || value.isNull())
+            return defaultValue;
+        if (!value.isBoolean())
+            throw new ToolException("The argument '" + name + "' must be true or false");
+        return value.asBoolean();
     }
 
     /**

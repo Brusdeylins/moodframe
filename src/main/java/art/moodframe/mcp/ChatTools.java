@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -87,15 +88,15 @@ class ChatTools {
     }
 
     /*  what the main window shows: chats, entries and images not in the trash  */
-    private static boolean shown(Chat chat) {
+    static boolean shown(Chat chat) {
         return !chat.isDeleted();
     }
 
-    private static boolean shown(ChatEntry entry) {
+    static boolean shown(ChatEntry entry) {
         return entry.getDeletedAt() == null;
     }
 
-    private static boolean shown(GeneratedImage image) {
+    static boolean shown(GeneratedImage image) {
         return !image.isInTrash() && image.getDeletedAt() == null;
     }
 
@@ -145,19 +146,7 @@ class ChatTools {
     private McpTools.Result getImage(JsonNode arguments) throws McpTools.ToolException, IOException {
         String imageId = McpTools.text(arguments, "imageId");
         String size = McpTools.choice(arguments, "size", SIZES, "preview");
-        Found found = chats.read((List<Chat> all) -> all.stream().filter(ChatTools::shown)
-                .flatMap((Chat chat) -> chat.getEntries().stream()).filter(ChatTools::shown)
-                .flatMap((ChatEntry entry) -> entry.getImages().stream())
-                .filter((GeneratedImage image) -> image.getId().equals(imageId) && shown(image)).findFirst()
-                .map((GeneratedImage image) -> new Found(image.getChatEntryId(), image.getLocalFilePath(),
-                        image.isVideo(), image.getImageWidth(), image.getImageHeight()))
-                .orElse(null));
-        if (found == null)
-            throw new McpTools.ToolException("No image with the ID '" + imageId + "', see get_entry");
-        if (found.video())
-            throw new McpTools.ToolException("'" + imageId + "' is a video, its file is " + found.path());
-        if (found.path() == null || !Files.isRegularFile(Path.of(found.path())))
-            throw new McpTools.ToolException("The file of the image '" + imageId + "' is not available");
+        Found found = find(chats, imageId);
 
         /*  The original as it is; a preview only if the image is larger, else the original serves as preview  */
         byte[] data = Files.readAllBytes(Path.of(found.path()));
@@ -184,6 +173,47 @@ class ChatTools {
                 .put("path", found.path()).put("size", size).put("mimeType", mimeType).put("width", width)
                 .put("height", height).put("bytes", data.length);
         return new McpTools.Result(result, new McpTools.Image(data, mimeType));
+    }
+
+    /*  a shown image with its file, which must not be a video  */
+    private static Found find(ChatLibrary chats, String imageId) throws McpTools.ToolException {
+        Found found = chats.read((List<Chat> all) -> all.stream().filter(ChatTools::shown)
+                .flatMap((Chat chat) -> chat.getEntries().stream()).filter(ChatTools::shown)
+                .flatMap((ChatEntry entry) -> entry.getImages().stream())
+                .filter((GeneratedImage image) -> image.getId().equals(imageId) && shown(image)).findFirst()
+                .map((GeneratedImage image) -> new Found(image.getChatEntryId(), image.getLocalFilePath(),
+                        image.isVideo(), image.getImageWidth(), image.getImageHeight()))
+                .orElse(null));
+        if (found == null)
+            throw new McpTools.ToolException("No image with the ID '" + imageId + "', see get_entry");
+        if (found.video())
+            throw new McpTools.ToolException("'" + imageId + "' is a video, its file is " + found.path());
+        if (found.path() == null || !Files.isRegularFile(Path.of(found.path())))
+            throw new McpTools.ToolException("The file of the image '" + imageId + "' is not available");
+        return found;
+    }
+
+    /**
+     * The file of an image the client names: an image of the chats by its ID, or an image file by its absolute path.
+     *
+     * @param chats     the chats
+     * @param reference the ID of an image or the absolute path of a file
+     * @return the file
+     * @throws McpTools.ToolException if it is neither, or a video
+     */
+    static Path imageFile(ChatLibrary chats, String reference) throws McpTools.ToolException {
+        Path path;
+        try {
+            path = Path.of(reference);
+        }
+        catch (InvalidPathException e) {
+            path = null;
+        }
+        if (path == null || !path.isAbsolute())
+            return Path.of(find(chats, reference).path());
+        if (!Files.isRegularFile(path))
+            throw new McpTools.ToolException("No file at '" + reference + "'");
+        return path;
     }
 
     /*  the image scaled down, as JPEG on white  */

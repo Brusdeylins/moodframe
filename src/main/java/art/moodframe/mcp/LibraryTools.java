@@ -138,14 +138,20 @@ class LibraryTools {
             else
                 node.putNull("cost");
             node.put("maxPromptLength", GenerationService.maxPromptLength(id));
-            node.set("parameters", parameters(model));
+            node.set("parameters", parameters(config, model));
         }
         result.set("camera", camera());
         return new McpTools.Result(result);
     }
 
-    /*  the parameters a model takes besides prompt, target and images, as the main window offers them  */
-    private ObjectNode parameters(GenerationModel model) {
+    /**
+     * The parameters a model takes besides prompt, target and images, as the main window offers them.
+     *
+     * @param config the defaults of the parameters
+     * @param model  the model
+     * @return the JSON schemas of the parameters by name
+     */
+    static ObjectNode parameters(ApplicationConfig config, GenerationModel model) {
         ObjectNode parameters = McpTools.JSON.createObjectNode();
         if (model.isFlux2Model() || model.isFlux3Klein())
             parameters.set("seed", McpTools.JSON.createObjectNode().put("type", "integer")

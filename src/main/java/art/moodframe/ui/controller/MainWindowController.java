@@ -1393,12 +1393,17 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Shows a new entry or one that got images back from the trash at its place in the open chat or group; an entry
-     * shown already is rendered anew.
+     * shown already is rendered anew, one that went to the trash leaves.
      */
     private void showEntryChange(String entryId) {
         ChatEntry entry = chatLibrary.findEntry(entryId);
-        if (entry == null)
+        if (entry == null) {
+            removeEntryCardFromUI(entryId);
+            updateChatHeader();
+            updateChatTotalCost(currentChat);
+            refreshGroups();
             return;
+        }
         boolean inChat = currentChat != null && currentChat.getId().equals(entry.getChatId());
         boolean belongs = shownGroup != null ? shownGroup.holds(entry) : inChat;
         ObservableList<ChatEntry> items = chatEntriesListView.getItems();

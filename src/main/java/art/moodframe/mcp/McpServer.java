@@ -189,8 +189,10 @@ public class McpServer {
                 result.putObject("capabilities").putObject("tools").put("listChanged", false);
                 result.putObject("serverInfo").put("name", "moodframe").put("title", "MoodFrame")
                         .put("version", VersionManager.getVersion());
-                result.put("instructions", "Reads the library of MoodFrame: chats with their entries and images, "
-                        + "moods, building blocks, frames, the trash and the models to generate with.");
+                result.put("instructions", "Reads and changes the library of MoodFrame (chats with their entries "
+                        + "and images, moods, building blocks, frames, favorites, the trash) and generates images in "
+                        + "a chat. Standard entries can only be read, deleting moves to the trash. generate costs "
+                        + "money at the provider: preview_generation tells the cost first.");
                 return success(id, result);
             }
             case "ping" -> {
