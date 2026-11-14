@@ -61,7 +61,7 @@ public class ThemeManager {
         for (var listener : listeners)
             javafx.application.Platform.runLater(() -> listener.accept(theme));
     }
-    private static final String DEFAULT_THEME = "primer-light";
+    private static final String DEFAULT_THEME = "primer-dark";
     
     /**
      * Maps theme names to AtlantaFX Theme objects.
@@ -116,13 +116,13 @@ public class ThemeManager {
     }
     
     /**
-     * Applies the default theme (Primer Light).
-     * 
+     * Applies the default theme (Primer Dark).
+     *
      * @return true if default theme was applied successfully
      */
     public static boolean applyDefaultTheme() {
         try {
-            Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
+            Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null && config.getLoggingEnabled()) {
                 logger.info("Default theme applied: {}", DEFAULT_THEME);
@@ -241,74 +241,25 @@ public class ThemeManager {
     }
     
     /**
-     * Detects the system theme preference (light/dark mode).
-     * 
-     * @return "dark" if system is in dark mode, "light" otherwise
+     * Detects the system theme preference (light/dark mode) on macOS, Windows and Linux, see
+     * {@link SystemThemeDetector}.
+     *
+     * @return "dark" if system is in dark mode or the preference is unknown, "light" otherwise
      */
     public static String detectSystemThemePreference() {
+        SystemThemeDetector.Preference preference;
         try {
-            String osName = System.getProperty("os.name", "").toLowerCase();
-            
-            if (osName.contains("mac")) {
-                return detectMacOSTheme();
-            } else if (osName.contains("win")) {
-                return detectWindowsTheme();
-            } else {
-                // For Linux and other systems, default to light
-                logger.info("System theme detection not supported on {}, defaulting to light", osName);
-                return "light";
-            }
-        } catch (Exception e) {
+            preference = SystemThemeDetector.detectSystem();
+        }
+        catch (Exception e) {
             logger.warn("Failed to detect system theme preference", e);
-            return "light";
+            preference = SystemThemeDetector.UNKNOWN;
         }
-    }
-    
-    private static String detectMacOSTheme() {
-        try {
-            Process process = Runtime.getRuntime().exec(new String[]{
-                "defaults", "read", "-g", "AppleInterfaceStyle"
-            });
-            process.waitFor();
-            
-            if (process.exitValue() == 0) {
-                // If command succeeds, dark mode is enabled
-                return "dark";
-            } else {
-                // If command fails, light mode is default
-                return "light";
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to detect macOS theme preference", e);
-        }
-        return "light";
-    }
-    
-    private static String detectWindowsTheme() {
-        try {
-            Process process = Runtime.getRuntime().exec(new String[]{
-                "reg", "query", 
-                "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                "/v", "AppsUseLightTheme"
-            });
-            process.waitFor();
-            
-            if (process.exitValue() == 0) {
-                java.io.InputStream inputStream = process.getInputStream();
-                try (java.util.Scanner scanner = new java.util.Scanner(inputStream)) {
-                    while (scanner.hasNextLine()) {
-                        String line = scanner.nextLine();
-                        if (line.contains("AppsUseLightTheme")) {
-                            // Value 0x0 means dark mode, 0x1 means light mode
-                            return line.contains("0x0") ? "dark" : "light";
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to detect system theme preference", e);
-        }
-        return "light";
+        if (preference.source() != null)
+            logger.info("theme preference: {} from {}", preference.value(), preference.source());
+        else
+            logger.info("theme preference unknown, using {}", preference.value());
+        return preference.value();
     }
     
     /**

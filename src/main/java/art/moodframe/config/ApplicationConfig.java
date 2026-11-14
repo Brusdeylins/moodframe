@@ -128,7 +128,7 @@ public class ApplicationConfig {
         properties.setProperty("api.timeout_seconds", "600");
         
         // UI-Einstellungen
-        properties.setProperty("ui.theme", "primer-light");
+        properties.setProperty("ui.theme", "primer-dark");
         properties.setProperty("ui.language", "de");
         properties.setProperty("ui.window.width", "1200");
         properties.setProperty("ui.window.height", "800");
@@ -349,11 +349,11 @@ public class ApplicationConfig {
     /**
      * Gets the current UI theme.
      * 
-     * @return the AtlantaFX theme name (default: "primer-light")
+     * @return the AtlantaFX theme name (default: "primer-dark")
      * @since 1.0.0
      */
     public String getUiTheme() {
-        return properties.getProperty("ui.theme", "primer-light");
+        return properties.getProperty("ui.theme", "primer-dark");
     }
     
     /**
