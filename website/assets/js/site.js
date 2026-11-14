@@ -66,6 +66,13 @@ const TEXT = {
         "more.share": "Share moods", "more.share.text": "Export your moods as a file and import them on another machine.",
         "more.themes": "Seven themes", "more.themes.text": "Light and dark, from Primer and Nord to Cupertino and Dracula.",
         "more.network": "Corporate networks", "more.network.text": "Proxy settings and your own root certificates, also for networks with TLS inspection.",
+        "ai.eyebrow": "Agentic Coding", "ai.title": "Written entirely by AI",
+        "ai.lead": "Not one line of <b>Mood</b>Frame's code was typed by a human.",
+        "ai.decides": "A person decides", "ai.decides.text": "What to build, how it should look, and when it is good enough.",
+        "ai.agents": "AI agents do the work", "ai.agents.text": "They plan each task, write the code, review it and merge it, with", "ai.agents.and": "and the", "ai.agents.fleet": "agent fleet.",
+        "ai.checked": "Checked, not trusted", "ai.checked.text": "Every change goes through an automated review and the full test suite. The code is open, see for yourself.",
+        "ai.stat.code.value": "36,000", "ai.stat.code": "lines of Java code",
+        "ai.stat.tests.value": "8,000", "ai.stat.tests": "lines of test code", "ai.stat.count": "automated tests",
         "install.title": "Up and running in a minute", "install.version": "Version",
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
         "install.mac.command": "Paste into a terminal: the command downloads <b>Mood</b>Frame, installs it in Applications and starts it. A download in the terminal carries no quarantine flag, so macOS opens the app right away, without the block on the first launch.",
@@ -141,6 +148,13 @@ const TEXT = {
         "more.share": "Moods teilen", "more.share.text": "Moods als Datei exportieren und auf einem anderen Rechner importieren.",
         "more.themes": "Sieben Themes", "more.themes.text": "Hell und dunkel, von Primer und Nord bis Cupertino und Dracula.",
         "more.network": "Firmennetze", "more.network.text": "Proxy und eigene Root-Zertifikate, auch für Netze mit TLS-Inspektion.",
+        "ai.eyebrow": "Agentic Coding", "ai.title": "Komplett von KI geschrieben",
+        "ai.lead": "Keine einzige Zeile Code von <b>Mood</b>Frame hat ein Mensch getippt.",
+        "ai.decides": "Ein Mensch entscheidet", "ai.decides.text": "Was entsteht, wie es aussieht und wann es gut genug ist.",
+        "ai.agents": "KI-Agenten erledigen die Arbeit", "ai.agents.text": "Sie planen jede Aufgabe, schreiben den Code, prüfen ihn und führen ihn zusammen, mit", "ai.agents.and": "und der", "ai.agents.fleet": "Agenten-Flotte.",
+        "ai.checked": "Geprüft, nicht geglaubt", "ai.checked.text": "Jede Änderung durchläuft ein automatisches Review und alle Tests. Der Code ist offen, überzeug dich selbst.",
+        "ai.stat.code.value": "36.000", "ai.stat.code": "Zeilen Java-Code",
+        "ai.stat.tests.value": "8.000", "ai.stat.tests": "Zeilen Testcode", "ai.stat.count": "automatische Tests",
         "install.title": "In einer Minute startklar", "install.version": "Version",
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
         "install.mac.command": "Im Terminal einfügen: Der Befehl lädt <b>Mood</b>Frame, installiert es unter Programme und startet es. Ein Download im Terminal trägt kein Quarantäne-Kennzeichen, deshalb öffnet macOS die App sofort, ohne die Sperre beim ersten Start.",
@@ -224,9 +238,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115j`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115k`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115j`
+    panel.src = `assets/img/${mood.panel}?v=20261115k`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
