@@ -18,8 +18,8 @@ const TEXT = {
         "overview.alt": "The MoodFrame main window with the library, the images, the prompt, and the groups Mood, Frame and Generation",
         "feature.library": "Library", "feature.library.1": "Chats, or all images", "feature.library.2": "of a mood or frame",
         "feature.library.full": "Chats, or all images of a mood or frame",
-        "feature.images": "Images", "feature.images.1": "each with its mood,", "feature.images.2": "model and cost",
-        "feature.images.full": "each with its mood, model and cost",
+        "feature.images": "Images", "feature.images.1": "view in detail, use as", "feature.images.2": "reference, or delete",
+        "feature.images.full": "view in detail, use as reference, or delete",
         "feature.prompt": "Prompt", "feature.prompt.1": "write what you want", "feature.prompt.2": "to see in the picture",
         "feature.prompt.full": "write what you want to see in the picture",
         "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "develop ideas and prompts", "feature.brainstorm.2": "with an AI assistant",
@@ -82,8 +82,8 @@ const TEXT = {
         "overview.alt": "Das Hauptfenster von MoodFrame mit Bibliothek, Bildern, Prompt und den Gruppen Mood, Frame und Generierung",
         "feature.library": "Bibliothek", "feature.library.1": "Chats, oder alle Bilder", "feature.library.2": "einer Mood oder eines Frames",
         "feature.library.full": "Chats, oder alle Bilder einer Mood oder eines Frames",
-        "feature.images": "Bilder", "feature.images.1": "jedes mit Mood,", "feature.images.2": "Modell und Kosten",
-        "feature.images.full": "jedes mit Mood, Modell und Kosten",
+        "feature.images": "Bilder", "feature.images.1": "im Detail ansehen, als", "feature.images.2": "Referenz nutzen, löschen",
+        "feature.images.full": "im Detail ansehen, als Referenz nutzen oder löschen",
         "feature.prompt": "Prompt", "feature.prompt.1": "schreiben, was du", "feature.prompt.2": "im Bild sehen willst",
         "feature.prompt.full": "schreiben, was du im Bild sehen willst",
         "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "Ideen und Prompts mit", "feature.brainstorm.2": "einem KI-Assistenten entwickeln",
@@ -198,7 +198,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114c`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114d`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
