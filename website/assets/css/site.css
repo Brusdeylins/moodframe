@@ -174,8 +174,8 @@ button { font: inherit; color: inherit; }
 .frame-text th { padding: 8px 0; text-align: left; font-weight: 400; color: var(--fg-muted); border-bottom: 1px solid rgb(255 255 255 / 15%); }
 .frame-text td { padding: 8px 0; color: var(--fg); border-bottom: 1px solid rgb(255 255 255 / 8%); }
 .frame-text td:last-child { text-align: right; }
-.exact { color: #3fb950; }
-.closest { color: #d29922; }
+.frame-text td.exact { color: #3fb950; }
+.frame-text td.closest { color: #d29922; }
 
 /*  models: one card per provider  */
 .providers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 28px; }

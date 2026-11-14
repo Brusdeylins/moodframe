@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="assets/img/favicon-64.png">
     <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
     <link rel="preload" href="assets/fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="assets/css/site.css?v=20261114i">
+    <link rel="stylesheet" href="assets/css/site.css?v=20261114j">
 </head>
 <body>
 
@@ -58,7 +58,7 @@
         <figure class="card overview-figure" style="margin-inline: 0">
             <svg viewBox="0 0 1248 600" role="img" aria-labelledby="overview-desc">
                 <desc id="overview-desc" data-i18n="overview.alt">The MoodFrame main window with the library, the images, the prompt, and the groups Mood, Frame and Generation</desc>
-                <image href="assets/img/app-screenshot.png?v=20261114i" x="194" y="30" width="860" height="540"/>
+                <image href="assets/img/app-screenshot.png?v=20261114j" x="194" y="30" width="860" height="540"/>
                 <g stroke-width="1" fill="none">
                     <line x1="182" y1="112" x2="199" y2="112" stroke="rgb(255 255 255 / 45%)"/>
                     <line x1="182" y1="184" x2="372" y2="184" stroke="rgb(255 255 255 / 45%)"/>
@@ -100,7 +100,7 @@
                     <text x="1074" y="591" class="callout-text" data-i18n="feature.brainstorm.2">with an AI assistant</text>
                 </g>
             </svg>
-            <img class="shot" src="assets/img/app-screenshot.png?v=20261114i" alt="" width="1426" height="895" loading="lazy">
+            <img class="shot" src="assets/img/app-screenshot.png?v=20261114j" alt="" width="1426" height="895" loading="lazy">
             <ul class="overview-list">
                 <li><span><b data-i18n="feature.library">Library</b> · <span data-i18n="feature.library.full">Chats, or all images of a mood or frame</span></span></li>
                 <li><span><b data-i18n="feature.images">Images</b> · <span data-i18n="feature.images.full">view in detail, use as reference, or delete</span></span></li>
@@ -128,13 +128,13 @@
             </div>
             <div class="mood-body" role="tabpanel">
                 <img src="assets/img/mood-vintage-film.jpg" alt="" width="1600" height="1067" data-mood-image>
-                <img class="panel" src="assets/img/panel-vintage-film.png?v=20261114i" alt="" width="228" height="549" data-mood-panel>
+                <img class="panel" src="assets/img/panel-vintage-film.png?v=20261114j" alt="" width="228" height="549" data-mood-panel>
             </div>
             <p class="note" data-i18n="mood.caption">Vintage Film is generated from a prompt; the other four use it as reference image (Edit). Nano Banana Pro.</p>
         </div>
     </section>
 
-    <!--  frame: nested aspect ratios over one image, what each model makes of the target  -->
+    <!--  frame: the worked example, the target 16:9 and what each model makes of it  -->
     <section class="chapter wrap" id="frame">
         <p class="eyebrow" data-i18n="nav.frame">Frame</p>
         <h2 data-i18n="frame.title">Say the format once</h2>
@@ -144,14 +144,12 @@
                 <img src="assets/img/mood-quiet-morning.jpg" alt="" width="1600" height="1067" loading="lazy">
                 <svg viewBox="0 0 600 400" preserveAspectRatio="none" aria-hidden="true">
                     <g fill="none" stroke-width="2" vector-effect="non-scaling-stroke">
-                        <rect x="1" y="1" width="598" height="398" rx="8" stroke="rgb(255 255 255 / 90%)"/>
-                        <rect x="0" y="31" width="600" height="338" stroke="#2fb8a6" stroke-dasharray="8 6"/>
-                        <rect x="100" y="0" width="400" height="400" stroke="#f5b83d" stroke-dasharray="8 6"/>
-                        <rect x="187" y="0" width="225" height="400" stroke="#ff6b4a" stroke-dasharray="8 6"/>
+                        <rect x="1" y="1" width="598" height="398" rx="8" stroke="#d29922"/>
+                        <rect x="0" y="31" width="600" height="338" stroke="#3fb950" stroke-dasharray="8 6"/>
                     </g>
                     <g font-family="Inter, sans-serif" font-size="13" font-weight="600">
-                        <text x="12" y="24" fill="#ffffff">3:2</text><text x="12" y="362" fill="#2fb8a6">16:9</text>
-                        <text x="110" y="388" fill="#f5b83d">1:1</text><text x="197" y="24" fill="#ff6b4a">9:16</text>
+                        <text x="12" y="22" fill="#d29922">3:2 · OpenAI gpt-image</text>
+                        <text x="12" y="360" fill="#3fb950">16:9 · FLUX.2 [pro], Nano Banana Pro</text>
                     </g>
                 </svg>
             </div>
@@ -247,6 +245,6 @@
     </div>
 </footer>
 
-<script src="assets/js/site.js?v=20261114i" defer></script>
+<script src="assets/js/site.js?v=20261114j" defer></script>
 </body>
 </html>
