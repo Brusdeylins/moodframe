@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="assets/img/favicon-64.png">
     <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
     <link rel="preload" href="assets/fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="assets/css/site.css?v=20261114f">
+    <link rel="stylesheet" href="assets/css/site.css?v=20261114g">
 </head>
 <body>
 
@@ -58,7 +58,7 @@
         <figure class="card overview-figure" style="margin-inline: 0">
             <svg viewBox="0 0 1248 600" role="img" aria-labelledby="overview-desc">
                 <desc id="overview-desc" data-i18n="overview.alt">The MoodFrame main window with the library, the images, the prompt, and the groups Mood, Frame and Generation</desc>
-                <image href="assets/img/app-screenshot.png?v=20261114f" x="194" y="30" width="860" height="540"/>
+                <image href="assets/img/app-screenshot.png?v=20261114g" x="194" y="30" width="860" height="540"/>
                 <g stroke-width="1" fill="none">
                     <line x1="182" y1="112" x2="199" y2="112" stroke="rgb(255 255 255 / 45%)"/>
                     <line x1="182" y1="184" x2="372" y2="184" stroke="rgb(255 255 255 / 45%)"/>
@@ -100,7 +100,7 @@
                     <text x="1074" y="591" class="callout-text" data-i18n="feature.brainstorm.2">with an AI assistant</text>
                 </g>
             </svg>
-            <img class="shot" src="assets/img/app-screenshot.png?v=20261114f" alt="" width="1426" height="895" loading="lazy">
+            <img class="shot" src="assets/img/app-screenshot.png?v=20261114g" alt="" width="1426" height="895" loading="lazy">
             <ul class="overview-list">
                 <li><span><b data-i18n="feature.library">Library</b> · <span data-i18n="feature.library.full">Chats, or all images of a mood or frame</span></span></li>
                 <li><span><b data-i18n="feature.images">Images</b> · <span data-i18n="feature.images.full">view in detail, use as reference, or delete</span></span></li>
@@ -113,11 +113,11 @@
         </figure>
     </section>
 
-    <!--  mood: tabs swap the image and the recipe of the mood  -->
+    <!--  mood: tabs swap the image and the real mood panel of the app  -->
     <section class="chapter wrap" id="mood">
         <p class="eyebrow" data-i18n="nav.mood">Mood</p>
         <h2 data-i18n="mood.title">Switch the mood, keep the picture</h2>
-        <p class="lead" data-i18n="mood.lead">One picture, five moods. A mood is made of building blocks, each one lockable.</p>
+        <p class="lead" data-i18n="mood.lead">One picture, five moods. A mood is made of lockable building blocks, or taken from any picture you drop in.</p>
         <div class="card">
             <div class="tabs" role="tablist" aria-label="Moods" data-mood-tabs>
                 <button type="button" role="tab" aria-selected="true" data-mood="golden" data-i18n="mood.golden.name">Vintage Film</button>
@@ -128,22 +128,7 @@
             </div>
             <div class="mood-body" role="tabpanel">
                 <img src="assets/img/mood-vintage-film.jpg" alt="" width="1600" height="1067" data-mood-image>
-                <div class="recipe">
-                    <h3 data-mood-field="name">Vintage Film</h3>
-                    <dl>
-                        <dt data-i18n="block.atmosphere">Atmosphere</dt><dd data-mood-field="atmosphere">Nostalgic</dd>
-                        <dt data-i18n="block.style">Style</dt><dd data-mood-field="style">Analog Film</dd>
-                        <dt data-i18n="block.color">Color</dt>
-                        <dd><div class="swatches" data-mood-swatches><span style="background:#FFB347"></span><span style="background:#FF9F1C"></span><span style="background:#E85D04"></span><span style="background:#D00000"></span><span style="background:#370617"></span></div></dd>
-                        <dt data-i18n="block.light">Light</dt><dd data-mood-field="light">Golden Hour</dd>
-                        <dt data-i18n="block.camera">Camera</dt><dd data-mood-field="camera">Street 35mm · Leica M6 · 35 mm · f/11</dd>
-                    </dl>
-                    <ul>
-                        <li data-i18n="mood.point.own">Your own blocks and saved moods</li>
-                        <li data-i18n="mood.point.image">Mood from image: drop a picture, get its mood</li>
-                        <li data-i18n="mood.point.remember">Every image remembers its mood</li>
-                    </ul>
-                </div>
+                <img class="panel" src="assets/img/panel-vintage-film.png?v=20261114g" alt="" width="231" height="551" data-mood-panel>
             </div>
         </div>
     </section>
@@ -261,6 +246,6 @@
     </div>
 </footer>
 
-<script src="assets/js/site.js?v=20261114f" defer></script>
+<script src="assets/js/site.js?v=20261114g" defer></script>
 </body>
 </html>

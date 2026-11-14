@@ -30,22 +30,13 @@ const TEXT = {
         "feature.generation": "Generation", "feature.generation.1": "model, number of images,", "feature.generation.2": "reference images and", "feature.generation.3": "Google grounding",
         "feature.generation.full": "model, number of images, reference images and Google grounding",
         "mood.title": "Switch the mood, keep the picture",
-        "mood.lead": "One picture, five moods. A mood is made of building blocks, each one lockable.",
-        "block.style": "Style", "block.atmosphere": "Atmosphere", "block.light": "Light", "block.color": "Color", "block.camera": "Camera",
-        "mood.point.own": "Your own blocks and saved moods",
-        "mood.point.image": "Mood from image: drop a picture, get its mood",
-        "mood.point.remember": "Every image remembers its mood",
-        "mood.golden.name": "Vintage Film", "mood.golden.style": "Analog Film",
-        "mood.golden.atmosphere": "Nostalgic", "mood.golden.light": "Golden Hour",
-        "mood.golden.camera": "Street 35mm · Leica M6 · 35 mm · f/11",
-        "mood.fog.name": "Quiet Morning", "mood.fog.style": "Photography",
-        "mood.fog.atmosphere": "Calm", "mood.fog.light": "Blue Hour",
-        "mood.fog.camera": "—",
-        "mood.noir.name": "Sci-Fi Cinema", "mood.noir.style": "Cinematic Film Still",
-        "mood.noir.atmosphere": "Futuristic", "mood.noir.light": "Neon Practicals",
-        "mood.noir.camera": "—",
-        "mood.bw.name": "Film Noir", "mood.bw.style": "Black-and-White Film", "mood.bw.atmosphere": "Menacing", "mood.bw.light": "Chiaroscuro", "mood.bw.camera": "—",
-        "mood.wild.name": "Wild North", "mood.wild.style": "Documentary", "mood.wild.atmosphere": "Raw", "mood.wild.light": "Overcast", "mood.wild.camera": "—",
+        "mood.lead": "One picture, five moods. A mood is made of lockable building blocks, or taken from any picture you drop in.",
+        "mood.panel": "Mood settings in MoodFrame:",
+        "mood.golden.name": "Vintage Film",
+        "mood.fog.name": "Quiet Morning",
+        "mood.noir.name": "Sci-Fi Cinema",
+        "mood.bw.name": "Film Noir",
+        "mood.wild.name": "Wild North",
         "frame.title": "Say the format once",
         "frame.lead": "A frame is a target aspect ratio and resolution, saved by name.",
         "frame.text": "Every model takes its closest aspect ratio and resolution, and the app shows which one before you generate.",
@@ -94,22 +85,13 @@ const TEXT = {
         "feature.generation": "Generierung", "feature.generation.1": "Modell, Anzahl der Bilder,", "feature.generation.2": "Referenzbilder und", "feature.generation.3": "Google-Grounding",
         "feature.generation.full": "Modell, Anzahl der Bilder, Referenzbilder und Google-Grounding",
         "mood.title": "Mood wechseln, Bild behalten",
-        "mood.lead": "Ein Bild, fünf Moods. Eine Mood besteht aus Bausteinen, jeder einzeln sperrbar.",
-        "block.style": "Stil", "block.atmosphere": "Atmosphäre", "block.light": "Licht", "block.color": "Farbe", "block.camera": "Kamera",
-        "mood.point.own": "Eigene Bausteine und gespeicherte Moods",
-        "mood.point.image": "Mood aus Bild: Bild ablegen, Mood erhalten",
-        "mood.point.remember": "Jedes Bild merkt sich seine Mood",
-        "mood.golden.name": "Vintage Film", "mood.golden.style": "Analog Film",
-        "mood.golden.atmosphere": "Nostalgic", "mood.golden.light": "Golden Hour",
-        "mood.golden.camera": "Street 35mm · Leica M6 · 35 mm · f/11",
-        "mood.fog.name": "Quiet Morning", "mood.fog.style": "Photography",
-        "mood.fog.atmosphere": "Calm", "mood.fog.light": "Blue Hour",
-        "mood.fog.camera": "—",
-        "mood.noir.name": "Sci-Fi Cinema", "mood.noir.style": "Cinematic Film Still",
-        "mood.noir.atmosphere": "Futuristic", "mood.noir.light": "Neon Practicals",
-        "mood.noir.camera": "—",
-        "mood.bw.name": "Film Noir", "mood.bw.style": "Black-and-White Film", "mood.bw.atmosphere": "Menacing", "mood.bw.light": "Chiaroscuro", "mood.bw.camera": "—",
-        "mood.wild.name": "Wild North", "mood.wild.style": "Documentary", "mood.wild.atmosphere": "Raw", "mood.wild.light": "Overcast", "mood.wild.camera": "—",
+        "mood.lead": "Ein Bild, fünf Moods. Eine Mood besteht aus sperrbaren Bausteinen oder entsteht aus einem Bild, das du hineinziehst.",
+        "mood.panel": "Mood-Einstellungen in MoodFrame:",
+        "mood.golden.name": "Vintage Film",
+        "mood.fog.name": "Quiet Morning",
+        "mood.noir.name": "Sci-Fi Cinema",
+        "mood.bw.name": "Film Noir",
+        "mood.wild.name": "Wild North",
         "frame.title": "Format einmal festlegen",
         "frame.lead": "Ein Frame ist Seitenverhältnis plus Auflösung, gespeichert unter einem Namen.",
         "frame.text": "Jedes Modell nimmt das nächstliegende Seitenverhältnis und die nächstliegende Auflösung, die App zeigt beides vor dem Generieren an.",
@@ -137,11 +119,11 @@ const TEXT = {
 }
 
 const MOODS = {
-    golden: { image: "mood-vintage-film.jpg", swatches: [ "#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617" ] },
-    fog:    { image: "mood-quiet-morning.jpg",    swatches: [ "#CAF0F8", "#ADE8F4", "#90E0EF", "#48CAE4", "#00B4D8" ] },
-    noir:   { image: "mood-sci-fi-cinema.jpg",   swatches: [ "#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3" ] },
-    bw:     { image: "mood-film-noir.jpg",     swatches: [ "#0A0A0A", "#3D3D3D", "#808080", "#C4C4C4", "#F5F5F5" ] },
-    wild:   { image: "mood-wild-north.jpg",    swatches: [ "#2D6A4F", "#40916C", "#74C69D", "#B7E4C7", "#D8F3DC" ] }
+    golden: { image: "mood-vintage-film.jpg",  panel: "panel-vintage-film.png" },
+    fog:    { image: "mood-quiet-morning.jpg", panel: "panel-quiet-morning.png" },
+    noir:   { image: "mood-sci-fi-cinema.jpg", panel: "panel-sci-fi-cinema.png" },
+    bw:     { image: "mood-film-noir.jpg",     panel: "panel-film-noir.png" },
+    wild:   { image: "mood-wild-north.jpg",    panel: "panel-wild-north.png" }
 }
 
 const state = { lang: "en", mood: "golden", os: detectOS(), release: null }
@@ -198,15 +180,10 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114f`
-    for (const field of document.querySelectorAll("[data-mood-field]"))
-        field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
-    const swatches = document.querySelector("[data-mood-swatches]")
-    swatches.replaceChildren(...mood.swatches.map((color) => {
-        const swatch = document.createElement("span")
-        swatch.style.background = color
-        return swatch
-    }))
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114g`
+    const panel = document.querySelector("[data-mood-panel]")
+    panel.src = `assets/img/${mood.panel}?v=20261114g`
+    panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
 function selectOS (os) {
