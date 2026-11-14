@@ -69,7 +69,7 @@ button { font: inherit; color: inherit; }
 .nav.scrolled { background: rgb(10 20 24 / 72%); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .nav .brand img { width: 140px; height: auto; }
 .nav .links { display: flex; gap: 28px; margin-left: auto; font-size: 15px; color: #dfe9ea; }
-.nav .lang { display: flex; gap: 8px; font-size: 15px; }
+.nav .lang { display: flex; flex-shrink: 0; gap: 8px; font-size: 15px; white-space: nowrap; }
 .nav .lang button { background: none; border: 0; padding: 0 2px; cursor: pointer; color: var(--fg-faint); }
 .nav .lang button[aria-pressed="true"] { color: var(--fg-strong); font-weight: 600; }
 /*  a thin divider between the languages shows the toggle  */
@@ -295,6 +295,11 @@ footer .links { display: flex; gap: 20px; margin-left: auto; }
     .tabs [role="tab"] { flex: 1 0 auto; padding-inline: 12px; white-space: nowrap; }
     .terminal pre { font-size: 13px; }
     footer .links { margin-left: 0; }
+}
+/*  seven chapters in the bar: tighter gaps on narrow desktops  */
+@media (min-width: 901px) and (max-width: 1180px) {
+    .nav { gap: 20px; }
+    .nav .links { gap: 18px; }
 }
 @media (min-width: 901px) {
     .overview-figure .shot { display: none; }
