@@ -20,8 +20,10 @@ const TEXT = {
         "feature.library.full": "Chats, or all images of a mood or frame",
         "feature.images": "Images", "feature.images.1": "each with its mood,", "feature.images.2": "model and cost",
         "feature.images.full": "each with its mood, model and cost",
-        "feature.prompt": "Prompt", "feature.prompt.1": "write what you see, or", "feature.prompt.2": "brainstorm it with AI",
-        "feature.prompt.full": "write what you see, or brainstorm it with AI",
+        "feature.prompt": "Prompt", "feature.prompt.1": "write what you want", "feature.prompt.2": "to see in the picture",
+        "feature.prompt.full": "write what you want to see in the picture",
+        "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "develop ideas and prompts", "feature.brainstorm.2": "with an AI assistant",
+        "feature.brainstorm.full": "develop ideas and prompts with an AI assistant",
         "feature.mood.1": "style, atmosphere, light,", "feature.mood.2": "color and camera",
         "feature.mood.full": "style, atmosphere, light, color and camera",
         "feature.frame.1": "aspect ratio and size",
@@ -82,8 +84,10 @@ const TEXT = {
         "feature.library.full": "Chats, oder alle Bilder einer Mood oder eines Frames",
         "feature.images": "Bilder", "feature.images.1": "jedes mit Mood,", "feature.images.2": "Modell und Kosten",
         "feature.images.full": "jedes mit Mood, Modell und Kosten",
-        "feature.prompt": "Prompt", "feature.prompt.1": "schreiben, was du siehst,", "feature.prompt.2": "oder mit KI entwickeln",
-        "feature.prompt.full": "schreiben, was du siehst, oder mit KI entwickeln",
+        "feature.prompt": "Prompt", "feature.prompt.1": "schreiben, was du", "feature.prompt.2": "im Bild sehen willst",
+        "feature.prompt.full": "schreiben, was du im Bild sehen willst",
+        "feature.brainstorm": "Brainstorm", "feature.brainstorm.1": "Ideen und Prompts mit", "feature.brainstorm.2": "einem KI-Assistenten entwickeln",
+        "feature.brainstorm.full": "Ideen und Prompts mit einem KI-Assistenten entwickeln",
         "feature.mood.1": "Stil, Atmosphäre, Licht,", "feature.mood.2": "Farbe und Kamera",
         "feature.mood.full": "Stil, Atmosphäre, Licht, Farbe und Kamera",
         "feature.frame.1": "Seitenverhältnis und Größe",
@@ -194,7 +198,7 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261113e`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114`
     for (const field of document.querySelectorAll("[data-mood-field]"))
         field.textContent = t(`mood.${state.mood}.${field.dataset.moodField}`)
     const swatches = document.querySelector("[data-mood-swatches]")
