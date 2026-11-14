@@ -149,32 +149,37 @@ public class MoodframeApplication extends Application {
                         }
                     });
 
+            /*  The services report every change of the library here, the main window shows what others changed  */
+            art.moodframe.service.LibraryEvents events = new art.moodframe.service.LibraryEvents();
+            ServiceFactory.getInstance().registerService(art.moodframe.service.LibraryEvents.class, events);
+
             // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.PromptBlockService.class,
-                    () -> new art.moodframe.service.PromptBlockService());
+                    () -> new art.moodframe.service.PromptBlockService(events));
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ColorStyleService.class,
-                    () -> new art.moodframe.service.ColorStyleService());
+                    () -> new art.moodframe.service.ColorStyleService(events));
 
             // Initialize MoodService for the moods, the saved combinations of building blocks
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.MoodService.class,
                     () -> new art.moodframe.service.MoodService(
                             ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class)));
+                            ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
+                            events));
 
             /*  The frames, the saved settings of model, aspect ratio and image count  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.FrameService.class,
-                    () -> new art.moodframe.service.FrameService());
+                    () -> new art.moodframe.service.FrameService(events));
 
             /*  The favorites among moods, frames and building blocks, shown first in their lists  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.FavoriteService.class,
-                    () -> new art.moodframe.service.FavoriteService());
+                    () -> new art.moodframe.service.FavoriteService(events));
 
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
@@ -274,6 +279,20 @@ public class MoodframeApplication extends Application {
                                 : null;
                     });
 
+            /*  The list of the chats, shared by the main window and later callers; it follows the trash as well  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.ChatLibrary.class,
+                    () -> {
+                        art.moodframe.service.ChatLibrary chats = new art.moodframe.service.ChatLibrary(
+                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatHistoryService.class),
+                                events);
+                        art.moodframe.service.TrashCenter trashCenter = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.TrashCenter.class);
+                        if (trashCenter != null)
+                            trashCenter.addListener(chats);
+                        return chats;
+                    });
+
             /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ImageSizeCheck.class,
@@ -304,7 +323,7 @@ public class MoodframeApplication extends Application {
                         art.moodframe.service.RequestResponseManager requests = ServiceFactory.getInstance()
                                 .getService(art.moodframe.service.RequestResponseManager.class);
                         return requests != null ? new art.moodframe.service.GenerationService(config,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatHistoryService.class),
+                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatLibrary.class),
                                 ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class),
                                 requests) : null;
                     });

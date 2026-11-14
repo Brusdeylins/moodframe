@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
 /**
@@ -134,7 +133,8 @@ public class DatabaseConfig {
     }
 
     /**
-     * Creates and returns a new database connection.
+     * Creates and returns a new database connection, which waits for the locks of other connections (see
+     * {@link DatabaseManager#getConnection()}).
      * 
      * <p>
      * <strong>Important:</strong> The caller is responsible for closing the
@@ -160,7 +160,7 @@ public class DatabaseConfig {
         if (databaseUrl == null) {
             throw new IllegalStateException("Database not initialized. Call initialize() first.");
         }
-        return DriverManager.getConnection(databaseUrl);
+        return DatabaseManager.open(databaseUrl);
     }
 
     /**

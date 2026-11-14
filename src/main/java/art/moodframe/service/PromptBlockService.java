@@ -46,6 +46,9 @@ import java.util.Map;
  * <p>The standard cameras carry settings only ({@link CameraSettings}); their fragment comes from
  * {@link CameraPromptBuilder}. Exposure stays with the light, film stock with the style.</p>
  *
+ * <p>Every successful write is reported with the kind of its block type ({@link LibraryEvents.Kind#of}). The writes
+ * are serialized, so parallel callers cannot take the same name.</p>
+ *
  * @since 2.0.0
  */
 public class PromptBlockService {
@@ -70,17 +73,35 @@ public class PromptBlockService {
     private final List<PromptBlock> defaultAtmospheres;
     private final List<PromptBlock> defaultLights;
     private final List<PromptBlock> defaultCameras;
+    private final LibraryEvents events;
+
+    /**
+     * Creates the service, which reports its writes to nobody.
+     */
+    public PromptBlockService() {
+        this(new LibraryEvents());
+    }
 
     /**
      * Creates the service.
+     *
+     * @param events where the writes are reported
      */
-    public PromptBlockService() {
+    public PromptBlockService(LibraryEvents events) {
         this.repository = new PromptBlockRepository();
+        this.events = events;
         this.defaultStyles = defaultStyles();
         this.defaultAtmospheres = defaultAtmospheres();
         this.defaultLights = defaultLights();
         this.defaultCameras = defaultCameras();
         renameCustomBlocksNamedLikeDefaults();
+    }
+
+    /*  reports a successful write  */
+    private boolean changed(PromptBlock.Type type, boolean success, String id) {
+        if (success)
+            events.changed(LibraryEvents.Kind.of(type), id);
+        return success;
     }
 
     /**
@@ -528,7 +549,7 @@ public class PromptBlockService {
      * @param block the block, without id
      * @return true if it was stored, false if the name is taken
      */
-    public boolean addCustom(PromptBlock block) {
+    public synchronized boolean addCustom(PromptBlock block) {
         if (exists(block.getType(), block.getName())) {
             logger.warn("Cannot add prompt block '{}' - name already exists", block.getName());
             return false;
@@ -537,7 +558,7 @@ public class PromptBlockService {
         /*  Blocks of the user follow the standard blocks, from 1000 on  */
         block.setSortOrder(Math.max(1000, repository.findAll(block.getType()).stream()
                 .mapToInt((PromptBlock existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return repository.save(block);
+        return changed(block.getType(), repository.save(block), block.getId());
     }
 
     /**
@@ -546,7 +567,7 @@ public class PromptBlockService {
      * @param block the changed block with its id
      * @return true if it was updated, false for a standard block, an unknown id or a taken name
      */
-    public boolean updateCustom(PromptBlock block) {
+    public synchronized boolean updateCustom(PromptBlock block) {
         PromptBlock existing = block.isDefault() ? null : repository.findById(block.getId());
         if (existing == null) {
             logger.warn("Cannot update prompt block '{}' - no block of the user", block.getName());
@@ -556,7 +577,7 @@ public class PromptBlockService {
             logger.warn("Cannot rename prompt block to '{}' - name already exists", block.getName());
             return false;
         }
-        return repository.update(block);
+        return changed(block.getType(), repository.update(block), block.getId());
     }
 
     /**
@@ -566,7 +587,7 @@ public class PromptBlockService {
      * @param block the block; its id is replaced by a new one
      * @return true if it was stored
      */
-    public boolean addCopy(PromptBlock block) {
+    public synchronized boolean addCopy(PromptBlock block) {
         block.setId(null);
         block.setName(freeName(block.getType(), block.getName()));
         return addCustom(block);
@@ -579,7 +600,7 @@ public class PromptBlockService {
      * @param ids the ids of the blocks of the user in their new order
      * @return true if all of them were updated
      */
-    public boolean reorderCustom(PromptBlock.Type type, List<String> ids) {
+    public synchronized boolean reorderCustom(PromptBlock.Type type, List<String> ids) {
         boolean updated = true;
         for (PromptBlock block : repository.findAll(type)) {
             int index = ids.indexOf(block.getId());
@@ -588,7 +609,7 @@ public class PromptBlockService {
             block.setSortOrder(1000 + index);
             updated &= repository.update(block);
         }
-        return updated;
+        return changed(type, updated, null);
     }
 
     /**
@@ -597,9 +618,9 @@ public class PromptBlockService {
      * @param id the block id
      * @return true if it was moved to the trash
      */
-    public boolean deleteCustom(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.findById(id) != null
-                && repository.setDeletedAt(id, LocalDateTime.now());
+    public synchronized boolean deleteCustom(String id) {
+        PromptBlock block = id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) ? repository.findById(id) : null;
+        return block != null && changed(block.getType(), repository.setDeletedAt(id, LocalDateTime.now()), id);
     }
 
     /**
@@ -618,7 +639,7 @@ public class PromptBlockService {
      * @param id the block id
      * @return true if it is back in use
      */
-    public boolean restore(String id) {
+    public synchronized boolean restore(String id) {
         PromptBlock block = repository.findDeletedById(id);
         if (block == null)
             return false;
@@ -628,7 +649,7 @@ public class PromptBlockService {
             block.setName(name);
             repository.update(block);
         }
-        return repository.setDeletedAt(id, null);
+        return changed(block.getType(), repository.setDeletedAt(id, null), id);
     }
 
     /**
@@ -637,8 +658,15 @@ public class PromptBlockService {
      * @param id the block id
      * @return true if it is gone
      */
-    public boolean deletePermanently(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id);
+    public synchronized boolean deletePermanently(String id) {
+        if (id == null || id.startsWith(PromptBlock.STANDARD_PREFIX))
+            return false;
+
+        /*  usually a block in the trash  */
+        PromptBlock block = repository.findDeletedById(id);
+        if (block == null)
+            block = repository.findById(id);
+        return block != null && changed(block.getType(), repository.delete(id), id);
     }
 
     /**
@@ -673,7 +701,7 @@ public class PromptBlockService {
      * @param entries the blocks as maps; {@code "promptText"} stands for the text in older exports
      * @return the number of added blocks
      */
-    public int importCustom(PromptBlock.Type type, List<Map<String, Object>> entries) {
+    public synchronized int importCustom(PromptBlock.Type type, List<Map<String, Object>> entries) {
         int imported = 0;
         for (Map<String, Object> entry : entries) {
             Object entryType = entry.get("type");
@@ -724,7 +752,9 @@ public class PromptBlockService {
      * @param type the block type
      * @return the number of deleted blocks
      */
-    public int resetToDefaults(PromptBlock.Type type) {
-        return repository.deleteAll(type);
+    public synchronized int resetToDefaults(PromptBlock.Type type) {
+        int deleted = repository.deleteAll(type);
+        changed(type, true, null);
+        return deleted;
     }
 }

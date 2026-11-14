@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * Database manager for SQLite database operations and migrations.
@@ -31,6 +32,9 @@ public class DatabaseManager {
     private static final String MIGRATIONS_PATH = "/db/migration";
     // private static final Pattern MIGRATION_PATTERN =
     // Pattern.compile("V(\\d+)__(.+)\\.sql");
+
+    /*  how long a connection waits for the lock of another one instead of failing at once with SQLITE_BUSY  */
+    private static final String BUSY_TIMEOUT_MILLIS = "5000";
 
     private final Path databasePath;
     private final String connectionUrl;
@@ -92,6 +96,11 @@ public class DatabaseManager {
                 logger.info("Creating new database at: {}", databasePath);
             }
 
+            /*  In WAL mode, readers and a writer do not wait for each other; the mode stays with the file  */
+            try (Connection connection = getConnection(); Statement stmt = connection.createStatement()) {
+                stmt.execute("PRAGMA journal_mode = WAL");
+            }
+
             runMigrations();
 
             if (config != null && config.getLoggingEnabled()) {
@@ -106,13 +115,13 @@ public class DatabaseManager {
     }
 
     /**
-     * Gets a new database connection.
-     * 
+     * Gets a new database connection, which waits up to 5 s for the locks of other connections.
+     *
      * @return a new database connection
      * @throws SQLException if connection fails
      */
     public Connection getConnection() throws SQLException {
-        Connection connection = DriverManager.getConnection(connectionUrl);
+        Connection connection = open(connectionUrl);
 
         // Enable foreign key constraints
         try (Statement stmt = connection.createStatement()) {
@@ -120,6 +129,20 @@ public class DatabaseManager {
         }
 
         return connection;
+    }
+
+    /**
+     * Opens a connection that waits for the locks of other connections, so parallel callers do not fail with
+     * {@code SQLITE_BUSY}.
+     *
+     * @param url the JDBC URL of the database
+     * @return the new connection
+     * @throws SQLException if the connection cannot be opened
+     */
+    static Connection open(String url) throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty("busy_timeout", BUSY_TIMEOUT_MILLIS);
+        return DriverManager.getConnection(url, properties);
     }
 
     /**

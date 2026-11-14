@@ -77,6 +77,9 @@ import java.util.*;
  * <li>Fresh Corporate - Light neutrals with a calm blue for business images</li>
  * </ul>
  *
+ * <p>Every successful write is reported as {@link LibraryEvents.Kind#COLOR}. The writes are serialized, so parallel
+ * callers cannot take the same name.</p>
+ *
  * @since 1.3.0
  */
 public class ColorStyleService implements ColorStyles {
@@ -92,16 +95,34 @@ public class ColorStyleService implements ColorStyles {
     private final ApplicationConfig config;
     private final ObjectMapper objectMapper;
     private final List<ColorStyle> defaultStyles;
+    private final LibraryEvents events;
+
+    /**
+     * Creates a new ColorStyleService, which reports its writes to nobody.
+     */
+    public ColorStyleService() {
+        this(new LibraryEvents());
+    }
 
     /**
      * Creates a new ColorStyleService.
+     *
+     * @param events where the writes are reported
      */
-    public ColorStyleService() {
+    public ColorStyleService(LibraryEvents events) {
         this.repository = new ColorStyleRepository();
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.objectMapper = new ObjectMapper();
+        this.events = events;
         this.defaultStyles = initializeDefaultStyles();
         renameCustomPalettesNamedLikeDefaults();
+    }
+
+    /*  reports a successful write  */
+    private boolean changed(boolean success, String id) {
+        if (success)
+            events.changed(LibraryEvents.Kind.COLOR, id);
+        return success;
     }
 
     /**
@@ -330,7 +351,7 @@ public class ColorStyleService implements ColorStyles {
      * Adds a new custom color style.
      */
     @Override
-    public boolean addCustomStyle(ColorStyle style) {
+    public synchronized boolean addCustomStyle(ColorStyle style) {
         // Check for duplicate names (in defaults or custom)
         if (styleExists(style.getName())) {
             logger.warn("Cannot add color style '{}' - name already exists", style.getName());
@@ -351,14 +372,14 @@ public class ColorStyleService implements ColorStyles {
             logger.info("Added custom color style: {}", style.getName());
         }
 
-        return success;
+        return changed(success, style.getId());
     }
 
     /**
      * Updates an existing custom color style.
      */
     @Override
-    public boolean updateCustomStyle(String oldName, ColorStyle updatedStyle) {
+    public synchronized boolean updateCustomStyle(String oldName, ColorStyle updatedStyle) {
         // Cannot update default styles
         if (isDefaultStyle(oldName)) {
             logger.warn("Cannot update default color style: {}", oldName);
@@ -388,7 +409,7 @@ public class ColorStyleService implements ColorStyles {
             logger.info("Updated custom color style: {} -> {}", oldName, updatedStyle.getName());
         }
 
-        return success;
+        return changed(success, updatedStyle.getId());
     }
 
     /**
@@ -396,7 +417,7 @@ public class ColorStyleService implements ColorStyles {
      * counter.
      */
     @Override
-    public boolean addCopy(ColorStyle style) {
+    public synchronized boolean addCopy(ColorStyle style) {
         style.setId(null);
         style.setSortOrder(999);
         style.setName(freeName(style.getName()));
@@ -407,7 +428,7 @@ public class ColorStyleService implements ColorStyles {
      * Puts the custom color styles into the given order.
      */
     @Override
-    public boolean reorderCustomStyles(List<String> ids) {
+    public synchronized boolean reorderCustomStyles(List<String> ids) {
         boolean updated = true;
         for (ColorStyle style : repository.findAllCustom()) {
             int index = ids.indexOf(style.getId());
@@ -416,14 +437,14 @@ public class ColorStyleService implements ColorStyles {
             style.setSortOrder(100 + index);
             updated &= repository.update(style);
         }
-        return updated;
+        return changed(updated, null);
     }
 
     /**
      * Moves a custom color style to the trash.
      */
     @Override
-    public boolean deleteCustomStyle(String name) {
+    public synchronized boolean deleteCustomStyle(String name) {
         // Cannot delete default styles
         if (isDefaultStyle(name)) {
             logger.warn("Cannot delete default color style: {}", name);
@@ -442,7 +463,7 @@ public class ColorStyleService implements ColorStyles {
             logger.info("Moved custom color style to the trash: {}", name);
         }
 
-        return success;
+        return changed(success, existing.getId());
     }
 
     /**
@@ -457,30 +478,31 @@ public class ColorStyleService implements ColorStyles {
      * Takes a custom color style out of the trash; its name stayed taken meanwhile.
      */
     @Override
-    public boolean restoreStyle(String id) {
+    public synchronized boolean restoreStyle(String id) {
         return getDeletedStyles().stream().anyMatch((ColorStyle style) -> style.getId().equals(id))
-                && repository.setDeletedAt(id, null);
+                && changed(repository.setDeletedAt(id, null), id);
     }
 
     /**
      * Removes a custom color style for good.
      */
     @Override
-    public boolean deleteStylePermanently(String id) {
-        return id != null && !id.startsWith("std:") && repository.delete(id);
+    public synchronized boolean deleteStylePermanently(String id) {
+        return changed(id != null && !id.startsWith("std:") && repository.delete(id), id);
     }
 
     /**
      * Resets all styles to defaults (deletes all custom styles).
      */
     @Override
-    public int resetToDefaults() {
+    public synchronized int resetToDefaults() {
         int deleted = repository.deleteAllCustom();
 
         if (config != null && config.getLoggingEnabled()) {
             logger.info("Reset color styles to defaults, deleted {} custom styles", deleted);
         }
 
+        changed(true, null);
         return deleted;
     }
 
@@ -538,7 +560,7 @@ public class ColorStyleService implements ColorStyles {
      * Imports styles from a JSON file.
      */
     @Override
-    public int importStyles(File file, boolean mergeWithExisting) {
+    public synchronized int importStyles(File file, boolean mergeWithExisting) {
         try {
             String json = Files.readString(file.toPath());
             List<ColorStyle> importedStyles = objectMapper.readValue(json,
@@ -568,7 +590,7 @@ public class ColorStyleService implements ColorStyles {
      * counter.
      */
     @Override
-    public int importStyles(List<ColorStyle> styles) {
+    public synchronized int importStyles(List<ColorStyle> styles) {
         int imported = 0;
         for (ColorStyle style : styles) {
             if (style.getName() == null || style.getName().isBlank())
@@ -583,6 +605,7 @@ public class ColorStyleService implements ColorStyles {
                 imported++;
             }
         }
+        changed(true, null);
         return imported;
     }
 

@@ -111,10 +111,16 @@ public class ConfigurationExporter {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        this.promptBlockService = new PromptBlockService();
-        this.colorStyleService = new ColorStyleService();
-        this.moodService = new MoodService(promptBlockService, colorStyleService);
-        this.frameService = new FrameService();
+
+        /*  The services of the application report an import to the main window; without them, own ones  */
+        ServiceFactory services = ServiceFactory.getInstance();
+        this.promptBlockService = Objects.requireNonNullElseGet(services.getService(PromptBlockService.class),
+                PromptBlockService::new);
+        this.colorStyleService = Objects.requireNonNullElseGet(services.getService(ColorStyleService.class),
+                ColorStyleService::new);
+        this.moodService = Objects.requireNonNullElseGet(services.getService(MoodService.class),
+                () -> new MoodService(promptBlockService, colorStyleService));
+        this.frameService = Objects.requireNonNullElseGet(services.getService(FrameService.class), FrameService::new);
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
     

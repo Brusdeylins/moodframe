@@ -30,6 +30,9 @@ import java.util.Set;
  * go ({@link #blocksDeleted}); a mood that loses its last block this way is reported once ({@link #takeEmptied}),
  * so the user can decide whether to delete it.</p>
  *
+ * <p>Every successful write is reported as {@link LibraryEvents.Kind#MOOD}. The writes are serialized, so parallel
+ * callers cannot take the same name.</p>
+ *
  * @since 2.0.0
  */
 public class MoodService implements BlockUsage {
@@ -45,19 +48,39 @@ public class MoodService implements BlockUsage {
     private final ColorStyleService colors;
     private final List<Mood> defaultMoods;
     private final List<Mood> emptied = new ArrayList<>();
+    private final LibraryEvents events;
+
+    /**
+     * Creates the service, which reports its writes to nobody.
+     *
+     * @param blocks the building blocks the moods refer to
+     * @param colors the palettes the moods refer to
+     */
+    public MoodService(PromptBlockService blocks, ColorStyleService colors) {
+        this(blocks, colors, new LibraryEvents());
+    }
 
     /**
      * Creates the service.
      *
      * @param blocks the building blocks the moods refer to
      * @param colors the palettes the moods refer to
+     * @param events where the writes are reported
      */
-    public MoodService(PromptBlockService blocks, ColorStyleService colors) {
+    public MoodService(PromptBlockService blocks, ColorStyleService colors, LibraryEvents events) {
         this.repository = new MoodRepository();
         this.blocks = blocks;
         this.colors = colors;
+        this.events = events;
         this.defaultMoods = defaultMoods();
         renameCustomMoodsNamedLikeDefaults();
+    }
+
+    /*  reports a successful write  */
+    private boolean changed(boolean success, String id) {
+        if (success)
+            events.changed(LibraryEvents.Kind.MOOD, id);
+        return success;
     }
 
     /**
@@ -214,7 +237,7 @@ public class MoodService implements BlockUsage {
      * @param mood the mood, without id or with an id no mood has
      * @return true if it was stored, false if the name is taken
      */
-    public boolean add(Mood mood) {
+    public synchronized boolean add(Mood mood) {
         if (mood.getName() == null || mood.getName().isBlank() || exists(mood.getName())) {
             logger.warn("Cannot add mood '{}' - name is empty or already exists", mood.getName());
             return false;
@@ -223,7 +246,7 @@ public class MoodService implements BlockUsage {
         /*  Moods of the user follow the standard moods, from 1000 on  */
         mood.setSortOrder(Math.max(1000, repository.findAll().stream()
                 .mapToInt((Mood existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return repository.save(mood);
+        return changed(repository.save(mood), mood.getId());
     }
 
     /**
@@ -232,7 +255,7 @@ public class MoodService implements BlockUsage {
      * @param mood the changed mood with its id
      * @return true if it was updated, false for a standard mood, an unknown id or a taken name
      */
-    public boolean update(Mood mood) {
+    public synchronized boolean update(Mood mood) {
         Mood existing = mood.isDefault() ? null : repository.findById(mood.getId());
         if (existing == null) {
             logger.warn("Cannot update mood '{}' - no mood of the user", mood.getName());
@@ -244,7 +267,7 @@ public class MoodService implements BlockUsage {
             return false;
         }
         mood.setSortOrder(existing.getSortOrder());
-        return repository.update(mood);
+        return changed(repository.update(mood), mood.getId());
     }
 
     /**
@@ -252,7 +275,7 @@ public class MoodService implements BlockUsage {
      *
      * @param ids the ids of the moods of the user in the wanted order
      */
-    public void reorder(List<String> ids) {
+    public synchronized void reorder(List<String> ids) {
         for (int i = 0; i < ids.size(); i++) {
             Mood mood = repository.findById(ids.get(i));
             if (mood != null) {
@@ -260,6 +283,7 @@ public class MoodService implements BlockUsage {
                 repository.update(mood);
             }
         }
+        changed(true, null);
     }
 
     /**
@@ -268,8 +292,8 @@ public class MoodService implements BlockUsage {
      * @param id the mood id
      * @return true if it is in the trash now
      */
-    public boolean moveToTrash(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id);
+    public synchronized boolean moveToTrash(String id) {
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id), id);
     }
 
     /**
@@ -278,7 +302,7 @@ public class MoodService implements BlockUsage {
      * @param id the mood id
      * @return true if it is in use again
      */
-    public boolean restore(String id) {
+    public synchronized boolean restore(String id) {
         Mood mood = repository.findDeleted().stream().filter((Mood deleted) -> deleted.getId().equals(id))
                 .findFirst().orElse(null);
         if (mood == null)
@@ -287,7 +311,7 @@ public class MoodService implements BlockUsage {
             mood.setName(freeName(mood.getName()));
             repository.update(mood);
         }
-        return repository.restore(id);
+        return changed(repository.restore(id), id);
     }
 
     /**
@@ -296,8 +320,8 @@ public class MoodService implements BlockUsage {
      * @param id the mood id
      * @return true if it is gone
      */
-    public boolean deletePermanently(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id);
+    public synchronized boolean deletePermanently(String id) {
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id), id);
     }
 
     /**
@@ -540,6 +564,7 @@ public class MoodService implements BlockUsage {
             if (after != null && after.isEmpty())
                 emptied.add(after);
         }
+        changed(!affected.isEmpty(), null);
     }
 
     /**
@@ -579,7 +604,7 @@ public class MoodService implements BlockUsage {
      * @param entries the moods as maps
      * @return the number of imported moods
      */
-    public int importCustom(List<Map<String, Object>> entries) {
+    public synchronized int importCustom(List<Map<String, Object>> entries) {
         int imported = 0;
         for (Map<String, Object> entry : entries) {
             String name = entry.get("name") instanceof String text ? text.trim() : "";

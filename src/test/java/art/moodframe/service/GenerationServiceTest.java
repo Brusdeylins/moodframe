@@ -11,6 +11,8 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.util.I18nManager;
+import javafx.application.Platform;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -38,16 +42,32 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** Carries out generation orders without the JavaFX interface, the provider replaced by a mock. */
+/**
+ * Carries out generation orders without the JavaFX interface, the provider replaced by a mock; the chats change on the
+ * JavaFX thread of the Monocle headless platform.
+ */
 class GenerationServiceTest {
 
     private static final GenerationOrder.Target WIDE_2K = new GenerationOrder.Target(null, false, "16:9", "2K");
 
     private final ApplicationConfig config = mock(ApplicationConfig.class);
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
+    private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
-    private final GenerationService service = new GenerationService(config, chatHistory, null, requests);
+    private final GenerationService service = new GenerationService(config, chats, null, requests);
     private final Chat chat = new Chat.Builder().id("chat-1").name("Test").build();
+
+    @BeforeAll
+    static void startToolkit() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        try {
+            Platform.startup(started::countDown);
+        } catch (IllegalStateException alreadyStarted) {
+            started.countDown();
+        }
+        started.await(10, TimeUnit.SECONDS);
+        Platform.setImplicitExit(false);
+    }
 
     @BeforeEach
     void enableEveryProvider() {
@@ -240,7 +260,7 @@ class GenerationServiceTest {
         Mood mood = new Mood("mood-1", "Calm");
         EntryMood copy = new EntryMood("mood-1", "Calm", Map.of());
         when(moods.snapshot(eq(mood), eq(true), any())).thenReturn(copy);
-        GenerationService withMoods = new GenerationService(config, chatHistory, moods, requests);
+        GenerationService withMoods = new GenerationService(config, chats, moods, requests);
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,

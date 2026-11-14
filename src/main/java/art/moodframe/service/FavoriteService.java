@@ -19,6 +19,9 @@ import java.util.function.ToIntFunction;
  * The favorites of the user among the moods, the frames and the building blocks, standard ones and those of the user,
  * kept by kind and id ({@link FavoriteRepository}). The lists of the right panel show them first ({@link #order}).
  *
+ * <p>A switched favorite is reported as {@link LibraryEvents.Kind#FAVORITE}. The service may be called from several
+ * threads.</p>
+ *
  * @since 2.0.0
  */
 public class FavoriteService {
@@ -40,8 +43,25 @@ public class FavoriteService {
 
     private final FavoriteRepository repository = new FavoriteRepository();
     private final Map<Kind, Set<String>> favorites = new EnumMap<>(Kind.class);
+    private final LibraryEvents events;
 
-    /*  the ids of the favorites of a kind, loaded once  */
+    /**
+     * Creates the service, which reports its changes to nobody.
+     */
+    public FavoriteService() {
+        this(new LibraryEvents());
+    }
+
+    /**
+     * Creates the service.
+     *
+     * @param events where a switched favorite is reported
+     */
+    public FavoriteService(LibraryEvents events) {
+        this.events = events;
+    }
+
+    /*  the ids of the favorites of a kind, loaded once; only under the lock of the service  */
     private Set<String> ids(Kind kind) {
         return favorites.computeIfAbsent(kind, (key) -> repository.findIds(key.name()));
     }
@@ -53,7 +73,7 @@ public class FavoriteService {
      * @param id   the entry id, null for "None"
      * @return true for a favorite
      */
-    public boolean isFavorite(Kind kind, String id) {
+    public synchronized boolean isFavorite(Kind kind, String id) {
         return id != null && ids(kind).contains(id);
     }
 
@@ -64,12 +84,16 @@ public class FavoriteService {
      * @param id   the entry id
      * @return true if it is a favorite now, the former state if it cannot be stored
      */
-    public boolean toggle(Kind kind, String id) {
+    public synchronized boolean toggle(Kind kind, String id) {
         boolean favorite = !isFavorite(kind, id);
-        if (favorite && repository.add(kind.name(), id))
-            ids(kind).add(id);
-        else if (!favorite && repository.remove(kind.name(), id))
-            ids(kind).remove(id);
+        boolean stored = favorite ? repository.add(kind.name(), id) : repository.remove(kind.name(), id);
+        if (stored) {
+            if (favorite)
+                ids(kind).add(id);
+            else
+                ids(kind).remove(id);
+            events.changed(LibraryEvents.Kind.FAVORITE, id);
+        }
         return isFavorite(kind, id);
     }
 

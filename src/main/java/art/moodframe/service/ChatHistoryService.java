@@ -370,12 +370,35 @@ public class ChatHistoryService {
     public void moveChat(List<Chat> chats, Chat chat, Chat before) throws SQLException {
         if (chat == before)
             return;
+        saveChatOrder(order(chats, chat, before));
+    }
+
+    /**
+     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow,
+     * without storing anything.
+     *
+     * @param chats  all chats of the list in their order, also the hidden ones in the trash
+     * @param chat   the chat to move
+     * @param before the chat it goes in front of, null for the end of the list
+     * @return the chats in their new order
+     */
+    public static List<Chat> order(List<Chat> chats, Chat chat, Chat before) {
         List<Chat> order = new ArrayList<>(chats);
         order.remove(chat);
         order.add(before != null ? order.indexOf(before) : order.size(), chat);
         for (int i = 0; i < order.size(); i++)
             order.get(i).setSortOrder(i);
-        chatRepository.updateChatSortOrders(order);
+        return order;
+    }
+
+    /**
+     * Stores the sort orders of the chats.
+     *
+     * @param chats the chats with their numbers
+     * @throws SQLException if the order cannot be stored
+     */
+    public void saveChatOrder(List<Chat> chats) throws SQLException {
+        chatRepository.updateChatSortOrders(chats);
     }
 
     /** The sort order that puts a new chat on top of the list: one less than the smallest one. */

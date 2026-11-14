@@ -15,7 +15,6 @@ import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -28,8 +27,8 @@ import java.util.function.Consumer;
  * and submits the request. The main window and later callers share it; models are named by their fixed id (see
  * {@link GenerationModel#idOf(String)}).
  *
- * <p>Call {@link #submit(GenerationOrder)} on the FX thread while the chat is shown, as it adds the entry to the
- * chat.</p>
+ * <p>{@link #submit(GenerationOrder)} adds the entry to its chat through the {@link ChatLibrary}, so it shows in the
+ * main window, whoever placed the order.</p>
  *
  * @since 2.1.0
  */
@@ -103,7 +102,7 @@ public class GenerationService {
     }
 
     private final ApplicationConfig config;
-    private final ChatHistoryService chatHistory;
+    private final ChatLibrary chats;
     private final MoodService moodService;
     private final RequestResponseService requests;
 
@@ -111,14 +110,14 @@ public class GenerationService {
      * Creates the service.
      *
      * @param config      the application configuration (keys, OpenAI models, FLUX.2 safety tolerance, logging)
-     * @param chatHistory stores chats and entries, null to keep them in memory only
+     * @param chats       adds the entries to their chats and stores them
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
      */
-    public GenerationService(ApplicationConfig config, ChatHistoryService chatHistory, MoodService moodService,
+    public GenerationService(ApplicationConfig config, ChatLibrary chats, MoodService moodService,
             RequestResponseService requests) {
         this.config = config;
-        this.chatHistory = chatHistory;
+        this.chats = chats;
         this.moodService = moodService;
         this.requests = requests;
     }
@@ -232,26 +231,7 @@ public class GenerationService {
                 .build();
 
         /*  Stored with its chat; without database, or if storing fails, kept in memory only  */
-        if (chatHistory != null) {
-            try {
-                chatHistory.saveChat(chat);
-                chatHistory.saveChatEntry(entry);
-                chat.getEntries().add(entry);
-                if (config.getLoggingEnabled())
-                    logger.info("Saved Chat and ChatEntry: {}", entry.getId());
-            } catch (Exception e) {
-                logger.error("Failed to save ChatEntry to database", e);
-                chat.getEntries().add(entry);
-            }
-            try {
-                chat.setUpdatedAt(LocalDateTime.now());
-                chatHistory.saveChat(chat);
-            } catch (Exception e) {
-                logger.warn("Failed to update chat timestamp", e);
-            }
-        } else {
-            chat.getEntries().add(entry);
-        }
+        chats.addEntry(chat, entry);
 
         ImageGenerationRequest request = createRequest(prompt, model, item, aspectRatio, order);
 

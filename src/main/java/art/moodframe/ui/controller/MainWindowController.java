@@ -12,8 +12,10 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.service.ChatHistoryService;
+import art.moodframe.service.ChatLibrary;
 import art.moodframe.service.FavoriteService;
 import art.moodframe.service.FrameService;
+import art.moodframe.service.LibraryEvents;
 import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
@@ -63,7 +65,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -438,7 +439,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label apiKeyStatusLabel;
 
-    // Chat Management
+    // Chat Management: the list of the chats belongs to the library of the chats
     private ObservableList<Chat> chatList;
     private FilteredList<Chat> filteredChatList;
     private Chat currentChat;
@@ -455,6 +456,7 @@ public class MainWindowController implements I18nChangeListener {
     private art.moodframe.service.RequestResponseManager requestResponseManager;
     private art.moodframe.service.GenerationService generationService;
     private ChatHistoryService chatHistory;
+    private ChatLibrary chatLibrary;
     private art.moodframe.config.ApplicationConfig config;
 
     // Image attachment for image-to-image generation
@@ -1250,41 +1252,33 @@ public class MainWindowController implements I18nChangeListener {
             generationService = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(art.moodframe.service.GenerationService.class);
 
-            // Listen to the central trash for automatic UI refresh
+            /*  The lists follow every change of the library, made here or by another caller  */
+            LibraryEvents events = art.moodframe.config.ServiceFactory.getInstance().getService(LibraryEvents.class);
+            if (events != null)
+                events.addListener(this::onLibraryChanged);
+            else
+                logger.warn("LibraryEvents not available - no automatic UI refresh");
+
+            /*  What leaves the trash shows by the changes of the library; the trash adds the status and the moods
+                that lost their last block  */
             art.moodframe.service.TrashCenter trashCenter = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(art.moodframe.service.TrashCenter.class);
-
             if (trashCenter != null) {
-                /*  Only the chats that left the trash are touched: a full reload would replace the chat objects
-                    that running requests still update  */
                 trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
                     @Override
                     public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
                         if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
-                            javafx.application.Platform.runLater(() -> showRestoredChat(id));
+                            javafx.application.Platform.runLater(() -> setStatus(
+                                    I18nManager.getText("status.chat.restored")));
                         else if (kind == art.moodframe.service.TrashGroup.Kind.IMAGES)
-                            javafx.application.Platform.runLater(() -> showRestoredImages(id));
-                        else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
-                            javafx.application.Platform.runLater(() -> {
-                                refreshBlockChoices();
-                                refreshMoods();
-                            });
-                        else if (kind == art.moodframe.service.TrashGroup.Kind.FRAMES)
-                            javafx.application.Platform.runLater(() -> refreshFrames());
-                        else
-                            javafx.application.Platform.runLater(() -> refreshMoods());
+                            javafx.application.Platform.runLater(() -> showImagesRestoredStatus(id));
                     }
 
                     /*  A mood that lost its last block with these blocks may go to the trash as well  */
                     @Override
                     public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
-                        if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
-                            javafx.application.Platform.runLater(() -> removeChats(ids));
-                        else if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
-                            javafx.application.Platform.runLater(() -> {
-                                askToDeleteEmptiedMoods();
-                                refreshMoods();
-                            });
+                        if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                            javafx.application.Platform.runLater(() -> askToDeleteEmptiedMoods());
                     }
                 });
             } else {
@@ -1304,7 +1298,7 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Initializes the chat repository from the service factory.
+     * Initializes the chat repository and the library of the chats from the service factory.
      */
     private void initializeChatRepository() {
         try {
@@ -1314,174 +1308,128 @@ public class MainWindowController implements I18nChangeListener {
             } else if (config != null && config.getLoggingEnabled()) {
                 logger.info("ChatRepository initialized successfully");
             }
+            chatLibrary = art.moodframe.config.ServiceFactory.getInstance().getService(ChatLibrary.class);
 
         } catch (Exception e) {
             logger.error("Failed to initialize ChatRepository", e);
         }
+
+        /*  Without the service, the chats are kept in memory only  */
+        if (chatLibrary == null)
+            chatLibrary = new ChatLibrary(chatHistory, new LibraryEvents());
     }
 
     /**
      * Loads the chats from the database once at the start; what a restart left behind is repaired there.
-     * Later changes (what leaves the trash) update the list instead of reloading it, so running requests keep
-     * their chat objects.
+     * Later changes (what leaves the trash, what other callers change) update the list instead of reloading it, so
+     * running requests keep their chat objects.
      */
     private void loadRealChatData() {
-        try {
-            if (chatHistory != null) {
+        chatLibrary.load();
 
-                ChatHistoryService.History history = chatHistory.load();
-                java.util.List<Chat> chatsToKeep = history.chats();
-
-                chatList.clear();
-                chatList.addAll(chatsToKeep);
-
-                // Force UI refresh after loading to ensure correct status display
-                Platform.runLater(() -> {
-                    if (currentChat != null) {
-                        updateChatView(currentChat);
-                    }
-                });
-
-                // If no chats exist, create a default welcome chat
-                if (history.nothingStored()) {
-                    createWelcomeChat();
-                }
-            } else {
-                logger.warn("ChatRepository not available - creating empty chat list");
-                chatList.clear();
-                createWelcomeChat();
+        // Force UI refresh after loading to ensure correct status display
+        Platform.runLater(() -> {
+            if (currentChat != null) {
+                updateChatView(currentChat);
             }
-
-        } catch (Exception e) {
-            logger.error("Failed to load chat data from database", e);
-            // Fallback to empty list
-            chatList.clear();
-            createWelcomeChat();
-        }
-    }
-
-    /** Shows a chat again that was restored from the trash. */
-    private void showRestoredChat(String chatId) {
-        Chat chat = chatList.stream().filter((listed) -> listed.getId().equals(chatId)).findFirst().orElse(null);
-        if (chat != null) {
-            chat.restore();
-        } else {
-            /*  A chat without entries left the list when it was deleted, it comes back from the database  */
-            try {
-                chat = chatHistory.findChat(chatId).orElse(null);
-            } catch (Exception e) {
-                logger.error("Failed to load restored chat: {}", chatId, e);
-            }
-            if (chat == null)
-                return;
-
-            /*  It goes back to its place in the order  */
-            int sortOrder = chat.getSortOrder();
-            chatList.add((int) chatList.stream().filter((listed) -> listed.getSortOrder() <= sortOrder).count(),
-                    chat);
-        }
-
-        // Refresh filter to show the restored chat in active list
-        filteredChatList.setPredicate(this::shouldShowChat);
-
-        // If this was the current chat, reload it to show images from active directory; an open group shows it again
-        if (currentChat == chat || shownGroup != null) {
-            updateChatView(currentChat);
-        }
-        refreshGroups();
-
-        // Update UI state as input area should be enabled for restored chats
-        updateUIState();
-
-        setStatus(I18nManager.getText("status.chat.restored"));
+        });
     }
 
     /**
-     * Shows an entry or an image again that came back from the trash, at its place in its chat. An entry in use
-     * keeps its object, as running requests may hold it; a deleted entry is inserted again.
+     * Shows a change of the library in the lists and the open chat, whoever made it. A burst of changes, for example an
+     * import, reloads a list once per change.
      *
-     * @param id the ID of the entry or of the image
+     * @param kind what changed
+     * @param id   the ID of the changed entry, null if several changed
      */
-    private void showRestoredImages(String id) {
+    private void onLibraryChanged(LibraryEvents.Kind kind, String id) {
         try {
-            ChatEntry restored = chatHistory.findRestoredEntry(id).orElse(null);
-            Chat chat = restored == null ? null : chatList.stream()
-                    .filter((listed) -> listed.getId().equals(restored.getChatId())).findFirst().orElse(null);
-            if (chat == null)
-                return;
-
-            java.util.Comparator<ChatEntry> order = java.util.Comparator.comparingInt(ChatEntry::getSortOrder)
-                    .thenComparing(ChatEntry::getCreatedAt);
-            ChatEntry entry = chat.getEntries().stream().filter((shown) -> shown.getId().equals(restored.getId()))
-                    .findFirst().orElse(null);
-            if (entry != null) {
-                entry.getImages().setAll(restored.getImages());
-                entry.setDeletedCost(restored.getDeletedCost());
+            switch (kind) {
+                case MOOD -> refreshMoods();
+                case FRAME -> refreshFrames();
+                case ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR -> {
+                    refreshBlockChoices();
+                    refreshMoods();
+                }
+                case FAVORITE -> reorderFavorites();
+                case CHAT -> showChatChange(id);
+                case ENTRY -> showEntryChange(id);
             }
-            else {
-                entry = restored;
-                chat.getEntries().add((int) chat.getEntries().stream()
-                        .filter((other) -> order.compare(other, restored) <= 0).count(), entry);
-            }
-            chat.setDeletedCost(chatHistory.findChat(chat.getId()).map(Chat::getDeletedCost)
-                    .orElse(chat.getDeletedCost()));
-
-            /*  Setting the item again renders its card anew, also for an entry that got back a single image  */
-            if (chat == currentChat && chatEntriesListView.getItems() != null) {
-                ObservableList<ChatEntry> items = chatEntriesListView.getItems();
-                int index = items.indexOf(entry);
-                if (index >= 0)
-                    items.set(index, entry);
-                else
-                    items.add((int) items.stream().filter((other) -> order.compare(other, restored) <= 0).count(),
-                            entry);
-                lastChatEntriesCount = chat.getEntries().size();
-                updateChatHeader();
-            }
-            setStatus(I18nManager.getText(restored.getId().equals(id) ? "status.entry.restored"
-                    : "status.image.restored"));
         } catch (Exception e) {
-            logger.error("Failed to show restored images: {}", id, e);
+            logger.error("Failed to show the change of {} {}", kind, id, e);
         }
     }
 
-    /** Removes chats that are gone from the database from the list; the open one is closed. */
-    private void removeChats(java.util.List<String> chatIds) {
-        if (currentChat != null && chatIds.contains(currentChat.getId())) {
+    /**
+     * Shows a change of a chat: one that left the trash or went there, a new name, a chat gone for good. Only what is
+     * not shown yet changes, as the changes made here are shown already.
+     */
+    private void showChatChange(String chatId) {
+        Chat chat = chatLibrary.find(chatId);
+
+        /*  The open chat is gone for good; an open group stays, it held no entry of a chat in the trash  */
+        if (chat == null && currentChat != null && currentChat.getId().equals(chatId)) {
             chatListView.getSelectionModel().clearSelection();
             currentChat = null;
-
-            /*  An open group stays, it held no entry of a chat in the trash  */
             if (shownGroup == null) {
                 chatEntriesListView.setItems(null);
                 welcomeContainer.setVisible(true);
             }
             updateChatTotalCost(null);
         }
-        chatList.removeIf((chat) -> chatIds.contains(chat.getId()));
+
+        /*  A chat that left the trash or went there; the open one shows its images from their place now  */
+        if (chat != null && filteredChatList.contains(chat) != shouldShowChat(chat)) {
+            filteredChatList.setPredicate(this::shouldShowChat);
+            if (currentChat == chat || shownGroup != null)
+                updateChatView(currentChat);
+        }
+        else if (chat != null && chat == currentChat)
+            updateChatHeader();
+        chatListView.refresh();
+        refreshGroups();
+        updateUIState();
     }
 
     /**
-     * Creates a welcome chat for first-time users.
+     * Shows a new entry or one that got images back from the trash at its place in the open chat or group; an entry
+     * shown already is rendered anew.
      */
-    private void createWelcomeChat() {
-        Chat welcomeChat = new Chat.Builder()
-                .name("Welcome to MoodFrame")
-                .createdAt(LocalDateTime.now())
-                .build();
+    private void showEntryChange(String entryId) {
+        ChatEntry entry = chatLibrary.findEntry(entryId);
+        if (entry == null)
+            return;
+        boolean inChat = currentChat != null && currentChat.getId().equals(entry.getChatId());
+        boolean belongs = shownGroup != null ? shownGroup.holds(entry) : inChat;
+        ObservableList<ChatEntry> items = chatEntriesListView.getItems();
+        int index = items != null ? items.indexOf(entry) : -1;
 
-        // Save to database if repository is available
-        if (chatHistory != null) {
-            try {
-                chatHistory.saveChat(welcomeChat);
-                chatList.add(welcomeChat);
-            } catch (Exception e) {
-                logger.warn("Failed to save welcome chat to database", e);
-                chatList.add(welcomeChat);
-            }
-        } else {
-            chatList.add(welcomeChat);
+        /*  Setting the item again renders its card anew, also for an entry that got back a single image  */
+        if (index >= 0)
+            items.set(index, entry);
+        else if (belongs && items != null) {
+            java.util.Comparator<ChatEntry> order = java.util.Comparator.comparingInt(ChatEntry::getSortOrder)
+                    .thenComparing(ChatEntry::getCreatedAt);
+            items.add((int) items.stream().filter((other) -> order.compare(other, entry) <= 0).count(), entry);
+            if (shownGroup == null)
+                lastChatEntriesCount = currentChat.getEntries().size();
         }
+        else if (belongs)
+            addNewChatEntryToUI(entry);
+        if (shownGroup == null && inChat)
+            updateChatHeader();
+        refreshGroups();
+    }
+
+    /** Tells whether an entry or one of its images came back from the trash. */
+    private void showImagesRestoredStatus(String id) {
+        boolean image = false;
+        try {
+            image = chatHistory != null && chatHistory.findGeneratedImageById(id).isPresent();
+        } catch (Exception e) {
+            logger.warn("Failed to find the restored image {}", id, e);
+        }
+        setStatus(I18nManager.getText(image ? "status.image.restored" : "status.entry.restored"));
     }
 
     /**
@@ -1712,7 +1660,7 @@ public class MainWindowController implements I18nChangeListener {
                                 }
                             });
             FavoriteStar.Favorites<art.moodframe.model.StylePresetItem> favorites = favorites(comboBox,
-                    FavoriteService.Kind.of(type), MainWindowController::blockId, this::reorderBlockChoices);
+                    FavoriteService.Kind.of(type), MainWindowController::blockId);
             comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell(choice,
                     favorites));
             comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
@@ -1740,7 +1688,7 @@ public class MainWindowController implements I18nChangeListener {
                     }
                 });
         FavoriteStar.Favorites<art.moodframe.model.ColorStyleItem> paletteFavorites = favorites(colorStyleComboBox,
-                FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, this::reorderBlockChoices);
+                FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId);
         colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell(
                 paletteFavorites));
         colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
@@ -1824,35 +1772,61 @@ public class MainWindowController implements I18nChangeListener {
             fillColorChoice(colorStyleComboBox.getValue() != null ? colorStyleComboBox.getValue().getName() : null);
     }
 
-    /** Loads the building block lists again in the order of the favorites, keeping each selection and the mood. */
-    private void reorderBlockChoices() {
-        updatingMood = true;
-        refreshBlockChoices();
-        updatingMood = false;
-    }
-
     /**
-     * The favorites of a list, for the stars of its rows; a switched favorite is stored at once, while the open list
-     * of a field keeps its order until the field opens it the next time, so no row moves away under the pointer.
+     * The favorites of a list, for the stars of its rows; a switched favorite is stored at once, and the lists follow
+     * it ({@link #reorderFavorites}).
      *
-     * @param field  the field whose open list shows the rows, null for a list in a dialog
-     * @param kind   the kind of the entries
-     * @param id     tells the id of an entry
-     * @param reload loads the list of the field again, in the new order of its entries; null for a list in a dialog
+     * @param field the field whose open list shows the rows, null for a list in a dialog
+     * @param kind  the kind of the entries
+     * @param id    tells the id of an entry
      */
     private <T> FavoriteStar.Favorites<T> favorites(ComboBox<?> field, FavoriteService.Kind kind,
-            java.util.function.Function<T, String> id, Runnable reload) {
+            java.util.function.Function<T, String> id) {
         return new FavoriteStar.Favorites<>(field, (entry) -> isFavorite(kind, id.apply(entry)), (entry) -> {
             FavoriteService service = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(FavoriteService.class);
-            if (service != null) {
+            if (service != null)
                 service.toggle(kind, id.apply(entry));
-                if (field != null)
-                    field.setOnShowing((event) -> {
-                        field.setOnShowing(null);
-                        reload.run();
-                    });
-            }
+        });
+    }
+
+    /**
+     * Lists the moods, the frames and the building blocks again in the order of the favorites, each keeping its
+     * choice; an open list keeps its order until its field opens it the next time, so no row moves away under the
+     * pointer.
+     */
+    private void reorderFavorites() {
+        java.util.Map<ComboBox<?>, Runnable> reloads = new java.util.LinkedHashMap<>();
+        if (moodService != null)
+            reloads.put(moodComboBox, () -> {
+                Mood chosen = chosenMood();
+                reloadMoods(chosen != null ? chosen.getId() : "");
+            });
+        if (frameService != null)
+            reloads.put(frameComboBox, () -> {
+                Frame chosen = chosenFrame();
+                reloadFrames(chosen != null ? chosen.getId() : "");
+            });
+        blockChoices.keySet().forEach((type) -> reloads.put(blockComboBox(type), () -> {
+            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
+            updatingMood = true;
+            fillBlockChoice(type, comboBox.getValue() != null ? comboBox.getValue().getName() : null);
+            updatingMood = false;
+        }));
+        if (colorChoice != null)
+            reloads.put(colorStyleComboBox, () -> {
+                updatingMood = true;
+                fillColorChoice(colorStyleComboBox.getValue() != null ? colorStyleComboBox.getValue().getName() : null);
+                updatingMood = false;
+            });
+        reloads.forEach((field, reload) -> {
+            if (field.isShowing())
+                field.setOnShowing((event) -> {
+                    field.setOnShowing(null);
+                    reload.run();
+                });
+            else
+                reload.run();
         });
     }
 
@@ -1986,7 +1960,7 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Opens the "Manage…" dialog for the text blocks of the user of a type and loads the lists again afterwards.
+     * Opens the "Manage…" dialog for the text blocks of the user of a type; the lists follow its changes.
      *
      * @param type the type of the blocks
      */
@@ -2050,13 +2024,12 @@ public class MainWindowController implements I18nChangeListener {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.StylePresetListCell(null, favorites(null,
-                        FavoriteService.Kind.of(type), MainWindowController::blockId, null)))
+                        FavoriteService.Kind.of(type), MainWindowController::blockId)))
                 .showAndWait();
-        refreshBlockChoices();
     }
 
     /**
-     * Opens the "Manage…" dialog for the palettes of the user and loads the lists again afterwards.
+     * Opens the "Manage…" dialog for the palettes of the user; the lists follow its changes.
      */
     private void managePalettes() {
         art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
@@ -2120,9 +2093,8 @@ public class MainWindowController implements I18nChangeListener {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell(favorites(null,
-                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, null)))
+                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId)))
                 .showAndWait();
-        refreshBlockChoices();
     }
 
     /**
@@ -2162,10 +2134,7 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        FavoriteStar.Favorites<Mood> favorites = favorites(moodComboBox, FavoriteService.Kind.MOOD, Mood::getId, () -> {
-            Mood chosen = chosenMood();
-            reloadMoods(chosen != null ? chosen.getId() : "");
-        });
+        FavoriteStar.Favorites<Mood> favorites = favorites(moodComboBox, FavoriteService.Kind.MOOD, Mood::getId);
         moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, favorites));
         moodComboBox.setButtonCell(new MoodListCell(this::isMoodChanged));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
@@ -2559,10 +2528,9 @@ public class MainWindowController implements I18nChangeListener {
         setStatus(I18nManager.getText("status.mood.saved", mood.getName()));
     }
 
-    /** Opens the window for the moods of the user and lists them again afterwards. */
+    /** Opens the window for the moods of the user; the list follows its changes. */
     private void manageMoods() {
         new art.moodframe.ui.dialog.MoodManageDialog(mainBorderPane.getScene().getWindow(), moodService).showAndWait();
-        refreshMoods();
     }
 
     @FXML
@@ -2652,8 +2620,6 @@ public class MainWindowController implements I18nChangeListener {
             if (alert.showAndWait().orElse(keep) == delete)
                 moodService.moveToTrash(mood.getId());
         }
-        if (!emptied.isEmpty())
-            refreshMoods();
     }
 
     /*  the fold arrow and the paddings beside the header of a group of the right panel  */
@@ -2711,11 +2677,7 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        FavoriteStar.Favorites<Frame> favorites = favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId,
-                () -> {
-                    Frame chosen = chosenFrame();
-                    reloadFrames(chosen != null ? chosen.getId() : "");
-                });
+        FavoriteStar.Favorites<Frame> favorites = favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId);
         frameComboBox.setCellFactory((listView) -> new FrameListCell(favorites));
         frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged));
         frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(newVal));
@@ -2838,10 +2800,9 @@ public class MainWindowController implements I18nChangeListener {
         setStatus(I18nManager.getText("status.frame.saved", frame.getName()));
     }
 
-    /** Opens the window for the frames of the user and lists them again afterwards. */
+    /** Opens the window for the frames of the user; the list follows its changes. */
     private void manageFrames() {
         new art.moodframe.ui.dialog.FrameManageDialog(mainBorderPane.getScene().getWindow(), frameService).showAndWait();
-        refreshFrames();
     }
 
     @FXML
@@ -3364,8 +3325,9 @@ public class MainWindowController implements I18nChangeListener {
      * Sets up the chat system with mock data and event handlers.
      */
     private void setupChatSystem() {
-        // Initialize chat list
-        chatList = FXCollections.observableArrayList();
+        // Initialize repository and chat list
+        initializeChatRepository();
+        chatList = chatLibrary.getChats();
 
         // Create filtered list to hide trashed chats
         filteredChatList = new FilteredList<>(chatList, this::shouldShowChat);
@@ -3395,8 +3357,7 @@ public class MainWindowController implements I18nChangeListener {
         setupChatEntriesListView();
         setupImagesView();
 
-        // Initialize repository and load real chat data
-        initializeChatRepository();
+        // Load real chat data
         loadRealChatData();
     }
 
@@ -4064,22 +4025,12 @@ public class MainWindowController implements I18nChangeListener {
     private void onChatDeleteRequested(Chat chat) {
         // Move to trash without confirmation (user can restore from trash)
 
-        // CRITICAL: Use softDeleteChat to move files to trash
+        // CRITICAL: The library moves the files to the trash; a new chat without any entry is stored in the database
+        // only with its first message, so there is nothing to move to the trash: it is just removed from the list,
+        // as are all chats without entries, so they do not reappear later
         try {
-            boolean success = chatHistory.softDeleteChat(chat.getId());
-
-            // A new chat without any entry is stored in the database only with its first message, so there is
-            // nothing to move to the trash: it is just removed from the list
-            boolean unsavedEmptyChat = !success && chat.getEntries().isEmpty();
-            if (success || unsavedEmptyChat) {
-                // Update local model
-                chat.markAsDeleted();
-
-                // Remove empty chats from the list entirely when soft deleted
-                // This prevents them from reappearing later
-                if (chat.getEntries().isEmpty()) {
-                    chatList.remove(chat);
-                } else {
+            if (chatLibrary.moveToTrash(chat)) {
+                if (!chat.getEntries().isEmpty()) {
                     // Refresh filter to hide the trashed chat
                     filteredChatList.setPredicate(this::shouldShowChat);
                 }
@@ -4115,13 +4066,12 @@ public class MainWindowController implements I18nChangeListener {
         if (chatHistory == null)
             return;
         Chat before = gap < filteredChatList.size() ? filteredChatList.get(gap) : null;
+        reorderingChats = true;
         try {
-            chatHistory.moveChat(chatList, chat, before);
+            chatLibrary.moveChat(chat, before);
         } catch (Exception e) {
             logger.error("Failed to store the order of the chats", e);
         }
-        reorderingChats = true;
-        FXCollections.sort(chatList, java.util.Comparator.comparingInt(Chat::getSortOrder));
         reorderingChats = false;
     }
 
@@ -4133,7 +4083,7 @@ public class MainWindowController implements I18nChangeListener {
     private void onChatRenamed(Chat chat) {
         // Save the renamed chat to database
         try {
-            chatHistory.saveChat(chat);
+            chatLibrary.renameChat(chat, chat.getName());
 
             // Update the chat header if this is the currently selected chat
             // Use ID comparison instead of object reference comparison for reliability
@@ -4958,9 +4908,6 @@ public class MainWindowController implements I18nChangeListener {
             // Refresh API key status in case it changed
             refreshApiKeyStatus();
 
-            // Refresh the building block lists in case a configuration import added blocks or palettes
-            refreshBlockChoices();
-
             // Refresh available models based on enabled providers
             populateAvailableModels();
 
@@ -4995,14 +4942,8 @@ public class MainWindowController implements I18nChangeListener {
         /*  The new chat shows in the list of chats  */
         byChatMenuItem.setSelected(true);
 
-        // Create new chat
-        Chat newChat = new Chat.Builder()
-                .name("New Chat " + (chatList.size() + 1))
-                .sortOrder(ChatHistoryService.sortOrderOnTop(chatList))
-                .build();
-
-        // Add to beginning of list
-        chatList.add(0, newChat);
+        // Create new chat at the beginning of the list, stored with its first message
+        Chat newChat = chatLibrary.newChat("New Chat " + (chatList.size() + 1));
 
         // Select the new chat
         chatListView.getSelectionModel().select(0);

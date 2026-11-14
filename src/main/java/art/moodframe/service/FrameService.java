@@ -23,6 +23,9 @@ import java.util.Map;
  * ratio and resolution it can do of them ({@link art.moodframe.model.AspectRatios#nearestForItem},
  * {@link ModelFamilies#nearestForItem}).</p>
  *
+ * <p>Every successful write is reported as {@link LibraryEvents.Kind#FRAME}. The writes are serialized, so parallel
+ * callers cannot take the same name.</p>
+ *
  * @since 2.0.0
  */
 public class FrameService {
@@ -31,13 +34,31 @@ public class FrameService {
 
     private final FrameRepository repository;
     private final List<Frame> defaultFrames;
+    private final LibraryEvents events;
+
+    /**
+     * Creates the service, which reports its writes to nobody.
+     */
+    public FrameService() {
+        this(new LibraryEvents());
+    }
 
     /**
      * Creates the service.
+     *
+     * @param events where the writes are reported
      */
-    public FrameService() {
+    public FrameService(LibraryEvents events) {
         this.repository = new FrameRepository();
         this.defaultFrames = defaultFrames();
+        this.events = events;
+    }
+
+    /*  reports a successful write  */
+    private boolean changed(boolean success, String id) {
+        if (success)
+            events.changed(LibraryEvents.Kind.FRAME, id);
+        return success;
     }
 
     private static List<Frame> defaultFrames() {
@@ -151,7 +172,7 @@ public class FrameService {
      * @param frame the frame with an aspect ratio and maybe a resolution, without id or with an id no frame has
      * @return true if it was stored, false if the name is taken or the aspect ratio is missing
      */
-    public boolean add(Frame frame) {
+    public synchronized boolean add(Frame frame) {
         if (frame.getName() == null || frame.getName().isBlank() || exists(frame.getName())
                 || frame.getAspectRatio() == null) {
             logger.warn("Cannot add frame '{}' - name is empty or taken, or aspect ratio is missing", frame.getName());
@@ -161,7 +182,7 @@ public class FrameService {
         /*  Frames of the user follow the standard frames, from 1000 on  */
         frame.setSortOrder(Math.max(1000, repository.findAll().stream()
                 .mapToInt((Frame existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return repository.save(frame);
+        return changed(repository.save(frame), frame.getId());
     }
 
     /**
@@ -170,7 +191,7 @@ public class FrameService {
      * @param frame the changed frame with its id
      * @return true if it was updated, false for a standard frame, an unknown id, a taken name or a missing aspect ratio
      */
-    public boolean update(Frame frame) {
+    public synchronized boolean update(Frame frame) {
         Frame existing = frame.isDefault() ? null : repository.findById(frame.getId());
         if (existing == null || frame.getAspectRatio() == null) {
             logger.warn("Cannot update frame '{}' - no frame of the user, or aspect ratio is missing", frame.getName());
@@ -182,7 +203,7 @@ public class FrameService {
             return false;
         }
         frame.setSortOrder(existing.getSortOrder());
-        return repository.update(frame);
+        return changed(repository.update(frame), frame.getId());
     }
 
     /**
@@ -190,7 +211,7 @@ public class FrameService {
      *
      * @param ids the ids of the frames of the user in the wanted order
      */
-    public void reorder(List<String> ids) {
+    public synchronized void reorder(List<String> ids) {
         for (int i = 0; i < ids.size(); i++) {
             Frame frame = repository.findById(ids.get(i));
             if (frame != null) {
@@ -198,6 +219,7 @@ public class FrameService {
                 repository.update(frame);
             }
         }
+        changed(true, null);
     }
 
     /**
@@ -206,8 +228,8 @@ public class FrameService {
      * @param id the frame id
      * @return true if it is in the trash now
      */
-    public boolean moveToTrash(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id);
+    public synchronized boolean moveToTrash(String id) {
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id), id);
     }
 
     /**
@@ -216,7 +238,7 @@ public class FrameService {
      * @param id the frame id
      * @return true if it is in use again
      */
-    public boolean restore(String id) {
+    public synchronized boolean restore(String id) {
         Frame frame = repository.findDeleted().stream().filter((Frame deleted) -> deleted.getId().equals(id))
                 .findFirst().orElse(null);
         if (frame == null)
@@ -225,7 +247,7 @@ public class FrameService {
             frame.setName(freeName(frame.getName()));
             repository.update(frame);
         }
-        return repository.restore(id);
+        return changed(repository.restore(id), id);
     }
 
     /**
@@ -234,8 +256,8 @@ public class FrameService {
      * @param id the frame id
      * @return true if it is gone
      */
-    public boolean deletePermanently(String id) {
-        return id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id);
+    public synchronized boolean deletePermanently(String id) {
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id), id);
     }
 
     /**
@@ -286,7 +308,7 @@ public class FrameService {
      * @param entries the frames as maps
      * @return the number of imported frames
      */
-    public int importCustom(List<Map<String, Object>> entries) {
+    public synchronized int importCustom(List<Map<String, Object>> entries) {
         int imported = 0;
         for (Map<String, Object> entry : entries) {
             String name = entry.get("name") instanceof String text ? text.trim() : "";
