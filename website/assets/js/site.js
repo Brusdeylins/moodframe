@@ -58,11 +58,11 @@ const TEXT = {
         "models.gemini": "Nano Banana · Omni video · Brainstorm", "models.openai": "OpenAI or your own compatible gateway",
         "install.title": "Up and running in a minute", "install.version": "Version",
         "install.free": "Free and open source (MIT).", "install.yours": "Your system",
-        "install.mac.command": "Paste into a terminal: the command downloads MoodFrame, installs it in Applications and starts it. A download in the terminal carries no quarantine flag, so macOS opens the app right away, without the block on the first launch.",
+        "install.mac.command": "Paste into a terminal: the command downloads <b>Mood</b>Frame, installs it in Applications and starts it. A download in the terminal carries no quarantine flag, so macOS opens the app right away, without the block on the first launch.",
         "install.mac.zip": "Or download the .zip:",
         "install.mac.notarized": "The app is not notarized by Apple, so macOS blocks the first launch: then click Open Anyway in System Settings → Privacy & Security.",
         "install.windows.button": "Download and install",
-        "install.windows.text": "Runs the installer, which also keeps MoodFrame up to date.",
+        "install.windows.text": "Runs the installer, which also keeps <b>Mood</b>Frame up to date.",
         "install.windows.also": "Also as",
         "install.linux.text": "For Debian and Ubuntu; updates come with apt.", "install.linux.other": "Other distributions:",
         "install.packaged": "Packaged with",
@@ -123,11 +123,11 @@ const TEXT = {
         "models.gemini": "Nano Banana · Omni-Video · Brainstorm", "models.openai": "OpenAI oder dein eigenes kompatibles Gateway",
         "install.title": "In einer Minute startklar", "install.version": "Version",
         "install.free": "Kostenlos und quelloffen (MIT).", "install.yours": "Dein System",
-        "install.mac.command": "Im Terminal einfügen: Der Befehl lädt MoodFrame, installiert es unter Programme und startet es. Ein Download im Terminal trägt kein Quarantäne-Kennzeichen, deshalb öffnet macOS die App sofort, ohne die Sperre beim ersten Start.",
+        "install.mac.command": "Im Terminal einfügen: Der Befehl lädt <b>Mood</b>Frame, installiert es unter Programme und startet es. Ein Download im Terminal trägt kein Quarantäne-Kennzeichen, deshalb öffnet macOS die App sofort, ohne die Sperre beim ersten Start.",
         "install.mac.zip": "Oder die .zip laden:",
         "install.mac.notarized": "Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: dann in Systemeinstellungen → Datenschutz & Sicherheit auf „Dennoch öffnen“ klicken.",
         "install.windows.button": "Laden und installieren",
-        "install.windows.text": "Startet das Installationsprogramm, das MoodFrame auch aktuell hält.",
+        "install.windows.text": "Startet das Installationsprogramm, das <b>Mood</b>Frame auch aktuell hält.",
         "install.windows.also": "Auch als",
         "install.linux.text": "Für Debian und Ubuntu; Updates kommen über apt.", "install.linux.other": "Andere Distributionen:",
         "install.packaged": "Paketiert mit",
@@ -181,6 +181,10 @@ function applyLanguage () {
     document.documentElement.lang = state.lang
     for (const element of document.querySelectorAll("[data-i18n]"))
         element.textContent = t(element.dataset.i18n)
+
+    /*  texts of our own with markup, here only the name set like the wordmark: <b>Mood</b>Frame  */
+    for (const element of document.querySelectorAll("[data-i18n-html]"))
+        element.innerHTML = t(element.dataset.i18nHtml)
     for (const button of document.querySelectorAll("[data-lang]"))
         button.setAttribute("aria-pressed", String(button.dataset.lang === state.lang))
     for (const button of document.querySelectorAll("[data-copy]"))
@@ -192,34 +196,6 @@ function applyLanguage () {
         label.textContent = t(`hero.install.${state.os ?? "other"}`)
     applyMood()
     applyRelease()
-    markBrand()
-}
-
-/*  the name in running text is set like the wordmark: "Mood" bold, "Frame" regular  */
-function markBrand () {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-        acceptNode: (node) => node.nodeValue.includes("MoodFrame")
-            && node.parentElement.closest("script, pre, code, svg, .brand-name") === null
-            ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-    })
-    const nodes = []
-    while (walker.nextNode())
-        nodes.push(walker.currentNode)
-    for (const node of nodes) {
-        const fragment = document.createDocumentFragment()
-        node.nodeValue.split("MoodFrame").forEach((part, index) => {
-            if (index > 0) {
-                const name = document.createElement("span")
-                const mood = document.createElement("b")
-                name.className = "brand-name"
-                mood.textContent = "Mood"
-                name.append(mood, "Frame")
-                fragment.append(name)
-            }
-            fragment.append(part)
-        })
-        node.replaceWith(fragment)
-    }
 }
 
 function applyMood () {
@@ -228,9 +204,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114v`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114w`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114v`
+    panel.src = `assets/img/${mood.panel}?v=20261114w`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
