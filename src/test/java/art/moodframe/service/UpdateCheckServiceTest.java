@@ -136,6 +136,29 @@ class UpdateCheckServiceTest {
         assertEquals(2, requests.size(), "no further request");
     }
 
+    /*  on Linux with a pacman which owns every path and notes the paths it was asked for  */
+    private UpdateCheckService withPacman(String dir, List<String> asked) {
+        return new UpdateCheckService(config, system("Linux", dir, true)) {
+            @Override
+            boolean ownedByPacman(String path) {
+                asked.add(path);
+                return true;
+            }
+        };
+    }
+
+    @Test
+    void pacmanTellsTheAurPackage() {
+        List<String> asked = new CopyOnWriteArrayList<>();
+        assertEquals(UpdateCheckService.Package.AUR, withPacman("/opt/moodframe/lib/app", asked).packageKind());
+        assertEquals(List.of("/opt/moodframe/lib/app"), asked);
+
+        /*  The .tar.gz in the home directory needs no pacman; a path pacman does not own is no AUR package  */
+        assertEquals(UpdateCheckService.Package.TARBALL, withPacman("/home/user/moodframe", asked).packageKind());
+        assertEquals(1, asked.size(), "pacman not asked");
+        assertFalse(linux("/opt/moodframe").ownedByPacman("/opt/moodframe-missing/lib/app"));
+    }
+
     @Test
     void asksOncePerStartAndShowsNoOlderOrEqualVersion() throws Exception {
         UpdateCheckService updates = linux("/home/user/moodframe");

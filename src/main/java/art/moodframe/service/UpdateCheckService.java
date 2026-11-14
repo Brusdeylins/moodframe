@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Finds a newer version of MoodFrame on the update site. Conveyor updates the packages for macOS and Windows itself,
- * but not those for Linux: the .tar.gz never, the .deb only through apt. There the app reads the version from the
- * "metadata.properties" of the site at the start, as Conveyor recommends, and points the user to the update; it
- * installs nothing itself.
+ * but not those for Linux: the .tar.gz never, the .deb only through apt, the AUR package only through an AUR helper
+ * like yay. There the app reads the version from the "metadata.properties" of the site at the start, as Conveyor
+ * recommends, and points the user to the update; it installs nothing itself.
  *
  * <p>The system properties come from Conveyor: {@code app.repositoryUrl} (the update site, only in the packaged app),
  * {@code app.version} and {@code app.dir} (the install directory). A test can replace them.</p>
@@ -43,12 +43,17 @@ public class UpdateCheckService {
     /** The command which updates the .deb. */
     public static final String APT_COMMAND = "sudo apt update && sudo apt upgrade";
 
+    /** The command which updates the AUR package. */
+    public static final String AUR_COMMAND = "yay -Syu";
+
     private static final int MAX_BYTES = 64 * 1024;
 
     /** How MoodFrame was installed on Linux. */
     public enum Package {
         /** The .deb, under /usr or /opt, updated by apt. */
         DEB,
+        /** The AUR package moodframe-bin, under /opt and owned by pacman, updated by yay or paru. */
+        AUR,
         /** The .tar.gz, unpacked anywhere, replaced by hand. */
         TARBALL
     }
@@ -133,13 +138,43 @@ public class UpdateCheckService {
     }
 
     /**
-     * Tells how the app was installed on Linux: by the .deb under /usr or /opt, else from the .tar.gz.
+     * Tells how the app was installed on Linux: under /usr or /opt by the AUR package if pacman owns the directory,
+     * else by the .deb; anywhere else from the .tar.gz. Asks pacman, so it is not meant for the UI thread.
      *
      * @return the package
      */
     public Package packageKind() {
         String dir = system.getProperty("app.dir", system.getProperty("java.home", ""));
-        return dir.startsWith("/usr/") || dir.startsWith("/opt/") ? Package.DEB : Package.TARBALL;
+        if (dir.startsWith("/usr/") || dir.startsWith("/opt/"))
+            return ownedByPacman(dir) ? Package.AUR : Package.DEB;
+        return Package.TARBALL;
+    }
+
+    /**
+     * Asks pacman if a package owns a path; without pacman, as on Debian, it does not.
+     *
+     * @param path the path
+     * @return true if owned by a package of pacman
+     */
+    boolean ownedByPacman(String path) {
+        try {
+            Process process = new ProcessBuilder("pacman", "-Qo", path)
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
+        }
+        catch (IOException e) {
+            return false;
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     /**

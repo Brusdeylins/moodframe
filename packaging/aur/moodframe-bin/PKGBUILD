@@ -1,0 +1,34 @@
+# Maintainer: Matthias Brusdeylins
+
+pkgname=moodframe-bin
+pkgver=2.0.1
+pkgrel=1
+pkgdesc='Desktop studio for AI images: FLUX, Nano Banana, OpenAI and any compatible image API in one app'
+arch=('x86_64')
+url='https://moodframe.art'
+license=('MIT')
+depends=('alsa-lib' 'at-spi2-core' 'cairo' 'fontconfig' 'freetype2' 'gcc-libs' 'gdk-pixbuf2' 'glib2' 'glibc'
+         'gtk3' 'libgl' 'libx11' 'libxext' 'libxi' 'libxrender' 'libxtst' 'libxxf86vm' 'pango' 'zlib')
+optdepends=('ffmpeg4.4: play the video clips (JavaFX needs libavcodec 60 or older)')
+provides=('moodframe')
+conflicts=('moodframe')
+options=('!strip' '!debug')
+source=("https://moodframe.art/download/moodframe-${pkgver}-linux-amd64.tar.gz"
+        'moodframe.desktop'
+        'LICENSE')
+sha256sums=('d83c4d8cc752c36e2aced2f62568d328b03779b7ca9ea48414305f8cce8bfb11'
+            'cb52ddf8c995bd19dbeef69d2c8f26d57a943633529013dcb9d349db7662e0f2'
+            'ac0a22782f6fb9934adc1327e08b410d298b0229f947ae0d70b5422c2d9fc6f1')
+
+package() {
+    cd "moodframe-${pkgver}"
+
+    # The app with its own Java runtime; the launcher finds it through its real path
+    install -d "${pkgdir}/opt/moodframe" "${pkgdir}/usr/bin" "${pkgdir}/usr/share/icons"
+    cp -a bin lib "${pkgdir}/opt/moodframe/"
+    ln -s /opt/moodframe/bin/moodframe "${pkgdir}/usr/bin/moodframe"
+
+    cp -a share/icons/hicolor "${pkgdir}/usr/share/icons/"
+    install -Dm644 "${srcdir}/moodframe.desktop" "${pkgdir}/usr/share/applications/moodframe.desktop"
+    install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

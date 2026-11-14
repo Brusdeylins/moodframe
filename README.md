@@ -124,7 +124,9 @@ launch; then click Open Anyway in System Settings → Privacy & Security.
 up to date.
 
 **Linux:** a .deb for Debian and Ubuntu (updates come with apt) and a .tar.gz for other distributions; the commands
-with the current version are at [moodframe.art](https://moodframe.art/#install).
+with the current version are at [moodframe.art](https://moodframe.art/#install). On Arch Linux, Manjaro, EndeavourOS
+and Omarchy, install the AUR package with `yay -S moodframe-bin` (or `paru -S moodframe-bin`); `yay -Syu` brings the
+updates.
 
 ## Written entirely by AI
 
@@ -168,6 +170,11 @@ with `Could not contact license server`; import the proxy's root certificate int
 The download site is written to `build/packages/moodframe-<version>/`. Upload its content to
 `https://moodframe.art/download` (`app.site.base-url`); installed apps check that address for updates on every launch.
 The website itself is in [`website/`](website/).
+
+The AUR package `moodframe-bin` for Arch Linux repackages the Linux .tar.gz of the download site
+([`packaging/aur/`](packaging/aur/)). After the upload, `packaging/aur/update.sh <version>` sets the version and the
+checksums in its `PKGBUILD` and `.SRCINFO`, without `makepkg`; `packaging/aur/update.sh <version> --push` also
+publishes it to the AUR, which needs the AUR account and the SSH key of the maintainer.
 
 ## License
 

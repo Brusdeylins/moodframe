@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=MoodFrame
+Comment=Desktop studio for AI images
+Exec=moodframe
+Icon=moodframe
+Terminal=false
+Categories=Graphics;
+StartupWMClass=art.moodframe.MoodframeApplication
