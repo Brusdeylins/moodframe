@@ -68,7 +68,7 @@ const TEXT = {
         "more.network": "Corporate networks", "more.network.text": "Proxy settings and your own root certificates, also for networks with TLS inspection.",
         "ai.eyebrow": "Agentic Coding", "ai.title": "Written entirely by AI",
         "ai.lead": "Not one line of <b>Mood</b>Frame's code was typed by a human.",
-        "ai.plan": "Planned together", "ai.plan.text": "A person plans every task together with the AI: what to build, how it should look, and when it is done.",
+        "ai.plan": "Planned together", "ai.plan.text": "A person plans every task together with the AI: what (function, UI and UX), how (architecture) and when it is done (the goals to reach).",
         "ai.agents": "Written by AI agents", "ai.agents.text": "The agents write the code with", "ai.agents.and": "and the", "ai.agents.fleet": "agent fleet and deliver the evidence that it is right: tests, an automated review and visual checks.",
         "ai.accept": "Accepted on evidence", "ai.accept.text": "The person checks that evidence and accepts the change.",
         "ai.stat.code.value": "36,000", "ai.stat.code": "lines of Java code",
@@ -150,7 +150,7 @@ const TEXT = {
         "more.network": "Firmennetze", "more.network.text": "Proxy und eigene Root-Zertifikate, auch für Netze mit TLS-Inspektion.",
         "ai.eyebrow": "Agentic Coding", "ai.title": "Komplett von KI geschrieben",
         "ai.lead": "Keine einzige Zeile Code von <b>Mood</b>Frame hat ein Mensch getippt.",
-        "ai.plan": "Gemeinsam geplant", "ai.plan.text": "Ein Mensch plant jede Aufgabe zusammen mit der KI: was entsteht, wie es aussieht und wann es fertig ist.",
+        "ai.plan": "Gemeinsam geplant", "ai.plan.text": "Ein Mensch plant jede Aufgabe zusammen mit der KI: was (Funktion, UI und UX), wie (Architektur) und wann sie fertig ist (die zu erreichenden Ziele).",
         "ai.agents": "Von KI-Agenten geschrieben", "ai.agents.text": "Die Agenten schreiben den Code mit", "ai.agents.and": "und der", "ai.agents.fleet": "Agenten-Flotte und liefern den Nachweis, dass er stimmt: Tests, ein automatisches Review und Sichtprüfungen.",
         "ai.accept": "Auf Nachweis abgenommen", "ai.accept.text": "Der Mensch prüft diesen Nachweis und nimmt die Änderung ab.",
         "ai.stat.code.value": "36.000", "ai.stat.code": "Zeilen Java-Code",
@@ -238,9 +238,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115l`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115m`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115l`
+    panel.src = `assets/img/${mood.panel}?v=20261115m`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
