@@ -1,5 +1,5 @@
 /*  moodframe.art: language switch, mood tabs, install tabs for the detected system, copy buttons, and the
-    version of the latest GitHub release (the page works without this script, in English, with 2.0.1)  */
+    version of the latest GitHub release (the page works without this script, in English, without a version number)  */
 "use strict"
 
 const REPO = "Brusdeylins/moodframe"
@@ -238,9 +238,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115n`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115o`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115n`
+    panel.src = `assets/img/${mood.panel}?v=20261115o`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
@@ -268,7 +268,7 @@ function setupTabs (list, onSelect) {
 }
 
 /*  the released version, from the metadata Conveyor publishes next to the files (same site, no third party):
-    commands, file links and the link to its GitHub release; falls back to the static 2.0.1  */
+    commands, file links and the link to its GitHub release; without it the page names no version  */
 async function loadRelease () {
     try {
         const response = await fetch(DOWNLOAD + "metadata.properties", { cache: "no-cache" })
@@ -281,7 +281,7 @@ async function loadRelease () {
         applyRelease()
     }
     catch (e) {
-        /*  offline or not served from moodframe.art: keep the static version  */
+        /*  offline: the page stays without a version number  */
     }
 }
 
@@ -291,8 +291,12 @@ function applyRelease () {
         return
     for (const element of document.querySelectorAll("[data-version]"))
         element.textContent = release.version
-    for (const element of document.querySelectorAll("[data-version-tag]"))
+    for (const element of document.querySelectorAll("[data-version-tag]")) {
         element.textContent = `v${release.version}`
+        element.hidden = false
+    }
+    for (const element of document.querySelectorAll("[data-version-line]"))
+        element.hidden = false
     for (const link of document.querySelectorAll("[data-file]"))
         link.href = DOWNLOAD + link.dataset.file.replace("{v}", release.version)
     for (const link of document.querySelectorAll("[data-release-link]"))

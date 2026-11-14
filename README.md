@@ -89,14 +89,8 @@ launch; then click Open Anyway in System Settings → Privacy & Security.
 **Windows:** [download and run the installer](https://moodframe.art/download/moodframe.exe), which also keeps MoodFrame
 up to date.
 
-**Linux (Debian, Ubuntu):** updates come with apt; for the current version see
-[moodframe.art](https://moodframe.art/#install), other distributions find a .tar.gz there.
-
-```bash
-CPU=$(dpkg --print-architecture)
-wget https://moodframe.art/download/debian/moodframe_2.0.1_${CPU}.deb
-sudo apt install ./moodframe_2.0.1_${CPU}.deb
-```
+**Linux:** a .deb for Debian and Ubuntu (updates come with apt) and a .tar.gz for other distributions; the commands
+with the current version are at [moodframe.art](https://moodframe.art/#install).
 
 ## Written entirely by AI
 
