@@ -24,6 +24,24 @@ public final class ModelFamilies {
     }
 
     /**
+     * Gets the dropdown items of the models to choose from: the selectable models of the usable providers, then the
+     * models of the OpenAI-compatible gateway.
+     *
+     * @param bfl whether BFL is enabled and has a key
+     * @param gemini whether Gemini is enabled and has a key
+     * @param openAiIds the model ids of the gateway, empty while it is disabled or has no key
+     * @return the items, in the order of the dropdown
+     * @since 2.1.0
+     */
+    public static List<String> availableItems(boolean bfl, boolean gemini, List<String> openAiIds) {
+        return Stream.concat(GenerationModel.selectable().stream()
+                .filter((GenerationModel model) -> model.getProvider() == ApiProvider.BFL ? bfl
+                        : model.getProvider() == ApiProvider.GOOGLE_GEMINI && gemini)
+                .map(GenerationModel::getLocalizedDisplayName),
+                openAiIds.stream().map((String id) -> GenerationModel.OPENAI_PREFIX + id)).toList();
+    }
+
+    /**
      * Gets the family of a dropdown item: an OpenAI model is a family of its own, the others share it by resolution.
      *
      * @param item the dropdown item (may be null)
@@ -125,6 +143,23 @@ public final class ModelFamilies {
             }
         }
         return variants.get(0);
+    }
+
+    /**
+     * Picks the variant of a family for a target resolution, for example of a frame: the one closest to the target
+     * (see {@link #nearestForItem(String, List, String)}), else 1K, else the first.
+     *
+     * @param items all dropdown items
+     * @param family the family name
+     * @param target the target resolution (may be null)
+     * @return the item, or null if the family has no item
+     * @since 2.1.0
+     */
+    public static String variantForTarget(List<String> items, String family, String target) {
+        List<String> variants = variantsOf(items, family);
+        if (variants.isEmpty())
+            return null;
+        return variantFor(items, family, nearestForItem(target, items, variants.get(0)), null);
     }
 
     /**

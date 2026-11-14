@@ -15,24 +15,38 @@ import java.util.function.IntConsumer;
 public interface RequestResponseService {
     
     /**
-     * Sets the callback for ChatEntry updates.
+     * Adds a listener for ChatEntry updates.
      * 
-     * <p>This callback will be invoked whenever a chat entry is updated
+     * <p>Every listener is invoked on the FX thread whenever a chat entry is updated
      * during the image generation process.</p>
      * 
-     * @param callback the callback to invoke with updated ChatEntry
+     * @param listener the listener to invoke with updated ChatEntry
      */
-    void setOnEntryUpdated(Consumer<ChatEntry> callback);
+    void addEntryListener(Consumer<ChatEntry> listener);
+
+    /**
+     * Removes a listener for ChatEntry updates.
+     *
+     * @param listener the listener added before
+     */
+    void removeEntryListener(Consumer<ChatEntry> listener);
     
     /**
-     * Sets the callback for GeneratedImage updates.
+     * Adds a listener for GeneratedImage updates.
      * 
-     * <p>This callback will be invoked whenever a generated image is updated
+     * <p>Every listener is invoked on the FX thread whenever a generated image is updated
      * with new status or data.</p>
      * 
-     * @param callback the callback to invoke with updated GeneratedImage
+     * @param listener the listener to invoke with updated GeneratedImage
      */
-    void setOnImageUpdated(Consumer<GeneratedImage> callback);
+    void addImageListener(Consumer<GeneratedImage> listener);
+
+    /**
+     * Removes a listener for GeneratedImage updates.
+     *
+     * @param listener the listener added before
+     */
+    void removeImageListener(Consumer<GeneratedImage> listener);
 
     /**
      * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.

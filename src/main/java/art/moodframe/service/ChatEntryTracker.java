@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -29,8 +31,8 @@ public class ChatEntryTracker {
     private final ChatRepository chatRepository;
     private final Executor executor;
 
-    private Consumer<ChatEntry> onEntryUpdated;
-    private Consumer<GeneratedImage> onImageUpdated;
+    private final List<Consumer<ChatEntry>> entryListeners = new CopyOnWriteArrayList<>();
+    private final List<Consumer<GeneratedImage>> imageListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Creates the tracker.
@@ -45,42 +47,51 @@ public class ChatEntryTracker {
         this.executor = executor;
     }
 
-    public void setOnEntryUpdated(Consumer<ChatEntry> callback) {
-        this.onEntryUpdated = callback;
+    /** Adds a listener for chat entry updates, called on the FX thread. */
+    public void addEntryListener(Consumer<ChatEntry> listener) {
+        entryListeners.add(listener);
     }
 
-    public void setOnImageUpdated(Consumer<GeneratedImage> callback) {
-        this.onImageUpdated = callback;
+    public void removeEntryListener(Consumer<ChatEntry> listener) {
+        entryListeners.remove(listener);
+    }
+
+    /** Adds a listener for image updates, called on the FX thread. */
+    public void addImageListener(Consumer<GeneratedImage> listener) {
+        imageListeners.add(listener);
+    }
+
+    public void removeImageListener(Consumer<GeneratedImage> listener) {
+        imageListeners.remove(listener);
     }
 
     /**
      * Notifies listeners of chat entry updates.
      */
     public void notifyEntryUpdated(ChatEntry chatEntry) {
-        if (onEntryUpdated != null) {
-            Platform.runLater(() -> {
-                try {
-                    onEntryUpdated.accept(chatEntry);
-                } catch (Exception e) {
-                    logger.error("Error in entry update callback", e);
-                }
-            });
-        }
+        dispatch(entryListeners, chatEntry, "entry");
     }
 
     /**
      * Notifies listeners of image updates.
      */
     public void notifyImageUpdated(GeneratedImage image) {
-        if (onImageUpdated != null) {
-            Platform.runLater(() -> {
+        dispatch(imageListeners, image, "image");
+    }
+
+    /*  Calls every listener on the FX thread; one that fails does not keep the others from their call  */
+    private static <T> void dispatch(List<Consumer<T>> listeners, T value, String kind) {
+        if (listeners.isEmpty())
+            return;
+        Platform.runLater(() -> {
+            for (Consumer<T> listener : listeners) {
                 try {
-                    onImageUpdated.accept(image);
+                    listener.accept(value);
                 } catch (Exception e) {
-                    logger.error("Error in image update callback", e);
+                    logger.error("Error in {} update callback", kind, e);
                 }
-            });
-        }
+            }
+        });
     }
 
     /**

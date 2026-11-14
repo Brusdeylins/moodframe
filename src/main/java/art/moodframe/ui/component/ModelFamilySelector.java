@@ -102,13 +102,8 @@ public class ModelFamilySelector {
 
     /** Chooses the variant of a family closest to the target resolution, else 1K, else the first. */
     private void onFamilyChosen(String family) {
-        List<String> familyVariants = ModelFamilies.variantsOf(variants.getItems(), family);
-        if (familyVariants.isEmpty())
-            return;
-
-        String resolution = ModelFamilies.nearestForItem(target.getValue(), variants.getItems(), familyVariants.get(0));
-        String item = ModelFamilies.variantFor(variants.getItems(), family, resolution, null);
-        if (!item.equals(variants.getValue()))
+        String item = ModelFamilies.variantForTarget(variants.getItems(), family, target.getValue());
+        if (item != null && !item.equals(variants.getValue()))
             variants.setValue(item);
     }
 

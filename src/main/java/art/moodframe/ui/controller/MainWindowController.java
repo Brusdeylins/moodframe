@@ -453,6 +453,7 @@ public class MainWindowController implements I18nChangeListener {
 
     // Services
     private art.moodframe.service.RequestResponseManager requestResponseManager;
+    private art.moodframe.service.GenerationService generationService;
     private ChatHistoryService chatHistory;
     private art.moodframe.config.ApplicationConfig config;
 
@@ -1232,8 +1233,8 @@ public class MainWindowController implements I18nChangeListener {
 
             if (requestResponseManager != null) {
                 // Set up event handlers for real-time UI updates
-                requestResponseManager.setOnEntryUpdated(this::onChatEntryUpdated);
-                requestResponseManager.setOnImageUpdated(this::onImageUpdated);
+                requestResponseManager.addEntryListener(this::onChatEntryUpdated);
+                requestResponseManager.addImageListener(this::onImageUpdated);
                 requestResponseManager.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
                     if (flux2SafetySlider != null)
                         flux2SafetySlider.setValue(value);
@@ -1246,6 +1247,8 @@ public class MainWindowController implements I18nChangeListener {
             } else {
                 logger.warn("RequestResponseManager not available - using mock mode");
             }
+            generationService = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.GenerationService.class);
 
             // Listen to the central trash for automatic UI refresh
             art.moodframe.service.TrashCenter trashCenter = art.moodframe.config.ServiceFactory.getInstance()
@@ -4373,24 +4376,12 @@ public class MainWindowController implements I18nChangeListener {
      * @return maximum character limit for current provider
      */
     private int getMaxPromptLength() {
-        if (modelComboBox == null || modelComboBox.getValue() == null) {
-            return 2000; // Default to BFL limit
-        }
+        return art.moodframe.service.GenerationService.maxPromptLength(selectedModelId());
+    }
 
-        String selectedModel = modelComboBox.getValue();
-
-        // Check if it's a Gemini/NB2 model (Google API supports long prompts)
-        art.moodframe.model.GenerationModel generationModel = art.moodframe.model.GenerationModel.fromLocalizedDisplayName(selectedModel);
-        if (generationModel != null && generationModel.getProvider() == ApiProvider.GOOGLE_GEMINI) {
-            return 250000; // Google models handle very long prompts (up to 65,536 tokens)
-        }
-        if (generationModel != null && generationModel.getProvider() == ApiProvider.OPENAI) {
-            return art.moodframe.model.GenerationModel.openAiMaxPromptLength(
-                    art.moodframe.model.GenerationModel.openAiModelId(selectedModel));
-        }
-
-        // BFL FLUX models have 512 token limit ≈ 2,000 characters
-        return 2000;
+    /** The fixed id of the selected model, null without selection. */
+    private String selectedModelId() {
+        return modelComboBox != null ? art.moodframe.model.GenerationModel.idOf(modelComboBox.getValue()) : null;
     }
 
     /**
@@ -5023,7 +5014,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Handles the send button click event.
+     * Handles the send button click event: hands the order of the main window to the generation service and shows
+     * the result or the failure.
      */
     @FXML
     private void onSendClicked() {
@@ -5031,507 +5023,86 @@ public class MainWindowController implements I18nChangeListener {
         if (userPrompt.isEmpty() || userPrompt.length() > getMaxPromptLength()) {
             return;
         }
-
-        // Build final prompt including the building blocks
-        art.moodframe.service.PromptComposer composer = promptComposer();
-        art.moodframe.service.PromptComposer.Selection blocks = selectedBlocks();
-        String prompt = composer.compose(userPrompt, blocks);
-        if (prompt.isEmpty()) {
-            return;
-        }
-        if (!composer.fits(prompt)) {
-            setStatus(I18nManager.getText("status.error.prompt.too.long", prompt.length(), getMaxPromptLength()));
+        if (generationService == null) {
+            setStatus(I18nManager.getText("status.error.service.unavailable"));
+            logger.error("GenerationService not available");
             return;
         }
 
-        if (currentChat == null) {
-            logger.warn("No chat selected for sending message");
-            return;
-        }
-
-        // Check if API key is configured for current provider
+        /*  Without selection the default model  */
+        String modelId = java.util.Objects.requireNonNullElse(selectedModelId(),
+                art.moodframe.model.GenerationModel.getDefault().name());
+        art.moodframe.service.GenerationService.Submission submission;
         try {
-            art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.config.ApplicationConfig.class);
-
-            if (config == null) {
-                setStatus(I18nManager.getText("status.error.api.key.missing"));
-                logger.warn("Send request blocked - no config available");
-                return;
+            submission = generationService.submit(new art.moodframe.service.GenerationOrder(currentChat, userPrompt,
+                    selectedBlocks(), chosenMood(), isMoodChanged(),
+                    new art.moodframe.service.GenerationOrder.Target(chosenFrame(), frameChanged,
+                            aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue()),
+                    modelId, (int) imageCountSlider.getValue(), modelParameters(), attachedImageFile,
+                    attachedBase64Images()));
+        } catch (art.moodframe.service.GenerationService.GenerationException e) {
+            switch (e.getFailure()) {
+                case PROMPT_TOO_LONG -> setStatus(I18nManager.getText("status.error.prompt.too.long",
+                        e.getPromptLength(), e.getMaxPromptLength()));
+                case MISSING_KEY -> setStatus(I18nManager.getText("status.error.api.key.missing"));
+                case UNKNOWN_MODEL -> setStatus(I18nManager.getText("status.request.failed"));
+                case EMPTY_PROMPT, NO_CHAT -> logger.debug("Nothing to send: {}", e.getMessage());
             }
-
-            // Check API key for currently selected provider
-            String selectedModel = modelComboBox.getValue();
-            art.moodframe.model.GenerationModel selectedFluxModel = selectedModel != null
-                    ? art.moodframe.model.GenerationModel.fromLocalizedDisplayName(selectedModel) : null;
-            boolean isGoogleProvider = (selectedFluxModel != null && selectedFluxModel.getProvider() == ApiProvider.GOOGLE_GEMINI)
-                    || (selectedModel != null && selectedModel.toLowerCase().contains("gemini"));
-            boolean isOpenAiProvider = selectedFluxModel != null && selectedFluxModel.getProvider() == ApiProvider.OPENAI;
-
-            if (isOpenAiProvider) {
-                if (!config.hasOpenAiApiKey()) {
-                    setStatus(I18nManager.getText("status.error.api.key.missing"));
-                    logger.warn("Send request blocked - no OpenAI API key configured");
-                    return;
-                }
-            } else if (isGoogleProvider && !config.hasGeminiApiKey()) {
-                setStatus(I18nManager.getText("status.error.api.key.missing"));
-                logger.warn("Send request blocked - no Gemini API key configured");
-                return;
-            } else if (!isGoogleProvider && !config.hasApiKey()) {
-                setStatus(I18nManager.getText("status.error.api.key.missing"));
-                logger.warn("Send request blocked - no BFL API key configured");
-                return;
-            }
-        } catch (Exception e) {
-            setStatus(I18nManager.getText("status.error.api.key.check"));
-            logger.error("Failed to check API key configuration", e);
             return;
         }
 
         setStatus(I18nManager.getText("status.processing.request"));
 
-        // Calculate current cost for this generation
-        String modelDisplayLocalized = modelComboBox.getValue() != null ? modelComboBox.getValue()
-                : art.moodframe.model.GenerationModel.getDefault().getLocalizedDisplayName();
-        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromLocalizedDisplayName(modelDisplayLocalized);
-        String modelDisplay = (model != null) ? model.getDisplayName() : "flux-pro";
-        if (art.moodframe.model.GenerationModel.openAiModelId(modelDisplayLocalized) != null) {
-            modelDisplay = modelDisplayLocalized; // the chat entry keeps the OpenAI model id
-        }
-        String aspectRatio = java.util.Objects.requireNonNullElse(modelAspectRatio(), "16:9");
-        Integer imageCount = (int) imageCountSlider.getValue();
-
-        double baseCost = art.moodframe.model.GenerationCost.estimate(model, selectedVideoSeconds());
-
-        // Total cost = base cost × number of images (applies to both BFL and Gemini)
-        double totalCost = baseCost * imageCount;
-
-        // Get safety tolerance value from slider
-        int safetyToleranceValue = (int) safetyToleranceSlider.getValue();
-
-        // Get seed value from text field (optional)
-        Long seedValue = null;
-        String seedText = seedTextField.getText();
-        boolean userProvidedSeed = false;
-
-        if (seedText != null && !seedText.trim().isEmpty() && !seedText.trim().equals("random")) {
-            try {
-                seedValue = Long.parseLong(seedText.trim());
-                userProvidedSeed = true;
-            } catch (NumberFormatException e) {
-                logger.warn("Invalid seed value entered: {}, using random generation", seedText);
-                seedValue = null; // API will generate random seed
-            }
-        }
-
-        // If no seed provided, leave null for true random generation via BFL API
-        if (!userProvidedSeed) {
-            seedValue = null; // BFL API will handle random generation
-        }
-
-        // Determine if prompt upsampling should be used (BFL only)
-        boolean shouldEnhancePrompt = (bflPromptUpsamplingCheckBox != null && bflPromptUpsamplingCheckBox.isSelected());
-
-        // Create new ChatEntry
-        // Note: userPrompt stores only the raw user input (for copy button)
-        // The full prompt with the building blocks is used for API calls
-        ChatEntry newEntry = new ChatEntry.Builder()
-                .chatId(currentChat.getId())
-                .userPrompt(userPrompt)
-                .enhancedPrompt(shouldEnhancePrompt
-                        ? "Enhanced: " + prompt + ", professional quality, highly detailed"
-                        : prompt)
-                .status(ChatEntry.Status.PENDING)
-                .model(modelDisplay)
-                .size(aspectRatio)
-                .style(blocks.style() != null ? blocks.style().getName() : "None")
-                .mood(moodService != null ? moodService.snapshot(chosenMood(), isMoodChanged(), blocks) : null)
-                .frame(EntryFrame.of(chosenFrame(), frameChanged, aspectRatioComboBox.getValue(),
-                        resolutionChoiceBox.getValue()))
-                .safetyTolerance(safetyToleranceValue)
-                .seed(seedValue != null ? seedValue : 0) // 0 indicates random generation
-                .cost(totalCost)
-                .build();
-
-        // Save Chat and ChatEntry to database
-        if (chatHistory != null) {
-            try {
-                // Ensure the chat exists in database first
-                chatHistory.saveChat(currentChat);
-
-                // Then save the chat entry
-                chatHistory.saveChatEntry(newEntry);
-                currentChat.getEntries().add(newEntry);
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Saved Chat and ChatEntry: {}", newEntry.getId());
-                }
-            } catch (Exception e) {
-                logger.error("Failed to save ChatEntry to database", e);
-                // Fallback to in-memory only
-                currentChat.getEntries().add(newEntry);
-            }
-        } else {
-            // No repository - add to memory only
-            currentChat.getEntries().add(newEntry);
-        }
-
-        // Also update the chat's last updated timestamp
-        if (chatHistory != null) {
-            try {
-                currentChat.setUpdatedAt(LocalDateTime.now());
-                chatHistory.saveChat(currentChat);
-            } catch (Exception e) {
-                logger.warn("Failed to update chat timestamp", e);
-            }
-        }
-
-        // Note: Placeholder images will be created in RequestResponseManager
-
         // Add new entry directly to UI without reloading entire chat
-        addNewChatEntryToUI(newEntry);
+        addNewChatEntryToUI(submission.entry());
 
         // Clear the prompt area
         promptTextArea.clear();
 
-        // Create ImageGenerationRequest
-        art.moodframe.model.ImageGenerationRequest request = createImageGenerationRequest(prompt, newEntry,
-                userProvidedSeed);
-
-        // Submit to RequestResponseManager for real API processing
-        if (requestResponseManager != null) {
-            // Determine which API provider based on selected model
-            String selectedModelName = modelComboBox.getValue();
-            art.moodframe.model.GenerationModel resolvedModel = selectedModelName != null
-                    ? art.moodframe.model.GenerationModel.fromLocalizedDisplayName(selectedModelName) : null;
-            String providerName;
-            if (resolvedModel != null && resolvedModel.getProvider() == ApiProvider.GOOGLE_GEMINI) {
-                providerName = "Gemini";
-            } else if (resolvedModel != null && resolvedModel.getProvider() == ApiProvider.OPENAI) {
-                providerName = "OpenAI";
-            } else {
-                providerName = "BFL";
+        /*  Provider-specific status message once the request is submitted  */
+        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromId(modelId);
+        String providerName = model.getProvider() == ApiProvider.GOOGLE_GEMINI ? "Gemini"
+                : model.getProvider() == ApiProvider.OPENAI ? "OpenAI" : "BFL";
+        submission.submitted().whenComplete((Void done, Throwable throwable) -> Platform.runLater(() -> {
+            if (throwable != null) {
+                setStatus(I18nManager.getText("status.request.failed"));
+                updateChatView(currentChat);
+                return;
             }
-            final String finalProviderName = providerName;
+            String statusKey = "status.request.submitted." + providerName.toLowerCase();
+            String statusMessage = I18nManager.getText(statusKey);
 
-            requestResponseManager.submitImageGeneration(request, newEntry, attachedImageFile)
-                    .thenRun(() -> {
-                        javafx.application.Platform.runLater(() -> {
-                            // Use provider-specific status message
-                            String statusKey = "status.request.submitted." + finalProviderName.toLowerCase();
-                            String statusMessage = I18nManager.getText(statusKey);
-                            // Fallback to generic message if provider-specific key doesn't exist
-                            if (statusMessage.equals(statusKey)) {
-                                statusMessage = I18nManager.getText("status.request.submitted");
-                            }
-                            setStatus(statusMessage);
-                            if (config != null && config.getLoggingEnabled()) {
-                                logger.info("Real API request submitted to {} for prompt: {}", finalProviderName, prompt);
-                            }
-                        });
-                    })
-                    .exceptionally(throwable -> {
-                        javafx.application.Platform.runLater(() -> {
-                            setStatus(I18nManager.getText("status.request.failed"));
-                            newEntry.setStatus(ChatEntry.Status.FAILED);
-                            newEntry.setErrorMessage(throwable.getMessage());
-                            updateChatView(currentChat);
-                            logger.error("Failed to submit API request", throwable);
-                        });
-                        return null;
-                    });
-        } else {
-            // No RequestResponseManager available - this should not happen with proper API
-            // key
-            setStatus(I18nManager.getText("status.error.service.unavailable"));
-            newEntry.setStatus(ChatEntry.Status.FAILED);
-            newEntry.setErrorMessage("RequestResponseManager not initialized");
-            updateChatView(currentChat);
-            logger.error("RequestResponseManager not available despite having API key");
-        }
+            // Fallback to generic message if provider-specific key doesn't exist
+            if (statusMessage.equals(statusKey)) {
+                statusMessage = I18nManager.getText("status.request.submitted");
+            }
+            setStatus(statusMessage);
+        }));
     }
 
     /**
-     * Creates an ImageGenerationRequest from the current UI state.
+     * The parameters of the model as set in the panel; a seed that is no number counts as random.
      */
-    private art.moodframe.model.ImageGenerationRequest createImageGenerationRequest(String prompt, ChatEntry chatEntry,
-            boolean userProvidedSeed) {
-        // IMPORTANT: Convert display name to API model ID
-        // chatEntry.getModel() returns display name like "FLUX 3 Image 1K - Standard ($0.048)"
-        // but API needs model ID like "flux.3-image"
-        art.moodframe.model.GenerationModel generationModel = art.moodframe.model.GenerationModel.fromLocalizedDisplayName(chatEntry.getModel());
-        String openAiModelId = art.moodframe.model.GenerationModel.openAiModelId(chatEntry.getModel());
-        String apiModelId = openAiModelId != null ? openAiModelId
-                : (generationModel != null) ? generationModel.getApiModelId() : chatEntry.getModel();
-
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Creating request with model display: '{}' -> API ID: '{}'",
-                    chatEntry.getModel(), apiModelId);
-        }
-
-        art.moodframe.model.ImageGenerationRequest request = new art.moodframe.model.ImageGenerationRequest(prompt,
-                apiModelId);
-
-        // Note: Cost calculation is done at the end after all dimensions are set
-
-        // Set parameters from UI and ChatEntry
-        request.setImageCount((int) imageCountSlider.getValue());
-
-        // Set prompt upsampling based on BFL checkbox (only for BFL models)
-        boolean promptUpsampling = (bflPromptUpsamplingCheckBox != null && bflPromptUpsamplingCheckBox.isSelected());
-        request.setPromptUpsampling(promptUpsampling);
-
-        // Only use seed if user provided one, otherwise null for fully random
-        // generation
-        request.setSeed(userProvidedSeed ? chatEntry.getSeed() : null);
-
-        // Set safety tolerance - FLUX.2 and FLUX 3 use the FLUX.2 slider (0-5), the others the standard value
-        int safetyTolerance;
-        if (generationModel != null && (generationModel.isFlux2Model() || generationModel.isFlux3Model())) {
-            // FLUX.2: Use dedicated FLUX.2 safety slider value
-            if (flux2SafetySlider != null) {
-                safetyTolerance = (int) flux2SafetySlider.getValue();
-            } else {
-                // Fallback to config if slider not available
-                safetyTolerance = config != null ? config.getFlux2SafetyTolerance() : 2;
-            }
-            logger.debug("Using FLUX.2 safety tolerance: {} for model: {}", safetyTolerance, generationModel.getApiModelId());
-        } else {
-            // Other models: Use standard safety slider from ChatEntry
-            safetyTolerance = chatEntry.getSafetyTolerance();
-        }
-        request.setSafetyTolerance(safetyTolerance);
-
-        // Set style preset if selected (and applied: not with a reference image without "Apply mood")
-        art.moodframe.model.PromptBlock style = selectedBlocks().style();
-        if (style != null)
-            request.setStylePreset(style.getName());
-
-        // Convert aspect ratio to width/height based on model capabilities
-        String aspectRatio = modelAspectRatio();
-        if (aspectRatio != null) {
-            setDimensionsFromAspectRatio(request, aspectRatio, generationModel);
-            // Also set the aspect ratio parameter itself for models that require it
-            request.setAspectRatio(aspectRatio);
-        } else {
-            // Default square resolution respecting model limits and multiple of 32
-            int maxResolution = (generationModel != null) ? generationModel.getMaxResolution() : 1024;
-            int defaultSize = Math.min(maxResolution,
-                    (generationModel != null && generationModel.getMaxMegapixels() == 4) ? 2048 : 1024);
-            defaultSize = roundToMultipleOf32(defaultSize);
-            request.setWidth(defaultSize);
-            request.setHeight(defaultSize);
-            request.setAspectRatio("1:1"); // Default square aspect ratio
-        }
-
-        // A model of an OpenAI-compatible gateway takes the free size closest to the target resolution
-        java.util.List<String> freeResolutions =
-                art.moodframe.model.ModelFamilies.freeResolutions(chatEntry.getModel());
-        if (generationModel == art.moodframe.model.GenerationModel.OPENAI_IMAGE && freeResolutions != null) {
-            request.setImageSize(art.moodframe.model.ModelFamilies.nearest(resolutionChoiceBox.getValue(),
-                    freeResolutions));
-        }
-
-        // Set imageSize parameter for Gemini models based on model enum constant
-        if (apiModelId != null && apiModelId.toLowerCase().contains("gemini")) {
-            String imageSize = determineGeminiImageSize(generationModel);
-            request.setImageSize(imageSize);
-
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Setting Gemini imageSize parameter: {} for model: {}", imageSize, apiModelId);
-            }
-
-            // Gemini Phase 2 Advanced Features
-            if (geminiAdvancedFeaturesSection != null) {
-                // Google Search Grounding
-                boolean searchEnabled = geminiAdvancedFeaturesSection.isSearchGroundingEnabled();
-                request.setEnableGoogleSearch(searchEnabled);
-            }
-
-            // Thinking level: only Nano Banana 2 and Lite can be controlled (minimal or high), Nano Banana Pro
-            // always thinks. The control is disabled while an image is attached, then the API default is used.
-            boolean sendThinking = generationModel != null && generationModel.supportsThinkingLevel()
-                    && geminiThinkingLevelChoiceBox != null && !geminiThinkingLevelChoiceBox.isDisabled()
-                    && geminiThinkingLevelChoiceBox.getValue() != null;
-            request.setThinkingMode(sendThinking ? geminiThinkingLevelChoiceBox.getValue().toLowerCase() : null);
-
-            if (config != null && config.getLoggingEnabled()) {
-                boolean searchEnabled = (geminiAdvancedFeaturesSection != null)
-                        ? geminiAdvancedFeaturesSection.isSearchGroundingEnabled()
-                        : false;
-                logger.info("Gemini Phase 2 features - Search: {}, Thinking: always enabled (not controllable)",
-                        searchEnabled);
-            }
-
-            // Gemini Multi-Image Support (up to 14 images)
-            if (generationModel != null && generationModel.supportsMultiImage()) {
-                java.util.List<String> base64Images = attachedBase64Images();
-                if (!base64Images.isEmpty()) {
-                    request.setInputImages(base64Images);
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("Gemini Multi-Image: attached {} images to request", base64Images.size());
-                    }
-                }
+    private art.moodframe.service.GenerationOrder.Parameters modelParameters() {
+        Long seed = null;
+        String seedText = seedTextField.getText();
+        if (seedText != null && !seedText.trim().isEmpty() && !seedText.trim().equals("random")) {
+            try {
+                seed = Long.parseLong(seedText.trim());
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid seed value entered: {}, using random generation", seedText);
             }
         }
 
-        // OpenAI Multi-Image Support (images are sent to /images/edits)
-        if (generationModel == art.moodframe.model.GenerationModel.OPENAI_IMAGE) {
-            java.util.List<String> base64Images = attachedBase64Images();
-            if (!base64Images.isEmpty()) {
-                request.setInputImages(base64Images);
-            }
-        }
-
-        // FLUX 3: resolution tier of the variant and up to 10 reference images
-        if (generationModel != null && generationModel.isFlux3Model()) {
-            request.setImageSize(generationModel.getFlux3Resolution());
-            java.util.List<String> base64Images = attachedBase64Images();
-            if (!base64Images.isEmpty()) {
-                request.setInputImages(base64Images);
-            }
-        }
-
-        // FLUX.2 Specific Parameters
-        if (generationModel != null && generationModel.isFlux2Model()) {
-            // Note: FLUX.2 [max] has built-in grounding search that activates automatically
-            // based on prompt content (e.g., "current", "today", "latest")
-            // No parameter needed - it's a model capability, not a toggle
-
-            // FLUX.2 [flex] - Guidance and Steps parameters
-            if (generationModel.isFlux2Flex()) {
-                if (flux2GuidanceSlider != null) {
-                    double guidance = flux2GuidanceSlider.getValue();
-                    request.setGuidance(guidance);
-                }
-                if (flux2StepsSlider != null) {
-                    int steps = (int) flux2StepsSlider.getValue();
-                    request.setSteps(steps);
-                }
-
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("FLUX.2 [flex] parameters - Guidance: {}, Steps: {}",
-                            request.getGuidance(), request.getSteps());
-                }
-            }
-
-            // FLUX.2 Multi-Image Support (up to 8 images)
-            if (generationModel.supportsMultiImage()) {
-                java.util.List<String> base64Images = attachedBase64Images();
-                if (!base64Images.isEmpty()) {
-                    request.setInputImages(base64Images);
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("FLUX.2 Multi-Image: set {} images to request", base64Images.size());
-                    }
-                }
-            }
-        }
-
-        // Video Parameters (Gemini Omni)
-        if (generationModel != null && generationModel.isVideoModel()) {
-            // Video resolution from model
-            request.setVideoResolution(generationModel.getVideoResolution());
-
-            // Duration from the choice, 8 seconds without one
-            Integer seconds = selectedVideoSeconds();
-            request.setVideoDuration(seconds != null ? seconds : 8);
-
-            // Omni always generates audio (the flag only marks the video as having audio)
-            request.setGenerateAudio(true);
-
-            // Force image count to 1 for video
-            request.setImageCount(1);
-
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Video params - resolution: {}, duration: {}s, audio: {}, negPrompt: {}",
-                        request.getVideoResolution(), request.getVideoDuration(),
-                        request.getGenerateAudio(), request.getNegativePrompt() != null);
-            }
-        }
-
-        // Final cost calculation - done at the end when all dimensions are known
-        if (generationModel != null) {
-            double costPerImage = art.moodframe.model.GenerationCost.perImage(generationModel, request.getWidth(),
-                    request.getHeight(), request.getVideoDuration());
-            request.setBaseCostPerImage(costPerImage);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Cost calculation: ${} per image for model {} ({}x{})", String.format("%.4f", costPerImage),
-                        generationModel.getApiModelId(), request.getWidth(), request.getHeight());
-            }
-        }
-
-        return request;
-    }
-
-    /**
-     * Determines the imageSize parameter for Gemini API based on the model enum constant.
-     * Maps UI model selection to Gemini API imageSize parameter (512, 1K, 2K, 4K).
-     *
-     * @param model the GenerationModel enum constant (may be null)
-     * @return the imageSize parameter for Gemini API ("512", "1K", "2K", or "4K")
-     */
-    private String determineGeminiImageSize(art.moodframe.model.GenerationModel model) {
-        if (model != null) {
-            switch (model) {
-                case GEMINI_FLASH_1K:
-                    return "1K";
-                case GEMINI_PRO_2K:
-                    return "2K";
-                case GEMINI_PRO_4K:
-                    return "4K";
-                // Nano Banana 2 models
-                case NANO_BANANA2_512:
-                    return "512";
-                case NANO_BANANA2_1K:
-                    return "1K";
-                case NANO_BANANA2_2K:
-                    return "2K";
-                case NANO_BANANA2_4K:
-                    return "4K";
-                // Nano Banana 2 Lite is capped at 1K resolution
-                case NANO_BANANA2_LITE:
-                    return "1K";
-                default:
-                    return "1K"; // Default fallback
-            }
-        }
-
-        return "1K"; // Default
-    }
-
-    /**
-     * Sets width and height based on aspect ratio selection and model capabilities.
-     * Respects per-model resolution limits and ensures dimensions are multiples of
-     * 16 (FLUX.2) or 32 (FLUX.1).
-     */
-    private void setDimensionsFromAspectRatio(art.moodframe.model.ImageGenerationRequest request, String aspectRatio,
-            art.moodframe.model.GenerationModel model) {
-        // Get model-specific resolution limits
-        int maxResolution = (model != null) ? model.getMaxResolution() : 1024;
-        int dimensionMultiple = art.moodframe.model.ImageDimensions.multipleFor(model);
-
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Setting dimensions for aspect ratio: {} with maxResolution: {} (multiple of {}) for model: {}",
-                    aspectRatio, maxResolution, dimensionMultiple, model != null ? model.getApiModelId() : "null");
-        }
-
-        int[] dimensions = art.moodframe.model.ImageDimensions.forAspectRatio(aspectRatio, maxResolution,
-                dimensionMultiple);
-
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Final dimensions: {}x{} for aspect ratio: {}",
-                    dimensions[0], dimensions[1], aspectRatio);
-        }
-
-        request.setWidth(dimensions[0]);
-        request.setHeight(dimensions[1]);
-    }
-
-    /**
-     * Rounds a value to the nearest multiple of 32 (FLUX.1 API requirement).
-     */
-    private int roundToMultipleOf32(int value) {
-        return ((value + 16) / 32) * 32; // Round to nearest multiple of 32
+        /*  The thinking level is disabled while an image is attached, then the API default is used  */
+        String thinkingLevel = geminiThinkingLevelChoiceBox != null && !geminiThinkingLevelChoiceBox.isDisabled()
+                ? geminiThinkingLevelChoiceBox.getValue() : null;
+        return new art.moodframe.service.GenerationOrder.Parameters(seed, (int) safetyToleranceSlider.getValue(),
+                flux2SafetySlider != null ? (int) flux2SafetySlider.getValue() : null,
+                bflPromptUpsamplingCheckBox != null && bflPromptUpsamplingCheckBox.isSelected(), thinkingLevel,
+                geminiAdvancedFeaturesSection != null ? geminiAdvancedFeaturesSection.isSearchGroundingEnabled() : null,
+                flux2GuidanceSlider != null ? flux2GuidanceSlider.getValue() : null,
+                flux2StepsSlider != null ? (int) flux2StepsSlider.getValue() : null, selectedVideoSeconds());
     }
 
     /**
@@ -6598,26 +6169,12 @@ public class MainWindowController implements I18nChangeListener {
         // Clear existing items
         modelComboBox.getItems().clear();
 
-        // Check which providers are enabled and have valid API keys
-        boolean bflEnabled = config.isBflProviderEnabled() && config.hasApiKey();
-        boolean geminiEnabled = config.isGeminiProviderEnabled() && config.hasGeminiApiKey();
-
         logger.info("Provider status - BFL: enabled={}, hasKey={} | Gemini: enabled={}, hasKey={}",
                     config.isBflProviderEnabled(), config.hasApiKey(),
                     config.isGeminiProviderEnabled(), config.hasGeminiApiKey());
 
-        // Add models from enabled providers
-        for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-            art.moodframe.model.ApiProvider provider = model.getProvider();
-
-            if (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled) {
-                modelComboBox.getItems().add(model.getLocalizedDisplayName());
-            } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled) {
-                modelComboBox.getItems().add(model.getLocalizedDisplayName());
-            }
-        }
-
-        modelComboBox.getItems().addAll(openAiModelItems());
+        // Add models from enabled providers with valid API keys
+        modelComboBox.getItems().addAll(art.moodframe.service.GenerationService.availableItems(config));
 
         logger.info("Available models after filtering: {}", modelComboBox.getItems());
 

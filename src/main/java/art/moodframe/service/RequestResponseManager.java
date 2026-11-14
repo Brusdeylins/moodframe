@@ -133,20 +133,24 @@ public class RequestResponseManager implements RequestResponseService {
         return clientBuilder.build();
     }
 
-    /**
-     * Sets the callback for ChatEntry updates.
-     */
     @Override
-    public void setOnEntryUpdated(Consumer<ChatEntry> callback) {
-        tracker.setOnEntryUpdated(callback);
+    public void addEntryListener(Consumer<ChatEntry> listener) {
+        tracker.addEntryListener(listener);
     }
 
-    /**
-     * Sets the callback for GeneratedImage updates.
-     */
     @Override
-    public void setOnImageUpdated(Consumer<GeneratedImage> callback) {
-        tracker.setOnImageUpdated(callback);
+    public void removeEntryListener(Consumer<ChatEntry> listener) {
+        tracker.removeEntryListener(listener);
+    }
+
+    @Override
+    public void addImageListener(Consumer<GeneratedImage> listener) {
+        tracker.addImageListener(listener);
+    }
+
+    @Override
+    public void removeImageListener(Consumer<GeneratedImage> listener) {
+        tracker.removeImageListener(listener);
     }
 
     /**

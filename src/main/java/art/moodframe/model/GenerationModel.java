@@ -739,6 +739,51 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
+     * Gets the fixed id of a dropdown item, which does not depend on the language: the constant name, for a model of
+     * an OpenAI-compatible gateway its model id.
+     *
+     * @param item the dropdown item (may be null)
+     * @return the id, for example {@code FLUX2_PRO} or {@code gpt-image-1}; null for an unknown item
+     * @since 2.1.0
+     */
+    public static String idOf(String item) {
+        String openAiId = openAiModelId(item);
+        if (openAiId != null)
+            return openAiId;
+        GenerationModel model = fromLocalizedDisplayName(item);
+        return model != null ? model.name() : null;
+    }
+
+    /**
+     * Gets the model of a fixed id (see {@link #idOf(String)}).
+     *
+     * @param id the id (may be null)
+     * @return the constant of that name, {@link #OPENAI_IMAGE} for any other id, null without id
+     * @since 2.1.0
+     */
+    public static GenerationModel fromId(String id) {
+        if (id == null)
+            return null;
+        for (GenerationModel model : values()) {
+            if (model != OPENAI_IMAGE && model.name().equals(id))
+                return model;
+        }
+        return OPENAI_IMAGE;
+    }
+
+    /**
+     * Gets the dropdown item of a fixed id (see {@link #idOf(String)}), as shown in the current language.
+     *
+     * @param id the id (may be null)
+     * @return the localized display name, {@link #OPENAI_PREFIX} + id for an OpenAI model, null without id
+     * @since 2.1.0
+     */
+    public static String itemOf(String id) {
+        GenerationModel model = fromId(id);
+        return model == null ? null : model == OPENAI_IMAGE ? OPENAI_PREFIX + id : model.getLocalizedDisplayName();
+    }
+
+    /**
      * Checks if a model id is an image model of the OpenAI Images API: {@code dall-e-*}, {@code gpt-image-*},
      * {@code chatgpt-image-*}.
      *

@@ -297,6 +297,18 @@ public class MoodframeApplication extends Application {
                         }
                     });
 
+            /*  Carries out a generation order without the user interface: entry, request and submission  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.GenerationService.class,
+                    () -> {
+                        art.moodframe.service.RequestResponseManager requests = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.RequestResponseManager.class);
+                        return requests != null ? new art.moodframe.service.GenerationService(config,
+                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatHistoryService.class),
+                                ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class),
+                                requests) : null;
+                    });
+
             // Initialize ThumbnailManager for image optimization
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ThumbnailManager.class,
