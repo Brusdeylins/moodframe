@@ -196,7 +196,7 @@ public class ColorStyle {
      * @return a new ColorStyleItem with the same data
      */
     public ColorStyleItem toColorStyleItem() {
-        return new ColorStyleItem(name, colors, isDefault);
+        return new ColorStyleItem(id, name, colors, isDefault);
     }
 
     /**

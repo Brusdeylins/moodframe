@@ -411,6 +411,8 @@ public class DatabaseManager {
                     "V025__Number_chats.sql"));
             migrations.add(new Migration("026", "Order_brainstorm_sessions",
                     "V026__Order_brainstorm_sessions.sql"));
+            migrations.add(new Migration("027", "Add_favorites",
+                    "V027__Add_favorites.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

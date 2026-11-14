@@ -138,11 +138,14 @@ class FrameRepositoryTest {
             stmt.execute("INSERT INTO frames (id, name, model_id, resolution, aspect_ratio, image_count, guidance, "
                     + "steps, sort_order) VALUES ('old', 'Old Frame', 'flux.2-flex', '2K', '3:2', 4, 3.5, 28, 1000)");
 
-            /*  The tables of the chat entries, which V024 extends, of the chats, which V025 numbers, and of the
-                brainstorm sessions, which V026 numbers  */
+            /*  The tables of the chat entries, which V024 extends, of the chats, which V025 numbers, of the
+                brainstorm sessions, which V026 numbers, and of the entries whose favorites V027 drops with them  */
             stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY)");
             stmt.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, updated_at TIMESTAMP, sort_order INTEGER)");
             stmt.execute("CREATE TABLE brainstorm_sessions (id TEXT PRIMARY KEY, updated_at TIMESTAMP)");
+            stmt.execute("CREATE TABLE moods (id TEXT PRIMARY KEY)");
+            stmt.execute("CREATE TABLE prompt_blocks (id TEXT PRIMARY KEY, type TEXT)");
+            stmt.execute("CREATE TABLE color_styles (id TEXT PRIMARY KEY)");
         }
 
         new DatabaseManager(file).initialize();

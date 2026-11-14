@@ -2,10 +2,12 @@ package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Frame;
+import art.moodframe.service.FavoriteService;
 import art.moodframe.service.FrameService;
 import art.moodframe.service.TrashCenter;
 import art.moodframe.service.TrashCleanupService;
 import art.moodframe.service.TrashGroup;
+import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -34,8 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Window for the frames of the user: order, rename, delete (into the central trash), import and export as JSON,
- * and a link to the frames in the trash. Every change is stored at once.
+ * Window for the frames of the user: order, rename, delete (into the central trash), favorite (by the star of a
+ * row), import and export as JSON, and a link to the frames in the trash. Every change is stored at once.
  *
  * @since 2.0.0
  */
@@ -61,11 +63,31 @@ public class FrameManageDialog extends Stage {
         setTitle(I18nManager.getText("frame.manage.title"));
 
         list.setPlaceholder(new Label(I18nManager.getText("frame.manage.placeholder")));
+        FavoriteService favorites = ServiceFactory.getInstance().getService(FavoriteService.class);
+        FavoriteStar.Favorites<Frame> starred = new FavoriteStar.Favorites<>(null, (frame) -> favorites != null
+                && favorites.isFavorite(FavoriteService.Kind.FRAME, frame.getId()), (frame) -> {
+                    if (favorites != null)
+                        favorites.toggle(FavoriteService.Kind.FRAME, frame.getId());
+                    list.refresh();
+                });
         list.setCellFactory((view) -> new ListCell<>() {
+            private final Label nameLabel = new Label();
+            private final Region spacer = new Region();
+            private final FavoriteStar<Frame> star = new FavoriteStar<>(this, starred);
+            private final HBox content = new HBox(6.0, nameLabel, spacer, star);
+
+            {
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                content.setAlignment(Pos.CENTER_LEFT);
+            }
+
             @Override
             protected void updateItem(Frame frame, boolean empty) {
                 super.updateItem(frame, empty);
-                setText(empty || frame == null ? null : frame.getName());
+                nameLabel.setText(empty || frame == null ? null : frame.getName());
+                star.show(empty ? null : frame);
+                setText(null);
+                setGraphic(empty || frame == null ? null : content);
                 setTooltip(empty || frame == null ? null : new Tooltip(FrameService.describe(frame)));
             }
         });

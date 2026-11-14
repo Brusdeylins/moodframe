@@ -5,6 +5,8 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 
@@ -15,9 +17,13 @@ import art.moodframe.model.ColorStyleItem;
  *
  * <p>This cell renderer displays:</p>
  * <ul>
- *   <li>Line 1: Style name, with a palette icon for the palettes of the user</li>
+ *   <li>Line 1: Style name, with a palette icon for the palettes of the user and, in a list, the favorite star at
+ *   the right ({@link FavoriteStar})</li>
  *   <li>Line 2: 5 color boxes showing the defined colors (or crossed out if empty)</li>
  * </ul>
+ *
+ * <p>As the button cell of a field, it leaves out the icon column, so the name starts on the edge of the other
+ * fields.</p>
  *
  * <p>Used in the color list of the main window and in the "Manage…" dialog.</p>
  *
@@ -31,11 +37,21 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
     private final FontIcon icon;
     private final Label nameLabel;
     private final ColorBox[] colorBoxes;
+    private final FavoriteStar<ColorStyleItem> star;
 
     /**
-     * Creates a new ColorStyleListCell.
+     * Creates the button cell of a field, without icon column.
      */
     public ColorStyleListCell() {
+        this(null);
+    }
+
+    /**
+     * Creates a row of a palette list.
+     *
+     * @param favorites the favorites of the list, null for the button cell
+     */
+    public ColorStyleListCell(FavoriteStar.Favorites<ColorStyleItem> favorites) {
         super();
 
         // Icon marking the palettes of the user
@@ -46,16 +62,23 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
         // Name label
         nameLabel = new Label();
 
-        // Header row: Icon + Name
+        // Header row: Icon + Name + Star, only the name in the button cell
         headerRow = new HBox(6);
         headerRow.setAlignment(Pos.CENTER_LEFT);
-        headerRow.getChildren().addAll(icon, nameLabel);
+        headerRow.getChildren().add(nameLabel);
+        star = favorites != null ? new FavoriteStar<>(this, favorites) : null;
+        if (star != null) {
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            headerRow.getChildren().add(0, icon);
+            headerRow.getChildren().addAll(spacer, star);
+        }
 
         // Color boxes row (5 boxes)
         colorBoxes = new ColorBox[5];
         colorBoxesRow = new HBox(3);
         colorBoxesRow.setAlignment(Pos.CENTER_LEFT);
-        colorBoxesRow.setPadding(new Insets(0, 0, 0, 18)); // Indent to align with name
+        colorBoxesRow.setPadding(new Insets(0, 0, 0, star != null ? 18 : 0)); // Indent to align with name
 
         for (int i = 0; i < 5; i++) {
             colorBoxes[i] = new ColorBox(null, 14);
@@ -81,6 +104,8 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
 
             // Set name
             nameLabel.setText(item.getName());
+            if (star != null)
+                star.show(item.getId() != null ? item : null);
 
             // Set color boxes
             for (int i = 0; i < 5; i++) {

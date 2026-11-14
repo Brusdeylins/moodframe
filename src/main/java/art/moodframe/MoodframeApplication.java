@@ -171,6 +171,11 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.FrameService.class,
                     () -> new art.moodframe.service.FrameService());
 
+            /*  The favorites among moods, frames and building blocks, shown first in their lists  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.FavoriteService.class,
+                    () -> new art.moodframe.service.FavoriteService());
+
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.BlockUsage.class,

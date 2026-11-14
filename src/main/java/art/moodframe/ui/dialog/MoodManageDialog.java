@@ -2,10 +2,12 @@ package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Mood;
+import art.moodframe.service.FavoriteService;
 import art.moodframe.service.MoodService;
 import art.moodframe.service.TrashCenter;
 import art.moodframe.service.TrashCleanupService;
 import art.moodframe.service.TrashGroup;
+import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -13,7 +15,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -35,8 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Window for the moods of the user: order, rename, delete (into the central trash), import and export as JSON,
- * and a link to the moods in the trash. Every change is stored at once.
+ * Window for the moods of the user: order, rename, delete (into the central trash), favorite (by the star of a row),
+ * import and export as JSON, and a link to the moods in the trash. Every change is stored at once.
  *
  * @since 2.0.0
  */
@@ -62,16 +63,35 @@ public class MoodManageDialog extends Stage {
         setTitle(I18nManager.getText("mood.manage.title"));
 
         list.setPlaceholder(new Label(I18nManager.getText("mood.manage.placeholder")));
+        FavoriteService favorites = ServiceFactory.getInstance().getService(FavoriteService.class);
+        FavoriteStar.Favorites<Mood> starred = new FavoriteStar.Favorites<>(null, (mood) -> favorites != null
+                && favorites.isFavorite(FavoriteService.Kind.MOOD, mood.getId()), (mood) -> {
+                    if (favorites != null)
+                        favorites.toggle(FavoriteService.Kind.MOOD, mood.getId());
+                    list.refresh();
+                });
         list.setCellFactory((view) -> new ListCell<>() {
+            private final Label nameLabel = new Label();
+            private final FontIcon warning = new FontIcon("mdi2a-alert-circle-outline");
+            private final Region spacer = new Region();
+            private final FavoriteStar<Mood> star = new FavoriteStar<>(this, starred);
+            private final HBox content = new HBox(6.0, nameLabel, warning, spacer, star);
+
+            {
+                warning.getStyleClass().add("warning");
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+                content.setAlignment(Pos.CENTER_LEFT);
+            }
+
             @Override
             protected void updateItem(Mood mood, boolean empty) {
                 super.updateItem(mood, empty);
-                setText(empty || mood == null ? null : mood.getName());
-                FontIcon warning = new FontIcon("mdi2a-alert-circle-outline");
-                warning.getStyleClass().add("warning");
                 boolean incomplete = !empty && mood != null && !moodService.trashedBlocks(mood).isEmpty();
-                setGraphic(incomplete ? warning : null);
-                setContentDisplay(ContentDisplay.RIGHT);
+                nameLabel.setText(empty || mood == null ? null : mood.getName());
+                warning.setVisible(incomplete);
+                star.show(empty ? null : mood);
+                setText(null);
+                setGraphic(empty || mood == null ? null : content);
                 setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete.short")) : null);
             }
         });

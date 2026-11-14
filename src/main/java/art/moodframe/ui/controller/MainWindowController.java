@@ -12,12 +12,14 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.service.ChatHistoryService;
+import art.moodframe.service.FavoriteService;
 import art.moodframe.service.FrameService;
 import art.moodframe.service.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
+import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.FrameListCell;
 import art.moodframe.ui.component.ImageGrid;
@@ -1691,7 +1693,10 @@ public class MainWindowController implements I18nChangeListener {
                                     manageBlocks(type);
                                 }
                             });
-            comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell(choice));
+            FavoriteStar.Favorites<art.moodframe.model.StylePresetItem> favorites = favorites(comboBox,
+                    FavoriteService.Kind.of(type), MainWindowController::blockId, this::reorderBlockChoices);
+            comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell(choice,
+                    favorites));
             comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
             blockChoices.put(type, choice);
             fillBlockChoice(type, null);
@@ -1716,13 +1721,17 @@ public class MainWindowController implements I18nChangeListener {
                         managePalettes();
                     }
                 });
-        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell());
+        FavoriteStar.Favorites<art.moodframe.model.ColorStyleItem> paletteFavorites = favorites(colorStyleComboBox,
+                FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, this::reorderBlockChoices);
+        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell(
+                paletteFavorites));
         colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
         fillColorChoice(null);
     }
 
     /**
-     * Fills the list of a text block type with "None" and the blocks, the styles ordered by their groups.
+     * Fills the list of a text block type with "None" and the blocks: the favorites first, then the others, the styles
+     * ordered by their groups behind a group of the favorites; each part alphabetically.
      *
      * @param type the type of the blocks
      * @param name the name of the block to select, null for "None"
@@ -1733,15 +1742,22 @@ public class MainWindowController implements I18nChangeListener {
         art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.service.PromptBlockService.class);
         boolean grouped = type == art.moodframe.model.PromptBlock.Type.STYLE;
+        java.util.function.Predicate<art.moodframe.model.StylePresetItem> favorite = (item) -> item.getBlock() != null
+                && isFavorite(FavoriteService.Kind.of(type), item.getBlock().getId());
         if (service == null)
             logger.warn("PromptBlockService not available, {} list only offers None", type);
         else
-            service.getAll(type).stream()
-                    .map(art.moodframe.model.StylePresetItem::new)
-                    .sorted(java.util.Comparator.comparingInt((art.moodframe.model.StylePresetItem item) ->
-                            grouped ? STYLE_GROUPS.indexOf(styleGroupKey(item)) : 0))
-                    .forEach(entries::add);
-        blockChoices.get(type).setEntries(entries, grouped ? MainWindowController::styleGroupKey : null, name);
+            entries.addAll(FavoriteService.order(service.getAll(type).stream()
+                    .map(art.moodframe.model.StylePresetItem::new).toList(), favorite,
+                    (item) -> grouped ? STYLE_GROUPS.indexOf(styleGroupKey(item)) : 0,
+                    art.moodframe.model.StylePresetItem::getName));
+        blockChoices.get(type).setEntries(entries, grouped ? (item) -> favorite.test(item) ? "block.group.favorites"
+                : styleGroupKey(item) : null, name);
+    }
+
+    /*  the id of the block of a list item  */
+    private static String blockId(art.moodframe.model.StylePresetItem item) {
+        return item.getBlock().getId();
     }
 
     /*  The headers of the style groups: the two media photo and art, then layout  */
@@ -1757,7 +1773,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Fills the color list with "None" and the palettes.
+     * Fills the color list with "None" and the palettes: the favorites first, then the others, each part
+     * alphabetically.
      *
      * @param name the name of the palette to select, null for "None"
      */
@@ -1769,7 +1786,10 @@ public class MainWindowController implements I18nChangeListener {
         if (service == null)
             logger.warn("ColorStyleService not available, color list only offers None");
         else
-            service.getAllStyles().forEach((palette) -> entries.add(palette.toColorStyleItem()));
+            entries.addAll(FavoriteService.order(service.getAllStyles().stream()
+                    .map(art.moodframe.model.ColorStyle::toColorStyleItem).toList(),
+                    (item) -> isFavorite(FavoriteService.Kind.COLOR, item.getId()), (item) -> 0,
+                    art.moodframe.model.ColorStyleItem::getName));
         colorChoice.setEntries(entries, null, name);
     }
 
@@ -1784,6 +1804,39 @@ public class MainWindowController implements I18nChangeListener {
         });
         if (colorChoice != null)
             fillColorChoice(colorStyleComboBox.getValue() != null ? colorStyleComboBox.getValue().getName() : null);
+    }
+
+    /** Loads the building block lists again in the order of the favorites, keeping each selection and the mood. */
+    private void reorderBlockChoices() {
+        updatingMood = true;
+        refreshBlockChoices();
+        updatingMood = false;
+    }
+
+    /**
+     * The favorites of a list, for the stars of its rows; a switched favorite is stored, then the list is shown anew.
+     *
+     * @param field  the field whose open list shows the rows, null for a list in a dialog
+     * @param kind   the kind of the entries
+     * @param id     tells the id of an entry
+     * @param reload shows the list anew, a field in the new order of its entries
+     */
+    private <T> FavoriteStar.Favorites<T> favorites(ComboBox<?> field, FavoriteService.Kind kind,
+            java.util.function.Function<T, String> id, Runnable reload) {
+        return new FavoriteStar.Favorites<>(field, (entry) -> isFavorite(kind, id.apply(entry)), (entry) -> {
+            FavoriteService service = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(FavoriteService.class);
+            if (service != null) {
+                service.toggle(kind, id.apply(entry));
+                reload.run();
+            }
+        });
+    }
+
+    /** Whether an entry is a favorite of the user; none without the service. */
+    private boolean isFavorite(FavoriteService.Kind kind, String id) {
+        FavoriteService service = art.moodframe.config.ServiceFactory.getInstance().getService(FavoriteService.class);
+        return service != null && service.isFavorite(kind, id);
     }
 
     private ComboBox<art.moodframe.model.StylePresetItem> blockComboBox(art.moodframe.model.PromptBlock.Type type) {
@@ -1973,7 +2026,9 @@ public class MainWindowController implements I18nChangeListener {
                     public boolean editable() {
                         return true;
                     }
-                }, (listView) -> new art.moodframe.ui.component.StylePresetListCell()).showAndWait();
+                }, (listView) -> new art.moodframe.ui.component.StylePresetListCell(null, favorites(null,
+                        FavoriteService.Kind.of(type), MainWindowController::blockId, listView::refresh)))
+                .showAndWait();
         refreshBlockChoices();
     }
 
@@ -2041,7 +2096,9 @@ public class MainWindowController implements I18nChangeListener {
                     public boolean editable() {
                         return true;
                     }
-                }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell()).showAndWait();
+                }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell(favorites(null,
+                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId, listView::refresh)))
+                .showAndWait();
         refreshBlockChoices();
     }
 
@@ -2082,8 +2139,12 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, null));
-        moodComboBox.setButtonCell(new MoodListCell(this::isMoodIncomplete, this::isMoodChanged));
+        FavoriteStar.Favorites<Mood> favorites = favorites(moodComboBox, FavoriteService.Kind.MOOD, Mood::getId, () -> {
+            Mood chosen = chosenMood();
+            reloadMoods(chosen != null ? chosen.getId() : "");
+        });
+        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, favorites));
+        moodComboBox.setButtonCell(new MoodListCell(this::isMoodChanged));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
         for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
                 colorStyleComboBox, lightComboBox, cameraComboBox))
@@ -2124,9 +2185,13 @@ public class MainWindowController implements I18nChangeListener {
         return mood != null && mood.isDefault();
     }
 
-    /** Lists "No mood" and the moods, and shows the mood with this id as chosen, without applying it. */
+    /**
+     * Lists "No mood" and the moods, the favorites first, each part alphabetically, and shows the mood with this id as
+     * chosen, without applying it.
+     */
     private void reloadMoods(String selectId) {
-        List<MoodChoice> items = MoodChoice.listOf(moodService.getAll());
+        List<MoodChoice> items = MoodChoice.listOf(FavoriteService.order(moodService.getAll(),
+                (mood) -> isFavorite(FavoriteService.Kind.MOOD, mood.getId()), (mood) -> 0, Mood::getName));
 
         updatingMood = true;
         moodComboBox.getItems().setAll(items);
@@ -2587,7 +2652,12 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        frameComboBox.setCellFactory((listView) -> new FrameListCell(null));
+        FavoriteStar.Favorites<Frame> favorites = favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId,
+                () -> {
+                    Frame chosen = chosenFrame();
+                    reloadFrames(chosen != null ? chosen.getId() : "");
+                });
+        frameComboBox.setCellFactory((listView) -> new FrameListCell(favorites));
         frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged));
         frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(newVal));
         aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -2615,9 +2685,13 @@ public class MainWindowController implements I18nChangeListener {
         return frame != null && frame.isDefault();
     }
 
-    /** Lists "No frame" and the frames, and shows the frame with this id as chosen, without applying it. */
+    /**
+     * Lists "No frame" and the frames, the favorites first, each part alphabetically, and shows the frame with this id
+     * as chosen, without applying it.
+     */
     private void reloadFrames(String selectId) {
-        List<FrameChoice> items = FrameChoice.listOf(frameService.getAll());
+        List<FrameChoice> items = FrameChoice.listOf(FavoriteService.order(frameService.getAll(),
+                (frame) -> isFavorite(FavoriteService.Kind.FRAME, frame.getId()), (frame) -> 0, Frame::getName));
 
         updatingFrame = true;
         frameComboBox.getItems().setAll(items);

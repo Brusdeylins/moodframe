@@ -9,14 +9,17 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.function.BooleanSupplier;
 
 /**
- * Row of the frame selection: "No frame" and the frames. A standard frame shows a star, a frame of the user a brush;
- * the tooltip names its aspect ratio. As the button cell, it shows the chosen frame in italics with a dot once the
- * aspect ratio differs from it.
+ * Row of the frame selection: "No frame" and the frames. In the list, a frame of the user shows a brush in the icon
+ * column and every frame the favorite star at the right ({@link FavoriteStar}); the tooltip names its aspect ratio. As
+ * the button cell, it shows the name only, on the edge of the other fields, in italics with a dot once the aspect
+ * ratio differs from the chosen frame.
  *
  * @since 2.0.0
  */
@@ -24,23 +27,45 @@ public class FrameListCell extends ListCell<FrameChoice> {
 
     private final BooleanSupplier changed;
 
-    private final FontIcon icon = new FontIcon();
-    private final Tooltip builtin = new Tooltip(I18nManager.getText("params.builtin"));
+    private final FontIcon icon = new FontIcon("mdi2b-brush");
     private final Label nameLabel = new Label();
-    private final HBox content = new HBox(6, icon, nameLabel);
+    private final HBox content = new HBox(6, nameLabel);
+    private final FavoriteStar<Frame> star;
 
     /**
-     * Creates a row.
+     * Creates the button cell.
      *
-     * @param changed tells if the aspect ratio differs from the chosen frame; null for a row of the list
+     * @param changed tells if the aspect ratio differs from the chosen frame
      */
     public FrameListCell(BooleanSupplier changed) {
+        this(changed, null);
+    }
+
+    /**
+     * Creates a row of the list.
+     *
+     * @param favorites the favorites of the list
+     */
+    public FrameListCell(FavoriteStar.Favorites<Frame> favorites) {
+        this(null, favorites);
+    }
+
+    private FrameListCell(BooleanSupplier changed, FavoriteStar.Favorites<Frame> favorites) {
         this.changed = changed;
 
-        icon.getStyleClass().add("ikonli-font-icon");
+        icon.getStyleClass().addAll("ikonli-font-icon", "success");
         icon.setIconSize(14);
         content.setAlignment(Pos.CENTER_LEFT);
         content.setPadding(new Insets(2, 0, 2, 0));
+
+        /*  A row of the list adds the icon column and the star to the name  */
+        star = favorites != null ? new FavoriteStar<>(this, favorites) : null;
+        if (star != null) {
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            content.getChildren().add(0, icon);
+            content.getChildren().addAll(spacer, star);
+        }
     }
 
     /** Draws the row again, for example once the aspect ratio was changed after the frame was chosen. */
@@ -58,41 +83,30 @@ public class FrameListCell extends ListCell<FrameChoice> {
             return;
         }
 
-        icon.getStyleClass().removeAll("accent", "success");
-        Tooltip.uninstall(icon, builtin);
         nameLabel.setStyle("");
+        icon.setVisible(false);
         switch (item.kind()) {
             case NONE -> {
-                show(null, I18nManager.getText("params.frame.none"));
+                nameLabel.setText(I18nManager.getText("params.frame.none"));
                 nameLabel.setStyle("-fx-text-fill: -color-fg-muted;");
             }
             case FRAME -> {
                 Frame frame = item.frame();
                 boolean edited = changed != null && changed.getAsBoolean();
-                show(frame.isDefault() ? "mdi2s-star-outline" : "mdi2b-brush", frame.getName() + (edited ? " •" : ""));
-                icon.getStyleClass().add(frame.isDefault() ? "accent" : "success");
-                if (frame.isDefault())
-                    Tooltip.install(icon, builtin);
+                nameLabel.setText(frame.getName() + (edited ? " •" : ""));
+
+                /*  Only the frames of the user carry the icon, the others keep its space  */
+                icon.setVisible(!frame.isDefault());
                 nameLabel.setStyle((frame.isDefault() ? "-fx-font-weight: normal;" : "-fx-font-weight: bold;")
                         + (edited ? " -fx-font-style: italic;" : ""));
-
-                /*  The tooltip of the row hides the one of the star, so in the list it names the standard, too  */
                 if (edited)
                     setTooltip(new Tooltip(I18nManager.getText("params.frame.changed")));
-                else if (changed == null)
-                    setTooltip(new Tooltip(FrameService.describe(frame)
-                            + (frame.isDefault() ? " · " + builtin.getText() : "")));
+                else if (star != null)
+                    setTooltip(new Tooltip(FrameService.describe(frame)));
             }
         }
+        if (star != null)
+            star.show(item.frame());
         setGraphic(content);
-    }
-
-    /** Shows an icon, none for null, and a text. */
-    private void show(String iconLiteral, String text) {
-        icon.setVisible(iconLiteral != null);
-        icon.setManaged(iconLiteral != null);
-        if (iconLiteral != null)
-            icon.setIconLiteral(iconLiteral);
-        nameLabel.setText(text);
     }
 }

@@ -8,15 +8,18 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Row of the mood selection: "No mood" and the moods. A standard mood shows a star, a mood of the user a brush, an
- * incomplete mood a warning. As the button cell, it shows the chosen mood in italics with a dot once a field was
- * changed after choosing it.
+ * Row of the mood selection: "No mood" and the moods. In the list, a mood of the user shows a brush in the icon
+ * column, an incomplete mood a warning, and every mood the favorite star at the right ({@link FavoriteStar}). As the
+ * button cell, it shows the name only, on the edge of the other fields, in italics with a dot once a field was changed
+ * after choosing the mood.
  *
  * @since 2.0.0
  */
@@ -25,29 +28,51 @@ public class MoodListCell extends ListCell<MoodChoice> {
     private final Predicate<Mood> incomplete;
     private final BooleanSupplier changed;
 
-    private final FontIcon icon = new FontIcon();
-    private final Tooltip builtin = new Tooltip(I18nManager.getText("params.builtin"));
+    private final FontIcon icon = new FontIcon("mdi2b-brush");
     private final Label nameLabel = new Label();
     private final FontIcon warning = new FontIcon("mdi2a-alert-circle-outline");
-    private final HBox content = new HBox(6, icon, nameLabel, warning);
+    private final HBox content = new HBox(6, nameLabel);
+    private final FavoriteStar<Mood> star;
 
     /**
-     * Creates a row.
+     * Creates the button cell.
+     *
+     * @param changed tells if a field differs from the chosen mood
+     */
+    public MoodListCell(BooleanSupplier changed) {
+        this(null, changed, null);
+    }
+
+    /**
+     * Creates a row of the list.
      *
      * @param incomplete tells if a block of a mood lies in the trash
-     * @param changed tells if a field differs from the chosen mood; null for a row of the list
+     * @param favorites the favorites of the list
      */
-    public MoodListCell(Predicate<Mood> incomplete, BooleanSupplier changed) {
+    public MoodListCell(Predicate<Mood> incomplete, FavoriteStar.Favorites<Mood> favorites) {
+        this(incomplete, null, favorites);
+    }
+
+    private MoodListCell(Predicate<Mood> incomplete, BooleanSupplier changed, FavoriteStar.Favorites<Mood> favorites) {
         this.incomplete = incomplete;
         this.changed = changed;
 
-        icon.getStyleClass().add("ikonli-font-icon");
+        icon.getStyleClass().addAll("ikonli-font-icon", "success");
         icon.setIconSize(14);
         warning.getStyleClass().addAll("ikonli-font-icon", "warning");
         warning.setIconSize(14);
         Tooltip.install(warning, new Tooltip(I18nManager.getText("params.mood.incomplete.short")));
         content.setAlignment(Pos.CENTER_LEFT);
         content.setPadding(new Insets(2, 0, 2, 0));
+
+        /*  A row of the list adds the icon column, the warning and the star to the name  */
+        star = favorites != null ? new FavoriteStar<>(this, favorites) : null;
+        if (star != null) {
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            content.getChildren().add(0, icon);
+            content.getChildren().addAll(warning, spacer, star);
+        }
     }
 
     /** Draws the row again, for example once a field was changed after the mood was chosen. */
@@ -65,42 +90,34 @@ public class MoodListCell extends ListCell<MoodChoice> {
             return;
         }
 
-        icon.getStyleClass().removeAll("accent", "success");
-        Tooltip.uninstall(icon, builtin);
         nameLabel.setStyle("");
+        icon.setVisible(false);
         warning.setVisible(false);
         warning.setManaged(false);
         switch (item.kind()) {
             case NONE -> {
-                show(null, I18nManager.getText("params.mood.none"));
+                nameLabel.setText(I18nManager.getText("params.mood.none"));
                 nameLabel.setStyle("-fx-text-fill: -color-fg-muted;");
             }
             case MOOD -> {
                 Mood mood = item.mood();
                 boolean edited = changed != null && changed.getAsBoolean();
-                show(mood.isDefault() ? "mdi2s-star-outline" : "mdi2b-brush", mood.getName() + (edited ? " •" : ""));
-                icon.getStyleClass().add(mood.isDefault() ? "accent" : "success");
-                if (mood.isDefault())
-                    Tooltip.install(icon, builtin);
+                nameLabel.setText(mood.getName() + (edited ? " •" : ""));
+
+                /*  Only the moods of the user carry the icon, the others keep its space  */
+                icon.setVisible(!mood.isDefault());
                 nameLabel.setStyle((mood.isDefault() ? "-fx-font-weight: normal;" : "-fx-font-weight: bold;")
                         + (edited ? " -fx-font-style: italic;" : ""));
                 if (edited)
                     setTooltip(new Tooltip(I18nManager.getText("params.mood.changed")));
 
                 /*  The button cell leaves the warning to the button next to the field, which leads to the trash  */
-                warning.setVisible(changed == null && incomplete.test(mood));
+                warning.setVisible(incomplete != null && incomplete.test(mood));
                 warning.setManaged(warning.isVisible());
             }
         }
+        if (star != null)
+            star.show(item.mood());
         setGraphic(content);
-    }
-
-    /** Shows an icon, none for null, and a text. */
-    private void show(String iconLiteral, String text) {
-        icon.setVisible(iconLiteral != null);
-        icon.setManaged(iconLiteral != null);
-        if (iconLiteral != null)
-            icon.setIconLiteral(iconLiteral);
-        nameLabel.setText(text);
     }
 }

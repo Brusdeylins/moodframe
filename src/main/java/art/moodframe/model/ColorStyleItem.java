@@ -21,6 +21,7 @@ import java.util.List;
  */
 public class ColorStyleItem {
 
+    private final String id;
     private final StringProperty name;
     private final ObservableList<String> colors;
     private final boolean isDefault;
@@ -43,9 +44,27 @@ public class ColorStyleItem {
      * @param isDefault true if this is a default style (cannot be deleted)
      */
     public ColorStyleItem(String name, List<String> colors, boolean isDefault) {
+        this(null, name, colors, isDefault);
+    }
+
+    /**
+     * Creates a new ColorStyleItem showing a stored color style.
+     *
+     * @param id the id of the color style, null for an item without one ("None")
+     * @param name the display name of the color style
+     * @param colors the list of hex color codes (1-5 colors)
+     * @param isDefault true if this is a default style (cannot be deleted)
+     */
+    public ColorStyleItem(String id, String name, List<String> colors, boolean isDefault) {
+        this.id = id;
         this.name = new SimpleStringProperty(name);
         this.colors = FXCollections.observableArrayList(colors != null ? colors : List.of());
         this.isDefault = isDefault;
+    }
+
+    /** The id of the color style shown, null for an item without one ("None"). */
+    public String getId() {
+        return id;
     }
 
     // Property getters
