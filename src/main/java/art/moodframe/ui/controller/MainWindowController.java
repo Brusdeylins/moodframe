@@ -2257,22 +2257,23 @@ public class MainWindowController implements I18nChangeListener {
      *
      * @param entry the chat entry
      * @param save  whether to save the blocks as a new mood
+     * @return whether the blocks were taken over, false if cancelled or failed
      */
-    private void takeOverEntryMood(ChatEntry entry, boolean save) {
+    private boolean takeOverEntryMood(ChatEntry entry, boolean save) {
         if (moodService == null)
-            return;
+            return false;
 
         /*  An entry from before 2.0 with a former look style takes over the standard mood of its name  */
         EntryMood copy = entry.getMood();
         Mood combination = copy != null ? new Mood(copy.moodId(), copy.moodName())
                 : moodService.findForLegacyStyle(entry.getStyle());
         if (combination == null)
-            return;
+            return false;
         if (copy != null) {
             List<Mood.Field> missing = moodService.missingBlocks(copy);
             Boolean recreate = missing.isEmpty() ? Boolean.FALSE : askToRecreateBlocks(copy, missing);
             if (recreate == null)
-                return;
+                return false;
             moodService.references(copy, recreate).forEach(combination::setReference);
             if (recreate)
                 refreshBlockChoices();
@@ -2285,19 +2286,36 @@ public class MainWindowController implements I18nChangeListener {
                     moodService, I18nManager.getText("mood.name.new"),
                     combination.getName() != null ? moodService.freeName(combination.getName()) : "", null);
             if (name == null)
-                return;
+                return false;
             mood = new Mood(null, name);
             combination.getReferences().forEach(mood::setReference);
             if (!moodService.add(mood)) {
                 showErrorMessage(I18nManager.getText("error.mood.save"));
-                return;
+                return false;
             }
             reloadMoods(mood.getId());
             combination = mood;
         }
+
+        /*  The mood field names the saved mood the fields then show exactly, else the mood as changed  */
+        if (!save)
+            mood = moodService.matchingMood(mood, moodService.apply(combination, currentMoodFields(),
+                    lockedMoodFields()));
         chooseMood(combination, mood);
         setStatus(save ? I18nManager.getText("status.mood.saved", mood.getName())
                 : I18nManager.getText("status.entry.mood"));
+        return true;
+    }
+
+    /**
+     * "Use mood" at an image: takes over the mood saved at its entry at once, without analyzing the image; prompt,
+     * frame and model stay.
+     *
+     * @param entry the chat entry of the image
+     */
+    private void useImageMood(ChatEntry entry) {
+        if (takeOverEntryMood(entry, false))
+            setStatus(I18nManager.getText("status.image.mood"));
     }
 
     /**
@@ -3468,6 +3486,7 @@ public class MainWindowController implements I18nChangeListener {
                     currentCard.setOnMoodTakeOver((takenEntry, save) -> takeOverEntryMood(takenEntry, save));
                     currentCard.setOnFrameSave((savedEntry) -> saveEntryFrame(savedEntry));
                     currentCard.setOnMoodFromImage((imageFile) -> openMoodFromImage(imageFile));
+                    currentCard.setOnImageMood((imageEntry) -> useImageMood(imageEntry));
 
                     /*  The entries of a group name their chat and lead to it  */
                     Chat origin = shownGroup != null ? getCurrentChatFromEntry(entry) : null;
@@ -3506,7 +3525,9 @@ public class MainWindowController implements I18nChangeListener {
                 case EDIT -> editImageFromPath(path);
                 case DOWNLOAD -> downloadImageFromPath(path);
                 case MOOD -> {
-                    if (path != null && new File(path).exists())
+                    if (item.entry().getMood() != null)
+                        useImageMood(item.entry());
+                    else if (path != null && new File(path).exists())
                         openMoodFromImage(new File(path));
                 }
                 case DELETE -> handleDeleteImage(item.entry().getId(), item.image().getId());

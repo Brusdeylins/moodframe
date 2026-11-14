@@ -169,6 +169,27 @@ class MoodServiceTest {
     }
 
     @Test
+    void namesTheSavedMoodTheFieldsShowAfterTakingOverTheBlocksOfAnImage() {
+        Mood vintage = moods.find("std:mood:vintage-film");
+        Map<Mood.Field, String> fields = moods.apply(vintage, Map.of(), Set.of());
+        assertEquals(vintage.getId(), moods.matchingMood(vintage, fields).getId(), "the mood of the image, unchanged");
+
+        Map<Mood.Field, String> locked = moods.apply(vintage, Map.of(Mood.Field.LIGHT, "std:light:moonlight"),
+                Set.of(Mood.Field.LIGHT));
+        assertEquals("std:light:moonlight", locked.get(Mood.Field.LIGHT), "a locked field keeps its block");
+        assertEquals("std:color:sunset-amber", locked.get(Mood.Field.COLOR));
+        assertEquals(vintage.getId(), moods.matchingMood(vintage, locked).getId());
+        assertTrue(moods.isChanged(vintage, locked), "the mood of the image shows as changed (\"Custom mix\")");
+        assertNull(moods.matchingMood(null, locked), "a combination without mood and without match stays one");
+
+        Mood noir = moods.find("std:mood:film-noir");
+        Map<Mood.Field, String> noirFields = moods.apply(noir, Map.of(), Set.of());
+        assertEquals(noir.getId(), moods.matchingMood(moods.find("std:mood:blockbuster"), noirFields).getId(),
+                "fields that show another saved mood exactly name it");
+        assertEquals(noir.getId(), moods.matchingMood(null, noirFields).getId());
+    }
+
+    @Test
     void savesTheFieldsAsTheyAreTheCameraToo() {
         Mood product = moods.find("std:mood:clean-product");
         Map<Mood.Field, String> fields = Map.of(Mood.Field.STYLE, "std:style:watercolor");

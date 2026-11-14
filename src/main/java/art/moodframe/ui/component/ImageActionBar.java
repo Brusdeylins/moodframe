@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 
 /**
  * The actions of an image as a dark, rounded bar at the top center of the image, shown while the pointer is over it:
- * view, edit, download, mood from image and delete. Used by the chat entries and the compact view alike; the compact
+ * view, edit, download, mood of the image and delete. Used by the chat entries and the compact view alike; the compact
  * view leads with "Use all" of the entry of the image, which the chat entries show at the entry itself.
  *
  * @since 2.0.0
@@ -43,6 +43,7 @@ public class ImageActionBar extends HBox {
     private static final double MARGIN = 8.0;
 
     private final Map<Action, Button> buttons = new EnumMap<>(Action.class);
+    private boolean moodSaved;
 
     /**
      * Creates the bar without "Use all", hidden until it is attached to an image.
@@ -116,8 +117,20 @@ public class ImageActionBar extends HBox {
                 && (!available || action == Action.MOOD && video)));
     }
 
+    /**
+     * Lets the mood action take over the mood saved at the entry of the image ("Use mood") instead of analyzing the
+     * image ("Mood from image..."), with the same icon.
+     *
+     * @param moodSaved whether the entry of the image carries its building blocks
+     */
+    public void setMoodSaved(boolean moodSaved) {
+        this.moodSaved = moodSaved;
+        updateTexts();
+    }
+
     /** Sets the tooltips in the current language. */
     public void updateTexts() {
-        buttons.forEach((action, button) -> button.setTooltip(new Tooltip(I18nManager.getText(action.tooltipKey))));
+        buttons.forEach((action, button) -> button.setTooltip(new Tooltip(I18nManager.getText(
+                action == Action.MOOD && moodSaved ? "image.mood.use.tooltip" : action.tooltipKey))));
     }
 }

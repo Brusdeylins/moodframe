@@ -140,6 +140,7 @@ public class ChatEntryCard extends ManagedComponent {
     private java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver;
     private Consumer<ChatEntry> onFrameSave;
     private Consumer<File> onMoodFromImage;
+    private Consumer<ChatEntry> onImageMood;
     private java.util.function.Supplier<Boolean> isFluxModelSelected; // Check if FLUX model is currently selected
 
     /**
@@ -289,7 +290,7 @@ public class ChatEntryCard extends ManagedComponent {
             return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
         }, availableWidth, maxTileSize, chatEntry.getImages());
 
-        /*  The context menu takes over the mood of the entry; on an image it offers "Mood from image"  */
+        /*  The context menu takes over the mood of the entry; on an image it offers "Use mood" or "Mood from image"  */
         promptContainer.setOnContextMenuRequested(this::showMoodMenu);
         badgeRow.setOnContextMenuRequested(this::showMoodMenu);
 
@@ -692,8 +693,8 @@ public class ChatEntryCard extends ManagedComponent {
     /**
      * Creates the tile of an image: the image with rounded corners, a muted placeholder with a progress while it is
      * generated or downloaded, or with an icon once it failed, and the action bar at its top and its size at its bottom
-     * while the pointer is over it. Seed and costs show in its tooltip, "Mood from image" and "Copy seed" in its
-     * context menu.
+     * while the pointer is over it. Seed and costs show in its tooltip, "Use mood" or "Mood from image" and "Copy seed"
+     * in its context menu.
      *
      * @param generatedImage the generated image
      * @param imageIndex     the index of this image in the chat entry
@@ -725,6 +726,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         ImageActionBar actionBar = new ImageActionBar((action) -> onImageAction(action, generatedImage, imageIndex));
         actionBar.setAvailable(imageAvailable, generatedImage.isVideo());
+        actionBar.setMoodSaved(chatEntry.getMood() != null);
         imageBars.put(generatedImage.getId(), actionBar);
 
         // Set up image based on download status
@@ -814,7 +816,12 @@ public class ChatEntryCard extends ManagedComponent {
                     onImageDownload.accept(path);
             }
             case MOOD -> {
-                if (onMoodFromImage != null && path != null && new File(path).exists())
+                /*  An entry with its building blocks hands over its mood, an older one has the image analyzed  */
+                if (chatEntry.getMood() != null) {
+                    if (onImageMood != null)
+                        onImageMood.accept(chatEntry);
+                }
+                else if (onMoodFromImage != null && path != null && new File(path).exists())
                     onMoodFromImage.accept(new File(path));
             }
             case DELETE -> {
@@ -1600,13 +1607,27 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Shows the context menu of an image with "Mood from image..." and, for a FLUX image with a seed, "Copy seed",
-     * which takes effect while a FLUX model is chosen.
+     * Sets the callback of "Use mood" at an image, which takes over the mood saved at the entry without analyzing the
+     * image; an entry without building blocks offers "Mood from image" instead.
+     *
+     * @param onImageMood the callback that receives the entry
+     */
+    public void setOnImageMood(Consumer<ChatEntry> onImageMood) {
+        this.onImageMood = onImageMood;
+    }
+
+    /**
+     * Shows the context menu of an image with "Use mood" or "Mood from image..." and, for a FLUX image with a seed,
+     * "Copy seed", which takes effect while a FLUX model is chosen.
      */
     private void showImageMenu(GeneratedImage generatedImage, ContextMenuEvent event) {
         ContextMenu menu = new ContextMenu();
         String path = getActualImagePath(generatedImage, false);
-        if (onMoodFromImage != null && path != null && new File(path).exists()) {
+        if (chatEntry.getMood() != null) {
+            if (onImageMood != null)
+                menu.getItems().add(menuItem("entry.reuse.mood", () -> onImageMood.accept(chatEntry)));
+        }
+        else if (onMoodFromImage != null && path != null && new File(path).exists()) {
             MenuItem fromImage = new MenuItem(I18nManager.getText("mood.image.menu"));
             fromImage.setOnAction((action) -> onMoodFromImage.accept(new File(path)));
             menu.getItems().add(fromImage);

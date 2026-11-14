@@ -333,6 +333,20 @@ public class MoodService implements BlockUsage {
     }
 
     /**
+     * The mood the mood field shows once the fields took over the blocks of a mood or a combination: that mood while
+     * the fields show it exactly, else the first saved mood they show exactly, else that mood as changed.
+     *
+     * @param mood the mood the blocks came from, null for a combination without one
+     * @param fields the block ids of the fields; a missing field is empty
+     * @return the mood to show, null for "No mood"
+     */
+    public Mood matchingMood(Mood mood, Map<Mood.Field, String> fields) {
+        if (mood != null && !isChanged(mood, fields))
+            return mood;
+        return getAll().stream().filter((Mood saved) -> !isChanged(saved, fields)).findFirst().orElse(mood);
+    }
+
+    /**
      * The blocks a mood saved from the fields refers to: the block of each field. A field left empty as its block
      * lies in the trash keeps the reference of the chosen mood.
      *

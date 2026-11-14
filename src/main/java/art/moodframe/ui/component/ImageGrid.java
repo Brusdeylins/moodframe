@@ -403,6 +403,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
                 onAction.accept(item, action);
         }, true);
         actionBar.setAvailable(true, image.isVideo());
+        actionBar.setMoodSaved(item.entry().getMood() != null);
         actionBar.attachTo(tile);
         HBox dots = createDots(item.entry());
         attachDots(dots, tile);
