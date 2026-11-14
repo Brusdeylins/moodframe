@@ -72,6 +72,7 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
             HBox.setHgrow(spacer, Priority.ALWAYS);
             headerRow.getChildren().add(0, icon);
             headerRow.getChildren().addAll(spacer, star);
+            DropdownBounds.showCutName(nameLabel);
         }
 
         // Color boxes row (5 boxes)
@@ -89,6 +90,11 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
         content = new VBox(2);
         content.setPadding(new Insets(2, 0, 2, 0));
         content.getChildren().addAll(headerRow, colorBoxesRow);
+    }
+
+    @Override
+    protected double computePrefWidth(double height) {
+        return DropdownBounds.rowWidth(this, super.computePrefWidth(height));
     }
 
     @Override

@@ -72,7 +72,13 @@ public class MoodListCell extends ListCell<MoodChoice> {
             HBox.setHgrow(spacer, Priority.ALWAYS);
             content.getChildren().add(0, icon);
             content.getChildren().addAll(warning, spacer, star);
+            DropdownBounds.showCutName(nameLabel);
         }
+    }
+
+    @Override
+    protected double computePrefWidth(double height) {
+        return DropdownBounds.rowWidth(this, super.computePrefWidth(height));
     }
 
     /** Draws the row again, for example once a field was changed after the mood was chosen. */

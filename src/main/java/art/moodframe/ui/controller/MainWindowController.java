@@ -1205,6 +1205,14 @@ public class MainWindowController implements I18nChangeListener {
         // Setup the frame selection on the restored fields
         setupFrames();
 
+        // The open lists of the right panel end flush with their field and stay inside the window
+        java.util.stream.Stream.of(moodComboBox, atmosphereComboBox, stylePresetsComboBox, colorStyleComboBox,
+                lightComboBox, cameraComboBox, frameComboBox).filter(java.util.Objects::nonNull)
+                .forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
+        java.util.stream.Stream.of(aspectRatioComboBox, resolutionChoiceBox, modelFamilyChoiceBox, modelComboBox,
+                videoDurationChoiceBox, geminiThinkingLevelChoiceBox).filter(java.util.Objects::nonNull)
+                .forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
+
         // Initial UI state
         updateUIState();
         updateCostDisplay(); // Initial cost calculation

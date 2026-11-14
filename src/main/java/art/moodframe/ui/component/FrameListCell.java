@@ -65,7 +65,13 @@ public class FrameListCell extends ListCell<FrameChoice> {
             HBox.setHgrow(spacer, Priority.ALWAYS);
             content.getChildren().add(0, icon);
             content.getChildren().addAll(spacer, star);
+            DropdownBounds.showCutName(nameLabel);
         }
+    }
+
+    @Override
+    protected double computePrefWidth(double height) {
+        return DropdownBounds.rowWidth(this, super.computePrefWidth(height));
     }
 
     /** Draws the row again, for example once the aspect ratio was changed after the frame was chosen. */

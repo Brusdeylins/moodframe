@@ -73,7 +73,13 @@ public class StylePresetListCell extends ListCell<StylePresetItem> {
             HBox.setHgrow(spacer, Priority.ALWAYS);
             content.getChildren().add(0, icon);
             content.getChildren().addAll(spacer, star);
+            DropdownBounds.showCutName(nameLabel);
         }
+    }
+
+    @Override
+    protected double computePrefWidth(double height) {
+        return DropdownBounds.rowWidth(this, super.computePrefWidth(height));
     }
 
     @Override
