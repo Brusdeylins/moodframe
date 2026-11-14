@@ -192,6 +192,34 @@ function applyLanguage () {
         label.textContent = t(`hero.install.${state.os ?? "other"}`)
     applyMood()
     applyRelease()
+    markBrand()
+}
+
+/*  the name in running text is set like the wordmark: "Mood" bold, "Frame" regular  */
+function markBrand () {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => node.nodeValue.includes("MoodFrame")
+            && node.parentElement.closest("script, pre, code, svg, .brand-name") === null
+            ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    })
+    const nodes = []
+    while (walker.nextNode())
+        nodes.push(walker.currentNode)
+    for (const node of nodes) {
+        const fragment = document.createDocumentFragment()
+        node.nodeValue.split("MoodFrame").forEach((part, index) => {
+            if (index > 0) {
+                const name = document.createElement("span")
+                const mood = document.createElement("b")
+                name.className = "brand-name"
+                mood.textContent = "Mood"
+                name.append(mood, "Frame")
+                fragment.append(name)
+            }
+            fragment.append(part)
+        })
+        node.replaceWith(fragment)
+    }
 }
 
 function applyMood () {
@@ -200,9 +228,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114u`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261114v`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261114u`
+    panel.src = `assets/img/${mood.panel}?v=20261114v`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
