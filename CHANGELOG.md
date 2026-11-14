@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## 2.0.1 (2026-11-14)
 
+### IMPROVEMENT
+- The groups in the right panel keep a gap to its scroll bar
+
 ### FIX
 - A successful test of the BFL key now enables BFL, so its models appear without a restart
+- FLUX: the safety tolerance defaults to 2; if the BFL account allows less than requested, the generation is retried
+  with the approved maximum instead of failing
 
 ## 2.0.0 (2026-11-14)
 
