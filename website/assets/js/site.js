@@ -68,9 +68,9 @@ const TEXT = {
         "more.network": "Corporate networks", "more.network.text": "Proxy settings and your own root certificates, also for networks with TLS inspection.",
         "ai.eyebrow": "Agentic Coding", "ai.title": "Written entirely by AI",
         "ai.lead": "Not one line of <b>Mood</b>Frame's code was typed by a human.",
-        "ai.decides": "A person decides", "ai.decides.text": "What to build, how it should look, and when it is good enough.",
-        "ai.agents": "AI agents do the work", "ai.agents.text": "They plan each task, write the code, review it and merge it, with", "ai.agents.and": "and the", "ai.agents.fleet": "agent fleet.",
-        "ai.checked": "Checked, not trusted", "ai.checked.text": "Every change goes through an automated review and the full test suite. The code is open, see for yourself.",
+        "ai.plan": "Planned together", "ai.plan.text": "A person plans every task together with the AI: what to build, how it should look, and when it is done.",
+        "ai.agents": "Written by AI agents", "ai.agents.text": "The agents write the code with", "ai.agents.and": "and the", "ai.agents.fleet": "agent fleet and deliver the evidence that it is right: tests, an automated review and visual checks.",
+        "ai.accept": "Accepted on evidence", "ai.accept.text": "The person checks that evidence and accepts the change.",
         "ai.stat.code.value": "36,000", "ai.stat.code": "lines of Java code",
         "ai.stat.tests.value": "8,000", "ai.stat.tests": "lines of test code", "ai.stat.count": "automated tests",
         "install.title": "Up and running in a minute", "install.version": "Version",
@@ -150,9 +150,9 @@ const TEXT = {
         "more.network": "Firmennetze", "more.network.text": "Proxy und eigene Root-Zertifikate, auch für Netze mit TLS-Inspektion.",
         "ai.eyebrow": "Agentic Coding", "ai.title": "Komplett von KI geschrieben",
         "ai.lead": "Keine einzige Zeile Code von <b>Mood</b>Frame hat ein Mensch getippt.",
-        "ai.decides": "Ein Mensch entscheidet", "ai.decides.text": "Was entsteht, wie es aussieht und wann es gut genug ist.",
-        "ai.agents": "KI-Agenten erledigen die Arbeit", "ai.agents.text": "Sie planen jede Aufgabe, schreiben den Code, prüfen ihn und führen ihn zusammen, mit", "ai.agents.and": "und der", "ai.agents.fleet": "Agenten-Flotte.",
-        "ai.checked": "Geprüft, nicht geglaubt", "ai.checked.text": "Jede Änderung durchläuft ein automatisches Review und alle Tests. Der Code ist offen, überzeug dich selbst.",
+        "ai.plan": "Gemeinsam geplant", "ai.plan.text": "Ein Mensch plant jede Aufgabe zusammen mit der KI: was entsteht, wie es aussieht und wann es fertig ist.",
+        "ai.agents": "Von KI-Agenten geschrieben", "ai.agents.text": "Die Agenten schreiben den Code mit", "ai.agents.and": "und der", "ai.agents.fleet": "Agenten-Flotte und liefern den Nachweis, dass er stimmt: Tests, ein automatisches Review und Sichtprüfungen.",
+        "ai.accept": "Auf Nachweis abgenommen", "ai.accept.text": "Der Mensch prüft diesen Nachweis und nimmt die Änderung ab.",
         "ai.stat.code.value": "36.000", "ai.stat.code": "Zeilen Java-Code",
         "ai.stat.tests.value": "8.000", "ai.stat.tests": "Zeilen Testcode", "ai.stat.count": "automatische Tests",
         "install.title": "In einer Minute startklar", "install.version": "Version",
@@ -238,9 +238,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115k`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115l`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115k`
+    panel.src = `assets/img/${mood.panel}?v=20261115l`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 
