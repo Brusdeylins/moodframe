@@ -1,5 +1,5 @@
 /*  moodframe.art: language switch, mood tabs, install tabs for the detected system, copy buttons, and the
-    version of the latest GitHub release (the page works without this script, in English, with 2.0.0)  */
+    version of the latest GitHub release (the page works without this script, in English, with 2.0.1)  */
 "use strict"
 
 const REPO = "Brusdeylins/moodframe"
@@ -268,7 +268,7 @@ function setupTabs (list, onSelect) {
 }
 
 /*  the released version, from the metadata Conveyor publishes next to the files (same site, no third party):
-    commands, file links and the link to its GitHub release; falls back to the static 2.0.0  */
+    commands, file links and the link to its GitHub release; falls back to the static 2.0.1  */
 async function loadRelease () {
     try {
         const response = await fetch(DOWNLOAD + "metadata.properties", { cache: "no-cache" })

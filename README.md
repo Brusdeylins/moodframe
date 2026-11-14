@@ -94,8 +94,8 @@ up to date.
 
 ```bash
 CPU=$(dpkg --print-architecture)
-wget https://moodframe.art/download/debian/moodframe_2.0.0_${CPU}.deb
-sudo apt install ./moodframe_2.0.0_${CPU}.deb
+wget https://moodframe.art/download/debian/moodframe_2.0.1_${CPU}.deb
+sudo apt install ./moodframe_2.0.1_${CPU}.deb
 ```
 
 ## Written entirely by AI

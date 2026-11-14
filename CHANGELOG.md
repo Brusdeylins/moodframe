@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.0.1 (2026-11-14)
+
+### FIX
+- A successful test of the BFL key now enables BFL, so its models appear without a restart
+
 ## 2.0.0 (2026-11-14)
 
 ### FEATURE

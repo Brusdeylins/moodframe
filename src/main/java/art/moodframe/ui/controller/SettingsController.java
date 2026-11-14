@@ -1171,6 +1171,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
             validatedApiKey = success ? apiKey : null;
             if (success) {
                 showConnectionStatus("success", I18nManager.getText("settings.test.api.connection.success", testedRegion));
+
+                /*  A successful test unlocks the provider, like for Gemini and OpenAI  */
+                bflProviderEnabledCheckBox.setDisable(false);
+                if (!config.isBflProviderEnabled()) {
+                    bflProviderEnabledCheckBox.setSelected(true);
+                    config.setBflProviderEnabled(true);
+                }
+                config.setBflProviderValidated(true);
             } else {
                 showConnectionStatus("error", I18nManager.getText("settings.test.api.connection.failed", testedRegion));
                 restoreSavedKey("bfl");
