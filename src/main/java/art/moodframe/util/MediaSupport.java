@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Remembers for the session whether JavaFX Media can play videos on this system: under Linux it needs a plugin
- * matching the ffmpeg of the system, which JavaFX 21 brings only up to libavcodec 60. After the first error which
+ * matching the ffmpeg of the system, which JavaFX 23 brings only up to libavcodec 61. After the first error which
  * points at a missing plugin or codec, videos go straight to their fallback instead of failing one by one.
  *
  * @since 2.1.0

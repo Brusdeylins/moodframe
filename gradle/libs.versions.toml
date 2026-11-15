@@ -4,7 +4,7 @@
 
 [versions]
 # Core JavaFX
-javafx = "21.0.2"
+javafx = "23.0.2"
 
 # HTTP Client
 okhttp = "4.12.0"
@@ -31,7 +31,7 @@ testfx = "4.0.18"
 owasp-dependency-check = "10.0.4"
 
 [libraries]
-# JavaFX - https://openjfx.io/javadoc/21/
+# JavaFX - https://openjfx.io/javadoc/23/
 javafx-controls = { module = "org.openjfx:javafx-controls", version.ref = "javafx" }
 javafx-fxml = { module = "org.openjfx:javafx-fxml", version.ref = "javafx" }
 

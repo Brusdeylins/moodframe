@@ -43,20 +43,23 @@ repositories {
     mavenCentral()
 }
 
+// JavaFX version of all modules and platforms, set in one place: gradle/libs.versions.toml
+def javafxVersion = libs.versions.javafx.get()
+
 // Force JavaFX version consistency across all dependencies
 configurations.all {
     resolutionStrategy {
-        force 'org.openjfx:javafx-base:21.0.5'
-        force 'org.openjfx:javafx-controls:21.0.5'
-        force 'org.openjfx:javafx-fxml:21.0.5'
-        force 'org.openjfx:javafx-graphics:21.0.5'
-        force 'org.openjfx:javafx-media:21.0.5'
-        force 'org.openjfx:javafx-web:21.0.5'
+        force "org.openjfx:javafx-base:${javafxVersion}"
+        force "org.openjfx:javafx-controls:${javafxVersion}"
+        force "org.openjfx:javafx-fxml:${javafxVersion}"
+        force "org.openjfx:javafx-graphics:${javafxVersion}"
+        force "org.openjfx:javafx-media:${javafxVersion}"
+        force "org.openjfx:javafx-web:${javafxVersion}"
     }
 }
 
 javafx {
-    version = '21.0.5'
+    version = javafxVersion
     modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.web', 'javafx.media']
 }
 
@@ -64,26 +67,26 @@ dependencies {
     // JavaFX handled by javafx plugin above
     
     // Platform-specific JavaFX runtime libraries for cross-platform packaging
-    runtimeOnly "org.openjfx:javafx-base:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-base:21.0.5:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-controls:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-controls:21.0.5:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-media:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-media:21.0.5:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-web:21.0.5:mac"
-    runtimeOnly "org.openjfx:javafx-web:21.0.5:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-base:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-base:${javafxVersion}:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-controls:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-controls:${javafxVersion}:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-fxml:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-fxml:${javafxVersion}:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-graphics:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-graphics:${javafxVersion}:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:mac-aarch64"
+    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:mac"
+    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:mac-aarch64"
 
     // Windows platform dependencies for cross-platform packaging
-    runtimeOnly "org.openjfx:javafx-base:21.0.5:win"
-    runtimeOnly "org.openjfx:javafx-controls:21.0.5:win"
-    runtimeOnly "org.openjfx:javafx-fxml:21.0.5:win"
-    runtimeOnly "org.openjfx:javafx-graphics:21.0.5:win"
-    runtimeOnly "org.openjfx:javafx-media:21.0.5:win"
-    runtimeOnly "org.openjfx:javafx-web:21.0.5:win"
+    runtimeOnly "org.openjfx:javafx-base:${javafxVersion}:win"
+    runtimeOnly "org.openjfx:javafx-controls:${javafxVersion}:win"
+    runtimeOnly "org.openjfx:javafx-fxml:${javafxVersion}:win"
+    runtimeOnly "org.openjfx:javafx-graphics:${javafxVersion}:win"
+    runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:win"
+    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:win"
     
     // JSON handling
     implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
@@ -216,7 +219,7 @@ task extractDependencies(type: Copy) {
     exclude { file ->
         def name = file.name
         // Exclude small generic JavaFX JARs that are just stubs (< 1000 bytes)
-        if (name.matches('javafx-.*-21\\.0\\.5\\.jar') && !name.contains('-mac') && !name.contains('-win')) {
+        if (name.matches("javafx-.*-${javafxVersion.replace('.', '\\.')}\\.jar") && !name.contains('-mac') && !name.contains('-win')) {
             def fileSize = file.file.length()
             if (fileSize < 1000) {
                 println "⚠️  Excluding generic JavaFX stub: ${name} (${fileSize} bytes)"
@@ -392,7 +395,7 @@ task validateJavaFXBundling {
         
         platforms.each { platform ->
             requiredModules.each { module ->
-                def expectedFile = "javafx-${module}-21.0.5-${platform}.jar"
+                def expectedFile = "javafx-${module}-${javafxVersion}-${platform}.jar"
                 def found = javafxFiles.files.any { it.name == expectedFile }
                 if (!found) {
                     missingFiles.add(expectedFile)
@@ -438,7 +441,7 @@ task diagnoseJavaFXIssue {
         def intelCount = javafxFiles.files.count { it.name.contains('-mac.jar') }
         def armCount = javafxFiles.files.count { it.name.contains('-mac-aarch64.jar') }
         def windowsCount = javafxFiles.files.count { it.name.contains('-win.jar') }
-        def genericCount = javafxFiles.files.count { it.name.matches('.*21\\.0\\.2\\.jar') }
+        def genericCount = javafxFiles.files.count { it.name.matches(".*${javafxVersion.replace('.', '\\.')}\\.jar") }
         
         println "   • Intel Mac JARs: $intelCount"
         println "   • ARM Mac JARs: $armCount" 
@@ -452,8 +455,8 @@ task diagnoseJavaFXIssue {
             issues.add("Generic JavaFX JARs detected (may cause platform issues)")
         }
         
-        def versionMixed = javafxFiles.files.any { it.name.contains('21.0.5') } &&
-                          javafxFiles.files.any { !it.name.contains('21.0.5') }
+        def versionMixed = javafxFiles.files.any { it.name.contains(javafxVersion) } &&
+                          javafxFiles.files.any { !it.name.contains(javafxVersion) }
         if (versionMixed) {
             issues.add("Mixed JavaFX versions detected")
         }
@@ -467,7 +470,7 @@ task diagnoseJavaFXIssue {
         println "\n💡 Recommendations:"
         println "   1. Ensure the Intel Mac gets mac.jar files (not mac-aarch64.jar)"
         println "   2. Remove small generic JavaFX stubs that may confuse the runtime"
-        println "   3. Force consistent JavaFX version 21.0.5 across all modules"
+        println "   3. Force consistent JavaFX version ${javafxVersion} across all modules"
         println "   4. Test the packaged app on the target Intel Mac"
     }
 }

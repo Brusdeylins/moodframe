@@ -9,7 +9,7 @@ url='https://moodframe.art'
 license=('MIT')
 depends=('alsa-lib' 'at-spi2-core' 'cairo' 'fontconfig' 'freetype2' 'gcc-libs' 'gdk-pixbuf2' 'glib2' 'glibc'
          'gtk3' 'libgl' 'libx11' 'libxext' 'libxi' 'libxrender' 'libxtst' 'libxxf86vm' 'pango' 'zlib')
-optdepends=('ffmpeg4.4: play the video clips (JavaFX needs libavcodec 60 or older)')
+optdepends=('ffmpeg4.4: play the video clips (JavaFX needs libavcodec 61 or older)')
 provides=('moodframe')
 conflicts=('moodframe')
 options=('!strip' '!debug')
