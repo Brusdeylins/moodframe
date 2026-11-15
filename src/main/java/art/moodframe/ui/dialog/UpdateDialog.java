@@ -19,9 +19,10 @@ import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Dialog with the installed and the available version of MoodFrame. On Linux, where Conveyor does not update the app,
- * a newer version comes with the steps for the package -- apt for the .deb, yay or paru for the AUR package, the new
- * archive for the .tar.gz -- and a button to hide the hint for this version.
+ * Dialog with the installed and the available version of MoodFrame. A newer version comes with the steps for the
+ * package -- on macOS and Windows, where Conveyor's update at the start failed, the download page; on Linux apt for
+ * the .deb, the Arch package anew from the repository or, once it is in the AUR, yay or paru, the new archive for the
+ * .tar.gz -- and a button to hide the hint for this version.
  *
  * @since 2.1.0
  */
@@ -79,15 +80,11 @@ public final class UpdateDialog {
                 return;
             }
             alert.setHeaderText(I18nManager.getText("update.newer", result.available()));
+            content.getChildren().add(steps(kind));
+            alert.getButtonTypes().setAll(dismiss, close);
 
-            /*  Conveyor updates macOS and Windows at the next start, Linux needs the user  */
-            if (updates.isLinux()) {
-                content.getChildren().add(steps(kind));
-                alert.getButtonTypes().setAll(dismiss, close);
-
-                /*  The long label keeps its width instead of being cut to the size of "Close"  */
-                ButtonBar.setButtonUniformSize(alert.getDialogPane().lookupButton(dismiss), false);
-            }
+            /*  The long label keeps its width instead of being cut to the size of "Close"  */
+            ButtonBar.setButtonUniformSize(alert.getDialogPane().lookupButton(dismiss), false);
             if (alert.getDialogPane().getScene().getWindow() != null)
                 alert.getDialogPane().getScene().getWindow().sizeToScene();
         }));
@@ -98,17 +95,25 @@ public final class UpdateDialog {
         return true;
     }
 
-    /*  The steps of the update: the apt or yay command to copy, or the new archive with the link to the download  */
-    private static VBox steps(UpdateCheckService.Package kind) {
-        if (kind == UpdateCheckService.Package.DEB) {
+    /*  The steps of the update: the download page for macOS and Windows (no package), the apt, makepkg or yay command
+        to copy, or the new archive with the link to the download  */
+    static VBox steps(UpdateCheckService.Package kind) {
+        if (kind == null) {
+            Hyperlink link = new Hyperlink(UpdateCheckService.INSTALL_URL);
+            link.setOnAction((event) -> openInBrowser(UpdateCheckService.INSTALL_URL));
+            return new VBox(6, wrapped(I18nManager.getText("update.conveyor")), link);
+        }
+        else if (kind == UpdateCheckService.Package.DEB) {
             TextField command = new TextField(UpdateCheckService.APT_COMMAND);
             command.setEditable(false);
             return new VBox(6, wrapped(I18nManager.getText("update.deb")), command);
         }
         else if (kind == UpdateCheckService.Package.AUR) {
-            TextField command = new TextField(UpdateCheckService.AUR_COMMAND);
+            TextField command = new TextField(UpdateCheckService.AUR_PUBLISHED
+                    ? UpdateCheckService.AUR_COMMAND : UpdateCheckService.MAKEPKG_COMMAND);
             command.setEditable(false);
-            return new VBox(6, wrapped(I18nManager.getText("update.aur")), command);
+            return new VBox(6, wrapped(I18nManager.getText(UpdateCheckService.AUR_PUBLISHED
+                    ? "update.aur" : "update.arch")), command);
         }
         else {
             Hyperlink link = new Hyperlink(UpdateCheckService.INSTALL_URL);

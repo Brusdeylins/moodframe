@@ -12,6 +12,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -29,8 +30,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * The update check reads the version of the update site, compares it as numbers and asks only on Linux in the
- * packaged app, at most once per start; offline, errors and a slow site give no version.
+ * The update check reads the version of the update site, compares it as numbers and asks on every system in the
+ * packaged release build, at most once per start; offline, errors and a slow site give no version and no hint.
  */
 class UpdateCheckServiceTest {
 
@@ -88,8 +89,22 @@ class UpdateCheckServiceTest {
         return system;
     }
 
+    /*  a service with the given system properties in a release build or, without it, in a "DEV-Build"  */
+    private UpdateCheckService service(Properties system, boolean productionBuild) {
+        return new UpdateCheckService(config, system) {
+            @Override
+            boolean isProductionBuild() {
+                return productionBuild;
+            }
+        };
+    }
+
+    private UpdateCheckService packaged(String os, String dir) {
+        return service(system(os, dir, true), true);
+    }
+
     private UpdateCheckService linux(String dir) {
-        return new UpdateCheckService(config, system("Linux", dir, true));
+        return packaged("Linux", dir);
     }
 
     @Test
@@ -114,7 +129,7 @@ class UpdateCheckServiceTest {
     }
 
     @Test
-    void asksOnlyOnLinuxInThePackagedApp() throws Exception {
+    void asksOnEverySystemInThePackagedApp() throws Exception {
         UpdateCheckService tarball = linux("/home/user/moodframe-2.0.1");
         assertEquals(UpdateCheckService.Package.TARBALL, tarball.packageKind());
         assertEquals(Optional.of(new UpdateCheckService.Result("2.0.1", "2.1.0")), tarball.checkAtStart().get());
@@ -123,17 +138,23 @@ class UpdateCheckServiceTest {
         assertEquals(UpdateCheckService.Package.DEB, deb.packageKind());
         assertEquals(UpdateCheckService.Package.DEB, linux("/opt/moodframe").packageKind());
         assertEquals("2.1.0", deb.checkAtStart().get().orElseThrow().available());
-        assertEquals(List.of("/download/metadata.properties", "/download/metadata.properties"), requests);
 
-        /*  Conveyor updates macOS and Windows itself, the source build has no update site  */
-        assertEquals(Optional.empty(), new UpdateCheckService(config,
-                system("Mac OS X", "/Applications/MoodFrame.app/Contents/app", true)).checkAtStart().get());
-        assertEquals(Optional.empty(), new UpdateCheckService(config,
-                system("Windows 11", "C:\\Program Files\\MoodFrame", true)).checkAtStart().get());
-        UpdateCheckService source = new UpdateCheckService(config, system("Linux", "/home/user/moodframe", false));
+        /*  Conveyor updates macOS and Windows at the start, so a newer version there means its update failed  */
+        assertEquals("2.1.0", packaged("Mac OS X", "/Applications/MoodFrame.app/Contents/app").checkAtStart().get()
+                .orElseThrow().available());
+        assertEquals("2.1.0", packaged("Windows 11", "C:\\Program Files\\MoodFrame").checkAtStart().get()
+                .orElseThrow().available());
+        assertEquals(Collections.nCopies(4, "/download/metadata.properties"), requests);
+    }
+
+    @Test
+    void asksNeitherFromTheSourceNorInADevBuild() throws Exception {
+        UpdateCheckService source = service(system("Linux", "/home/user/moodframe", false), true);
         assertFalse(source.isAvailable());
         assertEquals(Optional.empty(), source.checkAtStart().get());
-        assertEquals(2, requests.size(), "no further request");
+        assertEquals(Optional.empty(), service(system("Mac OS X", "/Applications/MoodFrame.app/Contents/app", true),
+                false).checkAtStart().get(), "DEV-Build");
+        assertEquals(List.of(), requests, "no request");
     }
 
     /*  on Linux with a pacman which owns every path and notes the paths it was asked for  */
@@ -176,6 +197,8 @@ class UpdateCheckServiceTest {
     void aHiddenVersionShowsNoHintALaterOneDoes() throws Exception {
         when(config.getUpdateDismissedVersion()).thenReturn("2.1.0");
         assertEquals(Optional.empty(), linux("/home/user/moodframe").checkAtStart().get());
+        assertEquals(Optional.empty(), packaged("Mac OS X", "/Applications/MoodFrame.app/Contents/app").checkAtStart()
+                .get(), "on every system");
         body = METADATA.formatted("2.1.1");
         assertEquals("2.1.1", linux("/home/user/moodframe").checkAtStart().get().orElseThrow().available());
 
@@ -190,6 +213,7 @@ class UpdateCheckServiceTest {
         assertEquals(new UpdateCheckService.Result("2.0.1", null), updates.check().get());
         status = 500;
         assertNull(updates.check().get().available());
+        assertEquals(Optional.empty(), updates.checkAtStart().get(), "no hint");
         status = 200;
         body = "<html>maintenance</html>";
         assertNull(updates.check().get().available(), "unreadable file");
@@ -199,6 +223,7 @@ class UpdateCheckServiceTest {
             offline.setProperty("app.repositoryUrl", "http://127.0.0.1:" + free.getLocalPort() + "/download");
         }
         assertNull(new UpdateCheckService(config, offline).check().get().available(), "offline");
+        assertEquals(Optional.empty(), service(offline, true).checkAtStart().get(), "offline, no hint");
     }
 
     @Test

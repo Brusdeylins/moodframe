@@ -361,7 +361,7 @@ public class MoodframeApplication extends Application {
                                         favorites, trash));
                     });
 
-            /*  The newer version on the update site: hint at the start on Linux, check from the info window  */
+            /*  A newer version on the update site: hint behind the version in the header, checked at the start  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.UpdateCheckService.class,
                     () -> new art.moodframe.service.UpdateCheckService(config));

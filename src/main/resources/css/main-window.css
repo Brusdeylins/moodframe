@@ -226,9 +226,9 @@
     -fx-icon-color: -color-danger-fg;
 }
 
-/*  The hint of a newer version in the header: an icon button with its text, the icon in the accent color  */
+/*  The hint of a newer version behind the version in the header: its text and its symbol in the accent color  */
 .update-hint {
-    -fx-content-display: left;
+    -fx-text-fill: -color-accent-fg;
 }
 .update-hint .ikonli-font-icon {
     -fx-icon-color: -color-accent-fg;

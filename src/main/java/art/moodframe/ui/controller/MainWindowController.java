@@ -128,7 +128,11 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private HBox appHeader;
     @FXML
+    private Label updateHintLabel;
+    @FXML
     private Button updateButton;
+    @FXML
+    private Tooltip updateTooltip;
 
     /*  The newer version the update hint in the header stands for, null while there is none  */
     private art.moodframe.service.UpdateCheckService.Result update;
@@ -4848,7 +4852,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Looks for a newer version in the background, on Linux only, and shows the hint in the header if there is one.
+     * Looks for a newer version in the background, on every system, and shows the hint behind the version if there is
+     * one.
      */
     private void setupUpdateCheck() {
         art.moodframe.service.UpdateCheckService updates = art.moodframe.config.ServiceFactory.getInstance()
@@ -4858,12 +4863,15 @@ public class MainWindowController implements I18nChangeListener {
                     Platform.runLater(() -> showUpdateHint(result))));
     }
 
-    /*  Shows the hint of a newer version in the header, or hides it for null  */
+    /*  Shows the hint of a newer version behind the version, its text and its symbol, or hides it for null  */
     private void showUpdateHint(art.moodframe.service.UpdateCheckService.Result result) {
         update = result;
+        updateHintLabel.setVisible(result != null);
+        updateHintLabel.setManaged(result != null);
+        updateHintLabel.setText(I18nManager.getText("update.hint"));
         updateButton.setVisible(result != null);
         updateButton.setManaged(result != null);
-        updateButton.setText(result != null ? I18nManager.getText("update.newer", result.available()) : "");
+        updateTooltip.setText(result != null ? I18nManager.getText("update.newer", result.available()) : "");
     }
 
     /**
