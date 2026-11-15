@@ -125,8 +125,14 @@ up to date.
 
 **Linux:** a .deb for Debian and Ubuntu (updates come with apt) and a .tar.gz for other distributions; the commands
 with the current version are at [moodframe.art](https://moodframe.art/#install). On Arch Linux, Manjaro, EndeavourOS
-and Omarchy, install the AUR package with `yay -S moodframe-bin` (or `paru -S moodframe-bin`); `yay -Syu` brings the
-updates.
+and Omarchy, build the package `moodframe-bin` from this repository; it is not in the AUR yet:
+
+```bash
+git clone https://github.com/Brusdeylins/moodframe.git
+cd moodframe/packaging/aur/moodframe-bin && makepkg -si
+```
+
+For an update, run `git pull` and `makepkg -si` again.
 
 ## Written entirely by AI
 
@@ -174,7 +180,8 @@ The website itself is in [`website/`](website/).
 The AUR package `moodframe-bin` for Arch Linux repackages the Linux .tar.gz of the download site
 ([`packaging/aur/`](packaging/aur/)). After the upload, `packaging/aur/update.sh <version>` sets the version and the
 checksums in its `PKGBUILD` and `.SRCINFO`, without `makepkg`; `packaging/aur/update.sh <version> --push` also
-publishes it to the AUR, which needs the AUR account and the SSH key of the maintainer.
+publishes it to the AUR, which needs the AUR account and the SSH key of the maintainer. It is not published yet: the
+AUR has paused the registration of new accounts.
 
 ## License
 
