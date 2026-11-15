@@ -438,6 +438,8 @@ public class DatabaseManager {
                     "V027__Add_favorites.sql"));
             migrations.add(new Migration("028", "Add_source_to_chat_entries",
                     "V028__Add_source_to_chat_entries.sql"));
+            migrations.add(new Migration("029", "Backfill_flux_costs",
+                    "FluxCostBackfill.java", FluxCostBackfill::apply));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 
@@ -456,7 +458,8 @@ public class DatabaseManager {
      * @throws SQLException if migration fails
      */
     private void applyMigration(Connection connection, Migration migration) throws SQLException {
-        String migrationSql = loadMigrationSql(migration.getFileName());
+        /*  A migration in code has no SQL file, it runs in the same transaction  */
+        String migrationSql = migration.getStep() == null ? loadMigrationSql(migration.getFileName()) : "";
 
         // Parse SQL statements properly handling triggers and multi-line statements
         List<String> statements = parseSqlStatements(migrationSql);
@@ -468,6 +471,8 @@ public class DatabaseManager {
                     stmt.execute(statement);
                 }
             }
+            if (migration.getStep() != null)
+                migration.getStep().apply(connection);
             connection.commit();
         } catch (SQLException e) {
             connection.rollback();
@@ -627,17 +632,31 @@ public class DatabaseManager {
     }
 
     /**
+     * A migration done in code instead of an SQL file, for data that needs the model (prices, names).
+     */
+    @FunctionalInterface
+    private interface Step {
+        void apply(Connection connection) throws SQLException;
+    }
+
+    /**
      * Represents a database migration.
      */
     private static class Migration {
         private final String version;
         private final String description;
         private final String fileName;
+        private final Step step;
 
         public Migration(String version, String description, String fileName) {
+            this(version, description, fileName, null);
+        }
+
+        public Migration(String version, String description, String fileName, Step step) {
             this.version = version;
             this.description = description;
             this.fileName = fileName;
+            this.step = step;
         }
 
         public String getVersion() {
@@ -650,6 +669,10 @@ public class DatabaseManager {
 
         public String getFileName() {
             return fileName;
+        }
+
+        public Step getStep() {
+            return step;
         }
     }
 }
