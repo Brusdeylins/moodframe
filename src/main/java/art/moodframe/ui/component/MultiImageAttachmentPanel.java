@@ -14,6 +14,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
@@ -704,8 +705,20 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
             headerRow.getChildren().addAll(slotLabel, spacer, dimensionsLabel);
 
-            // Preview container - square (height = width), clickable
-            previewContainer = new StackPane();
+            /*  Preview container, clickable: a square whose height follows the width the layout gives it, so slot,
+                panel and group around it grow with it (a height bound to its own width came too late in the layout
+                pass and left the group shorter)  */
+            previewContainer = new StackPane() {
+                @Override
+                public Orientation getContentBias() {
+                    return Orientation.HORIZONTAL;
+                }
+
+                @Override
+                protected double computePrefHeight(double width) {
+                    return width >= 0 ? width : super.computePrefHeight(width);
+                }
+            };
             previewContainer.setMaxWidth(Double.MAX_VALUE);
             previewContainer.setStyle("-fx-background-color: " + emptySlotBackground() + "; " +
                     "-fx-background-radius: 4px; " +
@@ -714,11 +727,6 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
                     "-fx-border-style: dashed; " +
                     "-fx-border-radius: 4px; " +
                     "-fx-cursor: hand;");
-
-            // Bind height to width to make it square
-            previewContainer.prefHeightProperty().bind(previewContainer.widthProperty());
-            previewContainer.minHeightProperty().bind(previewContainer.widthProperty());
-            previewContainer.maxHeightProperty().bind(previewContainer.widthProperty());
 
             // Make entire container clickable for upload
             previewContainer.setOnMouseClicked(e -> {
