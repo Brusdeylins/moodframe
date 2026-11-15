@@ -1,0 +1,112 @@
+package art.moodframe.ui.controller;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The groups of the right panel in MainWindow.fxml (GitHub issue #1): each a card with its line, the fold arrow in
+ * the header, the summary field always shown and the detail fields below; no field is wider than its group, and
+ * fixed explanations are tooltips instead of lines below the fields.
+ */
+class MainWindowPanelTest {
+
+    private static List<Element> elements;
+
+    @BeforeAll
+    static void readTheWindow() throws Exception {
+        Document fxml;
+        try (InputStream in = MainWindowPanelTest.class.getResourceAsStream("/fxml/MainWindow.fxml")) {
+            fxml = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+        }
+        elements = new ArrayList<>();
+        NodeList all = fxml.getElementsByTagName("*");
+        for (int i = 0; i < all.getLength(); i++)
+            elements.add((Element) all.item(i));
+    }
+
+    @Test
+    void eachGroupShowsItsSummaryFieldAboveItsFoldedDetails() {
+        Map<String, String> summaries = Map.of("moodGroupPane", "moodComboBox", "frameGroupPane", "frameComboBox",
+                "generationGroupPane", "modelFamilyChoiceBox");
+        summaries.forEach((group, summary) -> {
+            List<Element> parts = children(byId(group));
+            assertEquals(List.of("panel-group-line", "panel-group-header", "panel-group-summary",
+                    "panel-group-details"), parts.stream().map(MainWindowPanelTest::partOf).toList(), group);
+            assertEquals("false", parts.get(0).getAttribute("managed"), "the line is drawn beside the fields");
+            assertEquals("panel-group-arrow", partOf(children(parts.get(1)).get(0)), "the arrow comes first");
+            assertTrue(inside(byId(summary), parts.get(2)), summary + " is the summary field of " + group);
+        });
+        assertTrue(elements.stream().noneMatch((e) -> "TitledPane".equals(e.getTagName())
+                || "modelLabel".equals(e.getAttribute("fx:id"))), "no folding pane, no label \"Model:\"");
+    }
+
+    @Test
+    void noFieldIsWiderThanItsGroup() {
+        assertEquals("270.0", byId("panelScrollPane").getAttribute("prefWidth"));
+        List<Element> fields = elements.stream().filter((e) -> e.getTagName().equals("ComboBox")
+                || e.getTagName().equals("ChoiceBox")).filter((e) -> inside(e, byId("panelScrollPane")))
+                .filter((e) -> !"false".equals(e.getAttribute("visible"))).toList();
+        assertEquals(12, fields.size());
+        for (Element field : fields)
+            assertEquals("0", field.getAttribute("minWidth"), field.getAttribute("fx:id"));
+    }
+
+    @Test
+    void onlyHintsOfAnEffectShowBelowTheFields() {
+        List<String> hints = elements.stream().filter((e) -> e.getTagName().equals("Label"))
+                .filter((e) -> inside(e, byId("panelScrollPane")))
+                .filter((e) -> e.getAttribute("fx:id").endsWith("Hint") || e.getAttribute("fx:id").endsWith("HintLabel"))
+                .map((e) -> e.getAttribute("fx:id")).toList();
+        assertEquals(List.of("lightLayoutHint", "cameraHint", "aspectRatioHintLabel", "resolutionHintLabel"), hints);
+        for (String hint : List.of("aspectRatioHintLabel", "resolutionHintLabel"))
+            assertEquals("false", byId(hint).getAttribute("managed"), hint + " shows only once the model differs");
+
+        /*  the fixed explanations are tooltips of the field and its label  */
+        for (String tooltip : List.of("flux2GuidanceTooltip", "flux2StepsTooltip", "videoDurationTooltip",
+                "geminiThinkingLevelTooltip"))
+            assertEquals(2, elements.stream().filter((e) -> ("$" + tooltip).equals(e.getAttribute("tooltip")))
+                    .count(), tooltip);
+        assertEquals("Tooltip", byId("bflPromptUpsamplingTooltip").getTagName());
+    }
+
+    /*  the element with the id  */
+    private static Element byId(String id) {
+        return elements.stream().filter((e) -> id.equals(e.getAttribute("fx:id"))).findFirst().orElseThrow();
+    }
+
+    /*  the child elements, without text and comments  */
+    private static List<Element> children(Element element) {
+        List<Element> children = new ArrayList<>();
+        for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling())
+            if (child.getNodeType() == Node.ELEMENT_NODE)
+                children.add((Element) child);
+        return children;
+    }
+
+    /*  the part of a group an element is: its style class starting with "panel-group-"  */
+    private static String partOf(Element element) {
+        return Arrays.stream(element.getAttribute("styleClass").split(",\\s*"))
+                .filter((c) -> c.startsWith("panel-group-")).findFirst().orElse("");
+    }
+
+    private static boolean inside(Node node, Node parent) {
+        for (Node n = node; n != null; n = n.getParentNode())
+            if (n == parent)
+                return true;
+        return false;
+    }
+}

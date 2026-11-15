@@ -112,7 +112,8 @@
 .mood-incomplete .ikonli-font-icon {
     -fx-icon-color: -color-warning-fg;
 }
-/*  Below aspect ratio and resolution, what the chosen model makes of the target: highlighted while it differs  */
+/*  Below aspect ratio and resolution, what the chosen model makes of the target: shown and highlighted only while it
+    differs  */
 .aspect-ratio-hint {
     -fx-text-fill: -color-fg-muted;
 }
@@ -124,8 +125,8 @@
     -fx-padding: 1px 4px 1px 4px;
 }
 
-/*  The groups of the right panel: foldable cards with the translucent background and the border of the chat list
-    and the chat area, the color of their group only in the mark left in the header, in the order of the wordmark  */
+/*  The groups of the right panel: cards with the translucent background and the border of the chat list and the
+    chat area, the color of their group only in the line left of the fields, in the order of the wordmark  */
 .panel-group-mood {
     -panel-group-color: -logo-orange;
 }
@@ -141,32 +142,29 @@
     -fx-border-color: -color-border-default;
     -fx-border-width: 1px;
     -fx-border-radius: 6px;
-}
-.panel-group > .title,
-.panel-group:expanded > .title,
-.panel-group:collapsed > .title {
-    -fx-background-color: transparent;
-    -fx-padding: 4px 4px 4px 8px;
-}
-.panel-group > .title > .arrow-button {
-    -fx-padding: 0 4px 0 0;
-}
-
-/*  The content starts on the inset of the boxes, set by the controller on the content of a group  */
-.panel-group > .content {
-    -fx-background-color: transparent;
-    -fx-border-width: 0;
     -fx-padding: 4px 10px 12px 0;
 }
-.panel-group-mark {
-    -fx-background-color: -panel-group-color;
-    -fx-background-radius: 2px;
-    -fx-min-width: 4px;
-    -fx-pref-width: 4px;
-    -fx-max-width: 4px;
-    -fx-min-height: 18px;
-    -fx-pref-height: 18px;
-    -fx-max-height: 18px;
+
+/*  The fold arrow right of the line, then the title; the summary field right of the line, the detail fields right
+    of the line where it bends inwards (see MainWindowController.drawPanelGroupLine)  */
+.panel-group-header {
+    -fx-padding: 0 0 0 14px;
+}
+.panel-group-arrow {
+    -fx-padding: 3px 0 3px 0;
+}
+.panel-group-summary {
+    -fx-padding: 4px 0 0 21px;
+}
+.panel-group-details {
+    -fx-padding: 15px 0 0 37px;
+}
+.panel-group-line {
+    -fx-stroke: -panel-group-color;
+    -fx-stroke-width: 4px;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+    -fx-fill: transparent;
 }
 
 /*  Shown like the actions of a block field while the pointer is over the group, header or content, keeping their

@@ -725,23 +725,21 @@ public class ApplicationConfig {
     }
 
     /**
-     * Whether a group of the right panel is unfolded.
+     * The group of the right panel that is unfolded; the others are folded.
      *
-     * @param group the group: {@code mood}, {@code frame} or {@code generation}
-     * @return true unless the user folded it (default: unfolded)
+     * @return {@code mood} (default), {@code frame}, {@code generation}, or empty if all are folded
      */
-    public boolean isPanelGroupExpanded(String group) {
-        return Boolean.parseBoolean(properties.getProperty("ui.panel." + group + ".expanded", "true"));
+    public String getOpenPanelGroup() {
+        return properties.getProperty("ui.panel.open", "mood");
     }
 
     /**
-     * Remembers whether a group of the right panel is unfolded.
+     * Remembers the group of the right panel that is unfolded.
      *
-     * @param group the group: {@code mood}, {@code frame} or {@code generation}
-     * @param expanded true if it is unfolded
+     * @param group {@code mood}, {@code frame}, {@code generation}, or empty if all are folded
      */
-    public void setPanelGroupExpanded(String group, boolean expanded) {
-        properties.setProperty("ui.panel." + group + ".expanded", String.valueOf(expanded));
+    public void setOpenPanelGroup(String group) {
+        properties.setProperty("ui.panel.open", group);
         saveConfiguration();
     }
 

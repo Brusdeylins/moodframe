@@ -23,20 +23,14 @@ public class GeminiAdvancedFeaturesSection extends VBox {
         getStyleClass().add("gemini-advanced-section");
         setPadding(new Insets(0)); // No padding, integrated like other parameters
 
-        // Google Search Grounding - styled like other parameters
+        // Google Search Grounding - styled like other parameters, explained in its tooltip
         enableSearchGrounding = new CheckBox("Google Search Grounding");
-
-        Label searchInfo = new Label("ℹ️ Real-time data integration (+~$0.03 per request)");
-        searchInfo.getStyleClass().add("info-hint");
-        searchInfo.setStyle("-fx-font-size: 10px; -fx-text-fill: #888; -fx-font-style: italic;");
-        searchInfo.setWrapText(true);
-
-        VBox searchBox = new VBox(3, enableSearchGrounding, searchInfo);
+        enableSearchGrounding.setTooltip(new Tooltip("Real-time data integration (+~$0.03 per request)"));
 
         // Add sections without title and separators (like other parameters)
         // Note: Text Rendering Info removed as it's now shown in the prompt input field
         getChildren().addAll(
-            searchBox
+            enableSearchGrounding
         );
     }
 

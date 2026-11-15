@@ -236,15 +236,15 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ScrollPane panelScrollPane;
     @FXML
-    private TitledPane moodGroupPane;
+    private VBox moodGroupPane;
     @FXML
-    private TitledPane frameGroupPane;
+    private VBox frameGroupPane;
     @FXML
-    private TitledPane generationGroupPane;
+    private VBox generationGroupPane;
     @FXML
     private CheckBox bflPromptUpsamplingCheckBox;
     @FXML
-    private Label bflPromptUpsamplingHint;
+    private Tooltip bflPromptUpsamplingTooltip;
     @FXML
     private VBox geminiThinkingLevelContainer;
     @FXML
@@ -252,7 +252,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ChoiceBox<String> geminiThinkingLevelChoiceBox;
     @FXML
-    private Label geminiThinkingLevelHint;
+    private Tooltip geminiThinkingLevelTooltip;
     @FXML
     private VBox flux1SafetyContainer;
     @FXML
@@ -326,8 +326,6 @@ public class MainWindowController implements I18nChangeListener {
 
     // Parameter Labels for i18n
     @FXML
-    private Label modelLabel;
-    @FXML
     private Label styleLabel;
     @FXML
     private Label aspectRatioLabel;
@@ -360,23 +358,17 @@ public class MainWindowController implements I18nChangeListener {
     private VBox flux2GroundingSearchContainer;
     // Note: flux2GroundingSearchCheckBox removed - grounding search is automatic in FLUX.2 [max]
     @FXML
-    private Label flux2GroundingSearchHint;
-    @FXML
     private VBox flux2GuidanceContainer;
     @FXML
     private Label flux2GuidanceLabel;
     @FXML
     private Slider flux2GuidanceSlider;
     @FXML
-    private Label flux2GuidanceHint;
-    @FXML
     private VBox flux2StepsContainer;
     @FXML
     private Label flux2StepsLabel;
     @FXML
     private Slider flux2StepsSlider;
-    @FXML
-    private Label flux2StepsHint;
     @FXML
     private VBox flux2SafetyContainer;
     @FXML
@@ -394,13 +386,11 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private ChoiceBox<String> videoDurationChoiceBox;
     @FXML
-    private Label videoDurationHint;
+    private Tooltip videoDurationTooltip;
     @FXML
     private VBox videoAudioContainer;
     @FXML
     private CheckBox videoAudioCheckBox;
-    @FXML
-    private Label videoAudioHint;
     @FXML
     private VBox videoNegativePromptContainer;
     @FXML
@@ -2637,36 +2627,52 @@ public class MainWindowController implements I18nChangeListener {
         }
     }
 
-    /*  the fold arrow and the paddings beside the header of a group of the right panel  */
-    private static final double PANEL_GROUP_HEADER_INSETS = 28.0;
-
     /*  the gap of the groups to the scroll bar of the right panel, in place of their padding to the window edge  */
     private static final double PANEL_SCROLL_BAR_GAP = 6.0;
 
+    /*  The line of a group of the right panel: its middle from the left edge of the group, its start above the middle
+        of the header, its gap below the summary field and its bend inwards at 45° (see main-window.css)  */
+    private static final double PANEL_GROUP_LINE_X = 12.0;
+    private static final double PANEL_GROUP_LINE_TOP = 9.0;
+    private static final double PANEL_GROUP_LINE_GAP = 8.0;
+    private static final double PANEL_GROUP_LINE_BEND = 14.0;
+
+    /*  the groups of the right panel by their name in the configuration, in the order of the panel  */
+    private final java.util.Map<String, VBox> panelGroups = new java.util.LinkedHashMap<>();
+
     /**
-     * Folds the groups of the right panel (Mood, Frame, Generation) as the user left them. The header of a group spans
-     * its width, so that its actions sit on the right; its content starts on the inset of the boxes, behind its 1 px
-     * border. With the scroll bar of the panel, the groups get narrower and keep a gap to it.
+     * Sets up the groups of the right panel (Mood, Frame, Generation): each always shows its summary field, the arrow
+     * or the title unfold its detail fields and fold the other groups, or fold it again; the unfolded group is
+     * remembered. With the scroll bar of the panel, the groups get narrower and keep a gap to it.
      */
     private void setupPanelGroups() {
-        java.util.Map<String, TitledPane> groups = java.util.Map.of("mood", moodGroupPane, "frame", frameGroupPane,
-                "generation", generationGroupPane);
-        groups.forEach((group, pane) -> {
-            if (config != null)
-                pane.setExpanded(config.isPanelGroupExpanded(group));
-            pane.expandedProperty().addListener((obs, oldVal, newVal) -> {
+        panelGroups.put("mood", moodGroupPane);
+        panelGroups.put("frame", frameGroupPane);
+        panelGroups.put("generation", generationGroupPane);
+        java.util.Map<String, Label> titles = java.util.Map.of("mood", moodTitleLabel, "frame", frameTitleLabel,
+                "generation", generationTitleLabel);
+        panelGroups.forEach((group, pane) -> {
+            Runnable toggle = () -> {
+                String open = pane.lookup(".panel-group-details").isVisible() ? "" : group;
+                showPanelGroup(open);
                 if (config != null)
-                    config.setPanelGroupExpanded(group, newVal);
-            });
-            ((javafx.scene.layout.Region) pane.getGraphic()).prefWidthProperty()
-                    .bind(pane.widthProperty().subtract(PANEL_GROUP_HEADER_INSETS));
+                    config.setOpenPanelGroup(open);
+            };
+            ((Button) pane.lookup(".panel-group-arrow")).setOnAction((event) -> toggle.run());
+            titles.get(group).setOnMouseClicked((event) -> toggle.run());
 
-            /*  The minimum width of a group is the width of its header, which follows the group: without this, a
-                group could never get narrower again, e.g. when the scroll bar shows  */
+            /*  The line follows the fields, which move and grow, e.g. with the fields of another model  */
+            javafx.beans.InvalidationListener redraw = (obs) -> drawPanelGroupLine(pane);
+            pane.lookup(".panel-group-header").boundsInParentProperty().addListener(redraw);
+            pane.lookup(".panel-group-summary").boundsInParentProperty().addListener(redraw);
+            pane.lookup(".panel-group-details").boundsInParentProperty().addListener(redraw);
+            pane.lookup(".panel-group-details").visibleProperty().addListener(redraw);
+
+            /*  The minimum width of a group follows the panel: without this, the widest field would keep it wide,
+                e.g. when the scroll bar shows  */
             pane.setMinWidth(0);
-            ((javafx.scene.layout.Region) pane.getContent()).setPadding(
-                    new javafx.geometry.Insets(0, 0, 0, BoxInset.LEFT - 1.0));
         });
+        showPanelGroup(config != null ? config.getOpenPanelGroup() : "mood");
 
         /*  The scroll bar narrows the viewport: the right padding of the panel then shrinks to the gap to it  */
         javafx.scene.layout.Region panel = (javafx.scene.layout.Region) panelScrollPane.getContent();
@@ -2678,6 +2684,47 @@ public class MainWindowController implements I18nChangeListener {
             panel.setPadding(new javafx.geometry.Insets(padding.getTop(),
                     scrollBar ? PANEL_SCROLL_BAR_GAP : padding.getRight(), padding.getBottom(), padding.getLeft()));
         });
+    }
+
+    /**
+     * Unfolds the detail fields of one group of the right panel and folds those of the others, whose fields then
+     * cannot take the focus either; the arrow of a group points down while it is unfolded, else to the right.
+     *
+     * @param open the name of the group to unfold, empty to fold all
+     */
+    private void showPanelGroup(String open) {
+        panelGroups.forEach((group, pane) -> {
+            boolean unfolded = group.equals(open);
+            Node details = pane.lookup(".panel-group-details");
+            details.setVisible(unfolded);
+            details.setManaged(unfolded);
+            ((FontIcon) ((Button) pane.lookup(".panel-group-arrow")).getGraphic())
+                    .setIconLiteral(unfolded ? "mdi2c-chevron-down" : "mdi2c-chevron-right");
+        });
+    }
+
+    /**
+     * Draws the line of a group of the right panel: from the height of the title down beside the summary field, and
+     * while the group is unfolded, bent inwards at 45° below it and on beside the detail fields.
+     *
+     * @param pane the group
+     */
+    private static void drawPanelGroupLine(VBox pane) {
+        double top = pane.lookup(".panel-group-header").getBoundsInParent().getCenterY() - PANEL_GROUP_LINE_TOP;
+        double summary = pane.lookup(".panel-group-summary").getBoundsInParent().getMaxY();
+        Node details = pane.lookup(".panel-group-details");
+        javafx.scene.shape.Path line = (javafx.scene.shape.Path) pane.lookup(".panel-group-line");
+        line.getElements().setAll(new javafx.scene.shape.MoveTo(PANEL_GROUP_LINE_X, top));
+        if (details.isVisible()) {
+            double bend = summary + PANEL_GROUP_LINE_GAP;
+            double inner = PANEL_GROUP_LINE_X + PANEL_GROUP_LINE_BEND;
+            line.getElements().addAll(new javafx.scene.shape.LineTo(PANEL_GROUP_LINE_X, bend),
+                    new javafx.scene.shape.LineTo(inner, bend + PANEL_GROUP_LINE_BEND),
+                    new javafx.scene.shape.LineTo(inner, Math.max(bend + PANEL_GROUP_LINE_BEND,
+                            details.getBoundsInParent().getMaxY())));
+        }
+        else
+            line.getElements().add(new javafx.scene.shape.LineTo(PANEL_GROUP_LINE_X, summary));
     }
 
     /**
@@ -4502,9 +4549,6 @@ public class MainWindowController implements I18nChangeListener {
         if (bflPromptUpsamplingCheckBox != null) {
             bflPromptUpsamplingCheckBox.setDisable(!enableInput);
         }
-        if (bflPromptUpsamplingHint != null) {
-            bflPromptUpsamplingHint.setDisable(!enableInput);
-        }
 
         // Gemini Thinking Level: disable if no chat OR if image attached
         // (thinking_level not supported with input images in Gemini API)
@@ -4518,9 +4562,6 @@ public class MainWindowController implements I18nChangeListener {
             // Use opacity to ensure visual feedback (CSS might override disabled styling)
             geminiThinkingLevelLabel.setOpacity(thinkingLevelEnabled ? 1.0 : 0.4);
         }
-        if (geminiThinkingLevelHint != null) {
-            geminiThinkingLevelHint.setDisable(!thinkingLevelEnabled);
-        }
 
         safetyToleranceSlider.setDisable(!enableInput);
         safetyToleranceLabel.setDisable(!enableInput);
@@ -4529,8 +4570,6 @@ public class MainWindowController implements I18nChangeListener {
         modelComboBox.setDisable(!enableInput);
         modelFamilyChoiceBox.setDisable(!enableInput);
         resolutionChoiceBox.setDisable(!enableInput);
-        if (modelLabel != null)
-            modelLabel.setDisable(!enableInput);
         imageCountSlider.setDisable(!enableInput);
         imageCountLabel.setDisable(!enableInput);
         aspectRatioComboBox.setDisable(!enableInput);
@@ -6124,16 +6163,16 @@ public class MainWindowController implements I18nChangeListener {
         if (bflPromptUpsamplingCheckBox != null) {
             bflPromptUpsamplingCheckBox.setText(I18nManager.getText("input.bfl.prompt.enhancement"));
         }
-        if (bflPromptUpsamplingHint != null) {
-            bflPromptUpsamplingHint.setText(I18nManager.getText("input.bfl.prompt.enhancement.hint"));
+        if (bflPromptUpsamplingTooltip != null) {
+            bflPromptUpsamplingTooltip.setText(I18nManager.getText("input.bfl.prompt.enhancement.hint"));
         }
 
         // Update Gemini Thinking Level text
         if (geminiThinkingLevelLabel != null) {
             geminiThinkingLevelLabel.setText(I18nManager.getText("input.gemini.thinking.level"));
         }
-        if (geminiThinkingLevelHint != null) {
-            geminiThinkingLevelHint.setText(I18nManager.getText("input.gemini.thinking.level.hint"));
+        if (geminiThinkingLevelTooltip != null) {
+            geminiThinkingLevelTooltip.setText(I18nManager.getText("input.gemini.thinking.level.hint"));
         }
 
         if (characterCountLabel != null) {
@@ -6437,10 +6476,6 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void updateParameterLabels() {
         // Update all parameter labels with fx:id
-        if (modelLabel != null) {
-            modelLabel.setText(I18nManager.getText("params.model"));
-        }
-
         if (styleLabel != null) {
             styleLabel.setText(I18nManager.getText("params.style"));
         }
@@ -6909,10 +6944,6 @@ public class MainWindowController implements I18nChangeListener {
             bflPromptUpsamplingCheckBox.setVisible(showUpsampling);
             bflPromptUpsamplingCheckBox.setManaged(showUpsampling);
         }
-        if (bflPromptUpsamplingHint != null) {
-            bflPromptUpsamplingHint.setVisible(showUpsampling);
-            bflPromptUpsamplingHint.setManaged(showUpsampling);
-        }
 
         // Common parameters (always visible for both BFL and Gemini)
         // - modelComboBox (always visible)
@@ -6949,8 +6980,8 @@ public class MainWindowController implements I18nChangeListener {
                 videoDurationChoiceBox.setValue(choices.contains(selected) ? selected
                         : choices.contains("8s") ? "8s" : choices.get(0));
 
-                if (videoDurationHint != null)
-                    videoDurationHint.setText(I18nManager.getText("omni.duration.hint"));
+                if (videoDurationTooltip != null)
+                    videoDurationTooltip.setText(I18nManager.getText("omni.duration.hint"));
             }
         }
 
@@ -7028,8 +7059,8 @@ public class MainWindowController implements I18nChangeListener {
     private static final javafx.css.PseudoClass TARGET_CHANGED = javafx.css.PseudoClass.getPseudoClass("changed");
 
     /**
-     * Shows below the aspect ratio what the chosen model makes of the target, for example "FLUX.2 [pro] → 5:4",
-     * highlighted when it differs from the target.
+     * Shows below the aspect ratio what the chosen model makes of the target, for example "FLUX.2 [pro] → 5:4", but
+     * only, highlighted, while it differs from the target.
      */
     private void updateAspectRatioHint() {
         String item = modelComboBox.getValue();
@@ -7037,7 +7068,14 @@ public class MainWindowController implements I18nChangeListener {
         if (aspectRatioHintLabel == null || item == null || ratio == null)
             return;
         aspectRatioHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → " + ratio);
-        aspectRatioHintLabel.pseudoClassStateChanged(TARGET_CHANGED, !ratio.equals(aspectRatioComboBox.getValue()));
+        showTargetHint(aspectRatioHintLabel, !ratio.equals(aspectRatioComboBox.getValue()));
+    }
+
+    /*  shows a hint below aspect ratio or resolution, highlighted, only while the model does not do the target  */
+    private static void showTargetHint(Label hint, boolean changed) {
+        hint.pseudoClassStateChanged(TARGET_CHANGED, changed);
+        hint.setVisible(changed);
+        hint.setManaged(changed);
     }
 
     /**
@@ -7052,8 +7090,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Shows below the resolution what the chosen model makes of the target, for example "Nano Banana 2 Lite → 1K",
-     * highlighted when it differs from the target; a model without resolution choice keeps its fixed size.
+     * Shows below the resolution what the chosen model makes of the target, for example "Nano Banana 2 Lite → 1K", but
+     * only, highlighted, while it differs from the target; a model without resolution choice keeps its fixed size.
      */
     private void updateResolutionHint() {
         String item = modelComboBox != null ? modelComboBox.getValue() : null;
@@ -7062,8 +7100,7 @@ public class MainWindowController implements I18nChangeListener {
         String resolution = modelResolution();
         resolutionHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → "
                 + (resolution != null ? resolution : I18nManager.getText("params.resolution.fixed")));
-        resolutionHintLabel.pseudoClassStateChanged(TARGET_CHANGED, resolution != null
-                && !resolution.equals(resolutionChoiceBox.getValue()));
+        showTargetHint(resolutionHintLabel, resolution == null || !resolution.equals(resolutionChoiceBox.getValue()));
     }
 
     /**
