@@ -30,7 +30,8 @@ public final class CameraPromptBuilder {
      *
      * @param body   the camera type
      * @param name   the model name as it goes into the prompt
-     * @param analog true for a film camera of a digital type, shown as "(analog)"
+     * @param analog true for a film camera of a digital type, shown as "(analog)" and named a film camera in the
+     *               prompt
      */
     public record Model(Body body, String name, boolean analog) {
 
@@ -44,54 +45,50 @@ public final class CameraPromptBuilder {
     public static final List<Model> MODELS = List.of(
             new Model(Body.SMARTPHONE, "iPhone 17 Pro", false),
             new Model(Body.SMARTPHONE, "Google Pixel 10 Pro", false),
-            new Model(Body.COMPACT_35MM, "Contax T2", false),
-            new Model(Body.COMPACT_35MM, "Olympus mju-II", false),
             new Model(Body.COMPACT_35MM, "Leica M6", false),
             new Model(Body.FULL_FRAME, "Sony A7 IV", false),
             new Model(Body.FULL_FRAME, "Canon EOS R5", false),
             new Model(Body.FULL_FRAME, "Nikon Z8", false),
             new Model(Body.FULL_FRAME, "Leica Q3", false),
-            new Model(Body.FULL_FRAME, "Fujifilm X-T5", false),
-            new Model(Body.FULL_FRAME, "Fujifilm X100VI", false),
             new Model(Body.MEDIUM_FORMAT, "Hasselblad X2D", false),
             new Model(Body.MEDIUM_FORMAT, "Fujifilm GFX 100S", false),
             new Model(Body.MEDIUM_FORMAT, "Hasselblad 500C/M", true),
             new Model(Body.MEDIUM_FORMAT, "Pentax 67", true),
-            new Model(Body.LARGE_FORMAT, "Linhof Technika", false),
-            new Model(Body.CINEMA, "ARRI Alexa 35", false),
-            new Model(Body.CINEMA, "RED V-Raptor", false),
-            new Model(Body.CINEMA, "IMAX film camera", false),
-            new Model(Body.INSTANT, "Polaroid SX-70", false),
-            new Model(Body.INSTANT, "Fujifilm Instax", false),
-            new Model(Body.DRONE, "DJI Mavic 3", false),
-            new Model(Body.ACTION_CAM, "GoPro Hero", false));
+            new Model(Body.INSTANT, "Polaroid SX-70", false));
 
     /** "Generic": the device class and its effect. */
     private static final Map<Body, String> BODIES = Map.of(
-            Body.SMARTPHONE, "shot on a smartphone, deep focus, natural unstaged look",
-            Body.COMPACT_35MM, "shot on a 35mm compact film camera, candid analog snapshot look",
+            Body.SMARTPHONE, "shot on a smartphone, a wide view with everything sharp from front to back, "
+                    + "bright HDR look with lifted shadows",
+            Body.COMPACT_35MM, "shot on a 35mm film camera, a candid analog snapshot with visible film grain and "
+                    + "soft, slightly faded colors",
             Body.FULL_FRAME, "shot on a full-frame digital camera, clean sharp detail, high dynamic range",
             Body.MEDIUM_FORMAT, "shot on a medium format camera, exceptional detail, smooth tonal transitions",
-            Body.LARGE_FORMAT, "shot on a 4x5 large format view camera, extreme detail, "
-                    + "precisely corrected vertical lines",
-            Body.CINEMA, "shot on a digital cinema camera, motion-picture look",
-            Body.INSTANT, "instant film photo, soft detail, slightly imperfect exposure",
+            Body.INSTANT, "scan of an instant film photo with its plain white border, soft detail, slightly "
+                    + "imperfect exposure, gentle faded colors",
             Body.DRONE, "aerial photograph from high above",
-            Body.ACTION_CAM, "action camera look, ultra-wide view with barrel distortion");
+            Body.ACTION_CAM, "action camera look, an ultra-wide view, straight lines bowing outward near the "
+                    + "edges, crisp vivid colors");
 
     private static final Map<Lens, String> LENSES = Map.ofEntries(
             Map.entry(Lens.MM_14, "14mm ultra-wide lens, an extremely wide field of view, "
                     + "dramatically stretched perspective"),
             Map.entry(Lens.MM_24, "24mm wide-angle lens, a wide field of view, pronounced depth"),
-            Map.entry(Lens.MM_35, "35mm lens, natural documentary perspective"),
-            Map.entry(Lens.MM_50, "50mm lens, neutral perspective close to human vision"),
-            Map.entry(Lens.MM_85, "85mm portrait lens, flattering proportions, slight background compression"),
-            Map.entry(Lens.MM_135, "135mm telephoto lens, strong background compression, the subject isolated"),
+            Map.entry(Lens.MM_35, "35mm lens, a moderately wide view that shows the subject within its "
+                    + "surroundings"),
+            Map.entry(Lens.MM_50, "50mm lens, a natural view like the human eye, the subject with its near "
+                    + "surroundings, undistorted proportions"),
+            Map.entry(Lens.MM_85, "85mm lens, a tight view on the subject, the background visibly enlarged and "
+                    + "softly compressed behind it"),
+            Map.entry(Lens.MM_135, "135mm telephoto lens, a narrow view, the background strongly enlarged and "
+                    + "pulled close behind the subject"),
             Map.entry(Lens.MM_400, "400mm super-telephoto lens, very narrow field of view, "
                     + "the background stacked close behind the subject"),
-            Map.entry(Lens.MACRO, "macro lens, extreme close-up revealing fine detail"),
+            Map.entry(Lens.MACRO, "macro lens, extreme magnification, tiny structures and textures filling the "
+                    + "whole frame, razor-thin focus"),
             Map.entry(Lens.FISHEYE, "fisheye lens, strongly curved lines, 180-degree view"),
-            Map.entry(Lens.TILT_SHIFT, "tilt-shift lens, a narrow slice in focus, miniature effect"),
+            Map.entry(Lens.TILT_SHIFT, "tilt-shift miniature effect, only a narrow horizontal band in sharp "
+                    + "focus, the top and bottom of the image strongly blurred, the scene looking like a tiny model"),
             Map.entry(Lens.ANAMORPHIC, "anamorphic lens, widescreen cinematic look, oval bokeh, "
                     + "horizontal lens flare"));
 
@@ -170,11 +167,15 @@ public final class CameraPromptBuilder {
     }
 
     /*  A model names the concrete camera first and keeps the device class and its effect, so an unknown model
-        still works like "Generic": "shot on Leica M6, a 35mm compact film camera, ..."  */
+        still works like "Generic": "shot on Leica M6, a 35mm film camera, ..."; an analog one of a digital type
+        names a film camera  */
     private static String body(Body body, String model) {
         String generic = BODIES.get(body);
         if (model == null || model.isBlank())
             return generic;
-        return "shot on " + model.trim() + ", " + (generic.startsWith("shot on ") ? generic.substring(8) : generic);
+        String device = generic.startsWith("shot on ") ? generic.substring(8) : generic;
+        if (MODELS.stream().anyMatch((Model known) -> known.name().equals(model.trim()) && known.analog()))
+            device = device.replaceFirst(" camera", " film camera");
+        return "shot on " + model.trim() + ", " + device;
     }
 }

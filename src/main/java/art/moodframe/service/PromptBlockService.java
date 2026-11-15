@@ -376,7 +376,7 @@ public class PromptBlockService {
                 null, null, null, Shot.DETAIL)));
         cameras.add(camera("Drone Overview", new CameraSettings(Body.DRONE, null, Lens.MM_24, Aperture.F_11,
                 null, null, Perspective.TOP_DOWN, Shot.EXTREME_WIDE)));
-        cameras.add(camera("Cinematic Anamorphic", new CameraSettings(Body.CINEMA, "ARRI Alexa 35", Lens.ANAMORPHIC,
+        cameras.add(camera("Cinematic Anamorphic", new CameraSettings(null, null, Lens.ANAMORPHIC,
                 Aperture.F_1_4, null, null, null, Shot.MEDIUM)));
         cameras.add(camera("Product Tabletop", new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", Lens.MM_85,
                 Aperture.F_11, null, Iso.ISO_100, Perspective.HIGH_ANGLE, null)));

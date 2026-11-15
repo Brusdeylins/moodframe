@@ -81,8 +81,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
     private static final Map<Body, String> BODY_ICONS = Map.of(Body.SMARTPHONE, "mdi2c-cellphone",
             Body.COMPACT_35MM, "mdi2f-film", Body.FULL_FRAME, "mdi2c-camera",
-            Body.MEDIUM_FORMAT, "mdi2c-camera-iris", Body.LARGE_FORMAT, "mdi2c-crop-free",
-            Body.CINEMA, "mdi2m-movie-open-outline", Body.INSTANT, "mdi2i-image-frame", Body.DRONE, "mdi2q-quadcopter",
+            Body.MEDIUM_FORMAT, "mdi2c-camera-iris", Body.INSTANT, "mdi2i-image-frame", Body.DRONE, "mdi2q-quadcopter",
             Body.ACTION_CAM, "mdi2c-camera-gopro");
     private static final Map<Shutter, String> SHUTTER_ICONS = Map.of(Shutter.FROZEN, "mdi2s-snowflake",
             Shutter.NORMAL, "mdi2c-camera-iris", Shutter.MOTION_BLUR, "mdi2r-run-fast",
@@ -297,6 +296,10 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             }
             if (allowed.aperture() != settings.aperture())
                 apertureSlider.setValue(0);
+            if (allowed.shutter() != settings.shutter())
+                selectAny(shutterGroup);
+            if (allowed.iso() != settings.iso())
+                selectAny(isoGroup);
             if (allowed.perspective() != settings.perspective())
                 selectAny(perspectiveGroup);
             if (allowed.shot() != settings.shot())
@@ -338,7 +341,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 .ifPresent(group::selectToggle);
     }
 
-    /*  "Generic" and the models of the type; no model without a type  */
+    /*  "Generic" and the models of the type; no choice without a type or without models of the type  */
     private void fillModels(Body body, String model) {
         CameraPromptBuilder.Model generic = new CameraPromptBuilder.Model(body, "", false);
         List<CameraPromptBuilder.Model> models = new ArrayList<>(List.of(generic));
@@ -346,7 +349,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             models.addAll(CameraPromptBuilder.models(body));
         modelBox.getItems().setAll(models);
         modelBox.setValue(models.stream().filter((item) -> item.name().equals(model)).findFirst().orElse(generic));
-        modelBox.setDisable(body == null);
+        modelBox.setDisable(models.size() < 2);
     }
 
     /*  A tile of the camera type: symbol over name  */

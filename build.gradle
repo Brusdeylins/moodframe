@@ -159,6 +159,28 @@ test {
     timeout = Duration.ofMinutes(2)
 }
 
+// Camera check: test images per camera stage, rated blindly; costs money, so not part of "test"
+// (see src/test/java/art/moodframe/tools/CameraCheck.java)
+task cameraCheck(type: JavaExec) {
+    group = 'verification'
+    description = 'Generate and rate camera test images (-PcameraCheck.dry, .only, .cap, .dir)'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'art.moodframe.tools.CameraCheck'
+
+    // A throwaway home: database, config and logs never touch the real library in ~/.moodframe
+    def home = layout.buildDirectory.dir('camera-check-home').get().asFile
+    systemProperty 'user.home', home.absolutePath
+    systemProperty 'java.awt.headless', 'true'
+    doFirst { home.mkdirs() }
+    args = [
+        project.findProperty('cameraCheck.dir') ?: layout.buildDirectory.dir('camera-check').get().asFile.absolutePath,
+        project.findProperty('cameraCheck.cap') ?: '60',
+        project.hasProperty('cameraCheck.dry') ? 'true' : 'false',
+        project.findProperty('cameraCheck.only') ?: ''
+    ]
+}
+
 // Custom tasks
 task runDev(type: JavaExec) {
     group = 'application'

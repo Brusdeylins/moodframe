@@ -32,13 +32,15 @@ class CameraSettingsTest {
     void blocksExactlyTheStagesOfEveryRowOfTheTable() {
         assertBlocks(Body.DRONE, Perspective.EYE_LEVEL, Perspective.LOW_ANGLE, Shot.CLOSE_UP, Shot.DETAIL,
                 Lens.MACRO);
-        assertBlocks(Body.SMARTPHONE, Aperture.F_1_4, Aperture.F_4, Lens.TILT_SHIFT);
+        assertBlocks(Body.SMARTPHONE, Lens.MM_85, Lens.MM_135, Lens.MM_400, Lens.MACRO, Lens.TILT_SHIFT,
+                Aperture.F_1_4, Aperture.F_4);
+        assertBlocks(Body.COMPACT_35MM, Iso.ISO_100);
+        assertBlocks(Body.INSTANT, Lens.MM_400);
         assertBlocks(Body.ACTION_CAM, Lens.MM_24, Lens.MM_35, Lens.MM_50, Lens.MM_85, Lens.MM_135, Lens.MM_400,
                 Lens.MACRO, Lens.TILT_SHIFT, Lens.ANAMORPHIC);
-        assertBlocks(Body.LARGE_FORMAT, Lens.FISHEYE, Perspective.DUTCH_ANGLE);
-        assertBlocks(Lens.MACRO, Shot.EXTREME_WIDE, Shot.WIDE, Shot.MEDIUM);
+        assertBlocks(Lens.MACRO, Aperture.F_11, Shot.EXTREME_WIDE, Shot.WIDE, Shot.MEDIUM);
         assertBlocks(Lens.TILT_SHIFT, Aperture.F_11);
-        for (Body body : List.of(Body.COMPACT_35MM, Body.FULL_FRAME, Body.MEDIUM_FORMAT, Body.CINEMA, Body.INSTANT))
+        for (Body body : List.of(Body.FULL_FRAME, Body.MEDIUM_FORMAT))
             assertBlocks(body);
         for (Lens lens : List.of(Lens.MM_14, Lens.MM_24, Lens.MM_35, Lens.MM_50, Lens.MM_85, Lens.MM_135,
                 Lens.MM_400, Lens.FISHEYE, Lens.ANAMORPHIC))
@@ -74,7 +76,16 @@ class CameraSettingsTest {
         assertEquals(new CameraSettings(Body.ACTION_CAM, null, null, null, null, null, Perspective.EYE_LEVEL,
                 Shot.CLOSE_UP), new CameraSettings(Body.ACTION_CAM, null, Lens.MM_85, null, null, null,
                 Perspective.EYE_LEVEL, Shot.CLOSE_UP).withoutConflicts());
-        CameraSettings free = new CameraSettings(Body.LARGE_FORMAT, "Linhof Technika", Lens.TILT_SHIFT, Aperture.F_4,
+        assertEquals(new CameraSettings(Body.COMPACT_35MM, "Leica M6", Lens.MM_35, null, null, null, null, null),
+                new CameraSettings(Body.COMPACT_35MM, "Leica M6", Lens.MM_35, null, null, Iso.ISO_100, null, null)
+                        .withoutConflicts(), "visible film grain excludes a clean image");
+        assertEquals(new CameraSettings(Body.INSTANT, null, null, Aperture.F_4, null, null, null, null),
+                new CameraSettings(Body.INSTANT, null, Lens.MM_400, Aperture.F_4, null, null, null, null)
+                        .withoutConflicts());
+        assertEquals(new CameraSettings(null, null, Lens.MACRO, null, null, null, null, Shot.DETAIL),
+                new CameraSettings(null, null, Lens.MACRO, Aperture.F_11, null, null, null, Shot.DETAIL)
+                        .withoutConflicts());
+        CameraSettings free = new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", Lens.TILT_SHIFT, Aperture.F_4,
                 Shutter.LONG_EXPOSURE, Iso.ISO_100, Perspective.EYE_LEVEL, Shot.WIDE);
         assertEquals(free, free.withoutConflicts());
         assertEquals(CameraSettings.ANY, CameraSettings.ANY.withoutConflicts());

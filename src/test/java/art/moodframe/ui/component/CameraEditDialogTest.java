@@ -7,8 +7,10 @@ import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import org.junit.jupiter.api.BeforeAll;
@@ -126,6 +128,29 @@ class CameraEditDialogTest {
     }
 
     @Test
+    void resetsAChosenIsoBlockedByTheTypeToAnyAndUpdatesThePrompt() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
+                new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null, CameraSettings.Iso.ISO_100,
+                        null, null))));
+        List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
+        TextArea prompt = (TextArea) dialog.getDialogPane().lookup(".text-area");
+        assertTrue(prompt.getText().contains("ISO 100"));
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.COMPACT_35MM).fire();
+            return null;
+        });
+        CameraEditDialog.Result result = onFxThread(() -> dialog.getResultConverter().call(buttons.get(1)));
+        String iso = I18nManager.getText("camera.dialog.iso");
+
+        assertEquals(new CameraSettings(CameraSettings.Body.COMPACT_35MM, null, null, null, null, null, null, null),
+                result.settings(), "ISO 100 goes back to \"Any\"");
+        assertTrue(toggle(dialog, CameraSettings.Iso.ISO_100).isDisable());
+        assertFalse(prompt.getText().contains("ISO 100"), "the prompt follows the reset");
+        assertEquals(iso + ": " + I18nManager.getText("camera.dialog.any"), onFxThread(() -> heading(dialog, iso)));
+    }
+
+    @Test
     void skipsABlockedDetentOfASlider() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("phone", "Phone",
                 new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null, null, null))));
@@ -144,6 +169,19 @@ class CameraEditDialogTest {
             sliders.getFirst().setValue(5);
             return sliders.getFirst().getValue();
         }), "with no allowed focal length after it, 14 mm is the nearest one before it");
+    }
+
+    @Test
+    void offersNoModelChoiceForATypeWithoutModels() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("drone", "Drone",
+                new CameraSettings(CameraSettings.Body.DRONE, null, null, null, null, null, null, null))));
+        ChoiceBox<?> models = (ChoiceBox<?>) dialog.getDialogPane().lookup(".choice-box");
+
+        assertTrue(models.isDisable(), "a drone has no models");
+        assertFalse(onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.INSTANT).fire();
+            return models.isDisable();
+        }), "an instant camera offers the Polaroid SX-70");
     }
 
     private static ToggleButton toggle(CameraEditDialog dialog, Enum<?> stage) {

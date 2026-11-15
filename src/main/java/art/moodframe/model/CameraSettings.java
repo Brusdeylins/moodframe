@@ -30,23 +30,32 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     public static final CameraSettings ANY = new CameraSettings(null, null, null, null, null, null, null, null);
 
     /*  Removed values and the value that replaces them, so stored settings keep loading  */
-    private static final Map<String, String> REMOVED = Map.of("APS_C", "FULL_FRAME", "MM_200", "MM_135",
-            "F_2", "F_1_4", "F_8", "F_11", "F_16", "F_11", "ISO_800", "ISO_100");
+    private static final Map<String, String> REMOVED = Map.of("APS_C", "FULL_FRAME", "LARGE_FORMAT", "FULL_FRAME",
+            "CINEMA", "FULL_FRAME", "MM_200", "MM_135", "F_2", "F_1_4", "F_8", "F_11", "F_16", "F_11",
+            "ISO_800", "ISO_100");
+
+    /*  Removed camera models, read as "Generic" of their type: a date stamp or a brand name in the image, no look of
+        their own, not of their type, or of a removed type  */
+    private static final Set<String> REMOVED_MODELS = Set.of("Contax T2", "Olympus mju-II", "Fujifilm X-T5",
+            "Fujifilm X100VI", "Linhof Technika", "ARRI Alexa 35", "RED V-Raptor", "IMAX film camera",
+            "Fujifilm Instax", "DJI Mavic 3", "GoPro Hero");
 
     /*  The stages whose prompt text contradicts the one of a type or lens; a stage blocks only stages after it in the
         order of the dialog (type, lens, aperture, shutter, ISO, perspective, shot), so no choice can block itself  */
     private static final Map<Enum<?>, Set<Enum<?>>> CONFLICTS = Map.of(
             Body.DRONE, Set.of(Lens.MACRO, Perspective.EYE_LEVEL, Perspective.LOW_ANGLE, Shot.CLOSE_UP, Shot.DETAIL),
-            Body.SMARTPHONE, Set.of(Lens.TILT_SHIFT, Aperture.F_1_4, Aperture.F_4),
+            Body.SMARTPHONE, Set.of(Lens.MM_85, Lens.MM_135, Lens.MM_400, Lens.MACRO, Lens.TILT_SHIFT,
+                    Aperture.F_1_4, Aperture.F_4),
+            Body.COMPACT_35MM, Set.of(Iso.ISO_100),
+            Body.INSTANT, Set.of(Lens.MM_400),
             Body.ACTION_CAM, Set.of(Lens.MM_24, Lens.MM_35, Lens.MM_50, Lens.MM_85, Lens.MM_135, Lens.MM_400,
                     Lens.MACRO, Lens.TILT_SHIFT, Lens.ANAMORPHIC),
-            Body.LARGE_FORMAT, Set.of(Lens.FISHEYE, Perspective.DUTCH_ANGLE),
-            Lens.MACRO, Set.of(Shot.EXTREME_WIDE, Shot.WIDE, Shot.MEDIUM),
+            Lens.MACRO, Set.of(Aperture.F_11, Shot.EXTREME_WIDE, Shot.WIDE, Shot.MEDIUM),
             Lens.TILT_SHIFT, Set.of(Aperture.F_11));
 
     /** The camera type. */
     public enum Body {
-        SMARTPHONE, COMPACT_35MM, FULL_FRAME, MEDIUM_FORMAT, LARGE_FORMAT, CINEMA, INSTANT, DRONE, ACTION_CAM
+        SMARTPHONE, COMPACT_35MM, FULL_FRAME, MEDIUM_FORMAT, INSTANT, DRONE, ACTION_CAM
     }
 
     /** The focal lengths from wide to long, followed by the special lenses. */
@@ -142,8 +151,8 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
     public CameraSettings withoutConflicts() {
         CameraSettings settings = new CameraSettings(body, model, allowed(lens), aperture, shutter, iso, perspective,
                 shot);
-        return new CameraSettings(body, model, settings.lens, settings.allowed(aperture), shutter, iso,
-                settings.allowed(perspective), settings.allowed(shot));
+        return new CameraSettings(body, model, settings.lens, settings.allowed(aperture), settings.allowed(shutter),
+                settings.allowed(iso), settings.allowed(perspective), settings.allowed(shot));
     }
 
     private <E extends Enum<E>> E allowed(E stage) {
@@ -170,7 +179,7 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
 
     /**
      * Reads the settings from JSON text written by {@link #toJson()}; a removed value counts as the value replacing
-     * it, a missing or unknown value as "any".
+     * it, a missing or unknown value as "any", a removed camera model as "Generic".
      *
      * @param json the JSON text, null or empty for none
      * @return the settings, {@link #ANY} for text that is no JSON object
@@ -181,7 +190,8 @@ public record CameraSettings(Body body, String model, Lens lens, Aperture apertu
         try {
             JSONObject object = new JSONObject(json);
             String model = object.optString("model", "");
-            return new CameraSettings(value(object, "body", Body.class), model.isEmpty() ? null : model,
+            return new CameraSettings(value(object, "body", Body.class),
+                    model.isEmpty() || REMOVED_MODELS.contains(model) ? null : model,
                     value(object, "lens", Lens.class), value(object, "aperture", Aperture.class),
                     value(object, "shutter", Shutter.class), value(object, "iso", Iso.class),
                     value(object, "perspective", Perspective.class), value(object, "shot", Shot.class));
