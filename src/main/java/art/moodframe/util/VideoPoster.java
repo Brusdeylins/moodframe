@@ -17,16 +17,19 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Creates the poster image of a video tile: a frame of the video, taken with JavaFX Media (no external tool),
- * and stored as a JPEG next to the video, so it is created only once.
+ * Creates the poster image of a video tile: a frame of the video, taken with JavaFX Media, or with ffmpeg where
+ * JavaFX Media cannot play the video, and stored as a JPEG next to the video, so it is created only once.
  *
  * @since 1.8.1
+ * @updated 2.1.0 - Frame via ffmpeg where JavaFX Media cannot play the video
  */
 public final class VideoPoster {
 
@@ -54,7 +57,8 @@ public final class VideoPoster {
     }
 
     /**
-     * Loads the poster of a video, and creates it from a frame of the video if it does not exist yet.
+     * Loads the poster of a video, and creates it from a frame of the video if it does not exist yet: with JavaFX
+     * Media, and if that fails or JavaFX Media is known to be unusable, with ffmpeg if it is in the PATH.
      *
      * @param video the video file
      * @return the poster, or a failed future if no frame could be taken
@@ -66,11 +70,17 @@ public final class VideoPoster {
         }
         synchronized (VideoPoster.class) {
             CompletableFuture<Image> next = queue.handle((Object ignored, Throwable error) -> null)
-                    .thenCompose((Object ignored) -> capture(video))
-                    .thenApply((WritableImage frame) -> {
-                        writeJpeg(frame, poster.toFile());
-                        return (Image) frame;
-                    });
+                    .thenCompose((Object ignored) -> MediaSupport.isUsable()
+                            ? capture(video)
+                                    .thenApply((WritableImage frame) -> {
+                                        writeJpeg(frame, poster.toFile());
+                                        return (Image) frame;
+                                    })
+                                    .exceptionallyCompose((Throwable error) -> {
+                                        MediaSupport.failed(error);
+                                        return extract(video, poster);
+                                    })
+                            : extract(video, poster));
             queue = next;
             return next;
         }
@@ -114,6 +124,62 @@ public final class VideoPoster {
             }
         });
         return result;
+    }
+
+    /*  Takes the frame with the ffmpeg of the PATH in the background, as a process never runs on the FX thread  */
+    private static CompletableFuture<Image> extract(Path video, Path poster) {
+        return CompletableFuture.supplyAsync(() -> runFfmpeg(SystemOpen.findProgram("ffmpeg"), video, poster));
+    }
+
+    /**
+     * Takes the frame of the poster with ffmpeg and loads the poster.
+     *
+     * @param ffmpeg the ffmpeg executable, or null without ffmpeg
+     * @param video the video file
+     * @param poster the poster file to write
+     * @return the poster
+     * @throws IllegalStateException without ffmpeg, or if ffmpeg fails or takes too long
+     */
+    static Image runFfmpeg(Path ffmpeg, Path video, Path poster) {
+        if (ffmpeg == null)
+            throw new IllegalStateException("No ffmpeg in the PATH for the poster of " + video);
+        try {
+            Process process = new ProcessBuilder(ffmpegCommand(ffmpeg, video, poster))
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            boolean finished = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!finished)
+                process.destroyForcibly();
+            if (!finished || process.exitValue() != 0 || !Files.isRegularFile(poster)) {
+                /*  A partial poster would be taken as the cached one on the next load  */
+                Files.deleteIfExists(poster);
+                throw new IllegalStateException("ffmpeg could not take the poster of " + video);
+            }
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+        return new Image(poster.toUri().toString(), POSTER_WIDTH, 0, true, true);
+    }
+
+    /**
+     * Returns the ffmpeg call for the poster: one frame at the frame time, as wide as the poster, without any
+     * question on the console.
+     *
+     * @param ffmpeg the ffmpeg executable
+     * @param video the video file
+     * @param poster the poster file to write
+     * @return the command line
+     */
+    static List<String> ffmpegCommand(Path ffmpeg, Path video, Path poster) {
+        return List.of(ffmpeg.toString(), "-nostdin", "-y", "-loglevel", "error",
+                "-ss", String.valueOf(FRAME_AT_SECONDS), "-i", video.toString(),
+                "-frames:v", "1", "-vf", "scale=" + (int) POSTER_WIDTH + ":-2", "-q:v", "3", poster.toString());
     }
 
     private static void writeJpeg(WritableImage frame, File target) {

@@ -5,6 +5,9 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.service.ImageDragExporter;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.util.MediaSupport;
+import art.moodframe.util.SystemOpen;
+import art.moodframe.util.VideoPoster;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -69,6 +72,7 @@ import java.util.function.Consumer;
  * @since 1.0.0
  * @updated 1.3.17 - Added I18n tooltip support with manual listener management
  * @updated 2.0.0 - Gallery of the images view
+ * @updated 2.1.0 - Poster and the video player of the system for a video JavaFX cannot play
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -107,6 +111,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private MediaPlayer mediaPlayer;
     private Button playPauseButton;
     private boolean isVideoMode = false;
+
+    /*  The fallback for a video JavaFX cannot play: its poster with a hint and the video player of the system  */
+    private HBox videoFallback;
+    private FontIcon videoFallbackIcon;
+    private Label videoFallbackHint;
+    private Button videoFallbackButton;
+    private File fallbackVideo;
 
     // State
     private List<String> imagePaths;
@@ -326,13 +337,33 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         galleryInfo.setMouseTransparent(true);
         galleryInfo.setVisible(false);
 
+        /*  The fallback of a video shows its icon only as long as there is no poster  */
+        videoFallbackIcon = new FontIcon("mdi2v-video-off-outline");
+        videoFallbackIcon.setIconSize(48);
+        videoFallbackIcon.setIconColor(javafx.scene.paint.Color.WHITE);
+        videoFallbackHint = new Label();
+        videoFallbackHint.setWrapText(true);
+        videoFallbackHint.setMaxWidth(420.0);
+        videoFallbackHint.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        videoFallbackHint.setStyle("-fx-text-fill: white;");
+        videoFallbackButton = new Button();
+        VBox fallbackBox = new VBox(10.0, videoFallbackIcon, videoFallbackHint, videoFallbackButton);
+        fallbackBox.setAlignment(Pos.CENTER);
+        fallbackBox.setMaxWidth(Region.USE_PREF_SIZE);
+        fallbackBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 12; "
+                + "-fx-padding: 12 18 12 18;");
+        videoFallback = new HBox(fallbackBox);
+        videoFallback.setAlignment(Pos.CENTER);
+        videoFallback.setPickOnBounds(false);
+        videoFallback.setVisible(false);
+
         // Add all buttons to navigation anchor with absolute positioning
         navigationAnchor.getChildren().addAll(
                 closeButton,
                 prevImageButton, nextImageButton,
                 prevChatButton, nextChatButton,
                 downloadButton, editThisButton,
-                zoom100Button, playPauseButton, galleryInfo);
+                zoom100Button, playPauseButton, galleryInfo, videoFallback);
 
         // Set absolute positions using AnchorPane constraints
         setAbsoluteButtonPositions();
@@ -386,6 +417,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         AnchorPane.setLeftAnchor(galleryInfo, 0.0);
         AnchorPane.setRightAnchor(galleryInfo, 0.0);
         AnchorPane.setBottomAnchor(galleryInfo, 20.0);
+
+        AnchorPane.setLeftAnchor(videoFallback, 0.0);
+        AnchorPane.setRightAnchor(videoFallback, 0.0);
+        AnchorPane.setBottomAnchor(videoFallback, 80.0);
 
         // Center play button horizontally via layout listener
         navigationAnchor.layoutBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
@@ -450,6 +485,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Play/Pause button handler for video
         playPauseButton.setOnAction(e -> {
             toggleVideoPlayback();
+            requestFocus();
+        });
+
+        videoFallbackButton.setOnAction((e) -> {
+            if (fallbackVideo != null)
+                SystemOpen.open(fallbackVideo.toPath());
             requestFocus();
         });
 
@@ -1022,7 +1063,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * accordingly.
      */
     private void updateZoomButtonState() {
-        if (imageView.getImage() == null) {
+        if (imageView.getImage() == null || isVideoMode) {
             zoom100Button.setDisable(true);
             zoom100Button.setVisible(false);
             return;
@@ -1122,10 +1163,27 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Stop any previous video
         stopVideo();
 
+        /*  Once JavaFX Media proved unusable on this system, every video goes straight to its fallback  */
+        if (!MediaSupport.isUsable()) {
+            showVideoFallback(videoFile, null);
+            return;
+        }
+
         try {
             Media media = new Media(videoFile.toURI().toString());
             mediaPlayer = new MediaPlayer(media);
             mediaView.setMediaPlayer(mediaPlayer);
+
+            /*  An error while opening or playing, e.g. under Linux without a plugin for the ffmpeg of the system  */
+            MediaPlayer player = mediaPlayer;
+            media.setOnError(() -> {
+                if (mediaPlayer == player)
+                    showVideoFallback(videoFile, media.getError());
+            });
+            mediaPlayer.setOnError(() -> {
+                if (mediaPlayer == player)
+                    showVideoFallback(videoFile, player.getError());
+            });
 
             // Hide image, show video
             imageView.setVisible(false);
@@ -1185,13 +1243,55 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             logger.info("Video loaded for playback: {}", videoFile.getName());
 
         } catch (Exception e) {
-            logger.error("Failed to load video: {}", videoFile.getAbsolutePath(), e);
-            // Fallback to showing error in image view
-            imageView.setVisible(true);
-            mediaView.setVisible(false);
-            isVideoMode = false;
-            playPauseButton.setVisible(false);
+            showVideoFallback(videoFile, e);
         }
+    }
+
+    /**
+     * Shows the poster of a video which JavaFX cannot play, with a hint and a button for the video player of the
+     * system; play/pause stays off, closing and paging work as before.
+     *
+     * @param videoFile the video file
+     * @param error the error of JavaFX Media, or null if JavaFX Media is known to be unusable
+     */
+    private void showVideoFallback(File videoFile, Throwable error) {
+        stopVideo();
+        if (error != null) {
+            MediaSupport.failed(error);
+            logger.warn("JavaFX cannot play the video {}: {}", videoFile.getAbsolutePath(), error.getMessage());
+        }
+        isVideoMode = true;
+        fallbackVideo = videoFile;
+        imageView.setImage(null);
+        imageView.setVisible(true);
+        updateZoomButtonState();
+        videoFallbackIcon.setVisible(true);
+        videoFallbackIcon.setManaged(true);
+        updateVideoFallbackTexts();
+        videoFallback.setVisible(true);
+
+        /*  The poster arrives later, when the overlay may already show another file  */
+        VideoPoster.load(videoFile.toPath())
+                .whenComplete((poster, failure) -> javafx.application.Platform.runLater(() -> {
+                    if (poster == null || !videoFile.equals(fallbackVideo))
+                        return;
+                    imageView.setImage(poster);
+                    videoFallbackIcon.setVisible(false);
+                    videoFallbackIcon.setManaged(false);
+                    calculateZoomLimits(poster);
+                    resetImageTransform();
+                }));
+    }
+
+    /*  Without any way to open the video, the hint names its file instead of offering the button  */
+    private void updateVideoFallbackTexts() {
+        boolean opens = SystemOpen.isAvailable();
+        videoFallbackHint.setText(opens
+                ? I18nManager.getText("video.fallback.hint")
+                : I18nManager.getText("video.fallback.hint.file", fallbackVideo.getAbsolutePath()));
+        videoFallbackButton.setText(I18nManager.getText("video.fallback.open"));
+        videoFallbackButton.setVisible(opens);
+        videoFallbackButton.setManaged(opens);
     }
 
     /**
@@ -1207,6 +1307,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         mediaView.setVisible(false);
         isVideoMode = false;
         playPauseButton.setVisible(false);
+        videoFallback.setVisible(false);
+        fallbackVideo = null;
     }
 
     /**
@@ -1534,6 +1636,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     public void onLanguageChanged() {
         try {
             updateTooltips();
+            if (fallbackVideo != null)
+                updateVideoFallbackTexts();
         } catch (Exception e) {
             logger.warn("Error during language change update for ImagePreviewOverlay", e);
         }
