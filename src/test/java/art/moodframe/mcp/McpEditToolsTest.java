@@ -369,7 +369,8 @@ class McpEditToolsTest {
         ChatEntry entry = chats.findEntry(generated.path("entryId").asText());
         assertEquals(preview.path("prompt").asText(), entry.getEnhancedPrompt());
         assertEquals(preview.path("aspectRatio").asText(), entry.getSize());
-        assertEquals(preview.path("cost").asDouble(), McpTools.usd(entry.getCost()));
+        assertEquals(preview.path("cost").asDouble(), McpTools.usd(provider.sentCosts.get(
+                provider.sentCosts.size() - 1)), "the estimate of the entry as sent");
         ImageGenerationRequest request = provider.sent.get(provider.sent.size() - 1);
         assertEquals(preview.path("prompt").asText(), request.getPrompt());
         assertEquals(preview.path("aspectRatio").asText(), request.getAspectRatio());
@@ -383,6 +384,11 @@ class McpEditToolsTest {
                 + "\"model\":\"" + MODEL + "\",\"count\":2,\"wait\":10}");
         assertEquals("COMPLETED", result.path("status").asText());
         assertEquals(2, result.path("images").size());
+        ImageGenerationRequest request = provider.sent.get(provider.sent.size() - 1);
+        double price = GenerationCost.perImage(GenerationModel.FLUX2_PRO, request.getWidth(), request.getHeight(),
+                null);
+        assertTrue(price > 0);
+        assertEquals(McpTools.usd(2 * price), result.path("cost").asDouble(), "a FLUX entry costs its images");
         for (JsonNode image : result.path("images"))
             assertTrue(Files.isRegularFile(Path.of(image.path("path").asText())));
         assertFalse(result.has("hint"));
@@ -445,6 +451,7 @@ class McpEditToolsTest {
         private final ChatRepository repository;
         private final List<Consumer<ChatEntry>> listeners = new CopyOnWriteArrayList<>();
         final List<ImageGenerationRequest> sent = new CopyOnWriteArrayList<>();
+        final List<Double> sentCosts = new CopyOnWriteArrayList<>();
         volatile boolean hold;
 
         Provider(ChatRepository repository) {
@@ -482,6 +489,7 @@ class McpEditToolsTest {
         public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
                 File attachedImageFile) {
             sent.add(request);
+            sentCosts.add(chatEntry.getCost());
             boolean held = hold;
             Platform.runLater(() -> {
                 chatEntry.setStatus(ChatEntry.Status.PROCESSING);
@@ -494,10 +502,14 @@ class McpEditToolsTest {
                                     .localFilePath(file.getPath()).filename(file.getName()).sortOrder(i)
                                     .downloadStatus(GeneratedImage.DownloadStatus.CACHED).imageWidth(64)
                                     .imageHeight(36).fileSizeBytes(file.length()).mimeType("image/png")
-                                    .baseCost(chatEntry.getCost() / request.getImageCount()).build();
+                                    .baseCost(request.getBaseCostPerImage()).build();
                             repository.saveGeneratedImage(image);
                             chatEntry.getImages().add(image);
                         }
+
+                        /*  as the providers settle it: the entry costs the sum of its images  */
+                        chatEntry.setCost(chatEntry.getImages().stream()
+                                .mapToDouble((GeneratedImage image) -> image.getBaseCost()).sum());
                         chatEntry.setStatus(ChatEntry.Status.COMPLETED);
                     }
                     repository.saveChatEntry(chatEntry);

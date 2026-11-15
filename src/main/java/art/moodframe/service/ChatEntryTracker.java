@@ -27,6 +27,9 @@ public class ChatEntryTracker {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatEntryTracker.class);
 
+    /*  BFL reports its prices in credits of one cent  */
+    private static final double USD_PER_BFL_CREDIT = 0.01;
+
     private final ApplicationConfig config;
     private final ChatRepository chatRepository;
     private final Executor executor;
@@ -271,61 +274,22 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Updates the ChatEntry cost with actual API cost if available.
-     * Uses real API cost when provided, otherwise keeps the estimated cost.
-     * Accumulates costs across all images in the entry.
+     * Takes the price BFL reports for a finished job as the base cost of its image, which keeps its estimate
+     * otherwise; the entry gets the sum of its images once all are finished. Call on the FX thread.
+     *
+     * @param image     the image of the job
+     * @param jobResult the result of the job, its cost in BFL credits
      */
-    public void updateCostFromApi(ChatEntry chatEntry, GenerationJobResult jobResult) {
-        if (jobResult == null || chatEntry == null) {
+    public void updateCostFromApi(GeneratedImage image, GenerationJobResult jobResult) {
+        if (jobResult == null || image == null)
             return;
-        }
-
-        Double apiCost = jobResult.getCost();
-        if (apiCost != null && apiCost > 0) {
-            // Get current estimated cost
-            double currentCost = chatEntry.getCost();
-
-            // Calculate the per-image estimated cost
-            int imageCount = chatEntry.getImages().size();
-            double estimatedPerImage = imageCount > 0 ? currentCost / imageCount : 0;
-
-            // Calculate the difference between estimated and actual cost
-            double costDifference = apiCost - estimatedPerImage;
-            double percentageDiff = estimatedPerImage > 0 ? (costDifference / estimatedPerImage) * 100 : 0;
-
-            // Log cost comparison if there's a significant difference (more than 0.01 cents)
-            if (Math.abs(costDifference) > 0.0001) { // Avoid floating point comparison issues
-                logger.info("Cost comparison - Estimated: ${}, Actual: ${}, Difference: ${} ({}{:.1f}%)",
-                    String.format("%.4f", estimatedPerImage),
-                    String.format("%.4f", apiCost),
-                    String.format("%+.4f", costDifference),
-                    costDifference > 0 ? "+" : "",
-                    percentageDiff);
-            }
-
-            // Add the real API cost (subtract one estimated cost and add the real one)
-            double updatedCost = currentCost - estimatedPerImage + apiCost;
-
-            // Update on FX thread
-            Platform.runLater(() -> {
-                chatEntry.setCost(updatedCost);
-
-                // Persist updated cost to database
-                if (chatRepository != null) {
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            chatRepository.saveChatEntry(chatEntry);
-                            if (config.getLoggingEnabled()) {
-                                logger.info("Updated ChatEntry total cost from API: ${} (was ${} estimated)",
-                                    String.format("%.4f", updatedCost),
-                                    String.format("%.4f", currentCost));
-                            }
-                        } catch (Exception e) {
-                            logger.error("Failed to save updated ChatEntry cost to database", e);
-                        }
-                    }, executor);
-                }
-            });
-        }
+        Double credits = jobResult.getCost();
+        if (credits == null || credits <= 0)
+            return;
+        double apiCost = credits * USD_PER_BFL_CREDIT;
+        if (config.getLoggingEnabled())
+            logger.info("BFL cost of image {}: ${} (estimated ${})", image.getId(), String.format("%.4f", apiCost),
+                    String.format("%.4f", image.getBaseCost() != null ? image.getBaseCost() : 0.0));
+        image.setBaseCost(apiCost);
     }
 }

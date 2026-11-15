@@ -152,6 +152,9 @@ public class BflGenerationFlow {
             imageRequest.setAspectRatio(request.getAspectRatio()); // Copy aspect ratio for proper model handling
             imageRequest.setStylePreset(request.getStylePreset()); // Copy style preset if present
 
+            /*  The price per image becomes the base cost of the image, the entry gets the sum of its images  */
+            imageRequest.setBaseCostPerImage(request.getBaseCostPerImage());
+
             // Copy FLUX.2 specific parameters
             imageRequest.setGuidance(request.getGuidance()); // FLUX.2 [flex] guidance
             imageRequest.setSteps(request.getSteps()); // FLUX.2 [flex] steps
@@ -501,8 +504,8 @@ public class BflGenerationFlow {
 
                     tracker.notifyImageUpdated(pendingRequest.generatedImage);
 
-                    // Update ChatEntry cost with actual API cost if available
-                    tracker.updateCostFromApi(pendingRequest.chatEntry, jobResult);
+                    // Update the image cost with actual API cost if available
+                    tracker.updateCostFromApi(pendingRequest.generatedImage, jobResult);
 
                     // Start actual image download
                     downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
@@ -542,6 +545,9 @@ public class BflGenerationFlow {
         String userFriendlyMessage = getUserFriendlyErrorMessage(reason);
         pendingRequest.generatedImage.setFailureReason(userFriendlyMessage);
         pendingRequest.generatedImage.setErrorMessage(userFriendlyMessage);
+
+        /*  BFL bills finished jobs only, a failed or moderated one costs nothing  */
+        pendingRequest.generatedImage.setBaseCost(0.0);
 
         tracker.notifyImageUpdated(pendingRequest.generatedImage);
 
