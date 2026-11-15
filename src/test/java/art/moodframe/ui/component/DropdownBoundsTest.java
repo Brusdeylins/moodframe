@@ -19,6 +19,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
 import javafx.stage.PopupWindow;
 import javafx.stage.Stage;
 import javafx.stage.Window;
@@ -131,31 +132,6 @@ class DropdownBoundsTest {
     }
 
     @Test
-    void theListIsAsWideAsItsRowsNeedButAtLeastTheFieldAndAtMostTheRoom() {
-        assertEquals(300, DropdownBounds.width(150, 300, 400));
-        assertEquals(400, DropdownBounds.width(150, 900, 400), "at most the room left of the field");
-        assertEquals(150, DropdownBounds.width(150, 80, 400), "at least the field");
-        assertEquals(150, DropdownBounds.width(150, 900, 100), "the field even without room");
-    }
-
-    @Test
-    void aWiderListEndsFlushWithTheFieldAndGrowsToTheLeft() throws Exception {
-        AtomicReference<Stage> stage = new AtomicReference<>();
-        AtomicReference<Parent> popup = new AtomicReference<>();
-        ComboBox<StylePresetItem> comboBox = openField(stage, popup, "Calm",
-                "A rather long atmosphere name that needs room");
-        Node list = popup.get().lookup(".list-view");
-        Bounds field = onScreen(comboBox);
-        Bounds shown = onScreen(list);
-
-        assertTrue(shown.getWidth() > field.getWidth() + 1, "the list is wider than the field: " + shown.getWidth());
-        assertEquals(field.getMaxX(), shown.getMaxX(), 1, "the list ends flush with the field");
-        assertTrue(shown.getMinX() >= WINDOW_X + DropdownBounds.MARGIN - 1, "the list stays inside the window");
-        assertTrue(shown.getMinY() >= field.getMaxY() - 1, "the list opens below the field");
-        close(stage.get());
-    }
-
-    @Test
     void aListOfShortNamesIsAsWideAsTheField() throws Exception {
         AtomicReference<Stage> stage = new AtomicReference<>();
         AtomicReference<Parent> popup = new AtomicReference<>();
@@ -169,7 +145,7 @@ class DropdownBoundsTest {
     }
 
     @Test
-    void aNameBeyondTheRoomIsCutAndShowsInFullInItsTooltip() throws Exception {
+    void aLongNameIsCutToTheFieldAndShowsInFullInItsTooltip() throws Exception {
         String longName = "An atmosphere name so long that it cannot fit into the window at all, not even close to it";
         AtomicReference<Stage> stage = new AtomicReference<>();
         AtomicReference<Parent> popup = new AtomicReference<>();
@@ -177,9 +153,9 @@ class DropdownBoundsTest {
         Bounds field = onScreen(comboBox);
         Bounds shown = onScreen(popup.get().lookup(".list-view"));
 
-        assertEquals(field.getMaxX() - WINDOW_X - DropdownBounds.MARGIN, shown.getWidth(), 1,
-                "the list fills the room left of the field");
-        assertEquals(field.getMaxX(), shown.getMaxX(), 1);
+        assertEquals(field.getWidth(), shown.getWidth(), 1, "the list is as wide as the field");
+        assertEquals(field.getMinX(), shown.getMinX(), 1, "the list starts flush with the field");
+        assertTrue(shown.getMinY() >= field.getMaxY() - 1, "the list opens below the field");
         ListCell<?> row = popup.get().lookupAll(".list-cell").stream().map((node) -> (ListCell<?>) node)
                 .filter((cell) -> cell.getItem() != null && longName.equals(cell.getItem().toString()))
                 .findFirst().orElse(null);
@@ -187,6 +163,7 @@ class DropdownBoundsTest {
         Label name = (Label) row.lookup(".label");
         Node star = row.lookup(".favorite-star");
         assertTrue(onScreen(star).getMaxX() <= shown.getMaxX(), "the star shows in the list");
+        assertTrue(((Text) name.lookup(".text")).getText().endsWith("…"), "the name ends in \"…\"");
 
         onFxThread(() -> enter(name));
         assertNotNull(name.getTooltip(), "the cut name has a tooltip");
@@ -224,7 +201,7 @@ class DropdownBoundsTest {
     }
 
     @Test
-    void theMenuOfAChoiceEndsFlushWithTheField() throws Exception {
+    void theMenuOfAChoiceStartsFlushWithTheField() throws Exception {
         ChoiceBox<String> choiceBox = new ChoiceBox<>();
         AtomicReference<Stage> stage = new AtomicReference<>();
         ContextMenu menu = openChoice(stage, choiceBox, "16:9", "A choice somewhat wider than its field");
@@ -233,7 +210,7 @@ class DropdownBoundsTest {
 
         assertEquals(FIELD_WIDTH, field.getWidth(), 1);
         assertTrue(shown.getWidth() > field.getWidth() + 1, "the menu is wider than the field: " + shown.getWidth());
-        assertEquals(field.getMaxX(), shown.getMaxX(), 1, "the menu ends flush with the field");
+        assertEquals(field.getMinX(), shown.getMinX(), 1, "the menu starts flush with the field");
         close(stage.get());
     }
 

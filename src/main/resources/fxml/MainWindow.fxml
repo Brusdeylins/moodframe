@@ -295,9 +295,10 @@
                 </BorderPane>
                 
                 <!-- Right: Parameters Panel with Scroll, starting at the top of the chat area below the 45 px chat header;
-                     with the scroll bar the controller narrows the right padding to a gap to it -->
+                     with the scroll bar the controller narrows the right padding to a gap to it. The width of the panel is
+                     set here only: wide enough for the open lists of its fields with their standard entries -->
                 <ScrollPane fx:id="panelScrollPane" fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
-                            prefWidth="270.0" maxWidth="270.0" minWidth="270.0"
+                            prefWidth="330.0" maxWidth="330.0" minWidth="330.0"
                             styleClass="see-through"
                             style="-fx-background: transparent; -fx-background-color: transparent;">
                     <HBox.margin>

@@ -1210,7 +1210,7 @@ public class MainWindowController implements I18nChangeListener {
         // Setup the frame selection on the restored fields
         setupFrames();
 
-        // The open lists of the right panel end flush with their field and stay inside the window
+        // The open lists of the right panel start flush with their field and are as wide as it
         java.util.stream.Stream.of(moodComboBox, atmosphereComboBox, stylePresetsComboBox, colorStyleComboBox,
                 lightComboBox, cameraComboBox, frameComboBox).filter(java.util.Objects::nonNull)
                 .forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
@@ -2661,8 +2661,10 @@ public class MainWindowController implements I18nChangeListener {
             ((Button) pane.lookup(".panel-group-arrow")).setOnAction((event) -> toggle.run());
             titles.get(group).setOnMouseClicked((event) -> toggle.run());
 
-            /*  The line follows the fields, which move and grow, e.g. with the fields of another model  */
-            javafx.beans.InvalidationListener redraw = (obs) -> drawPanelGroupLine(pane);
+            /*  The line follows the fields, which move and grow, e.g. with the fields of another model; it bends only
+                in Mood and Frame, which save their detail fields  */
+            boolean bends = !group.equals("generation");
+            javafx.beans.InvalidationListener redraw = (obs) -> drawPanelGroupLine(pane, bends);
             pane.lookup(".panel-group-header").boundsInParentProperty().addListener(redraw);
             pane.lookup(".panel-group-summary").boundsInParentProperty().addListener(redraw);
             pane.lookup(".panel-group-details").boundsInParentProperty().addListener(redraw);
@@ -2705,17 +2707,22 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Draws the line of a group of the right panel: from the height of the title down beside the summary field, and
-     * while the group is unfolded, bent inwards at 45° below it and on beside the detail fields.
+     * while the group is unfolded, on beside the detail fields, bent inwards at 45° below the summary field or
+     * straight.
      *
-     * @param pane the group
+     * @param pane  the group
+     * @param bends whether the line bends inwards to the detail fields
      */
-    private static void drawPanelGroupLine(VBox pane) {
+    private static void drawPanelGroupLine(VBox pane, boolean bends) {
         double top = pane.lookup(".panel-group-header").getBoundsInParent().getCenterY() - PANEL_GROUP_LINE_TOP;
         double summary = pane.lookup(".panel-group-summary").getBoundsInParent().getMaxY();
         Node details = pane.lookup(".panel-group-details");
         javafx.scene.shape.Path line = (javafx.scene.shape.Path) pane.lookup(".panel-group-line");
         line.getElements().setAll(new javafx.scene.shape.MoveTo(PANEL_GROUP_LINE_X, top));
-        if (details.isVisible()) {
+        if (details.isVisible() && !bends)
+            line.getElements().add(new javafx.scene.shape.LineTo(PANEL_GROUP_LINE_X,
+                    Math.max(summary, details.getBoundsInParent().getMaxY())));
+        else if (details.isVisible()) {
             double bend = summary + PANEL_GROUP_LINE_GAP;
             double inner = PANEL_GROUP_LINE_X + PANEL_GROUP_LINE_BEND;
             line.getElements().addAll(new javafx.scene.shape.LineTo(PANEL_GROUP_LINE_X, bend),

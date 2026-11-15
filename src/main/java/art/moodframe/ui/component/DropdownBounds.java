@@ -19,17 +19,14 @@ import javafx.stage.Window;
 import java.util.Objects;
 
 /**
- * Keeps the open list of a field inside its window. JavaFX lays a list that is wider than its field flush left under
- * the field, so in the right panel it reaches past the edge of the window. Here the list ends flush with the right
- * edge of the field and grows to the left, at most up to the left edge of the window; names that still do not fit
- * end in "…" and show in full in a tooltip ({@link #showCutName}). It opens downwards or upwards as before.
+ * Keeps the open list of a field below its field. JavaFX makes a list as wide as its widest row, so in the right panel
+ * a long name lets it reach past the panel. Here the list is as wide as its field and flush with its left edge; names
+ * that do not fit end in "…" and show in full in a tooltip ({@link #showCutName}). It opens downwards or upwards as
+ * before.
  *
  * @since 2.0.0
  */
 public final class DropdownBounds {
-
-    /** The space the open list keeps to the left edge of the window. */
-    static final double MARGIN = 10;
 
     /** The space a list keeps beside its rows for its edges and scroll bar, as its skin reckons. */
     private static final double ROW_SPARE = 30;
@@ -38,20 +35,7 @@ public final class DropdownBounds {
     }
 
     /**
-     * The width of an open list: as wide as its rows need, at least as wide as its field, at most as wide as the
-     * room left of the right edge of the field.
-     *
-     * @param field   the width of the field
-     * @param content the width the rows of the list need
-     * @param room    the room from the left edge of the window, less the margin, to the right edge of the field
-     * @return the width of the list
-     */
-    static double width(double field, double content, double room) {
-        return Math.max(field, Math.min(content, room));
-    }
-
-    /**
-     * Keeps the open list of a field flush with its right edge and inside its window.
+     * Keeps the open list of a field as wide as the field and flush with its left edge.
      *
      * @param field the field
      */
@@ -66,18 +50,16 @@ public final class DropdownBounds {
 
             /*  The rows tell the width they need while they are not cut  */
             Object cutBefore = list.getProperties().remove(DropdownBounds.class);
-            Bounds bounds = field.localToScreen(field.getLayoutBounds());
             list.setPrefWidth(Region.USE_COMPUTED_SIZE);
             double content = list.prefWidth(-1);
-            double width = width(bounds.getWidth(), content,
-                    bounds.getMaxX() - field.getScene().getWindow().getX() - MARGIN);
+            double width = field.getWidth();
             list.setMinWidth(width);
             list.setPrefWidth(width);
             list.setMaxWidth(width);
 
             /*  The skin sized the list when it opened and does not size it down by itself  */
             list.resize(width, list.getHeight());
-            alignRight(field, popup, width);
+            alignLeft(field, popup);
 
             /*  Rows wider than the list would scroll sideways, so they are cut to it and drawn anew  */
             if (width < content)
@@ -101,8 +83,8 @@ public final class DropdownBounds {
     }
 
     /**
-     * Keeps the open menu of a field flush with its right edge and at least as wide as the field. Its entries are
-     * short, so the menu needs no room beyond the window.
+     * Keeps the open menu of a field flush with its left edge and at least as wide as the field. Its entries are
+     * short, so the menu needs no more room than the field.
      *
      * @param field the field
      */
@@ -111,9 +93,8 @@ public final class DropdownBounds {
             for (Window window : Window.getWindows())
                 if (window instanceof ContextMenu menu && menu.isShowing() && menu.getOwnerNode() == field
                         && menu.getSkin() != null && menu.getSkin().getNode() instanceof Region content) {
-                    Bounds bounds = field.localToScreen(field.getLayoutBounds());
-                    content.setMinWidth(bounds.getWidth());
-                    alignRight(field, menu, Math.max(bounds.getWidth(), content.prefWidth(-1)));
+                    content.setMinWidth(field.getWidth());
+                    alignLeft(field, menu);
                     return;
                 }
         };
@@ -126,29 +107,27 @@ public final class DropdownBounds {
         });
     }
 
-    /*  lays an open list of the given width flush with the right edge of its field, also once JavaFX laid it flush
-        left again, as the list of a combo box does on the next layout of its field  */
-    private static void alignRight(Node field, PopupWindow popup, double width) {
-        if (popup.getProperties().put(DropdownBounds.class, width) == null)
+    /*  lays an open list flush with the left edge of its field, also once JavaFX moved it, as it does with a list
+        that opened wider than the room right of the field, on the next layout of the field  */
+    private static void alignLeft(Node field, PopupWindow popup) {
+        if (popup.getProperties().put(DropdownBounds.class, Boolean.TRUE) == null)
             popup.anchorXProperty().addListener((obs, oldVal, newVal) -> place(field, popup));
         place(field, popup);
     }
 
     private static void place(Node field, PopupWindow popup) {
         Bounds bounds = field.localToScreen(field.getLayoutBounds());
-        if (!popup.isShowing() || bounds == null)
-            return;
-        double left = bounds.getMaxX() - (Double) popup.getProperties().get(DropdownBounds.class);
-        if (popup.getAnchorX() != left)
-            popup.setAnchorX(left);
+        if (popup.isShowing() && bounds != null && popup.getAnchorX() != bounds.getMinX())
+            popup.setAnchorX(bounds.getMinX());
     }
 
     /**
-     * Shows the whole name of a row in a tooltip while the list cuts it.
+     * Ends the name of a row in "…" while the list cuts it and shows it whole in a tooltip.
      *
      * @param name the name of the row
      */
     public static void showCutName(Label name) {
+        name.setEllipsisString("…");
         Tooltip tooltip = new Tooltip();
         name.addEventHandler(MouseEvent.MOUSE_ENTERED, (event) -> {
             tooltip.setText(name.getText());

@@ -146,7 +146,8 @@
 }
 
 /*  The fold arrow right of the line, then the title; the summary field right of the line, the detail fields right
-    of the line where it bends inwards (see MainWindowController.drawPanelGroupLine)  */
+    of the line where it bends inwards (see MainWindowController.drawPanelGroupLine); in Generation, whose line runs
+    straight, on the summary field  */
 .panel-group-header {
     -fx-padding: 0 0 0 14px;
 }
@@ -158,6 +159,9 @@
 }
 .panel-group-details {
     -fx-padding: 15px 0 0 37px;
+}
+.panel-group-gen .panel-group-details {
+    -fx-padding: 15px 0 0 21px;
 }
 .panel-group-line {
     -fx-stroke: -panel-group-color;

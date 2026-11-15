@@ -56,7 +56,7 @@ class MainWindowPanelTest {
 
     @Test
     void noFieldIsWiderThanItsGroup() {
-        assertEquals("270.0", byId("panelScrollPane").getAttribute("prefWidth"));
+        assertEquals("330.0", byId("panelScrollPane").getAttribute("prefWidth"));
         List<Element> fields = elements.stream().filter((e) -> e.getTagName().equals("ComboBox")
                 || e.getTagName().equals("ChoiceBox")).filter((e) -> inside(e, byId("panelScrollPane")))
                 .filter((e) -> !"false".equals(e.getAttribute("visible"))).toList();
