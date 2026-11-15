@@ -125,7 +125,8 @@ up to date.
 
 **Linux:** a .deb for Debian and Ubuntu (updates come with apt) and a .tar.gz for other distributions; the commands
 with the current version are at [moodframe.art](https://moodframe.art/#install). On Arch Linux, Manjaro, EndeavourOS
-and Omarchy, build the package `moodframe-bin` from this repository; it is not in the AUR yet:
+and Omarchy, the .tar.gz works as well; for a pacman package with a menu entry, install `moodframe-bin` from this
+repository (it is not in the AUR yet). `makepkg` compiles nothing, it packages the same .tar.gz:
 
 ```bash
 git clone https://github.com/Brusdeylins/moodframe.git
