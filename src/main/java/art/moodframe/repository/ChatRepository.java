@@ -459,8 +459,8 @@ public class ChatRepository {
                 INSERT INTO chat_entries (
                     id, chat_id, user_prompt, enhanced_prompt, status, error_message,
                     created_at, completed_at, sort_order, model, size, format, style,
-                    prompt_upsampling, steps, guidance, seed, cost, mood_json, mood_id, frame_json, frame_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    prompt_upsampling, steps, guidance, seed, cost, mood_json, mood_id, frame_json, frame_id, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = databaseManager.getConnection();
@@ -488,6 +488,7 @@ public class ChatRepository {
             stmt.setString(20, entry.getMood() != null ? entry.getMood().moodId() : null);
             stmt.setString(21, entry.getFrame() != null ? entry.getFrame().toJson() : null);
             stmt.setString(22, entry.getFrame() != null ? entry.getFrame().frameId() : null);
+            stmt.setString(23, entry.getSource().name());
 
             stmt.executeUpdate();
         }
@@ -1131,6 +1132,7 @@ public class ChatRepository {
                 .style(rs.getString("style"))
                 .mood(EntryMood.fromJson(rs.getString("mood_json")))
                 .frame(EntryFrame.fromJson(rs.getString("frame_json")))
+                .source(ChatEntry.Source.valueOf(rs.getString("source")))
                 .promptUpsampling(rs.getBoolean("prompt_upsampling"))
                 .safetyTolerance((int) rs.getDouble("guidance")) // repurposed guidance column
                 .seed(rs.getLong("seed"))

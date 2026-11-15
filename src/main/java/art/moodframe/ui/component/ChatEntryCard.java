@@ -534,8 +534,9 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Updates the badges of mood, frame and model. The tooltip of a badge shows its details: the building blocks of the
-     * mood, target and result of the frame, the full name and price of the model with the safety level of a BFL model.
+     * Updates the badges of mood, frame and model, last the badge "MCP" for an entry of an AI agent. The tooltip of a
+     * badge shows its details: the building blocks of the mood, target and result of the frame, the full name and price
+     * of the model with the safety level of a BFL model.
      */
     private void updateBadgesDisplay() {
         badgesBox.getChildren().clear();
@@ -560,6 +561,9 @@ public class ChatEntryCard extends ManagedComponent {
         EntryBadge model = EntryBadge.model(chatEntry.getModel());
         if (model != null)
             badgesBox.getChildren().add(createBadge(model, "model", new Tooltip(modelDetails())));
+        if (chatEntry.getSource() == ChatEntry.Source.MCP)
+            badgesBox.getChildren().add(createBadge(new EntryBadge(ChatEntry.Source.MCP.name(), false), "mcp",
+                    new Tooltip(I18nManager.getText("entry.badge.mcp"))));
     }
 
     /**

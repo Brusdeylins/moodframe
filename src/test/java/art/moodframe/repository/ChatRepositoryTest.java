@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -27,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Runs against a fresh SQLite database, so migration V020 is applied together with all earlier ones. */
+/** Runs against a fresh SQLite database, so migrations V020 and V028 are applied together with all earlier ones. */
 class ChatRepositoryTest {
 
     @TempDir
@@ -167,6 +168,54 @@ class ChatRepositoryTest {
         assertTrue(groups.get(groups.size() - 2).holds(combination));
         assertTrue(groups.get(groups.size() - 1).holds(plain));
         assertFalse(renamed.holds(combination));
+    }
+
+    @Test
+    void storesWhoPlacedTheOrderOfAnEntry() throws Exception {
+        Chat chat = chat();
+        ChatEntry agent = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("a lighthouse")
+                .source(ChatEntry.Source.MCP).build());
+        ChatEntry user = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("a lighthouse").build());
+
+        assertEquals(ChatEntry.Source.MCP, repository.findChatEntryById(agent.getId()).orElseThrow().getSource());
+        assertEquals(ChatEntry.Source.UI, repository.findChatEntryById(user.getId()).orElseThrow().getSource());
+        for (ChatEntry loaded : repository.findChatEntriesByChatId(chat.getId()))
+            assertEquals(loaded.getId().equals(agent.getId()) ? ChatEntry.Source.MCP : ChatEntry.Source.UI,
+                    loaded.getSource(), "also in the list of the chat");
+
+        agent.setStatus(ChatEntry.Status.COMPLETED);
+        repository.saveChatEntry(agent);
+        assertEquals(ChatEntry.Source.MCP, repository.findChatEntryById(agent.getId()).orElseThrow().getSource(),
+                "an update keeps the source");
+    }
+
+    @Test
+    void theMigrationMakesTheEntriesFromBeforeEntriesOfTheSendButton() throws Exception {
+        Path path = tempDir.resolve("before-v028").resolve("test.db");
+        DatabaseManager before = new DatabaseManager(path);
+        before.initialize();
+        ChatRepository library = new ChatRepository(before);
+        Chat chat = new Chat.Builder().name("Alt").build();
+        library.saveChat(chat);
+
+        /*  The library as 2.0 left it: an entry without the column, the migration not applied yet  */
+        try (Connection connection = before.getConnection();
+                Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE chat_entries DROP COLUMN source");
+            stmt.executeUpdate("DELETE FROM schema_migrations WHERE version = '028'");
+        }
+        try (Connection connection = before.getConnection();
+                PreparedStatement stmt = connection.prepareStatement(
+                        "INSERT INTO chat_entries (id, chat_id, user_prompt, created_at) VALUES (?, ?, ?, ?)")) {
+            stmt.setString(1, "old-entry");
+            stmt.setString(2, chat.getId());
+            stmt.setString(3, "an old prompt");
+            stmt.setTimestamp(4, Timestamp.valueOf(LocalDateTime.now()));
+            stmt.executeUpdate();
+        }
+        new DatabaseManager(path).initialize();
+
+        assertEquals(ChatEntry.Source.UI, library.findChatEntryById("old-entry").orElseThrow().getSource());
     }
 
     @Test

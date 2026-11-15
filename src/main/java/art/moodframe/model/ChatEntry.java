@@ -50,6 +50,16 @@ public class ChatEntry {
             return displayName;
         }
     }
+
+    /**
+     * Who placed the order of the entry: the user over the send button or an AI agent over the MCP server.
+     */
+    public enum Source {
+        /** The send button of the main window, also for every entry from before */
+        UI,
+        /** The tool {@code generate} of the MCP server */
+        MCP
+    }
     
     private final StringProperty id = new SimpleStringProperty();
     private final StringProperty chatId = new SimpleStringProperty();
@@ -69,6 +79,7 @@ public class ChatEntry {
     private final StringProperty style = new SimpleStringProperty(); // Style preset name
     private final ObjectProperty<EntryMood> mood = new SimpleObjectProperty<>();
     private final ObjectProperty<EntryFrame> frame = new SimpleObjectProperty<>();
+    private final ObjectProperty<Source> source = new SimpleObjectProperty<>(Source.UI);
     private final BooleanProperty promptUpsampling = new SimpleBooleanProperty();
     private final IntegerProperty safetyTolerance = new SimpleIntegerProperty();
     private final LongProperty seed = new SimpleLongProperty();
@@ -116,6 +127,7 @@ public class ChatEntry {
         private String style = "None";
         private EntryMood mood = null;
         private EntryFrame frame = null;
+        private Source source = Source.UI;
         private boolean promptUpsampling = false;
         private int safetyTolerance = 2;
         private long seed = -1;
@@ -213,6 +225,11 @@ public class ChatEntry {
             return this;
         }
 
+        public Builder source(Source source) {
+            this.source = source;
+            return this;
+        }
+
         public Builder cost(double cost) {
             this.cost = cost;
             return this;
@@ -244,6 +261,7 @@ public class ChatEntry {
             entry.setStyle(style);
             entry.setMood(mood);
             entry.setFrame(frame);
+            entry.setSource(source);
             entry.setPromptUpsampling(promptUpsampling);
             entry.setSafetyTolerance(safetyTolerance);
             entry.setSeed(seed);
@@ -445,6 +463,15 @@ public class ChatEntry {
 
     public void setFrame(EntryFrame frame) {
         this.frame.set(frame);
+    }
+
+    /** Who placed the order of the entry, UI for every entry from before. */
+    public Source getSource() {
+        return source.get();
+    }
+
+    public void setSource(Source source) {
+        this.source.set(source);
     }
 
     public boolean isPromptUpsampling() {

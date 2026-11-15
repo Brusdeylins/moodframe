@@ -6,10 +6,12 @@ import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,6 +23,7 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,12 +32,23 @@ import java.util.function.Supplier;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The images of a chat entry in generation: placeholders at once in the size of the finished images, an error tile. */
+/**
+ * The images of a chat entry in generation: placeholders at once in the size of the finished images, an error tile;
+ * the badge "MCP" of an entry an AI agent made. The configuration the card reads lives in a throwaway
+ * {@code user.home}.
+ */
 class ChatEntryCardTest {
+
+    @TempDir
+    static Path home;
+
+    private static String realHome;
 
     /*  The card holds controls, which need the toolkit  */
     @BeforeAll
     static void startToolkit() throws Exception {
+        realHome = System.getProperty("user.home");
+        System.setProperty("user.home", home.toString());
         CountDownLatch started = new CountDownLatch(1);
         try {
             Platform.startup(started::countDown);
@@ -42,6 +56,11 @@ class ChatEntryCardTest {
             started.countDown();
         }
         started.await(10, TimeUnit.SECONDS);
+    }
+
+    @AfterAll
+    static void restoreHome() {
+        System.setProperty("user.home", realHome);
     }
 
     /*  A step on the FX thread, after the steps the card queued before  */
@@ -165,6 +184,38 @@ class ChatEntryCardTest {
         assertEquals(1, failed[2]);
         assertEquals(generating, failed[3]);
         assertEquals("Blocked by the safety filter", ChatEntryCard.failure(images.get(0)));
+    }
+
+    @Test
+    void anEntryOfAnAiAgentShowsTheBadgeMcpLastAndAnEntryOfTheUserDoesNot() throws Exception {
+        ChatEntry agent = new ChatEntry.Builder().userPrompt("a lighthouse").model("Nano Banana Pro").size("3:2")
+                .source(ChatEntry.Source.MCP).build();
+        ChatEntry user = new ChatEntry.Builder().userPrompt("a lighthouse").model("Nano Banana Pro").size("3:2")
+                .build();
+        Locale before = I18nManager.getCurrentLocale();
+        try {
+            List<String> texts = onFxThread(() -> {
+                I18nManager.setLocale(Locale.GERMAN);
+                ChatEntryCard card = show(agent);
+                List<Node> badges = List.copyOf(card.lookupAll(".entry-badge"));
+                Label mcp = (Label) badges.get(badges.size() - 1);
+                String german = mcp.getTooltip().getText();
+
+                /*  A change of the language builds the badges anew  */
+                I18nManager.setLocale(Locale.ENGLISH);
+                Label changed = (Label) card.lookup(".entry-badge-mcp");
+                int others = show(user).lookupAll(".entry-badge-mcp").size();
+                return List.of(mcp.getText(), String.join(" ", mcp.getStyleClass()), german,
+                        changed.getTooltip().getText(), String.valueOf(others));
+            });
+            assertEquals("MCP", texts.get(0));
+            assertTrue(texts.get(1).contains("entry-badge-mcp"), "the last badge: " + texts.get(1));
+            assertEquals("Von einem KI-Agenten über MCP erzeugt", texts.get(2));
+            assertEquals("Created by an AI agent over MCP", texts.get(3));
+            assertEquals("0", texts.get(4), "no badge for an entry of the send button");
+        } finally {
+            I18nManager.setLocale(before);
+        }
     }
 
     @Test

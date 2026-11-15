@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 
@@ -21,11 +22,12 @@ import java.util.List;
  * @param parameters the parameters of the model
  * @param attachment the attached image file, null for none
  * @param referenceImages the Base64 data of the reference images, in their order
+ * @param source who placed the order, kept in the entry: the send button or the MCP server
  * @since 2.1.0
  */
 public record GenerationOrder(Chat chat, String prompt, PromptComposer.Selection blocks, Mood mood,
         boolean moodChanged, Target target, String modelId, int imageCount, Parameters parameters, File attachment,
-        List<String> referenceImages) {
+        List<String> referenceImages, ChatEntry.Source source) {
 
     /**
      * Whether the order has at least one reference image, attached as file or as Base64 data.

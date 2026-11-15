@@ -436,6 +436,8 @@ public class DatabaseManager {
                     "V026__Order_brainstorm_sessions.sql"));
             migrations.add(new Migration("027", "Add_favorites",
                     "V027__Add_favorites.sql"));
+            migrations.add(new Migration("028", "Add_source_to_chat_entries",
+                    "V028__Add_source_to_chat_entries.sql"));
 
             migrations.sort((a, b) -> a.getVersion().compareTo(b.getVersion()));
 

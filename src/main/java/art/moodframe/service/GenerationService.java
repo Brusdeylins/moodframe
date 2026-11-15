@@ -284,6 +284,7 @@ public class GenerationService {
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .mood(moodService != null ? moodService.snapshot(order.mood(), order.moodChanged(), blocks) : null)
                 .frame(EntryFrame.of(target.frame(), target.changed(), target.aspectRatio(), target.resolution()))
+                .source(order.source())
                 .safetyTolerance(parameters.safetyTolerance())
                 .seed(parameters.seed() != null ? parameters.seed() : 0)
                 .cost(totalCost)

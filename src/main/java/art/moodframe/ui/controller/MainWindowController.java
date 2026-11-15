@@ -5069,7 +5069,7 @@ public class MainWindowController implements I18nChangeListener {
                     new art.moodframe.service.GenerationOrder.Target(chosenFrame(), frameChanged,
                             aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue()),
                     modelId, (int) imageCountSlider.getValue(), modelParameters(), attachedImageFile,
-                    attachedBase64Images()));
+                    attachedBase64Images(), ChatEntry.Source.UI));
         } catch (art.moodframe.service.GenerationService.GenerationException e) {
             switch (e.getFailure()) {
                 case PROMPT_TOO_LONG -> setStatus(I18nManager.getText("status.error.prompt.too.long",

@@ -394,6 +394,12 @@ class McpEditToolsTest {
         assertFalse(result.has("hint"));
         String entryId = result.path("entryId").asText();
         assertTrue(ids(call("get_chat", "{\"chatId\":\"" + chatId + "\"}").path("entries")).contains(entryId));
+
+        /*  The entry is one of an AI agent, as the chat and the entry tell  */
+        assertEquals(ChatEntry.Source.MCP, chats.findEntry(entryId).getSource());
+        assertEquals("MCP", call("get_entry", "{\"entryId\":\"" + entryId + "\"}").path("source").asText());
+        for (JsonNode listed : call("get_chat", "{\"chatId\":\"" + chatId + "\"}").path("entries"))
+            assertEquals("MCP", listed.path("source").asText());
         drainFxThread();
         assertTrue(reported.contains("ENTRY:" + entryId), "the main window learns of the entry");
 

@@ -358,6 +358,7 @@ class McpServerTest {
         assertEquals("Film Noir", entry.path("mood").path("name").asText());
         assertEquals("4:5", entry.path("frame").path("aspectRatio").asText());
         assertEquals("image-1", entry.path("imageIds").get(0).asText());
+        assertEquals("UI", entry.path("source").asText(), "an entry of the send button");
 
         assertEquals(0, call("get_chat", "{\"chatId\":\"" + chat.getId() + "\",\"offset\":1}").path("entries")
                 .size());
@@ -372,6 +373,7 @@ class McpServerTest {
         assertEquals("COMPLETED", entry.path("status").asText());
         assertEquals("Image style: Film.\na lighthouse", entry.path("finalPrompt").asText());
         assertEquals("std:frame:social-post", entry.path("frame").path("frame").path("id").asText());
+        assertEquals("UI", entry.path("source").asText());
         JsonNode image = entry.path("images").get(0);
         assertEquals(imageFile.toString(), image.path("path").asText());
         assertEquals(2000, image.path("width").asInt());

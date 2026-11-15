@@ -300,7 +300,7 @@ class GenerateTools {
         return new GenerationOrder(chat, prompt, moods.selection(combination), mood, moodChanged,
                 new GenerationOrder.Target(frame, frameChanged, aspectRatio, resolution), modelId, count,
                 parameters(arguments.get("params"), model), null, references(arguments.get("referenceImages"), model,
-                encode));
+                encode), ChatEntry.Source.MCP);
     }
 
     /*  the parameters the model takes, as get_capabilities lists them; a missing one takes the default  */

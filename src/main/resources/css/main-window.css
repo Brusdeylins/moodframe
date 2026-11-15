@@ -208,6 +208,13 @@
     -entry-badge-color: -logo-blue;
     -entry-badge-text: white;
 }
+
+/*  The badge of an entry an AI agent made over MCP: a neutral outline in no color of a group, as it is no setting  */
+.entry-badge-mcp {
+    -entry-badge-color: -color-fg-muted;
+    -entry-badge-text: -color-fg-muted;
+    -fx-background-color: transparent;
+}
 .entry-badge-mixture {
     -fx-background-color: transparent;
     -fx-border-style: dashed;

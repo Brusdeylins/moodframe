@@ -90,7 +90,7 @@ class GenerationServiceTest {
     private GenerationOrder order(String prompt, PromptComposer.Selection blocks, String modelId, int imageCount,
             GenerationOrder.Target target) {
         return new GenerationOrder(chat, prompt, blocks, null, false, target, modelId, imageCount, parameters(null),
-                null, List.of());
+                null, List.of(), ChatEntry.Source.UI);
     }
 
     private GenerationOrder order(String modelId, GenerationOrder.Target target) {
@@ -138,7 +138,7 @@ class GenerationServiceTest {
                 CameraSettings.Shutter.MOTION_BLUR, null, null, null));
         PromptComposer.Selection blocks = new PromptComposer.Selection(null, null, null, camera, null);
         GenerationOrder edit = new GenerationOrder(chat, "a woman on a ledge", blocks, null, false, WIDE_2K,
-                "NANO_BANANA2_1K", 1, parameters(null), null, List.of("aW1hZ2U="));
+                "NANO_BANANA2_1K", 1, parameters(null), null, List.of("aW1hZ2U="), ChatEntry.Source.UI);
 
         assertEquals(new PromptComposer(2000).compose("a woman on a ledge", blocks, true),
                 service.preview(edit).prompt());
@@ -193,7 +193,8 @@ class GenerationServiceTest {
         assertEquals(GenerationService.Failure.UNKNOWN_MODEL,
                 failure(() -> service.submit(order("OPENAI_IMAGE", WIDE_2K))), "the placeholder is no model");
         assertEquals(GenerationService.Failure.NO_CHAT, failure(() -> service.submit(new GenerationOrder(null,
-                "an apple", null, null, false, WIDE_2K, "FLUX2_PRO", 1, parameters(null), null, List.of()))));
+                "an apple", null, null, false, WIDE_2K, "FLUX2_PRO", 1, parameters(null), null, List.of(),
+                ChatEntry.Source.UI))));
         verify(requests, never()).submitImageGeneration(any(), any(), any());
     }
 
@@ -239,7 +240,7 @@ class GenerationServiceTest {
         assertEquals(3 * GenerationModel.FLUX3_IMAGE_1K.getPricePerImage(), images.getCost(), 1e-9);
 
         ChatEntry video = service.submit(new GenerationOrder(chat, "a wave", null, null, false, WIDE_2K, "OMNI_720P",
-                1, parameters(5), null, List.of())).entry();
+                1, parameters(5), null, List.of(), ChatEntry.Source.UI)).entry();
         assertEquals(GenerationModel.OMNI_720P.videoPrice(5), video.getCost(), 1e-9);
 
         List<ImageGenerationRequest> requests = sent();
@@ -282,7 +283,8 @@ class GenerationServiceTest {
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,
-                "FLUX3_IMAGE_1K", 1, parameters(null), attachment, List.of("first", "second"))).entry();
+                "FLUX3_IMAGE_1K", 1, parameters(null), attachment, List.of("first", "second"),
+                ChatEntry.Source.UI)).entry();
         assertSame(copy, entry.getMood());
 
         ArgumentCaptor<ImageGenerationRequest> request = ArgumentCaptor.forClass(ImageGenerationRequest.class);

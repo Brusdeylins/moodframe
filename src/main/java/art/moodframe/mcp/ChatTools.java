@@ -70,13 +70,14 @@ class ChatTools {
         chat.set("offset", McpTools.integer("The number of entries to skip", 0, Integer.MAX_VALUE, 0));
         chat.set("limit", McpTools.integer("The maximum number of entries", 1, 100, 20));
         tools.add("get_chat", "Gets the entries of a chat page by page, oldest first: prompt of the user, mood, frame, "
-                + "model (name and fixed id), status, image IDs, cost in USD.", McpTools.input(chat, "chatId"),
-                this::getChat);
+                + "model (name and fixed id), status, image IDs, cost in USD, source (UI for the send button of "
+                + "MoodFrame, MCP for generate).", McpTools.input(chat, "chatId"), this::getChat);
 
         ObjectNode entry = McpTools.JSON.createObjectNode();
         entry.set("entryId", McpTools.string("The ID of the chat entry, see get_chat"));
         tools.add("get_entry", "Gets a chat entry: status, error text, prompt of the user and final prompt, model, "
-                + "mood and frame as used, cost in USD and the images with file path, pixel size and file size.",
+                + "mood and frame as used, cost in USD, source (UI for the send button of MoodFrame, MCP for "
+                + "generate) and the images with file path, pixel size and file size.",
                 McpTools.input(entry, "entryId"), this::getEntry);
 
         ObjectNode image = McpTools.JSON.createObjectNode();
@@ -263,7 +264,8 @@ class ChatTools {
         ArrayNode images = node.putArray("imageIds");
         entry.getImages().stream().filter(ChatTools::shown)
                 .forEach((GeneratedImage image) -> images.add(image.getId()));
-        return node.put("cost", McpTools.usd(entry.getCost())).put("createdAt", McpTools.time(entry.getCreatedAt()));
+        return node.put("cost", McpTools.usd(entry.getCost())).put("createdAt", McpTools.time(entry.getCreatedAt()))
+                .put("source", entry.getSource().name());
     }
 
     private static ObjectNode entryDetails(ChatEntry entry) {
@@ -274,7 +276,7 @@ class ChatTools {
         node.set("mood", entry.getMood() != null ? McpTools.parse(entry.getMood().toJson()) : null);
         node.set("frame", entry.getFrame() != null ? McpTools.parse(entry.getFrame().toJson()) : null);
         node.put("cost", McpTools.usd(entry.getCost())).put("createdAt", McpTools.time(entry.getCreatedAt()))
-                .put("completedAt", McpTools.time(entry.getCompletedAt()));
+                .put("completedAt", McpTools.time(entry.getCompletedAt())).put("source", entry.getSource().name());
         ArrayNode images = node.putArray("images");
         entry.getImages().stream().filter(ChatTools::shown).forEach((GeneratedImage image) -> images.addObject()
                 .put("id", image.getId()).put("path", image.getLocalFilePath()).put("width", image.getImageWidth())
