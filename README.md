@@ -135,6 +135,12 @@ cd moodframe/packaging/aur/moodframe-bin && makepkg -si
 
 For an update, run `git pull` and `makepkg -si` again.
 
+Videos on Arch need the older ffmpeg library `ffmpeg4.4`, which `moodframe-bin` lists as an optional dependency:
+
+```bash
+sudo pacman -S ffmpeg4.4
+```
+
 ## Written entirely by AI
 
 Not one line of MoodFrame's code was typed by a human.

@@ -8,12 +8,15 @@ import art.moodframe.util.I18nManager;
 import art.moodframe.util.MediaSupport;
 import art.moodframe.util.SystemOpen;
 import art.moodframe.util.VideoPoster;
+import art.moodframe.util.VideoRemedy;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
@@ -73,6 +76,7 @@ import java.util.function.Consumer;
  * @updated 1.3.17 - Added I18n tooltip support with manual listener management
  * @updated 2.0.0 - Gallery of the images view
  * @updated 2.1.0 - Poster and the video player of the system for a video JavaFX cannot play
+ * @updated 2.1.0 - What helps under Linux to play videos, with a command to copy
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -118,6 +122,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private Label videoFallbackHint;
     private Button videoFallbackButton;
     private File fallbackVideo;
+
+    /*  What helps under Linux to play videos, with a command to copy and a note on what follows it  */
+    private Label videoFallbackRemedy;
+    private HBox videoFallbackCommandBox;
+    private Label videoFallbackCommand;
+    private Button videoFallbackCopyButton;
+    private Label videoFallbackRemedyNote;
 
     // State
     private List<String> imagePaths;
@@ -346,8 +357,35 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         videoFallbackHint.setMaxWidth(420.0);
         videoFallbackHint.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
         videoFallbackHint.setStyle("-fx-text-fill: white;");
+        videoFallbackRemedy = new Label();
+        videoFallbackRemedy.setWrapText(true);
+        videoFallbackRemedy.setMaxWidth(420.0);
+        videoFallbackRemedy.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        videoFallbackRemedy.setAlignment(Pos.CENTER);
+        videoFallbackRemedy.setStyle("-fx-text-fill: white;");
+
+        /*  The command never wraps, the icon next to it copies just the command  */
+        videoFallbackCommand = new Label();
+        videoFallbackCommand.setMinWidth(Region.USE_PREF_SIZE);
+        videoFallbackCommand.setStyle("-fx-text-fill: white; -fx-font-family: Monospaced; "
+                + "-fx-background-color: rgba(255, 255, 255, 0.15); -fx-background-radius: 4; -fx-padding: 2 6 2 6;");
+        FontIcon copyIcon = new FontIcon("mdi2c-content-copy");
+        copyIcon.setIconSize(16);
+        copyIcon.setIconColor(javafx.scene.paint.Color.WHITE);
+        videoFallbackCopyButton = new Button();
+        videoFallbackCopyButton.setGraphic(copyIcon);
+        videoFallbackCopyButton.getStyleClass().add("icon-button");
+        videoFallbackCommandBox = new HBox(6.0, videoFallbackCommand, videoFallbackCopyButton);
+        videoFallbackCommandBox.setAlignment(Pos.CENTER);
+        videoFallbackRemedyNote = new Label();
+        videoFallbackRemedyNote.setWrapText(true);
+        videoFallbackRemedyNote.setMaxWidth(420.0);
+        videoFallbackRemedyNote.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        videoFallbackRemedyNote.setAlignment(Pos.CENTER);
+        videoFallbackRemedyNote.setStyle("-fx-text-fill: white;");
         videoFallbackButton = new Button();
-        VBox fallbackBox = new VBox(10.0, videoFallbackIcon, videoFallbackHint, videoFallbackButton);
+        VBox fallbackBox = new VBox(10.0, videoFallbackIcon, videoFallbackHint, videoFallbackRemedy,
+                videoFallbackCommandBox, videoFallbackRemedyNote, videoFallbackButton);
         fallbackBox.setAlignment(Pos.CENTER);
         fallbackBox.setMaxWidth(Region.USE_PREF_SIZE);
         fallbackBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-background-radius: 12; "
@@ -491,6 +529,15 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         videoFallbackButton.setOnAction((e) -> {
             if (fallbackVideo != null)
                 SystemOpen.open(fallbackVideo.toPath());
+            requestFocus();
+        });
+
+        videoFallbackCopyButton.setOnAction((e) -> {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(videoFallbackCommand.getText());
+            Clipboard.getSystemClipboard().setContent(content);
+            if (onStatusMessage != null)
+                onStatusMessage.accept(I18nManager.getText("video.fallback.remedy.copied"));
             requestFocus();
         });
 
@@ -1270,6 +1317,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         updateVideoFallbackTexts();
         videoFallback.setVisible(true);
 
+        /*  What helps under Linux is detected once in the background, the hint shows it as soon as it is known  */
+        if (!MediaSupport.isUsable())
+            VideoRemedy.detect().thenRun(() -> javafx.application.Platform.runLater(() -> {
+                if (fallbackVideo != null)
+                    updateVideoFallbackTexts();
+            }));
+
         /*  The poster arrives later, when the overlay may already show another file  */
         VideoPoster.load(videoFile.toPath())
                 .whenComplete((poster, failure) -> javafx.application.Platform.runLater(() -> {
@@ -1292,6 +1346,32 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         videoFallbackButton.setText(I18nManager.getText("video.fallback.open"));
         videoFallbackButton.setVisible(opens);
         videoFallbackButton.setManaged(opens);
+
+        /*  Only a system without video support gets to know what helps, macOS and Windows get nothing  */
+        VideoRemedy.Remedy remedy = MediaSupport.isUsable() ? null : VideoRemedy.detect().getNow(null);
+        String remedyText = remedy == null ? null : switch (remedy.kind()) {
+            case ARCH -> I18nManager.getText("video.fallback.remedy.arch");
+            case DEBIAN_MISSING -> I18nManager.getText("video.fallback.remedy.debian.missing");
+            case DEBIAN_NEWER -> I18nManager.getText("video.fallback.remedy.debian.newer",
+                    String.valueOf(remedy.version()));
+            case OTHER -> I18nManager.getText("video.fallback.remedy.other",
+                    String.valueOf(VideoRemedy.MIN_LIBAVCODEC), String.valueOf(VideoRemedy.MAX_LIBAVCODEC));
+        };
+        String command = remedy == null ? null : remedy.kind().command();
+
+        /*  The ffmpeg of the Debian family may be too new as well, which only shows after installing it  */
+        String note = remedy != null && remedy.kind() == VideoRemedy.Kind.DEBIAN_MISSING
+                ? I18nManager.getText("video.fallback.remedy.debian.missing.note") : null;
+        videoFallbackRemedy.setText(remedyText);
+        videoFallbackRemedy.setVisible(remedyText != null);
+        videoFallbackRemedy.setManaged(remedyText != null);
+        videoFallbackCommand.setText(command);
+        videoFallbackCopyButton.setTooltip(new Tooltip(I18nManager.getText("video.fallback.remedy.copy")));
+        videoFallbackCommandBox.setVisible(command != null);
+        videoFallbackCommandBox.setManaged(command != null);
+        videoFallbackRemedyNote.setText(note);
+        videoFallbackRemedyNote.setVisible(note != null);
+        videoFallbackRemedyNote.setManaged(note != null);
     }
 
     /**
