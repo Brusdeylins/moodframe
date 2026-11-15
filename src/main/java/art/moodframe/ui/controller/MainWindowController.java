@@ -880,11 +880,11 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Builds the final prompt from the user input and the selected building blocks,
-     * see {@link art.moodframe.service.PromptComposer}.
+     * Builds the final prompt from the user input and the selected building blocks, with the attached image as
+     * reference, see {@link art.moodframe.service.PromptComposer}.
      */
     public String buildFinalPrompt() {
-        return promptComposer().compose(promptTextArea.getText(), selectedBlocks());
+        return promptComposer().compose(promptTextArea.getText(), selectedBlocks(), attachedImageFile != null);
     }
 
     /** The composer for the length limit of the selected model. */

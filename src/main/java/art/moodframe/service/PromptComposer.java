@@ -21,6 +21,9 @@ import java.util.List;
  * Color palette: &lt;palette&gt;
  * </pre>
  *
+ * <p>With a reference image the camera line of a photographic style starts with {@link #EDIT_CAMERA_INTRO}: without
+ * it, the image models read the camera as a description of the photo and leave it unchanged.</p>
+ *
  * <p>The light does not apply to layout styles; these get a rule for their text instead. For a style that is not
  * photographic, layout included, the camera adds only perspective and shot size (see {@link CameraPromptBuilder}).</p>
  *
@@ -31,6 +34,10 @@ public class PromptComposer {
     /** Appended once to the style line of every layout style. */
     public static final String LAYOUT_TEXT_RULE =
             "All text is short, correctly spelled and clearly legible, set in one consistent typeface.";
+
+    /** Put before the camera of a photographic style when the order has a reference image. */
+    public static final String EDIT_CAMERA_INTRO =
+            "Change only the camera of the reference photo; keep the subject, the scene and the light.";
 
     /**
      * The selected building blocks; every part may be null.
@@ -57,13 +64,25 @@ public class PromptComposer {
     }
 
     /**
-     * Composes the prompt.
+     * Composes the prompt without reference image.
      *
      * @param subject the prompt of the user
      * @param selection the selected building blocks
      * @return the prompt, empty if the subject is empty
      */
     public String compose(String subject, Selection selection) {
+        return compose(subject, selection, false);
+    }
+
+    /**
+     * Composes the prompt.
+     *
+     * @param subject the prompt of the user
+     * @param selection the selected building blocks
+     * @param reference whether the order has at least one reference image
+     * @return the prompt, empty if the subject is empty
+     */
+    public String compose(String subject, Selection selection, boolean reference) {
         if (subject == null || subject.isBlank())
             return "";
 
@@ -82,7 +101,8 @@ public class PromptComposer {
         if (!layout && selection.light() != null && !isBlank(selection.light().getText()))
             lines.add("Lighting: " + sentence(selection.light().getText()));
         if (!camera.isEmpty())
-            lines.add((photographic ? "Camera: " : "Framing: ") + sentence(camera));
+            lines.add((photographic ? (reference ? EDIT_CAMERA_INTRO + " " : "") + "Camera: " : "Framing: ")
+                    + sentence(camera));
         if (selection.palette() != null && !selection.palette().toPromptString().isEmpty())
             lines.add("Color palette: " + selection.palette().toPromptString());
         return String.join("\n", lines);

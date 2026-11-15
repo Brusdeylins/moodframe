@@ -28,6 +28,7 @@ class PromptComposerTest {
     private static final PromptBlock PORTRAIT = PromptBlockService.camera("portrait", "Portrait", new CameraSettings(
             CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85, null, null, null, null,
             CameraSettings.Shot.CLOSE_UP));
+    private static final String CLOSE_UP = "a close-up: the camera close to the main subject, which fills the frame";
     private static final ColorStyle OCEAN = new ColorStyle("Ocean Breeze", List.of("#48BDFF", "#0096C7"), true);
 
     private final PromptComposer composer = new PromptComposer(2000);
@@ -42,7 +43,9 @@ class PromptComposerTest {
                 a lighthouse on a cliff
                 Atmosphere: quiet morning fog.
                 Lighting: soft daylight from a large window.
-                Camera: shot at eye level, wide shot, the full figure in frame.
+                Camera: eye level: the camera at the height of the main subject, looking straight at it; a wide \
+                shot: the whole main subject in the frame with space around it; all people and objects of the scene \
+                kept.
                 Color palette: the image is composed predominantly of these colors: color 1 hex #48BDFF, \
                 color 2 hex #0096C7. The palette takes precedence over the color of the light. The colors appear \
                 only as colors of objects, surfaces and light; the image contains no written color codes, \
@@ -64,7 +67,7 @@ class PromptComposerTest {
         String prompt = composer.compose("a fox",
                 new PromptComposer.Selection(WATERCOLOR, null, null, PORTRAIT, null));
 
-        assertEquals("Image style: watercolor painting.\na fox\nFraming: close-up framing.", prompt);
+        assertEquals("Image style: watercolor painting.\na fox\nFraming: " + CLOSE_UP + ".", prompt);
     }
 
     @Test
@@ -78,7 +81,40 @@ class PromptComposerTest {
         assertTrue(prompt.contains("\nColor palette: "));
         assertFalse(prompt.contains("Lighting:"));
         assertFalse(prompt.contains("Camera:"));
-        assertTrue(prompt.contains("\nFraming: close-up framing.\n"));
+        assertTrue(prompt.contains("\nFraming: " + CLOSE_UP + ".\n"));
+    }
+
+    @Test
+    void putsTheEditIntroBeforeThePhotographicCameraOnlyWithAReferenceImage() {
+        PromptComposer.Selection photo = new PromptComposer.Selection(PHOTO, FOG, null, PORTRAIT, null);
+        String camera = "Camera: " + CameraPromptBuilder.build(CameraSettings.fromJson(PORTRAIT.getParams()), true)
+                + ".";
+
+        assertEquals("Image style: realistic photograph, sharp focus.\na woman on a ledge\nAtmosphere: quiet morning "
+                + "fog.\n" + PromptComposer.EDIT_CAMERA_INTRO + " " + camera,
+                composer.compose("a woman on a ledge", photo, true));
+        assertTrue(composer.compose("a woman on a ledge", photo, false).endsWith("\n" + camera));
+        assertEquals(composer.compose("a woman on a ledge", photo), composer.compose("a woman on a ledge", photo,
+                false), "without reference image by default");
+        assertEquals("Image style: watercolor painting.\na fox\nFraming: " + CLOSE_UP + ".", composer.compose("a fox",
+                new PromptComposer.Selection(WATERCOLOR, null, null, PORTRAIT, null), true), "no intro for framing");
+        assertFalse(composer.compose("a fox", new PromptComposer.Selection(PHOTO, FOG, null, null, null), true)
+                .contains(PromptComposer.EDIT_CAMERA_INTRO), "no intro without camera");
+    }
+
+    @Test
+    void checksTheLengthWithTheEditIntroAndTheLongestCamera() {
+        PromptBlock longest = PromptBlockService.camera("longest", "Longest", new CameraSettings(
+                CameraSettings.Body.SMARTPHONE, "Google Pixel 10 Pro", CameraSettings.Lens.MM_14,
+                CameraSettings.Aperture.F_11, CameraSettings.Shutter.LONG_EXPOSURE, CameraSettings.Iso.ISO_3200,
+                CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.EXTREME_WIDE));
+        PromptComposer.Selection all = new PromptComposer.Selection(PHOTO, FOG, WINDOW, longest, OCEAN);
+        String plain = composer.compose("a woman on a ledge", all, false);
+        String edit = composer.compose("a woman on a ledge", all, true);
+
+        assertEquals(plain.length() + PromptComposer.EDIT_CAMERA_INTRO.length() + 1, edit.length());
+        assertTrue(composer.fits(edit), "every block leaves room for the subject in 2000 characters: " + edit.length());
+        assertFalse(new PromptComposer(plain.length()).fits(edit), "the intro counts");
     }
 
     @Test

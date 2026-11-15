@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
@@ -129,6 +130,23 @@ class GenerationServiceTest {
         assertEquals(composed, requests.get(1).getPrompt());
         assertEquals("Watercolor", requests.get(1).getStylePreset());
         assertEquals(List.of(plain, styled), chat.getEntries());
+    }
+
+    @Test
+    void asksToChangeOnlyTheCameraOfAReferenceImage() throws Exception {
+        PromptBlock camera = PromptBlockService.camera("camera-1", "Slow", new CameraSettings(null, null, null, null,
+                CameraSettings.Shutter.MOTION_BLUR, null, null, null));
+        PromptComposer.Selection blocks = new PromptComposer.Selection(null, null, null, camera, null);
+        GenerationOrder edit = new GenerationOrder(chat, "a woman on a ledge", blocks, null, false, WIDE_2K,
+                "NANO_BANANA2_1K", 1, parameters(null), null, List.of("aW1hZ2U="));
+
+        assertEquals(new PromptComposer(2000).compose("a woman on a ledge", blocks, true),
+                service.preview(edit).prompt());
+        assertTrue(service.preview(edit).prompt().contains("\n" + PromptComposer.EDIT_CAMERA_INTRO + " Camera: "));
+        assertFalse(service.preview(order("a woman on a ledge", blocks, "NANO_BANANA2_1K", 1, WIDE_2K)).prompt()
+                .contains(PromptComposer.EDIT_CAMERA_INTRO), "no intro without reference image");
+        service.submit(edit);
+        assertTrue(sent().get(0).getPrompt().contains(PromptComposer.EDIT_CAMERA_INTRO));
     }
 
     @Test

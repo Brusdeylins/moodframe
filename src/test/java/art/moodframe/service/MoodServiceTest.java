@@ -92,10 +92,12 @@ class MoodServiceTest {
         /*  Full frame, 85 mm, f/1.4, eye level and close-up contradict each other in no stage  */
         String prompt = new PromptComposer(10000).compose("a coffee cup",
                 moods.selection(moods.find("std:mood:lifestyle-product")));
-        assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera, clean sharp detail, high dynamic "
-                + "range, 85mm lens, a tight view on the subject, the background visibly enlarged and softly "
-                + "compressed behind it, f/1.4, very shallow depth of field, the background melted into soft blur, "
-                + "shot at eye level, close-up framing."), prompt);
+        assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera, crisp fine detail, clean tones, "
+                + "detail kept in the brightest and darkest areas; 85mm lens: a tight view, the main subject large in "
+                + "the frame, the background clearly enlarged and pulled close behind it; f/1.4: only the main "
+                + "subject in focus, everything behind it strongly blurred into soft shapes; eye level: the camera at "
+                + "the height of the main subject, looking straight at it; a close-up: the camera close to the main "
+                + "subject, which fills the frame."), prompt);
         assertEquals("Calm · Styled Set · Faded Cream · Soft Natural · Product Tabletop",
                 moods.describe(moods.find("std:mood:styled-set")));
     }

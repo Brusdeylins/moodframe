@@ -193,7 +193,7 @@ public class GenerationService {
         String item = GenerationModel.itemOf(order.modelId());
         int maxLength = maxPromptLength(order.modelId());
         String prompt = new PromptComposer(maxLength).compose(order.prompt(),
-                order.blocks() != null ? order.blocks() : NO_BLOCKS);
+                order.blocks() != null ? order.blocks() : NO_BLOCKS, order.hasReference());
 
         /*  The format as the hints of the main window name it: the closest aspect ratio and resolution of the model  */
         GenerationOrder.Target target = order.target();
@@ -234,7 +234,7 @@ public class GenerationService {
         int maxLength = maxPromptLength(order.modelId());
         PromptComposer composer = new PromptComposer(maxLength);
         PromptComposer.Selection blocks = order.blocks() != null ? order.blocks() : NO_BLOCKS;
-        String prompt = composer.compose(userPrompt, blocks);
+        String prompt = composer.compose(userPrompt, blocks, order.hasReference());
         if (!composer.fits(prompt))
             throw new GenerationException(Failure.PROMPT_TOO_LONG, "The prompt has " + prompt.length()
                     + " characters, the model takes " + maxLength, prompt.length(), maxLength);

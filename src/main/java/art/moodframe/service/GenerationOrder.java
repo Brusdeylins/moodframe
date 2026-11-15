@@ -28,6 +28,15 @@ public record GenerationOrder(Chat chat, String prompt, PromptComposer.Selection
         List<String> referenceImages) {
 
     /**
+     * Whether the order has at least one reference image, attached as file or as Base64 data.
+     *
+     * @return true if the model gets an image to work on
+     */
+    public boolean hasReference() {
+        return attachment != null || (referenceImages != null && !referenceImages.isEmpty());
+    }
+
+    /**
      * The frame and the target aspect ratio and resolution.
      *
      * @param frame the chosen frame, null for none

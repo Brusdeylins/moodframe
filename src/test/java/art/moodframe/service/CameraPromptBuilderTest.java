@@ -27,14 +27,18 @@ class CameraPromptBuilderTest {
 
     @Test
     void writesEverySettingInTheFixedOrder() {
-        assertEquals("shot on a full-frame digital camera, clean sharp detail, high dynamic range, "
-                + "85mm lens, a tight view on the subject, the background visibly enlarged and softly compressed "
-                + "behind it, "
-                + "f/4, moderate depth of field, the background gently soft, "
-                + "fast shutter speed, motion frozen crisply, "
-                + "ISO 3200, pronounced grain and high-ISO noise, "
-                + "low-angle shot from below, looking up, "
-                + "close-up framing", CameraPromptBuilder.build(FULL, true));
+        assertEquals("shot on a full-frame digital camera, crisp fine detail, clean tones, detail kept in the "
+                + "brightest and darkest areas; "
+                + "85mm lens: a tight view, the main subject large in the frame, the background clearly enlarged and "
+                + "pulled close behind it; "
+                + "f/4: the main subject sharp, the background gently blurred but still recognizable; "
+                + "a fast shutter: everything that moves in the scene, such as hair, fabric, water, leaves, people or "
+                + "vehicles, if present, is frozen crisply in mid-motion; "
+                + "ISO 3200: strong, clearly visible grain and noise across the whole image, most of all in the "
+                + "shadows; "
+                + "a low angle: the camera low below the main subject, looking up at it steeply; "
+                + "a close-up: the camera close to the main subject, which fills the frame",
+                CameraPromptBuilder.build(FULL, true));
     }
 
     @Test
@@ -42,26 +46,32 @@ class CameraPromptBuilderTest {
         assertEquals("", CameraPromptBuilder.build(CameraSettings.ANY, true));
         assertEquals("", CameraPromptBuilder.build(new CameraSettings(null, null, null, null, Shutter.NORMAL, null,
                 null, null), true), "\"Normal\" has no text");
-        assertEquals("f/11, deep depth of field, front and back in sharp focus, top-down view from directly above",
+        assertEquals("f/11: everything sharp from front to back, the main subject as well as the background; "
+                + "a top-down view: the camera directly above the main subject, looking straight down",
                 CameraPromptBuilder.build(new CameraSettings(null, null, null, Aperture.F_11, Shutter.NORMAL, null,
                         Perspective.TOP_DOWN, null), true));
     }
 
     @Test
     void leavesOutAStageThatContradictsAnEarlierOne() {
-        assertEquals("aerial photograph from high above, extreme wide shot, the subject small in the frame",
+        assertEquals("aerial photograph from high above, the main subject small, the ground spread out below it; "
+                + "all people and objects of the scene kept; an extreme wide shot: the main subject tiny in a vast "
+                + "view of its surroundings; all people and objects of the scene kept",
                 CameraPromptBuilder.build(new CameraSettings(Body.DRONE, null, Lens.MACRO, null, null, null,
                         Perspective.EYE_LEVEL, Shot.EXTREME_WIDE), true), "the type drops lens and perspective");
-        assertEquals("shot on a smartphone, a wide view with everything sharp from front to back, bright HDR look "
-                + "with lifted shadows, f/11, deep depth of field, front and back in sharp focus",
+        assertEquals("shot on a smartphone, a wide view with everything sharp from the main subject to the "
+                + "background, a bright HDR look with lifted shadows; f/11: everything sharp from front to back, "
+                + "the main subject as well as the background",
                 CameraPromptBuilder.build(new CameraSettings(Body.SMARTPHONE, null, Lens.TILT_SHIFT, Aperture.F_11,
                         null, null, null, null), true), "f/11 stays once the type dropped the tilt-shift lens");
-        assertEquals("shot on a smartphone, a wide view with everything sharp from front to back, bright HDR look "
-                + "with lifted shadows", CameraPromptBuilder.build(new CameraSettings(Body.SMARTPHONE, null,
-                Lens.MM_135, null, null, null, null, null), true), "a wide view and a narrow one exclude each other");
-        assertEquals("macro lens, extreme magnification, tiny structures and textures filling the whole frame, "
-                + "razor-thin focus", CameraPromptBuilder.build(new CameraSettings(null, null, Lens.MACRO,
-                Aperture.F_11, null, null, null, null), true), "razor-thin focus excludes front and back in focus");
+        assertEquals("shot on a smartphone, a wide view with everything sharp from the main subject to the "
+                + "background, a bright HDR look with lifted shadows", CameraPromptBuilder.build(new CameraSettings(
+                Body.SMARTPHONE, null, Lens.MM_135, null, null, null, null, null), true),
+                "a wide view and a narrow one exclude each other");
+        assertEquals("macro lens: extreme magnification, a tiny part of the main subject filling the whole frame, "
+                + "its fine textures clearly visible, razor-thin focus", CameraPromptBuilder.build(new CameraSettings(
+                null, null, Lens.MACRO, Aperture.F_11, null, null, null, null), true),
+                "razor-thin focus excludes front and back in focus");
         assertEquals("", CameraPromptBuilder.build(new CameraSettings(Body.DRONE, null, null, null, null, null,
                 Perspective.EYE_LEVEL, null), false), "the camera is the same for every style");
     }
@@ -79,13 +89,13 @@ class CameraPromptBuilderTest {
         }
         for (Aperture aperture : Aperture.values()) {
             values += add(texts, new CameraSettings(null, null, null, aperture, null, null, null, null));
-            assertTrue(build(aperture).startsWith(aperture.label() + ", "), build(aperture));
+            assertTrue(build(aperture).startsWith(aperture.label() + ": "), build(aperture));
         }
         for (Shutter shutter : List.of(Shutter.FROZEN, Shutter.MOTION_BLUR, Shutter.LONG_EXPOSURE))
             values += add(texts, new CameraSettings(null, null, null, null, shutter, null, null, null));
         for (Iso iso : Iso.values()) {
             values += add(texts, new CameraSettings(null, null, null, null, null, iso, null, null));
-            assertTrue(build(iso).startsWith(iso.label() + ", "), build(iso));
+            assertTrue(build(iso).startsWith(iso.label() + ": "), build(iso));
         }
         for (Perspective perspective : Perspective.values())
             values += add(texts, new CameraSettings(null, null, null, null, null, null, perspective, null));
@@ -98,26 +108,27 @@ class CameraPromptBuilderTest {
 
     @Test
     void namesAModelFirstAndKeepsItsDeviceClassAndEffect() {
-        assertEquals("shot on a 35mm film camera, a candid analog snapshot with visible film grain and soft, "
-                + "slightly faded colors", CameraPromptBuilder.build(new CameraSettings(Body.COMPACT_35MM, null, null,
-                null, null, null, null, null), true), "\"Generic\" names the device class only");
-        assertEquals("shot on Leica M6, a 35mm film camera, a candid analog snapshot with visible film grain and "
-                + "soft, slightly faded colors", CameraPromptBuilder.build(new CameraSettings(Body.COMPACT_35MM,
-                "Leica M6", null, null, null, null, null, null), true));
+        assertEquals("shot on a 35mm film camera, a candid analog snapshot with clearly visible film grain and "
+                + "soft, slightly faded colors", CameraPromptBuilder.build(new CameraSettings(Body.COMPACT_35MM, null,
+                null, null, null, null, null, null), true), "\"Generic\" names the device class only");
+        assertEquals("shot on Leica M6, a 35mm film camera, a candid analog snapshot with clearly visible film "
+                + "grain and soft, slightly faded colors", CameraPromptBuilder.build(new CameraSettings(
+                Body.COMPACT_35MM, "Leica M6", null, null, null, null, null, null), true));
         assertEquals("shot on Polaroid SX-70, scan of an instant film photo with its plain white border, soft detail, "
-                + "slightly imperfect exposure, gentle faded colors", CameraPromptBuilder.build(new CameraSettings(
+                + "slightly uneven exposure, gentle faded colors", CameraPromptBuilder.build(new CameraSettings(
                 Body.INSTANT, "Polaroid SX-70", null, null, null, null, null, null), true));
-        assertEquals("shot on Pentax 67, a medium format film camera, exceptional detail, smooth tonal transitions",
-                CameraPromptBuilder.build(new CameraSettings(Body.MEDIUM_FORMAT, "Pentax 67", null, null, null, null,
-                        null, null), true), "an analog model of a digital type names a film camera");
-        assertEquals("shot on Hasselblad X2D, a medium format camera, exceptional detail, smooth tonal transitions",
-                CameraPromptBuilder.build(new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", null, null, null,
-                        null, null, null), true));
+        assertEquals("shot on Pentax 67, a medium format film camera, exceptionally fine detail, very smooth tonal "
+                + "transitions", CameraPromptBuilder.build(new CameraSettings(Body.MEDIUM_FORMAT, "Pentax 67", null,
+                null, null, null, null, null), true), "an analog model of a digital type names a film camera");
+        assertEquals("shot on Hasselblad X2D, a medium format camera, exceptionally fine detail, very smooth tonal "
+                + "transitions", CameraPromptBuilder.build(new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D",
+                null, null, null, null, null, null), true));
     }
 
     @Test
     void keepsOnlyPerspectiveAndShotSizeForAStyleThatIsNotPhotographic() {
-        assertEquals("low-angle shot from below, looking up, close-up framing", CameraPromptBuilder.build(FULL, false));
+        assertEquals("a low angle: the camera low below the main subject, looking up at it steeply; a close-up: the "
+                + "camera close to the main subject, which fills the frame", CameraPromptBuilder.build(FULL, false));
         assertEquals("", CameraPromptBuilder.build(new CameraSettings(Body.DRONE, "DJI Mavic 3", Lens.MM_24,
                 Aperture.F_11, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, null), false));
     }
@@ -171,9 +182,13 @@ class CameraPromptBuilderTest {
         assertEquals(Aperture.F_11, CameraSettings.fromJson("{\"aperture\": \"F_16\"}").aperture());
     }
 
+    /*  a text of about 200 characters at most; the slow shutter and the long exposure keep their tested wording  */
     private static int add(Set<String> texts, CameraSettings settings) {
         String text = CameraPromptBuilder.build(settings, true);
+        int limit = settings.shutter() == Shutter.MOTION_BLUR || settings.shutter() == Shutter.LONG_EXPOSURE
+                ? 260 : 200;
         assertFalse(text.isEmpty(), settings.toString());
+        assertTrue(text.length() <= limit, text.length() + " characters: " + text);
         texts.add(text);
         return 1;
     }
