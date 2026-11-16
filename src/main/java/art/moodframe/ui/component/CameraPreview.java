@@ -14,9 +14,10 @@ import javafx.scene.paint.Color;
 
 /**
  * Schematic preview of a camera: from above the field of view as a cone with the subject and the range in focus as
- * a band across it, from the side the height of the camera in front of a standing figure.
+ * a band across it, tilted by a tilt-shift lens, from the side the height of the camera in front of a standing figure.
  *
- * <p>A setting "any" is drawn as a dashed neutral default.</p>
+ * <p>A setting "any" is drawn as a dashed neutral default. Everything drawn follows the settings the dialog shows; a
+ * special lens sets the angle of view, a macro lens the distance of the detail shot, the only one it allows.</p>
  *
  * @since 2.0.0
  */
@@ -72,7 +73,7 @@ public class CameraPreview extends VBox {
 
     /*  The cone opens with the horizontal angle of view of the focal length on full frame and ends in an arc with a
         margin to the edges, the subject stands at the distance of the shot size, the band of focus is as deep as the
-        aperture allows  */
+        aperture allows and runs obliquely behind a tilt-shift lens, whose tilted plane of focus it shows  */
     private void drawTop(CameraSettings settings) {
         GraphicsContext gc = top.getGraphicsContext2D();
         double height = top.getHeight();
@@ -97,13 +98,13 @@ public class CameraPreview extends VBox {
         gc.stroke();
         gc.clip();
 
-        /*  the band of focus across the cone  */
+        /*  the band of focus across the cone, around the subject  */
         double[] focus = focusRange(settings.aperture(), settings.lens());
         if (focus != null) {
-            double near = Math.max(subject - focus[0] * length, 0);
-            double far = Math.min(subject + focus[1] * length, length);
+            gc.translate(x, y - subject);
+            gc.rotate(settings.lens() == Lens.TILT_SHIFT ? -20 : 0);
             gc.setFill(FOCUS);
-            gc.fillRect(0, y - far, WIDTH, far - near);
+            gc.fillRect(-WIDTH, -focus[1] * length, 2 * WIDTH, (focus[0] + focus[1]) * length);
         }
         gc.restore();
 
@@ -181,13 +182,12 @@ public class CameraPreview extends VBox {
         };
     }
 
-    /** The distance of the subject as a share of the cone length. */
+    /** The distance of the subject as a share of the cone length; a macro lens allows the detail shot only. */
     private static double subjectDistance(Lens lens, Shot shot) {
-        if (lens == Lens.MACRO)
-            return 0.12;
-        if (shot == null)
+        Shot shown = lens == Lens.MACRO ? Shot.DETAIL : shot;
+        if (shown == null)
             return 0.5;
-        return switch (shot) {
+        return switch (shown) {
             case EXTREME_WIDE -> 0.85;
             case WIDE -> 0.65;
             case MEDIUM -> 0.45;
@@ -196,10 +196,13 @@ public class CameraPreview extends VBox {
         };
     }
 
-    /** How far the focus reaches before and behind the subject, as shares of the cone length; null for "any". */
+    /**
+     * How far the focus reaches before and behind the subject, as shares of the cone length; null for "any". A
+     * tilt-shift lens narrows it to a band, at "any" as wide as open; it allows no f/11.
+     */
     private static double[] focusRange(Aperture aperture, Lens lens) {
         if (lens == Lens.TILT_SHIFT)
-            return new double[] { 0.02, 0.02 };
+            return aperture == Aperture.F_4 ? new double[] { 0.05, 0.05 } : new double[] { 0.02, 0.02 };
         if (aperture == null)
             return null;
         return switch (aperture) {
