@@ -94,8 +94,8 @@ class MoodServiceTest {
                 moods.selection(moods.find("std:mood:lifestyle-product")));
         assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera: crisp fine detail, clean tones, "
                 + "a wide dynamic range with detail in the brightest and darkest areas, natural colors; 85mm lens, 29° "
-                + "view: a narrower view, everything in the frame larger, less of the surroundings, the background "
-                + "enlarged and pulled closer, softly out of focus; f/1.4: razor-thin focus on the main subject only; "
+                + "view: the camera far away for this framing, the background enlarged, pulled close and flattened "
+                + "behind the main subject; f/1.4: razor-thin focus on the main subject only; "
                 + "the background melts into smooth, featureless color areas, foreground things near the camera into "
                 + "soft blurs; bright lights as round glows; eye level: the camera at the height of the main subject, "
                 + "looking straight at it, vertical lines upright; a close-up: the main subject fills the frame, such "
@@ -210,7 +210,7 @@ class MoodServiceTest {
         Mood product = moods.find("std:mood:clean-product");
         String prompt = new PromptComposer(10000).compose("a perfume bottle", moods.selection(product));
 
-        assertTrue(prompt.contains("\nCamera: shot on Hasselblad X2D, a medium format camera: "), prompt);
+        assertTrue(prompt.contains("\nCamera: shot on a medium format camera: "), prompt);
         assertTrue(moods.describe(product).endsWith(" · Product Tabletop"), moods.describe(product));
     }
 
@@ -392,7 +392,7 @@ class MoodServiceTest {
     @Test
     void copiesTheCameraOfAnEntryWithItsSettingsTakesItOverAndCreatesItAnew() throws Exception {
         PromptBlock camera = PromptBlockService.camera(null, "Harbor Tele", new CameraSettings(
-                CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_135, CameraSettings.Aperture.F_4, null,
+                CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_135, CameraSettings.Aperture.F_4, null,
                 null, null, null));
         assertTrue(blocks.addCustom(camera));
         Mood product = moods.find("std:mood:clean-product");

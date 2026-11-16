@@ -338,7 +338,8 @@ class McpServerTest {
         assertTrue(find(models, "id", "FLUX2_FLEX").path("parameters").has("steps"));
         assertEquals("[\"2K\"]", find(models, "id", "FLUX3_IMAGE_2K").path("resolutions").toString());
         assertTrue(capabilities.path("camera").path("body").toString().contains("DRONE"));
-        assertTrue(capabilities.path("camera").path("models").path("CINEMA").toString().contains("ARRI Alexa 35"));
+        assertTrue(capabilities.path("camera").path("lens").toString().contains("\"SHIFT\""));
+        assertFalse(capabilities.path("camera").has("models"), "the camera type carries the look, no model");
     }
 
     @Test

@@ -95,7 +95,7 @@ class PromptBlockServiceTest {
         assertEquals("""
                 Image style: realistic photograph, sharp focus, natural detail and texture.
                 a market at dawn
-                Camera: shot on Leica M6, a 35mm film compact camera: a candid analog snapshot, coarse, clearly \
+                Camera: shot on a 35mm film compact camera: a candid analog snapshot, coarse, clearly \
                 visible film grain, faded film colors, darker corners, a warm halation glow around the sun and \
                 bright lights, if present; 35mm lens, 63° view: a moderately wide view, the main subject together \
                 with its surroundings, natural perspective; f/11: a deep depth of field, everything sharp from the \

@@ -134,7 +134,7 @@ class GenerationServiceTest {
 
     @Test
     void asksToChangeOnlyTheCameraOfAReferenceImage() throws Exception {
-        PromptBlock camera = PromptBlockService.camera("camera-1", "Slow", new CameraSettings(null, null, null, null,
+        PromptBlock camera = PromptBlockService.camera("camera-1", "Slow", new CameraSettings(null, null, null,
                 CameraSettings.Shutter.MOTION_BLUR, null, null, null));
         PromptComposer.Selection blocks = new PromptComposer.Selection(null, null, null, camera, null);
         GenerationOrder edit = new GenerationOrder(chat, "a woman on a ledge", blocks, null, false, WIDE_2K,

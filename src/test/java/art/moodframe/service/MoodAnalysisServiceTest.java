@@ -46,7 +46,7 @@ class MoodAnalysisServiceTest {
                     block("u1", PromptBlock.Type.ATMOSPHERE, "Harbor Mist", "mist over the harbor")),
             List.of(block("std:light:golden-hour", PromptBlock.Type.LIGHT, "Golden Hour", "low warm sun")),
             List.of(PromptBlockService.camera("std:camera:classic-portrait", "Classic Portrait", new CameraSettings(
-                    CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85, null, null, null, null, null))),
+                    CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85, null, null, null, null, null))),
             List.of(palette("std:color:ocean", "Ocean")), List.of(), List.of(), "", List.of(), Set.of());
 
     private GeminiApiService gemini;
@@ -112,7 +112,7 @@ class MoodAnalysisServiceTest {
                 context, List.of());
 
         assertEquals(new BrainstormDraft.Block(null, "Classic Portrait (1)", null, List.of(), new CameraSettings(
-                CameraSettings.Body.DRONE, null, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_11, null, null,
+                CameraSettings.Body.DRONE, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_11, null, null,
                 CameraSettings.Perspective.TOP_DOWN, CameraSettings.Shot.EXTREME_WIDE), true),
                 blocks.get(Mood.Field.CAMERA));
         assertEquals("std:camera:classic-portrait", MoodAnalysisService.parseReply(

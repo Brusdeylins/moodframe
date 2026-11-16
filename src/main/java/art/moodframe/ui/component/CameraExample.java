@@ -24,14 +24,14 @@ import java.util.Map;
  * surroundings are made up.
  *
  * <p>A picture is loaded in the background on its first use and kept as long as the example; a stage without picture
- * shows a placeholder. A camera model has no picture of its own, the one of its type applies. Without a stage the
- * frame stays empty with a hint, in the same size.</p>
+ * shows a placeholder. Without a stage the frame stays empty with a hint, in the same size. The frame is as wide as
+ * the preview column; the pictures of 640 px stay sharp on a Retina display up to 320 px.</p>
  *
  * @since 2.0.0
  */
 public class CameraExample extends VBox {
 
-    private static final double SIZE = 220;
+    private static final double SIZE = 300;
 
     /*  the pictures loaded so far, the key null for the picture without camera  */
     private final Map<Enum<?>, Image> images = new HashMap<>();
@@ -134,8 +134,13 @@ public class CameraExample extends VBox {
         return image;
     }
 
-    /*  the name of a stage as the dialog shows it: focal length, f-number and ISO as numbers, the rest by its text  */
-    static String name(Enum<?> stage) {
+    /**
+     * The name of a stage as the dialog shows it: focal length, f-number and ISO as numbers, the rest by its text.
+     *
+     * @param stage a value of a setting
+     * @return the name in the current language
+     */
+    public static String name(Enum<?> stage) {
         return switch (stage) {
             case Lens lens when !lens.isSpecial() -> lens.millimeters() + " mm";
             case Aperture aperture -> aperture.label();

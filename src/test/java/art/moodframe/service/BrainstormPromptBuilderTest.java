@@ -127,7 +127,7 @@ class BrainstormPromptBuilderTest {
         ColorStyle palette = new ColorStyle("Arctic Ice", List.of("#E0F7FA"), true);
         palette.setId("std:color:arctic-ice");
         PromptBlock street = PromptBlockService.camera("std:camera:street-35mm", "Street 35mm", new CameraSettings(
-                CameraSettings.Body.COMPACT_35MM, "Leica M6", CameraSettings.Lens.MM_35, null, null, null, null, null));
+                CameraSettings.Body.COMPACT_35MM, CameraSettings.Lens.MM_35, null, null, null, null, null));
 
         Mood morning = new Mood("std:mood:quiet-morning", "Quiet Morning");
         morning.setReference(Mood.Field.STYLE, style.getId());
@@ -148,9 +148,8 @@ class BrainstormPromptBuilderTest {
 
         String cameras = BrainstormPromptBuilder.build("{{CAMERAS}}|{{CAMERA_SETTINGS}}", "English", library, "");
         assertTrue(cameras.startsWith("- Street 35mm: {"), cameras);
-        assertTrue(cameras.contains("\"lens\":\"MM_35\"") && cameras.contains("\"model\":\"Leica M6\""), cameras);
+        assertTrue(cameras.contains("\"lens\":\"MM_35\"") && !cameras.contains("model"), cameras);
         assertTrue(cameras.contains("- lens: MM_14, MM_24, MM_35, "), cameras);
-        assertTrue(cameras.contains("Leica M6 (COMPACT_35MM)"), cameras);
         assertTrue(cameras.endsWith("- shot: EXTREME_WIDE, WIDE, MEDIUM, CLOSE_UP, DETAIL"), cameras);
     }
 

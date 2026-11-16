@@ -205,7 +205,7 @@ class BrainstormReplyTest {
 
         BrainstormDraft.Block camera = draft.getBlock(Mood.Field.CAMERA);
         assertTrue(camera.isNew());
-        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_135, null, null,
+        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_135, null, null,
                 null, null, CameraSettings.Shot.WIDE), camera.settings(), "an unknown value counts as any");
         assertEquals(camera, BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()))
                 .getBlock(Mood.Field.CAMERA));

@@ -5,14 +5,19 @@ import art.moodframe.model.PromptBlock;
 import art.moodframe.service.PromptBlockService;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
+import javafx.event.Event;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -24,9 +29,10 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Builds the camera dialog on the JavaFX thread without showing it and reads its result. */
+/** Builds the camera dialog on the JavaFX thread without showing it, works its controls and reads its result. */
 class CameraEditDialogTest {
 
     @BeforeAll
@@ -54,9 +60,9 @@ class CameraEditDialogTest {
 
     @Test
     void showsTheSettingsOfAStandardCameraAndSavesThemOnlyAsANewOne() throws Exception {
-        CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, "Hasselblad 500C/M",
-                CameraSettings.Lens.TILT_SHIFT, CameraSettings.Aperture.F_4, CameraSettings.Shutter.MOTION_BLUR,
-                CameraSettings.Iso.ISO_3200, CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.DETAIL);
+        CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, CameraSettings.Lens.TILT_SHIFT,
+                CameraSettings.Aperture.F_4, CameraSettings.Shutter.MOTION_BLUR, CameraSettings.Iso.ISO_3200,
+                CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.DETAIL);
         PromptBlock tabletop = PromptBlockService.camera("std:camera:product-tabletop", "Product Tabletop", settings);
 
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(tabletop));
@@ -81,27 +87,85 @@ class CameraEditDialogTest {
     }
 
     @Test
-    void showsTheIsoValuesAsIconButtonsLikeTheOtherRows() throws Exception {
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
-        ToggleButton iso3200 = toggle(dialog, CameraSettings.Iso.ISO_3200);
-        String iso = I18nManager.getText("camera.dialog.iso");
-        String any = onFxThread(() -> heading(dialog, iso));
-        String chosen = onFxThread(() -> {
-            iso3200.fire();
-            return heading(dialog, iso);
+    void showsShutterAndIsoAsSlidersWithTheirExposureTimesAndNumbers() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
+                new CameraSettings(null, null, null, CameraSettings.Shutter.MOTION_BLUR, CameraSettings.Iso.ISO_3200,
+                        null, null))));
+        List<Slider> sliders = sliders(dialog);
+        List<String> labels = dialog.getDialogPane().lookupAll(".label").stream().map(Label.class::cast)
+                .map(Label::getText).toList();
+
+        assertEquals(4, sliders.size(), "focal length, aperture, shutter and ISO");
+        assertEquals(3.0, sliders.get(2).getValue(), "1/15 s");
+        assertEquals(2.0, sliders.get(3).getValue(), "ISO 3200");
+        assertTrue(labels.containsAll(List.of("1/4000 s", "1/125 s", "1/15 s", "5 s", "100", "3200")), labels.toString());
+        assertTrue(dialog.getDialogPane().lookupAll(".toggle-button").stream()
+                .noneMatch((button) -> button.getUserData() instanceof CameraSettings.Shutter
+                        || button.getUserData() instanceof CameraSettings.Iso), "no symbol rows for shutter and ISO");
+    }
+
+    @Test
+    void fixesLensAndApertureOfTheActionCamReadOnlyAndReleasesThemForAnotherType() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
+                new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85,
+                        CameraSettings.Aperture.F_1_4, null, null, null, null))));
+        List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
+        List<Slider> sliders = sliders(dialog);
+        String fixed = I18nManager.getText("camera.dialog.fixed", I18nManager.getText("camera.body.action_cam"));
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.ACTION_CAM).fire();
+            return null;
+        });
+        CameraEditDialog.Result result = onFxThread(() -> dialog.getResultConverter().call(buttons.get(1)));
+
+        assertEquals(new CameraSettings(CameraSettings.Body.ACTION_CAM, CameraSettings.Lens.MM_14,
+                CameraSettings.Aperture.F_11, null, null, null, null), result.settings(),
+                "the type sets its 14 mm lens and its aperture itself");
+        assertEquals(1.0, sliders.get(0).getValue());
+        assertEquals(3.0, sliders.get(1).getValue());
+        for (Slider slider : sliders.subList(0, 2)) {
+            assertTrue(slider.isMouseTransparent() && !slider.isFocusTraversable(), "read-only");
+            assertFalse(slider.isDisable(), "not greyed: it shows the value of the type");
+        }
+        assertTrue(toggle(dialog, CameraSettings.Lens.FISHEYE).isMouseTransparent());
+        assertEquals(2, labels(dialog, fixed), "beside focal length and aperture");
+        assertFalse(sliders.get(2).isMouseTransparent(), "the shutter stays free");
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.FULL_FRAME).fire();
+            return null;
+        });
+        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null, null, null),
+                onFxThread(() -> dialog.getResultConverter().call(buttons.get(1))).settings(),
+                "the values of the type go back to \"Any\"");
+        assertFalse(sliders.get(0).isMouseTransparent());
+        assertEquals(0, labels(dialog, fixed));
+    }
+
+    @Test
+    void showsTheAutomaticOfTheInstantCameraAsAutoWithoutAny() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
+                new CameraSettings(null, null, null, CameraSettings.Shutter.FROZEN, null, null, null))));
+        List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
+        List<Slider> sliders = sliders(dialog);
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.INSTANT).fire();
+            return null;
         });
 
-        assertTrue(iso3200.getToggleGroup().getToggles().stream().map(ToggleButton.class::cast)
-                .allMatch((button) -> button.getStyleClass().contains("icon-button") && button.getGraphic() != null),
-                "\"Any\" and both ISO values are icon buttons");
-        assertEquals("ISO 3200", iso3200.getTooltip().getText());
-        assertEquals(iso + ": " + I18nManager.getText("camera.dialog.any"), any);
-        assertEquals(iso + ": 3200", chosen);
+        assertEquals(new CameraSettings(CameraSettings.Body.INSTANT, CameraSettings.Lens.MM_50, null, null, null,
+                null, null), onFxThread(() -> dialog.getResultConverter().call(buttons.get(1))).settings());
+        assertEquals(0.0, sliders.get(2).getValue(), "1/4000 s goes, the shutter is automatic");
+        assertTrue(sliders.get(2).isMouseTransparent());
+        assertEquals(2, labels(dialog, I18nManager.getText("camera.dialog.auto")), "aperture and shutter");
+        assertEquals(2, labels(dialog, I18nManager.getText("camera.dialog.any")), "focal length and ISO");
     }
 
     @Test
     void blocksWhatContradictsTheTypeAndResetsAChosenStageToAny() throws Exception {
-        CameraSettings settings = new CameraSettings(CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85,
+        CameraSettings settings = new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85,
                 null, null, null, CameraSettings.Perspective.EYE_LEVEL, CameraSettings.Shot.CLOSE_UP);
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
                 settings)));
@@ -116,45 +180,48 @@ class CameraEditDialogTest {
         ToggleButton eyeLevel = toggle(dialog, CameraSettings.Perspective.EYE_LEVEL);
         Tooltip reason = (Tooltip) eyeLevel.getParent().getProperties().get("javafx.scene.control.Tooltip");
 
-        assertEquals(new CameraSettings(CameraSettings.Body.DRONE, null, CameraSettings.Lens.MM_85, null, null, null,
-                null, null), result.settings(), "eye level and close-up go back to \"Any\"");
+        assertEquals(new CameraSettings(CameraSettings.Body.DRONE, CameraSettings.Lens.MM_24, null, null, null,
+                null, null), result.settings(), "the drone fixes its lens, eye level and close-up go back to \"Any\"");
         assertTrue(eyeLevel.isDisable());
         assertEquals(I18nManager.getText("camera.dialog.blocked", I18nManager.getText("camera.body.drone")),
                 reason.getText());
         assertTrue(toggle(dialog, CameraSettings.Lens.MACRO).isDisable());
+        assertTrue(toggle(dialog, CameraSettings.Shot.MEDIUM).isDisable());
         assertTrue(toggle(dialog, CameraSettings.Shot.DETAIL).isDisable());
         assertFalse(toggle(dialog, CameraSettings.Perspective.TOP_DOWN).isDisable());
-        assertFalse(toggle(dialog, CameraSettings.Lens.FISHEYE).isDisable());
     }
 
     @Test
-    void resetsAChosenIsoBlockedByTheTypeToAnyAndUpdatesThePrompt() throws Exception {
+    void resetsAPerspectiveBlockedByTheShiftLensAndUpdatesThePrompt() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
-                new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null, CameraSettings.Iso.ISO_100,
-                        null, null))));
+                new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null,
+                        CameraSettings.Perspective.LOW_ANGLE, null))));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         TextArea prompt = (TextArea) dialog.getDialogPane().lookup(".text-area");
-        assertTrue(prompt.getText().contains("ISO 100"));
+        assertTrue(prompt.getText().contains("a low angle"));
 
         onFxThread(() -> {
-            toggle(dialog, CameraSettings.Body.COMPACT_35MM).fire();
+            toggle(dialog, CameraSettings.Lens.SHIFT).fire();
             return null;
         });
-        CameraEditDialog.Result result = onFxThread(() -> dialog.getResultConverter().call(buttons.get(1)));
-        String iso = I18nManager.getText("camera.dialog.iso");
+        String perspective = I18nManager.getText("camera.dialog.perspective");
 
-        assertEquals(new CameraSettings(CameraSettings.Body.COMPACT_35MM, null, null, null, null, null, null, null),
-                result.settings(), "ISO 100 goes back to \"Any\"");
-        assertTrue(toggle(dialog, CameraSettings.Iso.ISO_100).isDisable());
-        assertFalse(prompt.getText().contains("ISO 100"), "the prompt follows the reset");
-        assertEquals(iso + ": " + I18nManager.getText("camera.dialog.any"), onFxThread(() -> heading(dialog, iso)));
+        assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.SHIFT, null, null, null,
+                null, null), onFxThread(() -> dialog.getResultConverter().call(buttons.get(1))).settings(),
+                "the shift lens keeps the camera level");
+        assertTrue(toggle(dialog, CameraSettings.Perspective.LOW_ANGLE).isDisable());
+        assertTrue(toggle(dialog, CameraSettings.Perspective.DUTCH_ANGLE).isDisable());
+        assertFalse(prompt.getText().contains("a low angle"), "the prompt follows the reset");
+        assertTrue(prompt.getText().contains("shift lens: the camera level"));
+        assertEquals(perspective + ": " + I18nManager.getText("camera.dialog.any"),
+                onFxThread(() -> heading(dialog, perspective)));
     }
 
     @Test
     void skipsABlockedDetentOfASlider() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("phone", "Phone",
-                new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null, null, null))));
-        List<Slider> sliders = dialog.getDialogPane().lookupAll(".slider").stream().map(Slider.class::cast).toList();
+                new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null, null))));
+        List<Slider> sliders = sliders(dialog);
 
         assertEquals(3.0, onFxThread(() -> {
             sliders.get(1).setValue(1);
@@ -164,29 +231,63 @@ class CameraEditDialogTest {
             sliders.get(1).setValue(1.4);
             return sliders.get(1).getValue();
         }), "dragging takes the nearest allowed detent, \"Any\"");
-        assertEquals(1.0, onFxThread(() -> {
-            toggle(dialog, CameraSettings.Body.ACTION_CAM).fire();
-            sliders.getFirst().setValue(5);
+        assertEquals(6.0, onFxThread(() -> {
+            sliders.getFirst().setValue(7);
             return sliders.getFirst().getValue();
-        }), "with no allowed focal length after it, 14 mm is the nearest one before it");
+        }), "with no allowed focal length after 400 mm, 135 mm is the nearest one before it");
     }
 
     @Test
-    void offersNoModelChoiceForATypeWithoutModels() throws Exception {
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("drone", "Drone",
-                new CameraSettings(CameraSettings.Body.DRONE, null, null, null, null, null, null, null))));
-        ChoiceBox<?> models = (ChoiceBox<?>) dialog.getDialogPane().lookup(".choice-box");
+    void showsTheExampleOfAValueChangedByKeyboardAndKeepsItAfterTheMouseLeaves() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+        List<Slider> sliders = sliders(dialog);
+        Slider shutter = sliders.get(2);
+        ImageView picture = (ImageView) dialog.getDialogPane().lookupAll(".image-view").stream()
+                .filter((node) -> node.getParent().getParent() instanceof CameraExample).findFirst().orElseThrow();
+        assertNull(picture.getImage(), "the empty frame before any change");
 
-        assertTrue(models.isDisable(), "a drone has no models");
-        assertFalse(onFxThread(() -> {
-            toggle(dialog, CameraSettings.Body.INSTANT).fire();
-            return models.isDisable();
-        }), "an instant camera offers the Polaroid SX-70");
+        onFxThread(() -> {
+            dialog.getDialogPane().applyCss();
+            Event.fireEvent(shutter, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.RIGHT, false, false, false,
+                    false));
+            return null;
+        });
+        assertEquals(1.0, shutter.getValue(), "one step to the right: 1/4000 s");
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Shutter.FROZEN)),
+                picture.getImage().getUrl());
+
+        ToggleButton topDown = toggle(dialog, CameraSettings.Perspective.TOP_DOWN);
+        onFxThread(() -> {
+            Event.fireEvent(topDown, mouse(MouseEvent.MOUSE_MOVED));
+            return null;
+        });
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Perspective.TOP_DOWN)),
+                "the value under the mouse");
+        onFxThread(() -> {
+            Event.fireEvent(topDown, mouse(MouseEvent.MOUSE_EXITED));
+            return null;
+        });
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Shutter.FROZEN)),
+                "back to the value changed last instead of the empty frame");
+    }
+
+    private static MouseEvent mouse(javafx.event.EventType<MouseEvent> type) {
+        return new MouseEvent(type, 5, 5, 5, 5, MouseButton.NONE, 0, false, false, false, false, false, false, false,
+                false, false, false, null);
+    }
+
+    private static List<Slider> sliders(CameraEditDialog dialog) {
+        return dialog.getDialogPane().lookupAll(".slider").stream().map(Slider.class::cast).toList();
     }
 
     private static ToggleButton toggle(CameraEditDialog dialog, Enum<?> stage) {
         return dialog.getDialogPane().lookupAll(".toggle-button").stream().map(ToggleButton.class::cast)
                 .filter((button) -> button.getUserData() == stage).findFirst().orElseThrow();
+    }
+
+    private static long labels(CameraEditDialog dialog, String text) {
+        return dialog.getDialogPane().lookupAll(".label").stream().map(Label.class::cast)
+                .filter((label) -> text.equals(label.getText())).count();
     }
 
     private static String heading(CameraEditDialog dialog, String setting) {

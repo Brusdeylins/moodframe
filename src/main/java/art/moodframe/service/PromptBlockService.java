@@ -364,27 +364,27 @@ public class PromptBlockService {
 
     private static List<PromptBlock> defaultCameras() {
         List<PromptBlock> cameras = new ArrayList<>();
-        cameras.add(camera("Street 35mm", new CameraSettings(Body.COMPACT_35MM, "Leica M6", Lens.MM_35, Aperture.F_11,
+        cameras.add(camera("Street 35mm", new CameraSettings(Body.COMPACT_35MM, Lens.MM_35, Aperture.F_11,
                 null, null, Perspective.EYE_LEVEL, null)));
-        cameras.add(camera("Classic Portrait", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_1_4,
+        cameras.add(camera("Classic Portrait", new CameraSettings(Body.FULL_FRAME, Lens.MM_85, Aperture.F_1_4,
                 null, null, Perspective.EYE_LEVEL, Shot.CLOSE_UP)));
-        cameras.add(camera("Epic Wide Low Angle", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_14, Aperture.F_11,
+        cameras.add(camera("Epic Wide Low Angle", new CameraSettings(Body.FULL_FRAME, Lens.MM_14, Aperture.F_11,
                 null, null, Perspective.LOW_ANGLE, Shot.WIDE)));
-        cameras.add(camera("Telephoto Compression", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_135,
+        cameras.add(camera("Telephoto Compression", new CameraSettings(Body.FULL_FRAME, Lens.MM_135,
                 Aperture.F_4, null, null, null, null)));
-        cameras.add(camera("Macro Detail", new CameraSettings(Body.FULL_FRAME, null, Lens.MACRO, Aperture.F_4,
+        cameras.add(camera("Macro Detail", new CameraSettings(Body.FULL_FRAME, Lens.MACRO, Aperture.F_4,
                 null, null, null, Shot.DETAIL)));
-        cameras.add(camera("Drone Overview", new CameraSettings(Body.DRONE, null, Lens.MM_24, Aperture.F_11,
+        cameras.add(camera("Drone Overview", new CameraSettings(Body.DRONE, Lens.MM_24, Aperture.F_11,
                 null, null, Perspective.TOP_DOWN, Shot.EXTREME_WIDE)));
-        cameras.add(camera("Cinematic Anamorphic", new CameraSettings(null, null, Lens.ANAMORPHIC,
+        cameras.add(camera("Cinematic Anamorphic", new CameraSettings(null, Lens.ANAMORPHIC,
                 Aperture.F_1_4, null, null, null, Shot.MEDIUM)));
-        cameras.add(camera("Product Tabletop", new CameraSettings(Body.MEDIUM_FORMAT, "Hasselblad X2D", Lens.MM_85,
+        cameras.add(camera("Product Tabletop", new CameraSettings(Body.MEDIUM_FORMAT, Lens.MM_85,
                 Aperture.F_11, null, Iso.ISO_100, Perspective.HIGH_ANGLE, null)));
-        cameras.add(camera("Product Bokeh", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_85, Aperture.F_1_4,
+        cameras.add(camera("Product Bokeh", new CameraSettings(Body.FULL_FRAME, Lens.MM_85, Aperture.F_1_4,
                 null, null, Perspective.EYE_LEVEL, Shot.CLOSE_UP)));
-        cameras.add(camera("Long Exposure Landscape", new CameraSettings(Body.FULL_FRAME, null, Lens.MM_24,
+        cameras.add(camera("Long Exposure Landscape", new CameraSettings(Body.FULL_FRAME, Lens.MM_24,
                 Aperture.F_11, Shutter.LONG_EXPOSURE, Iso.ISO_100, null, Shot.WIDE)));
-        cameras.add(camera("Phone Snapshot", new CameraSettings(Body.SMARTPHONE, null, null, null, null, null,
+        cameras.add(camera("Phone Snapshot", new CameraSettings(Body.SMARTPHONE, null, null, null, null,
                 Perspective.EYE_LEVEL, null)));
 
         for (int i = 0; i < cameras.size(); i++)

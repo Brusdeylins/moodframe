@@ -6515,16 +6515,26 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Shows the hint below the camera for a style that is not photographic, layout included: only perspective and shot
-     * size apply (see {@link art.moodframe.service.PromptComposer}).
+     * Shows the hints below the camera: for a style that is not photographic, layout included, only perspective and
+     * shot size apply (see {@link art.moodframe.service.PromptComposer}); with a reference image, a stage that changes
+     * the geometry may show only weakly, as an edit hardly changes it.
      */
     private void updateCameraHint() {
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean framingOnly = styleItem != null && styleItem.getBlock() != null
                 && !styleItem.getBlock().isPhotographic();
-        cameraHint.setText(I18nManager.getText("params.camera.framing.hint"));
-        cameraHint.setVisible(framingOnly);
-        cameraHint.setManaged(framingOnly);
+        art.moodframe.model.PromptBlock camera = attachedImageFile != null ? selectedBlocks().camera() : null;
+        List<Enum<?>> weak = camera != null ? art.moodframe.service.CameraPromptBuilder.weakInEdits(
+                art.moodframe.model.CameraSettings.fromJson(camera.getParams()), !framingOnly) : List.of();
+        List<String> hints = new java.util.ArrayList<>();
+        if (framingOnly)
+            hints.add(I18nManager.getText("params.camera.framing.hint"));
+        if (!weak.isEmpty())
+            hints.add(I18nManager.getText("params.camera.edit.hint", String.join(", ", weak.stream()
+                    .map(art.moodframe.ui.component.CameraExample::name).toList())));
+        cameraHint.setText(String.join("\n", hints));
+        cameraHint.setVisible(!hints.isEmpty());
+        cameraHint.setManaged(!hints.isEmpty());
     }
 
     /**

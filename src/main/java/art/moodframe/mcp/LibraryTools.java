@@ -186,11 +186,6 @@ class LibraryTools {
     private static ObjectNode camera() {
         ObjectNode camera = McpTools.JSON.createObjectNode();
         camera.set("body", names(CameraSettings.Body.values()));
-        ObjectNode models = camera.putObject("models");
-        for (CameraPromptBuilder.Model model : CameraPromptBuilder.MODELS) {
-            String body = model.body().name();
-            (models.has(body) ? (ArrayNode) models.get(body) : models.putArray(body)).add(model.name());
-        }
         camera.set("lens", names(CameraSettings.Lens.values()));
         camera.set("aperture", names(CameraSettings.Aperture.values()));
         camera.set("shutter", names(CameraSettings.Shutter.values()));

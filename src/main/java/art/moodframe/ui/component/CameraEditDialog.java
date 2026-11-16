@@ -15,7 +15,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Line;
 import javafx.scene.text.TextAlignment;
-import javafx.util.StringConverter;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import art.moodframe.config.ServiceFactory;
@@ -40,17 +39,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntToDoubleFunction;
-import java.util.function.Supplier;
 
 /**
  * Dialog for creating and editing a camera: no free text, but settings from which the app builds the fragment.
  *
  * <p>
- * Left the settings (tiles for the camera type with its model, sliders with detents for focal length and aperture,
- * symbol rows for shutter, ISO, perspective and shot size), right a schematic preview and an example picture of the
- * stage under the mouse, below the generated prompt, all live. Every setting starts at "Any". A stage whose prompt
- * text contradicts the chosen type or lens is blocked and names the reason ({@link CameraSettings#blocker}). A camera
- * of the user is saved in place or as a new one, a standard camera only as a new one.
+ * Left the settings (tiles for the camera type, sliders with detents for focal length, aperture, shutter and ISO,
+ * symbol rows for perspective and shot size), right a schematic preview and an example picture of the stage under the
+ * mouse or else of the one changed last, below the generated prompt, all live. Every setting starts at "Any". A type
+ * with a fixed lens or an automatic sets those settings itself and shows them read-only ({@link CameraSettings#fixes});
+ * a stage whose prompt text contradicts the chosen type or lens is blocked and names the reason
+ * ({@link CameraSettings#blocker}). A camera of the user is saved in place or as a new one, a standard camera only as
+ * a new one.
  * </p>
  *
  * @since 2.0.0
@@ -72,12 +72,18 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private record Blockable(Enum<?> stage, Control control, Node wrapper, Tooltip reason) {
     }
 
+    /*  a setting a camera type can fix: its controls read-only but not greyed, the hint beside its heading naming the
+        type, its "Any" shown as "Auto" while fixed to automatic  */
+    private record Fixable<E extends Enum<E>>(Class<E> setting, List<Control> controls, Label any, Label hint) {
+    }
+
     /*  The detents of the focal length slider: "Any", then the focal lengths from wide to long  */
     private static final List<Lens> FOCAL_LENGTHS = List.of(Lens.MM_14, Lens.MM_24, Lens.MM_35, Lens.MM_50,
             Lens.MM_85, Lens.MM_135, Lens.MM_400);
-    private static final List<Lens> SPECIAL_LENSES = List.of(Lens.MACRO, Lens.FISHEYE, Lens.TILT_SHIFT,
+    private static final List<Lens> SPECIAL_LENSES = List.of(Lens.MACRO, Lens.FISHEYE, Lens.TILT_SHIFT, Lens.SHIFT,
             Lens.ANAMORPHIC);
     private static final double SETTINGS_WIDTH = 484;
+    private static final double ISO_WIDTH = 160;
 
     private static final Map<Body, String> BODY_ICONS = Map.of(Body.SMARTPHONE, "mdi2c-cellphone",
             Body.COMPACT_35MM, "mdi2f-film", Body.FULL_FRAME, "mdi2c-camera",
@@ -103,14 +109,14 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final Map<Object, String> texts = new IdentityHashMap<>();
     private final List<Runnable> headings = new ArrayList<>();
     private final List<Blockable> blockables = new ArrayList<>();
+    private final List<Fixable<?>> fixables = new ArrayList<>();
     private final TextField nameField = new TextField();
     private final ToggleGroup bodyGroup = new ToggleGroup();
-    private final ChoiceBox<CameraPromptBuilder.Model> modelBox = new ChoiceBox<>();
     private final Slider focalSlider = new Slider(0, FOCAL_LENGTHS.size(), 0);
     private final ToggleGroup specialGroup = new ToggleGroup();
     private final Slider apertureSlider = new Slider(0, Aperture.values().length, 0);
-    private final ToggleGroup shutterGroup = new ToggleGroup();
-    private final ToggleGroup isoGroup = new ToggleGroup();
+    private final Slider shutterSlider = new Slider(0, Shutter.values().length, 0);
+    private final Slider isoSlider = new Slider(0, Iso.values().length, 0);
     private final ToggleGroup perspectiveGroup = new ToggleGroup();
     private final ToggleGroup shotGroup = new ToggleGroup();
     private final CameraPreview preview = new CameraPreview();
@@ -118,6 +124,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final TextArea promptArea = new TextArea();
     private final Label validationLabel = new Label();
     private final Label helpLabel = new Label();
+
+    /*  shows the example once the mouse leaves a value: the stage changed last, else the empty frame; a change made
+        by the dialog itself, such as a reset, is none of the user  */
+    private Runnable restingExample;
+    private boolean adjusting;
 
     /**
      * Creates the dialog.
@@ -150,42 +161,26 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         HBox nameRow = new HBox(10, text(new Label(), "block.dialog.name"), nameField);
         nameRow.setAlignment(Pos.CENTER_LEFT);
 
-        /*  Camera type: tiles, "Any" first, with the model of the chosen type next to them  */
+        /*  Camera type: tiles, "Any" first  */
         FlowPane bodyTiles = new FlowPane(4, 4);
         bodyTiles.getChildren().add(tile(bodyGroup, null, "camera.dialog.any", "mdi2a-asterisk", settings.body()));
         for (Body body : Body.values())
             bodyTiles.getChildren().add(tile(bodyGroup, body, "camera.body." + key(body), BODY_ICONS.get(body),
                     settings.body()));
-        modelBox.setConverter(new StringConverter<>() {
-            @Override
-            public String toString(CameraPromptBuilder.Model model) {
-                return model == null ? "" : model.name().isEmpty()
-                        ? I18nManager.getText("camera.dialog.model.generic") : model.label();
-            }
-
-            @Override
-            public CameraPromptBuilder.Model fromString(String text) {
-                return null;
-            }
-        });
-        modelBox.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(modelBox, Priority.ALWAYS);
-        fillModels(settings.body(), settings.model());
-        HBox modelRow = new HBox(10, text(new Label(), "camera.dialog.model"), modelBox);
-        modelRow.setAlignment(Pos.CENTER_LEFT);
 
         /*  Focal length: a slider with detents, the special lenses beside it; a special lens overrides the slider  */
-        VBox focalTrack = detents(focalSlider, FOCAL_LENGTHS, (lens) -> String.valueOf(lens.millimeters()));
-        focalSlider.setValue(settings.lens() != null && !settings.lens().isSpecial()
-                ? FOCAL_LENGTHS.indexOf(settings.lens()) + 1 : 0);
-        HBox specialRow = new HBox(4);
+        Label focalAny = text(new Label(), "camera.dialog.any");
+        VBox focalTrack = detents(focalSlider, FOCAL_LENGTHS, (lens) -> String.valueOf(lens.millimeters()), Map.of(),
+                focalAny);
+        List<Control> lensControls = new ArrayList<>(List.of(focalSlider));
+        FlowPane specialRow = new FlowPane(4, 4);
         for (Lens lens : SPECIAL_LENSES) {
             ToggleButton button = text(new ToggleButton(), "camera.lens." + key(lens));
             button.setToggleGroup(specialGroup);
             button.setUserData(lens);
-            button.setSelected(lens == settings.lens());
             StackPane wrapper = blockable(lens, button);
             hover(button, (event) -> lens);
+            lensControls.add(button);
             specialRow.getChildren().add(wrapper);
         }
         focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -193,28 +188,37 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 specialGroup.selectToggle(null);
         });
 
-        /*  Aperture: a slider with detents from open to closed  */
-        VBox apertureTrack = detents(apertureSlider, List.of(Aperture.values()), Aperture::label);
-        apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
+        /*  Aperture, shutter and ISO: sliders with detents, the shutter and ISO with their symbols above  */
+        Label apertureAny = text(new Label(), "camera.dialog.any");
+        VBox apertureTrack = detents(apertureSlider, List.of(Aperture.values()), Aperture::label, Map.of(),
+                apertureAny);
+        Label shutterAny = text(new Label(), "camera.dialog.any");
+        VBox shutter = new VBox(6, fixable(Shutter.class, "camera.dialog.shutter", List.of(shutterSlider), shutterAny),
+                detents(shutterSlider, List.of(Shutter.values()), Shutter::label, SHUTTER_ICONS, shutterAny));
+        VBox iso = new VBox(6, heading("camera.dialog.iso"), detents(isoSlider, List.of(Iso.values()),
+                (value) -> value.label().substring("ISO ".length()), ISO_ICONS,
+                text(new Label(), "camera.dialog.any")));
+        HBox.setHgrow(shutter, Priority.ALWAYS);
+        iso.setMinWidth(ISO_WIDTH);
+        iso.setPrefWidth(ISO_WIDTH);
 
-        /*  Shutter, ISO, perspective and shot size: rows of symbols  */
-        VBox shutter = symbols("camera.dialog.shutter", shutterGroup, Shutter.values(),
-                (value) -> "camera.shutter." + key(value), SHUTTER_ICONS, settings.shutter());
-        VBox iso = symbols("camera.dialog.iso", isoGroup, Iso.values(), null, ISO_ICONS, settings.iso());
+        /*  Perspective and shot size: rows of symbols  */
         VBox perspective = symbols("camera.dialog.perspective", perspectiveGroup, Perspective.values(),
                 (value) -> "camera.perspective." + key(value), PERSPECTIVE_ICONS, settings.perspective());
         VBox shot = symbols("camera.dialog.shot", shotGroup, Shot.values(), (value) -> "camera.shot." + key(value),
                 SHOT_ICONS, settings.shot());
+        show(settings);
 
         /*  Left all settings in the order of the prompt, right the preview with the example below it  */
         VBox settingsBox = new VBox(6,
-                heading("camera.dialog.type"), bodyTiles, modelRow,
-                heading("camera.dialog.lens"), focalTrack, specialRow,
-                heading("camera.dialog.aperture"), apertureTrack,
+                heading("camera.dialog.type"), bodyTiles,
+                fixable(Lens.class, "camera.dialog.lens", lensControls, focalAny), focalTrack, specialRow,
+                fixable(Aperture.class, "camera.dialog.aperture", List.of(apertureSlider), apertureAny), apertureTrack,
                 new HBox(20, shutter, iso), perspective, shot);
         settingsBox.setMinWidth(SETTINGS_WIDTH);
         settingsBox.setPrefWidth(SETTINGS_WIDTH);
         bodyTiles.setPrefWrapLength(SETTINGS_WIDTH);
+        specialRow.setPrefWrapLength(SETTINGS_WIDTH);
         VBox previewBox = new VBox(10, preview, example);
         previewBox.setAlignment(Pos.TOP_CENTER);
 
@@ -242,16 +246,23 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
         updateTexts();
 
-        /*  Every change shows at once in the preview and in the prompt  */
+        /*  Every change shows at once in the preview, the example and the prompt; leaving a type releases the
+            settings it fixed  */
+        restingExample = example::clear;
+        for (ToggleGroup group : List.of(bodyGroup, specialGroup, perspectiveGroup, shotGroup))
+            group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null)
+                    changed((Enum<?>) newVal.getUserData());
+            });
         bodyGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
-            fillModels(selected(bodyGroup, Body.class), null);
+            if (newVal != null)
+                release(oldVal != null ? (Body) oldVal.getUserData() : null);
             update();
         });
-        modelBox.valueProperty().addListener((obs, oldVal, newVal) -> update());
-        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> update());
         specialGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
-        apertureSlider.valueProperty().addListener((obs, oldVal, newVal) -> update());
-        for (ToggleGroup group : List.of(shutterGroup, isoGroup, perspectiveGroup, shotGroup))
+        for (Slider slider : List.of(focalSlider, apertureSlider, shutterSlider, isoSlider))
+            slider.valueProperty().addListener((obs, oldVal, newVal) -> update());
+        for (ToggleGroup group : List.of(perspectiveGroup, shotGroup))
             group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
         update();
 
@@ -272,38 +283,39 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
     /** The settings as chosen in the dialog. */
     private CameraSettings settings() {
-        CameraPromptBuilder.Model model = modelBox.getValue();
         Lens special = selected(specialGroup, Lens.class);
-        int focal = (int) Math.round(focalSlider.getValue());
-        int aperture = (int) Math.round(apertureSlider.getValue());
-        return new CameraSettings(selected(bodyGroup, Body.class),
-                model != null && !model.name().isEmpty() ? model.name() : null,
-                special != null ? special : focal > 0 ? FOCAL_LENGTHS.get(focal - 1) : null,
-                aperture > 0 ? Aperture.values()[aperture - 1] : null,
-                selected(shutterGroup, Shutter.class), selected(isoGroup, Iso.class),
-                selected(perspectiveGroup, Perspective.class), selected(shotGroup, Shot.class));
+        Lens focal = stage(focalSlider, FOCAL_LENGTHS);
+        return new CameraSettings(selected(bodyGroup, Body.class), special != null ? special : focal,
+                stage(apertureSlider, List.of(Aperture.values())), stage(shutterSlider, List.of(Shutter.values())),
+                stage(isoSlider, List.of(Iso.values())), selected(perspectiveGroup, Perspective.class),
+                selected(shotGroup, Shot.class));
     }
 
-    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides. A stage
-        blocked by the type or lens just chosen goes back to "Any" first, each reset updating anew.  */
+    /*  sets every control to the settings; as the dialog changes them, the example keeps what the user changed  */
+    private void show(CameraSettings settings) {
+        boolean outer = adjusting;
+        adjusting = true;
+        select(bodyGroup, settings.body());
+
+        /*  the slider first, as moving it drops a special lens  */
+        focalSlider.setValue(settings.lens() != null ? FOCAL_LENGTHS.indexOf(settings.lens()) + 1 : 0);
+        select(specialGroup, settings.lens() != null && settings.lens().isSpecial() ? settings.lens() : null);
+        apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
+        shutterSlider.setValue(settings.shutter() != null ? settings.shutter().ordinal() + 1 : 0);
+        isoSlider.setValue(settings.iso() != null ? settings.iso().ordinal() + 1 : 0);
+        select(perspectiveGroup, settings.perspective());
+        select(shotGroup, settings.shot());
+        adjusting = outer;
+    }
+
+    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides. A setting
+        the type fixes takes its value, a stage blocked by the type or lens just chosen goes back to "Any" first,
+        each change updating anew.  */
     private void update() {
         CameraSettings settings = settings();
         CameraSettings allowed = settings.withoutConflicts();
         if (!allowed.equals(settings)) {
-            if (allowed.lens() != settings.lens()) {
-                specialGroup.selectToggle(null);
-                focalSlider.setValue(0);
-            }
-            if (allowed.aperture() != settings.aperture())
-                apertureSlider.setValue(0);
-            if (allowed.shutter() != settings.shutter())
-                selectAny(shutterGroup);
-            if (allowed.iso() != settings.iso())
-                selectAny(isoGroup);
-            if (allowed.perspective() != settings.perspective())
-                selectAny(perspectiveGroup);
-            if (allowed.shot() != settings.shot())
-                selectAny(shotGroup);
+            show(allowed);
             return;
         }
         for (Blockable blockable : blockables) {
@@ -316,6 +328,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             else
                 Tooltip.uninstall(blockable.wrapper(), blockable.reason());
         }
+        for (Fixable<?> fixable : fixables)
+            fix(fixable, settings);
         String camera = CameraPromptBuilder.build(settings, true);
         preview.show(settings);
         promptArea.setText(camera.isEmpty() ? I18nManager.getText("camera.dialog.prompt.empty")
@@ -323,10 +337,54 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         focalSlider.setOpacity(specialGroup.getSelectedToggle() != null ? 0.5 : 1);
     }
 
-    /*  while the mouse is over a control, the example shows the stage under it, afterwards the empty frame  */
+    /*  a setting fixed by the type: read-only but not greyed, as it shows the value of the type; "Any" does not exist
+        then, it reads "Auto" for an automatic or stands back behind the fixed value  */
+    private static <E extends Enum<E>> void fix(Fixable<E> fixable, CameraSettings settings) {
+        boolean fixed = settings.fixes(fixable.setting());
+        for (Control control : fixable.controls()) {
+            control.setMouseTransparent(fixed);
+            control.setFocusTraversable(!fixed);
+        }
+        fixable.hint().setText(fixed ? I18nManager.getText("camera.dialog.fixed", CameraExample.name(settings.body()))
+                : "");
+        fixable.any().setText(I18nManager.getText(fixed && settings.fixed(fixable.setting()) == null
+                ? "camera.dialog.auto" : "camera.dialog.any"));
+        if (fixed && settings.fixed(fixable.setting()) != null)
+            fixable.any().setDisable(true);
+    }
+
+    /*  leaving a type sets the settings it fixed back to "Any": the type chose them, not the user  */
+    private void release(Body previous) {
+        CameraSettings left = new CameraSettings(previous, null, null, null, null, null, null);
+        CameraSettings settings = settings();
+        show(new CameraSettings(settings.body(), left.fixes(Lens.class) ? null : settings.lens(),
+                left.fixes(Aperture.class) ? null : settings.aperture(),
+                left.fixes(Shutter.class) ? null : settings.shutter(), settings.iso(), settings.perspective(),
+                settings.shot()));
+    }
+
+    /*  a value the user changed: the example shows it, also later while the mouse is over no value  */
+    private void changed(Enum<?> stage) {
+        if (adjusting)
+            return;
+        restingExample = () -> example.show(stage);
+        restingExample.run();
+    }
+
+    /*  while the mouse is over a control, the example shows the stage under it, afterwards the one changed last  */
     private void hover(Node node, Function<MouseEvent, Enum<?>> stage) {
         node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> example.show(stage.apply(event)));
-        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> example.clear());
+        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> restingExample.run());
+    }
+
+    /*  the heading of a setting a camera type can fix, with the hint naming the type beside it  */
+    private <E extends Enum<E>> HBox fixable(Class<E> setting, String key, List<Control> controls, Label any) {
+        Label hint = new Label();
+        hint.getStyleClass().addAll("text-small", "text-muted");
+        fixables.add(new Fixable<>(setting, controls, any, hint));
+        HBox row = new HBox(8, heading(key), hint);
+        row.setAlignment(Pos.BASELINE_LEFT);
+        return row;
     }
 
     /*  a control of a stage that a chosen type or lens can block, wrapped for the reason  */
@@ -336,20 +394,10 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         return wrapper;
     }
 
-    private static void selectAny(ToggleGroup group) {
-        group.getToggles().stream().filter((toggle) -> toggle.getUserData() == null).findFirst()
-                .ifPresent(group::selectToggle);
-    }
-
-    /*  "Generic" and the models of the type; no choice without a type or without models of the type  */
-    private void fillModels(Body body, String model) {
-        CameraPromptBuilder.Model generic = new CameraPromptBuilder.Model(body, "", false);
-        List<CameraPromptBuilder.Model> models = new ArrayList<>(List.of(generic));
-        if (body != null)
-            models.addAll(CameraPromptBuilder.models(body));
-        modelBox.getItems().setAll(models);
-        modelBox.setValue(models.stream().filter((item) -> item.name().equals(model)).findFirst().orElse(generic));
-        modelBox.setDisable(models.size() < 2);
+    /*  selects the toggle of a value, "Any" for null; a group without "Any", such as the special lenses, none  */
+    private static void select(ToggleGroup group, Enum<?> value) {
+        group.selectToggle(group.getToggles().stream().filter((toggle) -> toggle.getUserData() == value).findFirst()
+                .orElse(null));
     }
 
     /*  A tile of the camera type: symbol over name  */
@@ -366,28 +414,24 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         return tile;
     }
 
-    /*  A setting as a row of icon buttons, "Any" first, each named by its tooltip; the heading names the chosen one.
-        The ISO values have no key: the tooltip names the ISO value, the heading its number, in every language.  */
+    /*  A setting as a row of icon buttons, "Any" first, each named by its tooltip; the heading names the chosen one  */
     private <E extends Enum<E>> VBox symbols(String headingKey, ToggleGroup group, E[] values,
             Function<E, String> key, Map<E, String> icons, E selected) {
         HBox row = new HBox(4);
-        Map<Toggle, Supplier<String>> names = new IdentityHashMap<>();
+        Map<Toggle, String> names = new IdentityHashMap<>();
         List<E> choices = new ArrayList<>();
         choices.add(null);
         choices.addAll(List.of(values));
         for (E value : choices) {
-            String name  = value == null ? "camera.dialog.any" : key != null ? key.apply(value) : null;
-            String label = name == null ? ((Iso) value).label() : null;
+            String name = value == null ? "camera.dialog.any" : key.apply(value);
             ToggleButton button = new ToggleButton();
             button.setGraphic(icon(value == null ? "mdi2a-asterisk" : icons.get(value), 18));
             button.setPrefSize(38, 34);
             button.getStyleClass().add("icon-button");
-            Tooltip tooltip = new Tooltip(label);
-            if (name != null)
-                texts.put(tooltip, name);
+            Tooltip tooltip = new Tooltip();
+            texts.put(tooltip, name);
             button.setTooltip(tooltip);
-            names.put(button, name != null ? () -> I18nManager.getText(name)
-                    : () -> label.substring("ISO ".length()));
+            names.put(button, name);
             join(group, button, value, value == selected);
             StackPane wrapper = blockable(value, button);
             hover(button, (event) -> value);
@@ -396,8 +440,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
         Label heading = heading(null);
         Runnable naming = () -> {
-            Supplier<String> name = names.get(group.getSelectedToggle());
-            heading.setText(I18nManager.getText(headingKey) + (name != null ? ": " + name.get() : ""));
+            String name = names.get(group.getSelectedToggle());
+            heading.setText(I18nManager.getText(headingKey) + (name != null ? ": " + I18nManager.getText(name) : ""));
         };
         group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> naming.run());
         headings.add(naming);
@@ -422,9 +466,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     }
 
     /*  A slider that stops on whole numbers only, "Any" first, then the stages, with its ticks and labels drawn below
-        it, as JavaFX loses the last tick at some widths; each label stays inside the slider. A blocked detent is
-        skipped: a step goes on to the next allowed detent in its direction, dragging takes the nearest allowed one.  */
-    private <E extends Enum<E>> VBox detents(Slider slider, List<E> stages, Function<E, String> label) {
+        it, as JavaFX loses the last tick at some widths, and the symbols of the stages small above it; each label
+        stays inside the slider. A blocked detent is skipped: a step goes on to the next allowed detent in its
+        direction, dragging takes the nearest allowed one.  */
+    private <E extends Enum<E>> VBox detents(Slider slider, List<E> stages, Function<E, String> label,
+            Map<E, String> icons, Label any) {
         slider.setMajorTickUnit(1);
         slider.setMinorTickCount(0);
         slider.setSnapToTicks(true);
@@ -432,14 +478,17 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
         List<Line> ticks = new ArrayList<>();
         List<Node> labels = new ArrayList<>();
+        List<Node> glyphs = new ArrayList<>();
         for (int index = 0; index <= stages.size(); index++) {
             E stage = index > 0 ? stages.get(index - 1) : null;
-            Label name = stage != null ? new Label(label.apply(stage)) : text(new Label(), "camera.dialog.any");
+            Label name = stage != null ? new Label(label.apply(stage)) : any;
             name.getStyleClass().add("text-small");
             labels.add(blockable(stage, name));
             Line tick = new Line(0, 1, 0, 5);
             tick.setStyle("-fx-stroke: -color-slider-tick;");
             ticks.add(tick);
+            if (stage != null && icons.containsKey(stage))
+                glyphs.add(icon(icons.get(stage), 13));
         }
         Pane scale = new Pane() {
             @Override
@@ -453,16 +502,27 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                     double x = Math.round(position(slider, index)) + 0.5;
                     ticks.get(index).setStartX(x);
                     ticks.get(index).setEndX(x);
-                    Node name = labels.get(index);
-                    double width = name.prefWidth(-1);
-                    name.resizeRelocate(Math.clamp(x - width / 2, 0, Math.max(0, getWidth() - width)), 7, width,
-                            name.prefHeight(width));
+                    center(labels.get(index), x, 7, getWidth());
                 }
             }
         };
         scale.getChildren().addAll(ticks);
         scale.getChildren().addAll(labels);
         scale.setMinHeight(Region.USE_PREF_SIZE);
+        Pane marks = new Pane() {
+            @Override
+            protected double computePrefHeight(double width) {
+                return glyphs.getFirst().prefHeight(-1);
+            }
+
+            @Override
+            protected void layoutChildren() {
+                for (int index = 0; index < glyphs.size(); index++)
+                    center(glyphs.get(index), Math.round(position(slider, index + 1)) + 0.5, 0, getWidth());
+            }
+        };
+        marks.getChildren().addAll(glyphs);
+        marks.setMinHeight(Region.USE_PREF_SIZE);
 
         slider.valueProperty().addListener((obs, oldVal, newVal) -> {
             CameraSettings settings = settings();
@@ -480,12 +540,26 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             slider.setValue(target);
         });
 
-        VBox track = new VBox(slider, scale);
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> changed(stage(slider, stages)));
+
+        VBox track = glyphs.isEmpty() ? new VBox(slider, scale) : new VBox(marks, slider, scale);
         hover(track, (event) -> {
             int index = detent(slider, event);
             return index > 0 ? stages.get(index - 1) : null;
         });
         return track;
+    }
+
+    /*  the stage at the detent of a slider, null for "Any"  */
+    private static <E> E stage(Slider slider, List<E> stages) {
+        int index = (int) Math.round(slider.getValue());
+        return index > 0 ? stages.get(index - 1) : null;
+    }
+
+    /*  a node centered on a detent at the x, kept inside the width  */
+    private static void center(Node node, double x, double y, double width) {
+        double own = node.prefWidth(-1);
+        node.resizeRelocate(Math.clamp(x - own / 2, 0, Math.max(0, width - own)), y, own, node.prefHeight(own));
     }
 
     /*  the x of a detent within the slider, along the track the skin lays out between the thumb halves  */
@@ -567,11 +641,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
         preview.updateTexts();
         example.updateTexts();
-
-        /*  the label of "Generic" is drawn anew  */
-        CameraPromptBuilder.Model model = modelBox.getValue();
-        modelBox.setValue(null);
-        modelBox.setValue(model);
         update();
 
         if (saveButtonType != null)

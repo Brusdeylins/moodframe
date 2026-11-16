@@ -12,57 +12,31 @@ import art.moodframe.model.CameraSettings.Shutter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Builds the prompt fragment of a camera from its settings, out of fixed text tables.
  *
  * <p>The texts follow BFL "Style, Aesthetics &amp; Text" and "Prompt Reference" (name camera, lens or film
  * concretely and describe the visible effect) and Google "Nano Banana image generation" ("Control the Camera").
- * The order is type, focal length, aperture, shutter, ISO, perspective, shot size; a setting "any" is left out.
- * For a style that is not photographic only perspective and shot size apply.</p>
+ * The order is type, focal length, aperture, shutter, ISO, perspective, shot size; a setting "any" is left out, as
+ * is a setting the type fixes, whose effect its text carries. For a style that is not photographic only perspective
+ * and shot size apply.</p>
  *
  * <p>Rules for the texts, so they work for any motif and also on a reference photo: roles instead of things ("the
  * main subject", "everything that moves"); "if present" for every element that may be missing; the visible result
  * with its strength ("strongly blurred") and only the effect of the setting itself; a lens tells the angle of view and
- * the zoom from the same position, the shot size the size of the main subject; keeping people and objects is said
- * once by {@link PromptComposer#EDIT_CAMERA_INTRO}; at most 200 characters per value.</p>
+ * the zoom from the same position, the shot size the size of the main subject, a lens together with a shot size only
+ * the distance and with it the perspective; a type text leaves out the depth of field or grain of an aperture or ISO
+ * chosen separately; keeping people and objects is said once by {@link PromptComposer#EDIT_CAMERA_INTRO}; at most
+ * 200 characters per value.</p>
  *
  * @since 2.0.0
  */
 public final class CameraPromptBuilder {
 
-    /**
-     * A camera model offered next to the camera type.
-     *
-     * @param body   the camera type
-     * @param name   the model name as it goes into the prompt
-     * @param analog true for a film camera of a digital type, shown as "(analog)" and named a film camera in the
-     *               prompt
-     */
-    public record Model(Body body, String name, boolean analog) {
-
-        /** The name as the list shows it. */
-        public String label() {
-            return analog ? name + " (analog)" : name;
-        }
-    }
-
-    /** The camera models per type; a model unknown to an image model works like "Generic". */
-    public static final List<Model> MODELS = List.of(
-            new Model(Body.SMARTPHONE, "iPhone 17 Pro", false),
-            new Model(Body.SMARTPHONE, "Google Pixel 10 Pro", false),
-            new Model(Body.COMPACT_35MM, "Leica M6", false),
-            new Model(Body.FULL_FRAME, "Sony A7 IV", false),
-            new Model(Body.FULL_FRAME, "Canon EOS R5", false),
-            new Model(Body.FULL_FRAME, "Nikon Z8", false),
-            new Model(Body.FULL_FRAME, "Leica Q3", false),
-            new Model(Body.MEDIUM_FORMAT, "Hasselblad X2D", false),
-            new Model(Body.MEDIUM_FORMAT, "Fujifilm GFX 100S", false),
-            new Model(Body.MEDIUM_FORMAT, "Hasselblad 500C/M", true),
-            new Model(Body.MEDIUM_FORMAT, "Pentax 67", true),
-            new Model(Body.INSTANT, "Polaroid SX-70", false));
-
-    /** "Generic": the device class and its effect. */
+    /** The device class and its effect. */
     private static final Map<Body, String> BODIES = Map.of(
             Body.SMARTPHONE, "shot on a smartphone: everything sharp from front to back, bright HDR with lifted "
                     + "shadows, oversharpened edges, punchy colors, a small hard sunstar with green lens ghosts, if "
@@ -82,6 +56,14 @@ public final class CameraPromptBuilder {
             Body.ACTION_CAM, "action camera: the camera very close to the main subject, which looms large, the "
                     + "background small and far away, extreme barrel distortion filling the rectangular frame, the "
                     + "horizon curved into an arc");
+
+    /*  The depth of field and the grain of a type text, left out for an aperture or ISO chosen separately: the
+        setting wins  */
+    private static final Map<Body, String> DEPTHS = Map.of(
+            Body.SMARTPHONE, "everything sharp from front to back, ",
+            Body.MEDIUM_FORMAT, ", the main subject sharp, the background falling off softly into gentle blur");
+    private static final Map<Body, String> GRAINS = Map.of(
+            Body.COMPACT_35MM, "coarse, clearly visible film grain, ");
 
     private static final Map<Lens, String> LENSES = Map.ofEntries(
             Map.entry(Lens.MM_14, "14mm ultra-wide lens, 114° view: a very wide view, everything in the frame much "
@@ -110,8 +92,27 @@ public final class CameraPromptBuilder {
             Map.entry(Lens.TILT_SHIFT, "tilt-shift lens with tilted focus: a realistic photo with only a narrow "
                     + "horizontal band in sharp focus, everything above and below it progressively and strongly "
                     + "blurred"),
+            Map.entry(Lens.SHIFT, "shift lens: the camera level, all vertical lines, such as the edges of buildings, "
+                    + "if present, perfectly parallel and upright, no converging lines, even when looking up at tall "
+                    + "things"),
             Map.entry(Lens.ANAMORPHIC, "anamorphic lens: a widescreen cinematic look, oval out-of-focus highlights, "
                     + "long horizontal blue lens flares from bright lights, if present, slight barrel distortion"));
+
+    /*  A focal length together with a shot size: the shot size sets the size of the main subject, the focal length
+        only the distance and with it the perspective, so the zoom of LENSES would contradict it (14 mm and a
+        close-up, 135 mm and an extreme wide shot)  */
+    private static final String CLOSE = "the camera very close for this framing, the background wide and far away, "
+            + "stretched near the edges";
+    private static final String FAR = "the camera far away for this framing, the background enlarged, pulled close "
+            + "and flattened behind the main subject";
+    private static final Map<Lens, String> FRAMED_LENSES = Map.of(
+            Lens.MM_14, "14mm ultra-wide lens, 114° view: " + CLOSE,
+            Lens.MM_24, "24mm wide-angle lens, 84° view: " + CLOSE,
+            Lens.MM_35, "35mm lens, 63° view",
+            Lens.MM_50, "50mm lens, 47° view",
+            Lens.MM_85, "85mm lens, 29° view: " + FAR,
+            Lens.MM_135, "135mm telephoto lens, 18° view: " + FAR,
+            Lens.MM_400, "400mm super-telephoto lens, 6° view: " + FAR);
 
     private static final Map<Aperture, String> APERTURES = Map.of(
             Aperture.F_1_4, "f/1.4: razor-thin focus on the main subject only; the background melts into smooth, "
@@ -135,8 +136,8 @@ public final class CameraPromptBuilder {
                     + "trails; still parts sharp");
 
     private static final Map<Iso, String> ISOS = Map.of(
-            Iso.ISO_100, "ISO 100: a clean, smooth image without any visible noise, the finest detail, rich colors "
-                    + "and the widest tonal range",
+            Iso.ISO_100, "ISO 100: the finest grain or noise, barely visible, a clean, smooth image with the most "
+                    + "detail, rich colors and the widest tonal range",
             Iso.ISO_3200, "ISO 3200: strong, clearly visible grain and color noise across the whole image, strongest "
                     + "in the shadows, slightly softer detail and muted colors");
 
@@ -163,24 +164,19 @@ public final class CameraPromptBuilder {
             Shot.DETAIL, "an extreme close-up: a single small detail of the main subject fills the whole frame, such "
                     + "as the eyes or a hand");
 
-    private CameraPromptBuilder() {
-    }
+    /*  The stages whose geometry an edit of a reference photo hardly changes (Nano Banana Pro, 2026-11-16): barrel
+        distortion, fisheye, tilt-shift, shift, telephoto compression and roll  */
+    private static final Set<Enum<?>> WEAK_IN_EDITS = Set.of(Body.ACTION_CAM, Lens.FISHEYE, Lens.TILT_SHIFT,
+            Lens.SHIFT, Lens.MM_135, Lens.MM_400, Perspective.DUTCH_ANGLE);
 
-    /**
-     * The camera models of a type.
-     *
-     * @param body the camera type
-     * @return the models in the order of the table
-     */
-    public static List<Model> models(Body body) {
-        return MODELS.stream().filter((Model model) -> model.body() == body).toList();
+    private CameraPromptBuilder() {
     }
 
     /**
      * Builds the prompt fragment, without the label "Camera:" or "Framing:", which the composer adds.
      *
-     * @param settings     the settings; a stage that contradicts an earlier one is left out (see
-     *                     {@link CameraSettings#withoutConflicts()})
+     * @param settings     the settings; a stage that contradicts an earlier one is left out, a setting the type
+     *                     fixes takes its fixed value (see {@link CameraSettings#withoutConflicts()})
      * @param photographic whether the style describes a photograph; otherwise only perspective and shot size apply
      * @return the fragment, empty if no setting applies
      */
@@ -189,12 +185,13 @@ public final class CameraPromptBuilder {
         List<String> parts = new ArrayList<>();
         if (photographic) {
             if (settings.body() != null)
-                parts.add(body(settings.body(), settings.model()));
-            if (settings.lens() != null)
-                parts.add(LENSES.get(settings.lens()));
-            if (settings.aperture() != null)
+                parts.add(body(settings));
+            if (settings.lens() != null && !settings.fixes(Lens.class))
+                parts.add((settings.shot() != null && !settings.lens().isSpecial() ? FRAMED_LENSES : LENSES)
+                        .get(settings.lens()));
+            if (settings.aperture() != null && !settings.fixes(Aperture.class))
                 parts.add(APERTURES.get(settings.aperture()));
-            if (settings.shutter() != null)
+            if (settings.shutter() != null && !settings.fixes(Shutter.class))
                 parts.add(SHUTTERS.get(settings.shutter()));
             if (settings.iso() != null)
                 parts.add(ISOS.get(settings.iso()));
@@ -209,16 +206,29 @@ public final class CameraPromptBuilder {
         return String.join("; ", parts);
     }
 
-    /*  A model names the concrete camera first and keeps the device class and its effect, so an unknown model
-        still works like "Generic": "shot on Leica M6, a 35mm film compact camera: ..."; an analog one of a digital type
-        names a film camera  */
-    private static String body(Body body, String model) {
-        String generic = BODIES.get(body);
-        if (model == null || model.isBlank())
-            return generic;
-        String device = generic.startsWith("shot on ") ? generic.substring(8) : generic;
-        if (MODELS.stream().anyMatch((Model known) -> known.name().equals(model.trim()) && known.analog()))
-            device = device.replaceFirst(" camera", " film camera");
-        return "shot on " + model.trim() + ", " + device;
+    /*  the type text without the depth of field or grain of an aperture or ISO chosen separately; a fixed aperture
+        is the one of the type, so its text keeps it  */
+    private static String body(CameraSettings settings) {
+        String text = BODIES.get(settings.body());
+        if (settings.aperture() != null && !settings.fixes(Aperture.class))
+            text = text.replace(DEPTHS.getOrDefault(settings.body(), ""), "");
+        if (settings.iso() != null)
+            text = text.replace(GRAINS.getOrDefault(settings.body(), ""), "");
+        return text;
+    }
+
+    /**
+     * The chosen stages whose effect an edit of a reference photo hardly shows, as it barely changes the geometry; the
+     * same text works for a new image.
+     *
+     * @param settings     the settings
+     * @param photographic whether the style describes a photograph; otherwise only perspective and shot size apply
+     * @return the stages in the order of the dialog, empty if none
+     */
+    public static List<Enum<?>> weakInEdits(CameraSettings settings, boolean photographic) {
+        CameraSettings allowed = settings.withoutConflicts();
+        return Stream.<Enum<?>>of(photographic ? allowed.body() : null, photographic ? allowed.lens() : null,
+                allowed.perspective()).filter((Enum<?> stage) -> stage != null && WEAK_IN_EDITS.contains(stage))
+                .toList();
     }
 }

@@ -24,9 +24,9 @@ class PromptComposerTest {
     private static final PromptBlock WINDOW = new PromptBlock("window", PromptBlock.Type.LIGHT, "Window Light",
             "soft daylight from a large window", null, true);
     private static final PromptBlock WIDE = PromptBlockService.camera("wide", "Wide", new CameraSettings(null, null,
-            null, null, null, null, CameraSettings.Perspective.EYE_LEVEL, CameraSettings.Shot.WIDE));
+            null, null, null, CameraSettings.Perspective.EYE_LEVEL, CameraSettings.Shot.WIDE));
     private static final PromptBlock PORTRAIT = PromptBlockService.camera("portrait", "Portrait", new CameraSettings(
-            CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85, null, null, null, null,
+            CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85, null, null, null, null,
             CameraSettings.Shot.CLOSE_UP));
     private static final String CLOSE_UP = "a close-up: the main subject fills the frame, such as a face with head and "
             + "shoulders";
@@ -106,7 +106,7 @@ class PromptComposerTest {
     @Test
     void checksTheLengthWithTheEditIntroAndTheLongestCamera() {
         PromptBlock longest = PromptBlockService.camera("longest", "Longest", new CameraSettings(
-                CameraSettings.Body.SMARTPHONE, "Google Pixel 10 Pro", CameraSettings.Lens.MM_14,
+                CameraSettings.Body.SMARTPHONE, CameraSettings.Lens.MM_14,
                 CameraSettings.Aperture.F_11, CameraSettings.Shutter.LONG_EXPOSURE, CameraSettings.Iso.ISO_3200,
                 CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.EXTREME_WIDE));
         PromptComposer.Selection all = new PromptComposer.Selection(PHOTO, FOG, WINDOW, longest, OCEAN);

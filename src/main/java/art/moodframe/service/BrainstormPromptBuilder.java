@@ -84,9 +84,6 @@ public final class BrainstormPromptBuilder {
     /** One line per key of the camera settings with its values; a key left out means "any". */
     static String cameraSettings() {
         return "- body: " + names(CameraSettings.Body.values()) + "\n"
-                + "- model (only with its body): " + CameraPromptBuilder.MODELS.stream()
-                        .map((CameraPromptBuilder.Model model) -> model.name() + " (" + model.body().name() + ")")
-                        .collect(Collectors.joining(", ")) + "\n"
                 + "- lens: " + names(CameraSettings.Lens.values()) + "\n"
                 + "- aperture: " + names(CameraSettings.Aperture.values()) + "\n"
                 + "- shutter: " + names(CameraSettings.Shutter.values()) + "\n"

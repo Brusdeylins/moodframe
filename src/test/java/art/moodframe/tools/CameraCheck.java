@@ -145,19 +145,10 @@ public final class CameraCheck {
             image with %s, last the image with %s. Every image number appears exactly once. Answer with one JSON \
             object: {"order": [image numbers], "reason": "one sentence"}.""";
 
-    private static final String COMPARISON = """
-            Set A and set B show the same requested scene, made with two different camera descriptions; each image \
-            is a separate generation, so person, pose and place details vary within a set, too. Is there a \
-            consistent visible difference in the look between the sets (color rendering, tonality, contrast, grain, \
-            sharpness, format, lens character)? Answer with one JSON object: {"different": "yes", "slightly" or \
-            "no", "difference": "one sentence"}.""";
-
     /** What a group checks and how it is rated. */
     enum Kind {
         /** The stages of one setting, ordered or assigned by the rater. */
         AXIS,
-        /** The models of one type, each compared with the type. */
-        MODELS,
         /** The standard cameras as a whole. */
         STANDARD,
         /** Pairs of stages, locked or candidates for a lock. */
@@ -289,7 +280,7 @@ public final class CameraCheck {
         groups.add(axis("lens", "Brennweite", PARK, List.of(ALONE, MORNING), BY_FIELD, Lens.MM_14, Lens.MM_24,
                 Lens.MM_35, Lens.MM_50, Lens.MM_85, Lens.MM_135, Lens.MM_400));
         groups.add(axis("special", "Sonderobjektive", PARK, List.of(ALONE, MORNING), null, Lens.FISHEYE,
-                Lens.TILT_SHIFT, Lens.ANAMORPHIC));
+                Lens.TILT_SHIFT, Lens.SHIFT, Lens.ANAMORPHIC));
         groups.add(axis("macro", "Makro und Detail", RING, List.of(ALONE, CANDLE), BY_MAGNIFICATION, Shot.DETAIL,
                 Lens.MACRO));
         groups.add(axis("aperture", "Blende", PARK, List.of(ALONE, MORNING), BY_DEPTH, Aperture.values()));
@@ -300,20 +291,6 @@ public final class CameraCheck {
                 Perspective.LOW_ANGLE, Perspective.EYE_LEVEL, Perspective.HIGH_ANGLE, Perspective.TOP_DOWN,
                 Perspective.DUTCH_ANGLE));
         groups.add(axis("shot", "Bildausschnitt", FACADE, List.of(ALONE, CANDLE, PASTEL), BY_FRAMING, Shot.values()));
-
-        /*  Every model next to its type without model, the reference; a type without models has no group  */
-        for (Body body : Body.values()) {
-            List<CameraPromptBuilder.Model> models = CameraPromptBuilder.models(body);
-            if (models.isEmpty())
-                continue;
-            List<Stage> stages = new ArrayList<>();
-            stages.add(stage(body, -1));
-            for (CameraPromptBuilder.Model model : models)
-                stages.add(new Stage(model.name(), model.label(), new CameraSettings(body, model.name(), null, null,
-                        null, null, null, null), null, null, expected(body, true), -1, false));
-            groups.add(new Group("models-" + body.name().toLowerCase(), "Modelle " + label(body), Kind.MODELS,
-                    PORTRAIT, List.of(ALONE), stages, null, 2));
-        }
 
         /*  The standard cameras as a whole, each on its typical subject  */
         Map<String, String> typical = Map.ofEntries(
@@ -345,13 +322,16 @@ public final class CameraCheck {
         groups.add(new Group("conflict", "Sperren", Kind.CONFLICT, PARK, List.of(ALONE), List.of(
                 pair(Body.DRONE, Perspective.LOW_ANGLE, FACADE, true),
                 pair(Body.SMARTPHONE, Aperture.F_1_4, PARK, true),
-                pair(Body.SMARTPHONE, Lens.MM_135, PARK, true),
-                pair(Body.COMPACT_35MM, Iso.ISO_100, INTERIOR, true),
+                pair(Body.SMARTPHONE, Lens.MM_400, PARK, true),
                 pair(Body.INSTANT, Lens.MM_400, PARK, true),
                 pair(Body.ACTION_CAM, Lens.MM_135, PARK, true),
+                pair(Body.ACTION_CAM, Shot.DETAIL, PARK, true),
                 pair(Lens.MACRO, Shot.WIDE, RING, true),
-                pair(Lens.MACRO, Aperture.F_11, RING, true),
+                pair(Lens.MACRO, Shot.CLOSE_UP, RING, true),
                 pair(Lens.TILT_SHIFT, Aperture.F_11, STREET, true),
+                pair(Lens.SHIFT, Perspective.LOW_ANGLE, FACADE, true),
+                pair(Body.COMPACT_35MM, Iso.ISO_100, INTERIOR, false),
+                pair(Lens.MACRO, Aperture.F_11, RING, false),
                 pair(Perspective.TOP_DOWN, Shot.EXTREME_WIDE, FACADE, false),
                 pair(Lens.FISHEYE, Perspective.DUTCH_ANGLE, FACADE, false)), null, 2));
         return groups;
@@ -383,16 +363,16 @@ public final class CameraCheck {
     }
 
     private static CameraSettings only(Enum<?> value) {
-        return new CameraSettings(value instanceof Body body ? body : null, null,
-                value instanceof Lens lens ? lens : null, value instanceof Aperture aperture ? aperture : null,
+        return new CameraSettings(value instanceof Body body ? body : null, value instanceof Lens lens ? lens : null,
+                value instanceof Aperture aperture ? aperture : null,
                 value instanceof Shutter shutter ? shutter : null, value instanceof Iso iso ? iso : null,
                 value instanceof Perspective perspective ? perspective : null,
                 value instanceof Shot shot ? shot : null);
     }
 
     private static CameraSettings merge(CameraSettings a, CameraSettings b) {
-        return new CameraSettings(a.body() != null ? a.body() : b.body(), null,
-                a.lens() != null ? a.lens() : b.lens(), a.aperture() != null ? a.aperture() : b.aperture(),
+        return new CameraSettings(a.body() != null ? a.body() : b.body(), a.lens() != null ? a.lens() : b.lens(),
+                a.aperture() != null ? a.aperture() : b.aperture(),
                 a.shutter() != null ? a.shutter() : b.shutter(), a.iso() != null ? a.iso() : b.iso(),
                 a.perspective() != null ? a.perspective() : b.perspective(), a.shot() != null ? a.shot() : b.shot());
     }
@@ -466,6 +446,7 @@ public final class CameraCheck {
                 case MACRO -> "Makro";
                 case FISHEYE -> "Fischauge";
                 case TILT_SHIFT -> "Tilt-Shift";
+                case SHIFT -> "Shift";
                 default -> "Anamorphot";
             } : lens.millimeters() + " mm";
             case Aperture aperture -> aperture.label();
@@ -635,12 +616,6 @@ public final class CameraCheck {
                             order.get(0), order.get(1), order.get(2)), null, number));
                 }
             }
-            if (first.group().kind() == Kind.MODELS)
-                for (Stage model : first.group().stages().subList(1, first.group().stages().size())) {
-                    List<Job> pair = cell.stream().filter((Job job) -> job.stage() == model
-                            || job.stage() == first.group().stages().get(0)).toList();
-                    pool.submit(() -> askGroup("compare-" + model.key(), pair, COMPARISON, model, 1));
-                }
         }
         pool.shutdown();
         pool.awaitTermination(6, TimeUnit.HOURS);
@@ -713,20 +688,6 @@ public final class CameraCheck {
         String defect = defect(stage, own);
         String fault = defect != null ? "Fehler" : null;
         switch (group.kind()) {
-            case MODELS -> {
-                if (stage == group.stages().get(0))
-                    return new Verdict(fault != null ? fault : "Referenz", effects);
-                JSONObject answer = groupAnswer("compare-" + stage.key(), cell, own.get(0));
-                String different = answer != null ? answer.optString("different") : "";
-                String code = switch (different) {
-                    case "yes" -> "eigene Wirkung";
-                    case "slightly" -> "schwach";
-                    case "no" -> "keine eigene Wirkung";
-                    default -> "offen";
-                };
-                return new Verdict(fault != null ? fault : code, (answer != null ? answer.optString("difference") : "")
-                        + effects);
-            }
             case STANDARD -> {
                 double sum = 0;
                 List<String> misses = new ArrayList<>();

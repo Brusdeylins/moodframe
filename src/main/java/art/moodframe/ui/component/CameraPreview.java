@@ -171,7 +171,7 @@ public class CameraPreview extends VBox {
         return switch (lens) {
             case MACRO -> 30;
             case FISHEYE -> 180;
-            case TILT_SHIFT -> 46;
+            case TILT_SHIFT, SHIFT -> 46;
             case ANAMORPHIC -> 70;
             default -> Math.toDegrees(2 * Math.atan(18.0 / lens.millimeters()));
         };

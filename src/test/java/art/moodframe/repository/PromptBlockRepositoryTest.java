@@ -88,9 +88,9 @@ class PromptBlockRepositoryTest {
 
     @Test
     void storesTheSettingsOfACameraAndLoadsThemBack() {
-        CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, "Pentax 67",
-                CameraSettings.Lens.MM_85, CameraSettings.Aperture.F_4, CameraSettings.Shutter.NORMAL,
-                CameraSettings.Iso.ISO_3200, CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.MEDIUM);
+        CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, CameraSettings.Lens.MM_85,
+                CameraSettings.Aperture.F_4, CameraSettings.Shutter.NORMAL, CameraSettings.Iso.ISO_3200,
+                CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.MEDIUM);
         PromptBlock camera = PromptBlockService.camera(null, "My Pentax", settings);
         assertTrue(repository.save(camera));
 
@@ -99,7 +99,7 @@ class PromptBlockRepositoryTest {
         assertEquals(settings, CameraSettings.fromJson(stored.getParams()));
 
         PromptBlock changed = PromptBlockService.camera(stored.getId(), "My Pentax", new CameraSettings(null, null,
-                null, null, null, null, CameraSettings.Perspective.TOP_DOWN, null));
+                null, null, null, CameraSettings.Perspective.TOP_DOWN, null));
         assertTrue(repository.update(changed));
         assertEquals(CameraSettings.Perspective.TOP_DOWN,
                 CameraSettings.fromJson(repository.findById(stored.getId()).getParams()).perspective());

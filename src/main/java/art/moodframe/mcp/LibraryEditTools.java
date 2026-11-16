@@ -9,7 +9,6 @@ import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.BrainstormContext;
-import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.ChatLibrary;
 import art.moodframe.service.ColorStyleService;
 import art.moodframe.service.FavoriteService;
@@ -220,7 +219,7 @@ class LibraryEditTools {
                         + "missing for any")
                 .put("additionalProperties", false);
         ObjectNode properties = settings.putObject("properties");
-        for (String setting : List.of("body", "model", "lens", "aperture", "shutter", "iso", "perspective", "shot"))
+        for (String setting : List.of("body", "lens", "aperture", "shutter", "iso", "perspective", "shot"))
             properties.set(setting, McpTools.nullableString("The " + setting));
         schema.set("settings", settings);
         return schema;
@@ -515,14 +514,8 @@ class LibraryEditTools {
             return base;
         if (!value.isObject())
             throw new McpTools.ToolException("The argument 'settings' must be an object, see get_capabilities.camera");
-        CameraSettings.Body body = setting(value, "body", CameraSettings.Body.class, base.body());
-        String model = value.has("model") && !value.get("model").isNull() ? value.get("model").asText()
-                : value.has("model") ? null : base.model();
-        if (model != null && CameraPromptBuilder.MODELS.stream().noneMatch((CameraPromptBuilder.Model candidate) ->
-                candidate.name().equals(model) && (body == null || candidate.body() == body)))
-            throw new McpTools.ToolException("'" + model + "' is no camera model" + (body != null ? " of the type "
-                    + body.name() : "") + ", see get_capabilities.camera.models");
-        return new CameraSettings(body, model, setting(value, "lens", CameraSettings.Lens.class, base.lens()),
+        return new CameraSettings(setting(value, "body", CameraSettings.Body.class, base.body()),
+                setting(value, "lens", CameraSettings.Lens.class, base.lens()),
                 setting(value, "aperture", CameraSettings.Aperture.class, base.aperture()),
                 setting(value, "shutter", CameraSettings.Shutter.class, base.shutter()),
                 setting(value, "iso", CameraSettings.Iso.class, base.iso()),
