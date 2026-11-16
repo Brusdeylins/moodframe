@@ -35,13 +35,18 @@ public class MemoryStatusComponent extends HBox {
     
     // Update interval for status display
     private static final double UPDATE_INTERVAL_SECONDS = 2.0;
-    
+
+    /*  the tooltips appear quicker than the JavaFX default of 1 s  */
+    private static final Duration TOOLTIP_SHOW_DELAY = Duration.millis(500);
+
 
     // UI Components
     private final FontIcon memoryIcon;
     private final Label memoryLabel;
+    private final Tooltip memoryTooltip;
     private final FontIcon tasksIcon;
     private final Label tasksLabel;
+    private final Tooltip tasksTooltip;
 
     // Update timeline
     private final Timeline updateTimeline;
@@ -62,6 +67,20 @@ public class MemoryStatusComponent extends HBox {
         tasksIcon = new FontIcon("mdi2i-image-multiple");
         tasksIcon.setIconSize(14);
         tasksLabel = new Label("0 imgs");
+
+        /*  one tooltip per display, installed once and only re-texted on updates:
+            a new one per update restarted the show delay  */
+        memoryTooltip = new Tooltip();
+        memoryTooltip.setShowDelay(TOOLTIP_SHOW_DELAY);
+        memoryTooltip.setShowDuration(Duration.INDEFINITE);
+        Tooltip.install(memoryIcon, memoryTooltip);
+        Tooltip.install(memoryLabel, memoryTooltip);
+
+        tasksTooltip = new Tooltip();
+        tasksTooltip.setShowDelay(TOOLTIP_SHOW_DELAY);
+        tasksTooltip.setShowDuration(Duration.INDEFINITE);
+        Tooltip.install(tasksIcon, tasksTooltip);
+        Tooltip.install(tasksLabel, tasksTooltip);
 
         // Add components to layout
         getChildren().addAll(
@@ -163,10 +182,8 @@ public class MemoryStatusComponent extends HBox {
             totalMemory / 1024 / 1024,
             freeMemory / 1024 / 1024
         );
-        
-        Tooltip memoryTooltip = new Tooltip(tooltipText);
-        Tooltip.install(memoryIcon, memoryTooltip);
-        Tooltip.install(memoryLabel, memoryTooltip);
+
+        memoryTooltip.setText(tooltipText);
     }
 
     /**
@@ -197,9 +214,7 @@ public class MemoryStatusComponent extends HBox {
             loadedImages
         );
 
-        Tooltip tasksTooltip = new Tooltip(tooltipText);
-        Tooltip.install(tasksIcon, tasksTooltip);
-        Tooltip.install(tasksLabel, tasksTooltip);
+        tasksTooltip.setText(tooltipText);
     }
 
     /**
