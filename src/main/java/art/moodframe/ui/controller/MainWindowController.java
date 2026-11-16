@@ -234,6 +234,14 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label generationTitleLabel;
     @FXML
+    private Label generationSummaryModel;
+    @FXML
+    private Label generationSummaryAttachments;
+    @FXML
+    private Label modelLabel;
+    @FXML
+    private VBox imageCountContainer;
+    @FXML
     private ScrollPane panelScrollPane;
     @FXML
     private VBox moodGroupPane;
@@ -634,6 +642,7 @@ public class MainWindowController implements I18nChangeListener {
                 Platform.runLater(() -> {
                     filterModelsByImageCount(imageCount);
                     updateCostDisplay();
+                    updateGenerationSummary();
                 });
             });
 
@@ -961,6 +970,33 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
+     * Updates the summary of the Generation group: count and model, for a video its duration and model, then the number
+     * of attached images.
+     */
+    private void updateGenerationSummary() {
+        if (generationSummaryModel == null || generationSummaryAttachments == null)
+            return;
+
+        String model = modelComboBox.getValue();
+        art.moodframe.model.GenerationModel generationModel =
+                art.moodframe.model.GenerationModel.fromLocalizedDisplayName(model);
+        String family = model != null ? art.moodframe.model.ModelFamilies.familyOf(model) : "";
+        Integer seconds = selectedVideoSeconds();
+        if (generationModel != null && generationModel.isVideoModel() && seconds != null)
+            generationSummaryModel.setText(I18nManager.getText("params.generation.summary.duration", seconds, family));
+        else
+            generationSummaryModel.setText(I18nManager.getText("params.generation.summary.count",
+                    (int) Math.round(imageCountSlider.getValue()), family));
+
+        int attachments = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 0;
+        generationSummaryAttachments.setText(switch (attachments) {
+            case 0 -> I18nManager.getText("params.generation.summary.attachments.none");
+            case 1 -> I18nManager.getText("params.generation.summary.attachments.one");
+            default -> I18nManager.getText("params.generation.summary.attachments.many", attachments);
+        });
+    }
+
+    /**
      * Updates the FLUX.2 safety tolerance label with the current slider value and description.
      * Uses i18n keys params.flux2.safety.0 through params.flux2.safety.5.
      */
@@ -1198,6 +1234,12 @@ public class MainWindowController implements I18nChangeListener {
         modelFamilySelector = new art.moodframe.ui.component.ModelFamilySelector(modelComboBox, modelFamilyChoiceBox,
                 resolutionChoiceBox, config);
 
+        /*  The summary of the Generation group follows model, count, duration and attachments  */
+        modelComboBox.valueProperty().addListener((obs, oldVal, newVal) -> updateGenerationSummary());
+        imageCountSlider.valueProperty().addListener((obs, oldVal, newVal) -> updateGenerationSummary());
+        if (videoDurationChoiceBox != null)
+            videoDurationChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> updateGenerationSummary());
+
         // Load saved values from configuration
         loadUISelections();
 
@@ -1221,6 +1263,7 @@ public class MainWindowController implements I18nChangeListener {
         // Initial UI state
         updateUIState();
         updateCostDisplay(); // Initial cost calculation
+        updateGenerationSummary();
         updateInitialStatus();
     }
 
@@ -6440,6 +6483,9 @@ public class MainWindowController implements I18nChangeListener {
             frameTitleLabel.setText(I18nManager.getText("params.frame.title"));
         if (generationTitleLabel != null)
             generationTitleLabel.setText(I18nManager.getText("params.generation.title"));
+        if (modelLabel != null)
+            modelLabel.setText(I18nManager.getText("params.model"));
+        updateGenerationSummary();
         if (moodApplyCheckBox != null) {
             moodApplyCheckBox.setText(I18nManager.getText("params.mood.apply"));
             moodApplyCheckBox.setTooltip(new Tooltip(I18nManager.getText("params.mood.apply.tooltip")));
@@ -6998,6 +7044,12 @@ public class MainWindowController implements I18nChangeListener {
             if (isVideo) {
                 imageCountSlider.setValue(1);
             }
+        }
+
+        /*  a video shows its duration in place of the count  */
+        if (imageCountContainer != null) {
+            imageCountContainer.setVisible(!isVideo);
+            imageCountContainer.setManaged(!isVideo);
         }
 
         logger.debug("Parameter visibility updated: BFL={}, Gemini={}, Video={}", isBFL, isGemini, isVideo);

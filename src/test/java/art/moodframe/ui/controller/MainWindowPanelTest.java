@@ -41,7 +41,7 @@ class MainWindowPanelTest {
     @Test
     void eachGroupShowsItsSummaryFieldAboveItsFoldedDetails() {
         Map<String, String> summaries = Map.of("moodGroupPane", "moodComboBox", "frameGroupPane", "frameComboBox",
-                "generationGroupPane", "modelFamilyChoiceBox");
+                "generationGroupPane", "generationSummaryModel");
         summaries.forEach((group, summary) -> {
             List<Element> parts = children(byId(group));
             assertEquals(List.of("panel-group-line", "panel-group-header", "panel-group-summary",
@@ -50,8 +50,24 @@ class MainWindowPanelTest {
             assertEquals("panel-group-arrow", partOf(children(parts.get(1)).get(0)), "the arrow comes first");
             assertTrue(inside(byId(summary), parts.get(2)), summary + " is the summary field of " + group);
         });
-        assertTrue(elements.stream().noneMatch((e) -> "TitledPane".equals(e.getTagName())
-                || "modelLabel".equals(e.getAttribute("fx:id"))), "no folding pane, no label \"Model:\"");
+        assertTrue(elements.stream().noneMatch((e) -> "TitledPane".equals(e.getTagName())), "no folding pane");
+    }
+
+    @Test
+    void generationSummarizesInTwoSmallLinesAndFoldsTheModelFirst() {
+        List<Element> parts = children(byId("generationGroupPane"));
+        assertEquals(List.of("generationSummaryModel", "generationSummaryAttachments"), children(parts.get(2)).stream()
+                .map((e) -> e.getAttribute("fx:id")).toList(), "the two lines of the summary");
+        for (Element line : children(parts.get(2)))
+            assertEquals("text-small, text-muted", line.getAttribute("styleClass"), "small like the hints");
+
+        /*  the model with its heading, then grounding, count and the other fields; the attachment last  */
+        List<Element> details = children(parts.get(3));
+        assertTrue(inside(byId("modelLabel"), details.get(0)) && inside(byId("modelFamilyChoiceBox"), details.get(0))
+                && inside(byId("modelComboBox"), details.get(0)), "the model comes first");
+        assertEquals(List.of("geminiAdvancedFeaturesContainer", "imageCountContainer"), details.subList(1, 3).stream()
+                .map((e) -> e.getAttribute("fx:id")).toList(), "grounding, then the count");
+        assertEquals("multiImageAttachmentContainer", details.get(details.size() - 2).getAttribute("fx:id"));
     }
 
     @Test

@@ -560,18 +560,32 @@
                                 <Label fx:id="generationTitleLabel" text="Generation" styleClass="title-4" />
                             </HBox>
 
-                            <!-- Always shown: the model; the hidden field holds the selected variant (family and resolution),
-                                 the model logic works on it -->
+                            <!-- Always shown: count (for a video the duration) and model, then the attached images -->
                             <VBox styleClass="panel-group-summary">
-                                <ChoiceBox fx:id="modelFamilyChoiceBox" maxWidth="Infinity" minWidth="0" />
-                                <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
+                                <Label fx:id="generationSummaryModel" styleClass="text-small, text-muted" />
+                                <Label fx:id="generationSummaryAttachments" styleClass="text-small, text-muted" />
                             </VBox>
 
-                            <!-- Folded: count, the fields of the model and the attachment -->
+                            <!-- Folded: the model, Google Search grounding, count, the other fields of the model and the
+                                 attachment -->
                             <VBox styleClass="panel-group-details" spacing="15.0">
 
-                                <!-- Image Count (General Parameter - works for both BFL and Gemini) -->
+                                <!-- Model; the hidden field holds the selected variant (family and resolution), the model
+                                     logic works on it -->
                                 <VBox spacing="5.0">
+                                    <Label fx:id="modelLabel" text="Model" styleClass="text-bold" />
+                                    <ChoiceBox fx:id="modelFamilyChoiceBox" maxWidth="Infinity" minWidth="0" />
+                                    <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
+                                </VBox>
+
+                                <!-- Gemini Advanced Features: Google Search grounding, directly below the model -->
+                                <VBox fx:id="geminiAdvancedFeaturesContainer"
+                                      visible="false" managed="false"
+                                      spacing="0" />
+
+                                <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its
+                                     duration instead -->
+                                <VBox fx:id="imageCountContainer" spacing="5.0">
                                     <Label fx:id="imageCountLabel" text="Images: 1" styleClass="text-bold" />
                                     <Slider fx:id="imageCountSlider"
                                             min="1" max="4" value="1"
@@ -718,12 +732,6 @@
                                     <ChoiceBox fx:id="geminiThinkingLevelChoiceBox" maxWidth="Infinity" minWidth="0"
                                                tooltip="$geminiThinkingLevelTooltip" />
                                 </VBox>
-
-                                <!-- Gemini Advanced Features Section (Phase 2) -->
-                                <!-- Positioned before Image Attachment, like other parameters -->
-                                <VBox fx:id="geminiAdvancedFeaturesContainer"
-                                      visible="false" managed="false"
-                                      spacing="0" />
 
                                 <!-- Multi-Image Attachment Section -->
                                 <!-- Container for MultiImageAttachmentPanel (added programmatically) -->

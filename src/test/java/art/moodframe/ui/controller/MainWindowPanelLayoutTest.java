@@ -26,6 +26,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
@@ -34,6 +35,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollBar;
+import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -88,7 +90,9 @@ import static org.mockito.Mockito.mock;
  * folded, after unfolding another group, after choosing another model, with an attached image, with and without the
  * scroll bar of the panel and after a change of language and theme. The fold arrow shows a surface only while
  * hovered, like the other icon buttons. The line of Generation runs straight, those of Mood and Frame bend inwards.
- * Every list of the panel opens flush with the left edge of its field, inside the panel.
+ * Every list of the panel opens flush with the left edge of its field, inside the panel. Folded, Generation sums up
+ * count (or duration) and model and the attachments in two lines, no higher than Mood and Frame; unfolded, it shows
+ * the model first, then Google Search grounding, the count, the other fields and the attachment.
  */
 class MainWindowPanelLayoutTest {
 
@@ -597,5 +601,130 @@ class MainWindowPanelLayoutTest {
             blocks.deleteCustom(block.getId());
             blocks.deletePermanently(block.getId());
         }
+    }
+
+    private static String text(String id) {
+        return ((Label) root.lookup("#" + id)).getText();
+    }
+
+    /*  the count (for a video the duration) and the model as the first line of the summary shows them  */
+    @SuppressWarnings("unchecked")
+    private static String countAndModel(String family) {
+        ChoiceBox<String> duration = (ChoiceBox<String>) root.lookup("#videoDurationChoiceBox");
+        if (family.equals("Gemini Omni"))
+            return duration.getValue().replace("s", "") + " s · " + family;
+        return Math.round(((Slider) root.lookup("#imageCountSlider")).getValue()) + " × " + family;
+    }
+
+    @Test
+    void theFoldedGenerationCardSummarizesCountModelAndAttachmentsInTwoLinesNoHigherThanMoodAndFrame()
+            throws Exception {
+        show("");
+        selectAChat();
+        assertFalse(group("generationGroupPane").lookup(".panel-group-details").isVisible(), "folded");
+        assertFalse(shown(root.lookup("#modelFamilyChoiceBox")), "the model is chosen in the folded fields");
+        chooseModel("Nano Banana Pro");
+        assertEquals(countAndModel("Nano Banana Pro"), text("generationSummaryModel"));
+        assertEquals("No attachment", text("generationSummaryAttachments"));
+
+        /*  no higher than the folded cards of Mood and Frame, whose summary is a field  */
+        double generation = group("generationGroupPane").getHeight();
+        for (String id : List.of("moodGroupPane", "frameGroupPane"))
+            assertTrue(generation <= group(id).getHeight() + 0.5,
+                    String.format("Generation %.1f, %s %.1f", generation, id, group(id).getHeight()));
+
+        /*  the lines follow the count, the model and the duration of a video  */
+        onFxThread(() -> ((Slider) root.lookup("#imageCountSlider")).setValue(3));
+        assertEquals("3 × Nano Banana Pro", text("generationSummaryModel"));
+        for (String model : MODELS) {
+            chooseModel(model);
+            assertEquals(countAndModel(model), text("generationSummaryModel"), model);
+        }
+        @SuppressWarnings("unchecked")
+        ChoiceBox<String> duration = (ChoiceBox<String>) root.lookup("#videoDurationChoiceBox");
+        String other = duration.getItems().stream().filter((item) -> !item.equals(duration.getValue())).findFirst()
+                .orElseThrow();
+        onFxThread(() -> duration.setValue(other));
+        assertEquals(other.replace("s", "") + " s · Gemini Omni", text("generationSummaryModel"));
+
+        /*  and the attached images, also in German  */
+        chooseModel("Nano Banana Pro");
+        MultiImageAttachmentPanel attachments = attachments();
+        for (int count = 1; count <= 2; count++) {
+            File image = home.resolve("summary-" + count + ".png").toFile();
+            ImageIO.write(new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB), "png", image);
+            int slot = count - 1;
+            onFxThread(() -> {
+
+                /*  a second square, as the button "Add Image" adds it  */
+                if (slot > 0) {
+                    Method add = MultiImageAttachmentPanel.class.getDeclaredMethod("addNewSlot");
+                    add.setAccessible(true);
+                    add.invoke(attachments);
+                }
+                attachments.attachImageToSlot(slot, image);
+            });
+            for (int i = 0; i < 100 && attachments.getAttachmentCount() < count; i++)
+                Thread.sleep(100);
+            assertEquals(count, attachments.getAttachmentCount(), "the image is attached");
+            waitForLayout();
+        }
+        assertEquals("2 attachments", text("generationSummaryAttachments"));
+        onFxThread(() -> I18nManager.setLocale(Locale.GERMAN));
+        assertEquals("2 Anhänge", text("generationSummaryAttachments"));
+        assertEquals("1 × Nano Banana Pro", text("generationSummaryModel"), "an attachment sets the count to 1");
+        onFxThread(() -> {
+            Method remove = MultiImageAttachmentPanel.class.getDeclaredMethod("removeImageAt", int.class);
+            remove.setAccessible(true);
+            remove.invoke(attachments, 1);
+        });
+        waitForLayout();
+        assertEquals("1 Anhang", text("generationSummaryAttachments"));
+        onFxThread(attachments::clearAllAttachments);
+        waitForLayout();
+        assertEquals("Kein Anhang", text("generationSummaryAttachments"));
+        assertTrue(group("generationGroupPane").getHeight() <= group("moodGroupPane").getHeight() + 0.5,
+                "no higher in German either");
+    }
+
+    /*  the detail fields of Generation that show, by their id; the one holding the model as "model"  */
+    private static List<String> shownGenerationFields() {
+        return ((VBox) group("generationGroupPane").lookup(".panel-group-details")).getChildren().stream()
+                .filter((field) -> field.isVisible() && field.isManaged())
+                .map((field) -> field.lookup("#modelFamilyChoiceBox") != null ? "model" : field.getId()).toList();
+    }
+
+    @Test
+    void theUnfoldedGenerationCardShowsModelGroundingCountTheOtherFieldsAndTheAttachmentInThisOrder()
+            throws Exception {
+        show("generation");
+        Map<String, List<String>> fields = Map.of(
+                "Nano Banana Pro", List.of("model", "geminiAdvancedFeaturesContainer", "imageCountContainer",
+                        "multiImageAttachmentContainer"),
+                "Nano Banana 2", List.of("model", "geminiAdvancedFeaturesContainer", "imageCountContainer",
+                        "geminiThinkingLevelContainer", "multiImageAttachmentContainer"),
+                "FLUX 3 Image", List.of("model", "imageCountContainer", "bflParametersContainer",
+                        "flux2ParametersContainer", "multiImageAttachmentContainer"),
+                "Gemini Omni", List.of("model", "videoParametersContainer", "multiImageAttachmentContainer"));
+        for (String model : MODELS) {
+            chooseModel(model);
+            assertEquals(fields.get(model), shownGenerationFields(), model);
+            assertTrue(shown(root.lookup("#generationSummaryModel")), model + ": the summary stays");
+            assertEquals(countAndModel(model), text("generationSummaryModel"), model);
+        }
+
+        /*  the model under its heading, Google Search grounding right below it  */
+        assertEquals("Model", text("modelLabel"));
+        chooseModel("Nano Banana Pro");
+        Node grounding = root.lookup("#geminiAdvancedFeaturesContainer").lookup(".check-box");
+        assertEquals("Google Search Grounding", ((CheckBox) grounding).getText());
+        double modelBottom = root.lookup("#modelFamilyChoiceBox").localToScene(
+                root.lookup("#modelFamilyChoiceBox").getLayoutBounds()).getMaxY();
+        double groundingTop = grounding.localToScene(grounding.getLayoutBounds()).getMinY();
+        double countTop = root.lookup("#imageCountLabel").localToScene(root.lookup("#imageCountLabel")
+                .getLayoutBounds()).getMinY();
+        assertTrue(modelBottom < groundingTop && groundingTop < countTop, "model, grounding, count");
+        onFxThread(() -> I18nManager.setLocale(Locale.GERMAN));
+        assertEquals("Modell", text("modelLabel"));
     }
 }
