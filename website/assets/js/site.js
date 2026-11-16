@@ -7,7 +7,7 @@ const DOWNLOAD = "https://moodframe.art/download/"
 
 const TEXT = {
     en: {
-        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Models", "nav.more": "More", "nav.install": "Install",
+        "nav.overview": "Overview", "nav.mood": "Mood", "nav.frame": "Frame", "nav.camera": "Camera", "nav.brainstorm": "Brainstorm", "nav.models": "Models", "nav.more": "More", "nav.install": "Install",
         "hero.eyebrow": "Desktop studio for AI images",
         "hero.claim": "The mood sets how an image feels, the frame its shape and size. One app for FLUX, Nano Banana, OpenAI and any compatible image API.",
         "hero.install.mac": "Install for macOS", "hero.install.windows": "Install for Windows",
@@ -44,6 +44,12 @@ const TEXT = {
         "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Model", "frame.gets": "Gets",
         "frame.exact": "exact", "frame.closest": "closest",
         "frame.point.saved": "Saved frames for your recurring formats", "frame.point.group": "Group your library by frame",
+        "camera.title": "Think like a photographer",
+        "camera.lead": "Choose camera type, lens, aperture, shutter, ISO, perspective and shot size like on a real camera. <b>Mood</b>Frame turns them into words every image model understands.",
+        "camera.point.result": "Every setting describes what a photographer would see: f/1.4 blurs front and back, 1/4000\u00a0s freezes the water, 14\u00a0mm shows far more of the surroundings.",
+        "camera.point.examples": "An example image for every stage, all of the same scene, so you see exactly what changes.",
+        "camera.point.locks": "Settings that contradict each other are locked with the reason; a camera with a fixed lens, like an action cam, sets it for you.",
+        "camera.point.preview": "A preview shows field of view, focus and camera height, the finished prompt sits right below.",
         "brainstorm.title": "From a rough idea to a finished prompt",
         "brainstorm.lead": "A guided chat with Gemini or an OpenAI-compatible model works out the scene with you.",
         "brainstorm.step1": "Describe your idea", "brainstorm.step1.text": "A sentence is enough, or a link to a YouTube video.",
@@ -59,7 +65,6 @@ const TEXT = {
         "more.title": "And there's more", "more.lead": "The details that make everyday work easier.",
         "more.combine": "Combine and edit", "more.combine.text": "Attach up to 10 images (depending on the model) for a collage, a combination or an edit with a new prompt or mood.",
         "more.infographic": "Infographics", "more.infographic.text": "Brainstorm gathers the facts from the web or a YouTube video and lays them out as an infographic, with the frame Text in Image.",
-        "more.camera": "Camera dialog", "more.camera.text": "Camera type, lens, aperture, perspective and shot size, with an example image for every stage.",
         "more.video": "Video", "more.video.text": "Video clips with Gemini Omni, in the same chats as your images.",
         "more.costs": "Costs in view", "more.costs.text": "The price shows before you send, the costs per image and per chat afterwards.",
         "more.trash": "One trash", "more.trash.text": "Chats, images, building blocks, moods and frames, all restorable.",
@@ -89,7 +94,7 @@ const TEXT = {
         "copy": "Copy", "copied": "Copied"
     },
     de: {
-        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.brainstorm": "Brainstorm", "nav.models": "Modelle", "nav.more": "Mehr", "nav.install": "Installieren",
+        "nav.overview": "Überblick", "nav.mood": "Mood", "nav.frame": "Frame", "nav.camera": "Kamera", "nav.brainstorm": "Brainstorm", "nav.models": "Modelle", "nav.more": "Mehr", "nav.install": "Installieren",
         "hero.eyebrow": "Desktop-Studio für KI-Bilder",
         "hero.claim": "Die Mood bestimmt, wie ein Bild wirkt, der Frame Format und Auflösung. Eine App für FLUX, Nano Banana, OpenAI und jede kompatible Bild-API.",
         "hero.install.mac": "Für macOS installieren", "hero.install.windows": "Für Windows installieren",
@@ -126,6 +131,12 @@ const TEXT = {
         "frame.target": "Frame: Presentation · 16:9 · 2K", "frame.model": "Modell", "frame.gets": "Ergebnis",
         "frame.exact": "exakt", "frame.closest": "nächstliegend",
         "frame.point.saved": "Gespeicherte Frames für wiederkehrende Formate", "frame.point.group": "Bibliothek nach Frame gruppieren",
+        "camera.title": "Denken wie ein Fotograf",
+        "camera.lead": "Kameratyp, Objektiv, Blende, Verschluss, ISO, Perspektive und Ausschnitt wählst du wie an einer echten Kamera. <b>Mood</b>Frame macht daraus Worte, die jedes Bildmodell versteht.",
+        "camera.point.result": "Jede Einstellung beschreibt, was ein Fotograf im Bild erkennt: f/1.4 macht vorn und hinten unscharf, 1/4000\u00a0s friert das Wasser ein, 14\u00a0mm zeigt viel mehr von der Umgebung.",
+        "camera.point.examples": "Ein Beispielbild für jede Stufe, alle von derselben Szene, damit du genau siehst, was sich ändert.",
+        "camera.point.locks": "Einstellungen, die sich widersprechen, sind mit Begründung gesperrt; eine Kamera mit festem Objektiv wie die Action Cam stellt es selbst ein.",
+        "camera.point.preview": "Eine Vorschau zeigt Bildwinkel, Schärfe und Kamerahöhe, der fertige Prompt steht direkt darunter.",
         "brainstorm.title": "Von der vagen Idee zum fertigen Prompt",
         "brainstorm.lead": "Ein geführter Chat mit Gemini oder einem OpenAI-kompatiblen Modell arbeitet die Szene mit dir aus.",
         "brainstorm.step1": "Idee beschreiben", "brainstorm.step1.text": "Ein Satz genügt, oder ein Link zu einem YouTube-Video.",
@@ -141,7 +152,6 @@ const TEXT = {
         "more.title": "Und noch mehr", "more.lead": "Die Details, die den Alltag leichter machen.",
         "more.combine": "Kombinieren und bearbeiten", "more.combine.text": "Bis zu 10 Bilder anhängen (je nach Modell): für eine Collage, eine Kombination oder eine Bearbeitung mit neuem Prompt oder neuer Mood.",
         "more.infographic": "Infografiken", "more.infographic.text": "Brainstorm sammelt die Fakten aus dem Web oder einem YouTube-Video und setzt sie als Infografik um, mit dem Frame Text in Image.",
-        "more.camera": "Kamera-Dialog", "more.camera.text": "Kameratyp, Objektiv, Blende, Perspektive und Bildausschnitt, mit einem Beispielbild für jede Stufe.",
         "more.video": "Video", "more.video.text": "Videoclips mit Gemini Omni, in denselben Chats wie deine Bilder.",
         "more.costs": "Kosten im Blick", "more.costs.text": "Der Preis steht vor dem Senden fest, danach die Kosten je Bild und je Chat.",
         "more.trash": "Ein Papierkorb", "more.trash.text": "Chats, Bilder, Bausteine, Moods und Frames, alles wiederherstellbar.",
@@ -238,9 +248,9 @@ function applyMood () {
     const mood = MOODS[state.mood]
     for (const tab of document.querySelectorAll("[data-mood]"))
         tab.setAttribute("aria-selected", String(tab.dataset.mood === state.mood))
-    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261115o`
+    document.querySelector("[data-mood-image]").src = `assets/img/${mood.image}?v=20261116a`
     const panel = document.querySelector("[data-mood-panel]")
-    panel.src = `assets/img/${mood.panel}?v=20261115o`
+    panel.src = `assets/img/${mood.panel}?v=20261116a`
     panel.alt = `${t("mood.panel")} ${t(`mood.${state.mood}.name`)}`
 }
 

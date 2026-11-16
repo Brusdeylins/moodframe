@@ -25,6 +25,9 @@ order of the page.
 | Overview | The main window with its main capabilities marked; a list below the screenshot on phones |
 | Mood | Tabs switch image and recipe of three moods |
 | Frame | Aspect ratios over one image; what FLUX.2, Nano Banana Pro and gpt-image make of 16:9 (from `AspectRatios`) |
+| Camera | The camera dialog (`camera-dialog.png`) beside four points: settings as words, example images, locks, preview |
+| Brainstorm | The Brainstorm window (`brainstorm.png`) beside the four steps from a rough idea to a prompt, three points below |
+| More | One tile each for the details: combine and edit, infographics, video, costs, trash, share moods, themes, networks |
 | Models | The three providers |
 | Install | Tab of the detected system open; the commands and files of Conveyor's download page (no link to `/download`), the note that the app is not notarized, "Packaged with Conveyor" |
 
