@@ -76,15 +76,15 @@
     -fx-border-color: -color-accent-emphasis;
 }
 
-/*  The lock of a building block field: muted, shown while the pointer is over the field and always once locked, so
-    it takes its space without making the row jump  */
+/*  The lock of a building block field: muted, shown while the pointer is over the field, while focused by the
+    keyboard (not after a click) and always once locked, so it takes its space without making the row jump  */
 .block-lock {
     -color-button-fg: -color-fg-muted;
     -fx-opacity: 0;
 }
 .block-field:hover .block-lock,
 .block-lock:selected,
-.block-lock:focused {
+.block-lock:focus-visible {
     -fx-opacity: 1;
 }
 
@@ -96,7 +96,7 @@
 }
 .block-field:hover .block-action,
 .block-field:hover .block-action:disabled,
-.block-field .block-action:focused {
+.block-field .block-action:focus-visible {
     -fx-opacity: 1;
 }
 
@@ -179,7 +179,7 @@
 }
 .panel-group:hover .panel-group-action,
 .panel-group:hover .panel-group-action:disabled,
-.panel-group .panel-group-action:focused,
+.panel-group .panel-group-action:focus-visible,
 .panel-group .panel-group-action:unsaved {
     -fx-opacity: 1;
 }
