@@ -22,7 +22,8 @@ import javafx.scene.paint.Color;
  */
 public class CameraPreview extends VBox {
 
-    private static final double WIDTH = 300;
+    /*  as wide as the example below, so the ground line ends at the edges of its frame  */
+    private static final double WIDTH = CameraExample.SIZE;
     private static final Color LINE = Color.gray(0.55);
     private static final Color CONE = Color.rgb(74, 144, 217, 0.25);
     private static final Color FOCUS = Color.rgb(255, 170, 40, 0.45);
@@ -46,6 +47,9 @@ public class CameraPreview extends VBox {
         super(6);
         topCaption.getStyleClass().addAll("text-small", "text-muted");
         sideCaption.getStyleClass().addAll("text-small", "text-muted");
+
+        /*  no wider than the canvases, so a long caption never shifts them against the example  */
+        setMaxWidth(WIDTH);
         getChildren().addAll(topCaption, top, sideCaption, side);
         updateTexts();
     }
@@ -120,7 +124,7 @@ public class CameraPreview extends VBox {
         gc.setLineDashes(0);
         gc.setStroke(LINE);
         gc.setLineWidth(1);
-        gc.strokeLine(10, ground, WIDTH - 10, ground);
+        gc.strokeLine(0, ground, WIDTH, ground);
 
         Perspective shown = perspective != null ? perspective : Perspective.EYE_LEVEL;
         double cameraX = shown == Perspective.TOP_DOWN ? figure : WIDTH * 0.2;

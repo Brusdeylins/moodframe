@@ -6,18 +6,25 @@ import art.moodframe.service.PromptBlockService;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.event.Event;
+import javafx.geometry.Bounds;
+import javafx.scene.Node;
+import javafx.scene.SnapshotParameters;
+import javafx.scene.canvas.Canvas;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelReader;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.paint.Color;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -271,9 +279,49 @@ class CameraEditDialogTest {
                 "back to the value changed last instead of the empty frame");
     }
 
+    @Test
+    void drawsTheGroundLineOfTheSideViewAsWideAsTheExampleBelow() throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+        double[] edges = onFxThread(() -> {
+            DialogPane pane = dialog.getDialogPane();
+            pane.applyCss();
+            pane.resize(pane.prefWidth(-1), pane.prefHeight(-1));
+            pane.layout();
+            Canvas side = pane.lookupAll("Canvas").stream().filter((node) -> node.getParent() instanceof CameraPreview)
+                    .map(Canvas.class::cast).toList().getLast();
+            Node frame = pane.lookupAll(".image-view").stream()
+                    .filter((node) -> node.getParent().getParent() instanceof CameraExample).findFirst().orElseThrow()
+                    .getParent();
+            Bounds example = frame.localToScene(frame.getLayoutBounds());
+            double[] line = groundLine(side);
+            return new double[] { side.localToScene(line[0], 0).getX(), side.localToScene(line[1], 0).getX(),
+                    example.getMinX(), example.getMaxX() };
+        });
+
+        assertEquals(edges[2], edges[0], 1, "the ground line starts at the left edge of the example");
+        assertEquals(edges[3], edges[1], 1, "the ground line ends at the right edge of the example");
+    }
+
     private static MouseEvent mouse(javafx.event.EventType<MouseEvent> type) {
         return new MouseEvent(type, 5, 5, 5, 5, MouseButton.NONE, 0, false, false, false, false, false, false, false,
                 false, false, false, null);
+    }
+
+    /** The left and right edge of the ground line of the side view: the row of a canvas with most painted pixels. */
+    private static double[] groundLine(Canvas canvas) {
+        SnapshotParameters transparent = new SnapshotParameters();
+        transparent.setFill(Color.TRANSPARENT);
+        PixelReader pixels = canvas.snapshot(transparent, null).getPixelReader();
+        int[] ground = new int[0];
+        for (int y = 0; y < canvas.getHeight(); y++) {
+            int row = y;
+            int[] painted = IntStream.range(0, (int) canvas.getWidth())
+                    .filter((x) -> pixels.getColor(x, row).getOpacity() > 0).toArray();
+            if (painted.length > ground.length)
+                ground = painted;
+        }
+        assertTrue(ground.length > 0, "nothing drawn");
+        return new double[] { ground[0], ground[ground.length - 1] + 1 };
     }
 
     private static List<Slider> sliders(CameraEditDialog dialog) {

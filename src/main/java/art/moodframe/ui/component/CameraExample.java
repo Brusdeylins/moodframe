@@ -31,7 +31,8 @@ import java.util.Map;
  */
 public class CameraExample extends VBox {
 
-    private static final double SIZE = 300;
+    /** Width and height of the frame, also the width of the preview above it. */
+    static final double SIZE = 300;
 
     /*  the pictures loaded so far, the key null for the picture without camera  */
     private final Map<Enum<?>, Image> images = new HashMap<>();
