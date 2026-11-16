@@ -6,6 +6,7 @@ import art.moodframe.service.ColorStyleService;
 import art.moodframe.service.FavoriteService;
 import art.moodframe.service.FrameService;
 import art.moodframe.service.GenerationService;
+import art.moodframe.service.LibraryEvents;
 import art.moodframe.service.MoodAnalysisService;
 import art.moodframe.service.MoodService;
 import art.moodframe.service.PromptBlockService;
@@ -112,13 +113,14 @@ public class McpTools {
      * @param frames    the frames
      * @param favorites the favorites
      * @param trash     the trash
+     * @param events    where a download is reported for the status bar
      * @return the tools
      */
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash) {
+            TrashCenter trash, LibraryEvents events) {
         McpTools tools = new McpTools();
-        new ChatTools(chats).addTo(tools);
+        new ChatTools(chats, events).addTo(tools);
         new LibraryTools(config, moods, blocks, colors, frames, favorites, trash).addTo(tools);
         return tools;
     }
@@ -134,14 +136,15 @@ public class McpTools {
      * @param frames     the frames
      * @param favorites  the favorites
      * @param trash      the trash
+     * @param events     where a download is reported for the status bar
      * @param generation carries out and cancels the generation orders
      * @param analysis   finds the building blocks of an image
      * @return the tools
      */
     public static McpTools all(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, GenerationService generation, MoodAnalysisService analysis) {
-        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash);
+            TrashCenter trash, LibraryEvents events, GenerationService generation, MoodAnalysisService analysis) {
+        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash, events);
         new ChatEditTools(chats, generation).addTo(tools);
         new LibraryEditTools(chats, moods, blocks, colors, frames, favorites, trash, analysis).addTo(tools);
         new GenerateTools(config, chats, moods, blocks, colors, frames, generation).addTo(tools);

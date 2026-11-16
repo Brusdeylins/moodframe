@@ -52,12 +52,14 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.StreamSupport;
@@ -90,6 +92,7 @@ class McpServerTest {
     private static Path imageFile;
     private static Mood ownMood;
     private static Frame trashedFrame;
+    private static final List<String> reported = new CopyOnWriteArrayList<>();
 
     @BeforeAll
     static void startServerOnALibrary() throws Exception {
@@ -108,6 +111,7 @@ class McpServerTest {
         Path database = tempDir.resolve("db").resolve("test.db");
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
         ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
                 null, null), events);
         PromptBlockService blocks = new PromptBlockService(events);
@@ -141,8 +145,29 @@ class McpServerTest {
         entry.getImages().add(new GeneratedImage.Builder().id("image-1").chatEntryId("entry-1")
                 .localFilePath(imageFile.toString()).filename("image-1.png")
                 .downloadStatus(GeneratedImage.DownloadStatus.CACHED).imageWidth(2000).imageHeight(1000)
-                .fileSizeBytes(Files.size(imageFile)).mimeType("image/png").build());
+                .fileSizeBytes(Files.size(imageFile)).mimeType("image/png")
+                .createdAt(LocalDateTime.of(2026, 11, 16, 17, 36, 17)).build());
         chats.addEntry(chat, entry);
+
+        /*  A chat with umlauts: an image, a video and an image in the trash  */
+        Path umlautFile = tempDir.resolve("umlaut.png");
+        ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", umlautFile.toFile());
+        Path videoFile = Files.write(tempDir.resolve("clip.mp4"), new byte[] { 0, 0, 0, 0x18 });
+        Chat umlautChat = chats.createChat("Größe Übung");
+        ChatEntry umlautEntry = new ChatEntry.Builder().id("entry-2").chatId(umlautChat.getId()).userPrompt("a sauna")
+                .status(ChatEntry.Status.COMPLETED).model(GenerationModel.FLUX2_PRO.getDisplayName()).build();
+        umlautEntry.getImages().add(new GeneratedImage.Builder().id("umlaut-image").chatEntryId("entry-2")
+                .localFilePath(umlautFile.toString()).downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .createdAt(LocalDateTime.of(2026, 1, 2, 3, 4, 5)).build());
+        GeneratedImage video = new GeneratedImage.Builder().id("umlaut-video").chatEntryId("entry-2")
+                .localFilePath(videoFile.toString()).downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .createdAt(LocalDateTime.of(2026, 1, 2, 3, 4, 6)).build();
+        video.setIsVideo(true);
+        umlautEntry.getImages().add(video);
+        umlautEntry.getImages().add(new GeneratedImage.Builder().id("deleted-image").chatEntryId("entry-2")
+                .localFilePath(umlautFile.toString()).downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .deletedAt(LocalDateTime.now()).build());
+        chats.addEntry(umlautChat, umlautEntry);
 
         /*  An own favorite mood and a frame in the trash  */
         ownMood = new Mood(null, "Own Mood");
@@ -158,7 +183,7 @@ class McpServerTest {
             port = free.getLocalPort();
         }
         server = new McpServer(port, TOKEN, McpTools.reading(config, chats, moods, blocks, colors, frames, favorites,
-                trash));
+                trash, events));
         server.start();
     }
 
@@ -312,8 +337,9 @@ class McpServerTest {
     @Test
     void listsEveryReadingToolWithItsSchema() throws Exception {
         JsonNode tools = rpc("tools/list", "{}").path("result").path("tools");
-        assertEquals(List.of("list_chats", "get_chat", "get_entry", "get_image", "get_capabilities", "list_moods",
-                "get_mood", "list_blocks", "get_block", "list_frames", "list_trash"), texts(tools, "name"));
+        assertEquals(List.of("list_chats", "get_chat", "get_entry", "get_image", "download_image", "get_capabilities",
+                "list_moods", "get_mood", "list_blocks", "get_block", "list_frames", "list_trash"),
+                texts(tools, "name"));
         for (JsonNode tool : tools) {
             assertFalse(tool.path("description").asText().isBlank(), tool.path("name").asText());
             assertEquals("object", tool.path("inputSchema").path("type").asText(), tool.path("name").asText());
@@ -379,7 +405,14 @@ class McpServerTest {
         assertEquals(imageFile.toString(), image.path("path").asText());
         assertEquals(2000, image.path("width").asInt());
         assertEquals(Files.size(imageFile), image.path("fileSize").asLong());
+        assertEquals("Lighthouses 2026-11-16 17.36.17.png", image.path("downloadName").asText());
         assertTrue(toolError("get_entry", "{\"entryId\":\"nope\"}").contains("nope"));
+
+        /*  Umlauts stay, a video is named .mp4, an image in the trash is not shown  */
+        JsonNode umlauts = call("get_entry", "{\"entryId\":\"entry-2\"}").path("images");
+        assertEquals(List.of("umlaut-image", "umlaut-video"), texts(umlauts, "id"));
+        assertEquals(List.of("Größe Übung 2026-01-02 03.04.05.png", "Größe Übung 2026-01-02 03.04.06.mp4"),
+                texts(umlauts, "downloadName"));
     }
 
     @Test
@@ -394,6 +427,8 @@ class McpServerTest {
         assertEquals(1024, preview.getWidth());
         assertEquals(512, preview.getHeight());
         assertEquals(imageFile.toString(), result.path("structuredContent").path("path").asText());
+        assertEquals("Lighthouses 2026-11-16 17.36.17.png", result.path("structuredContent").path("downloadName")
+                .asText());
 
         JsonNode original = call("get_image", "{\"imageId\":\"image-1\",\"size\":\"original\"}");
         assertEquals("image/png", original.path("mimeType").asText());
@@ -402,6 +437,43 @@ class McpServerTest {
 
         assertTrue(toolError("get_image", "{\"imageId\":\"image-1\",\"size\":\"huge\"}").contains("size"));
         assertTrue(toolError("get_image", "{\"imageId\":\"image-2\"}").contains("image-2"));
+    }
+
+    @Test
+    void downloadImageCopiesLikeTheDownloadButton() throws Exception {
+        Path folder = Files.createDirectory(tempDir.resolve("agent-downloads"));
+        String arguments = "{\"imageId\":\"image-1\",\"directory\":" + JSON.writeValueAsString(folder.toString())
+                + "}";
+        JsonNode first = call("download_image", arguments);
+        assertEquals("Lighthouses 2026-11-16 17.36.17.png", first.path("fileName").asText());
+        assertEquals(folder.resolve("Lighthouses 2026-11-16 17.36.17.png").toString(), first.path("path").asText());
+        assertEquals(Files.size(imageFile), Files.size(Path.of(first.path("path").asText())));
+        assertEquals("Lighthouses 2026-11-16 17.36.17 2.png", call("download_image", arguments).path("fileName")
+                .asText(), "an existing file is kept");
+
+        /*  Umlauts stay; without folder a video goes to ~/Downloads of the throwaway home  */
+        assertEquals("Größe Übung 2026-01-02 03.04.05.png", call("download_image", "{\"imageId\":\"umlaut-image\","
+                + "\"directory\":" + JSON.writeValueAsString(folder.toString()) + "}").path("fileName").asText());
+        JsonNode video = call("download_image", "{\"imageId\":\"umlaut-video\"}");
+        assertEquals("Größe Übung 2026-01-02 03.04.06.mp4", video.path("fileName").asText());
+        assertEquals(tempDir.resolve("Downloads").resolve("Größe Übung 2026-01-02 03.04.06.mp4").toString(),
+                video.path("path").asText());
+        assertTrue(Files.isRegularFile(Path.of(video.path("path").asText())));
+
+        /*  The status bar learns of every download, on the JavaFX thread  */
+        CountDownLatch shown = new CountDownLatch(1);
+        Platform.runLater(shown::countDown);
+        assertTrue(shown.await(10, TimeUnit.SECONDS));
+        assertTrue(reported.contains("DOWNLOAD:Lighthouses 2026-11-16 17.36.17 2.png"), reported::toString);
+
+        assertTrue(toolError("download_image", "{\"imageId\":\"image-1\",\"directory\":\"relative/folder\"}")
+                .contains("directory"));
+        assertTrue(toolError("download_image", "{\"imageId\":\"image-1\",\"directory\":"
+                + JSON.writeValueAsString(tempDir.resolve("missing").toString()) + "}").contains("directory"));
+        assertTrue(toolError("download_image", "{\"imageId\":\"no-such-image\"}").contains("no-such-image"));
+        assertTrue(toolError("download_image", "{\"imageId\":\"deleted-image\"}").contains("deleted-image"));
+        assertTrue(toolError("download_image", "{}").contains("imageId"));
+        assertFalse(Files.exists(tempDir.resolve("missing")), "a missing folder is not created");
     }
 
     @Test

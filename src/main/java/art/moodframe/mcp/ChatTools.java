@@ -7,6 +7,8 @@ import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.service.ChatLibrary;
+import art.moodframe.service.LibraryEvents;
+import art.moodframe.util.DownloadsFolder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -18,18 +20,22 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * The tools that read the chats: {@code list_chats}, {@code get_chat}, {@code get_entry} and {@code get_image}. They
- * see what the main window shows, nothing in the trash, and read the JavaFX models through the {@link ChatLibrary}
- * on the JavaFX thread; files are read on the thread of the call.
+ * The tools that read the chats: {@code list_chats}, {@code get_chat}, {@code get_entry} and {@code get_image}, and
+ * {@code download_image}, which copies an image like the download button. They see what the main window shows,
+ * nothing in the trash, and read the JavaFX models through the {@link ChatLibrary} on the JavaFX thread; files are
+ * read on the thread of the call.
  *
  * @since 2.1.0
  */
@@ -41,18 +47,28 @@ class ChatTools {
     private static final List<String> SIZES = List.of("preview", "original");
 
     /*  an image found in the chats, copied off the JavaFX thread  */
-    private record Found(String entryId, String path, boolean video, int width, int height) {
+    record Found(String entryId, String path, boolean video, int width, int height, String chatName,
+            LocalDateTime createdAt) {
+
+        /*  the name the download button gives the file, without numbering; reads the file, null without one  */
+        String downloadName() {
+            return path != null && Files.isRegularFile(Path.of(path))
+                    ? DownloadsFolder.fileName(new File(path), chatName, createdAt) : null;
+        }
     }
 
     private final ChatLibrary chats;
+    private final LibraryEvents events;
 
     /**
      * Creates the tools.
      *
-     * @param chats the chats of the main window
+     * @param chats  the chats of the main window
+     * @param events where a download is reported for the status bar
      */
-    ChatTools(ChatLibrary chats) {
+    ChatTools(ChatLibrary chats, LibraryEvents events) {
         this.chats = chats;
+        this.events = events;
     }
 
     /**
@@ -77,15 +93,28 @@ class ChatTools {
         entry.set("entryId", McpTools.string("The ID of the chat entry, see get_chat"));
         tools.add("get_entry", "Gets a chat entry: status, error text, prompt of the user and final prompt, model, "
                 + "mood and frame as used, cost in USD, source (UI for the send button of MoodFrame, MCP for "
-                + "generate) and the images with file path, pixel size and file size.",
+                + "generate) and the images with file path, pixel size, file size and downloadName, the file name "
+                + "the download button of MoodFrame gives the image (see download_image).",
                 McpTools.input(entry, "entryId"), this::getEntry);
 
         ObjectNode image = McpTools.JSON.createObjectNode();
         image.set("imageId", McpTools.string("The ID of the image, see get_entry or get_chat"));
         image.set("size", McpTools.choice("'preview' scales the long edge to " + PREVIEW_EDGE + " px (JPEG), "
                 + "'original' returns the file as it is", SIZES, "preview"));
-        tools.add("get_image", "Gets an image as MCP image content, as preview or original, with its file path.",
+        tools.add("get_image", "Gets an image as MCP image content, as preview or original, with its file path and "
+                + "downloadName, the file name the download button of MoodFrame gives it, like 'Lighthouse series "
+                + "2026-11-16 17.36.17.png'; use it to save the image, or download_image.",
                 McpTools.input(image, "imageId"), this::getImage);
+
+        ObjectNode download = McpTools.JSON.createObjectNode();
+        download.set("imageId", McpTools.string("The ID of the image or video, see get_entry or get_chat"));
+        download.set("directory", McpTools.string("The absolute path of an existing folder; without one, "
+                + "~/Downloads"));
+        tools.add("download_image", "Copies the original file of an image or video into a folder like the download "
+                + "button of MoodFrame: named by its chat and creation time like 'Lighthouse series 2026-11-16 "
+                + "17.36.17.png', an existing file is kept and the copy numbered ' 2', ' 3'. Returns fileName and the "
+                + "full path; the status bar of MoodFrame tells the download.",
+                McpTools.input(download, "imageId"), this::downloadImage);
     }
 
     /*  what the main window shows: chats, entries and images not in the trash  */
@@ -135,12 +164,20 @@ class ChatTools {
 
     private McpTools.Result getEntry(JsonNode arguments) throws McpTools.ToolException {
         String entryId = McpTools.text(arguments, "entryId");
-        ObjectNode result = chats.read((List<Chat> all) -> all.stream().filter(ChatTools::shown)
-                .flatMap((Chat chat) -> chat.getEntries().stream())
-                .filter((ChatEntry entry) -> entry.getId().equals(entryId) && shown(entry)).findFirst()
-                .map(ChatTools::entryDetails).orElse(null));
+        List<Found> images = new ArrayList<>();
+        ObjectNode result = chats.read((List<Chat> all) -> {
+            for (Chat chat : all)
+                for (ChatEntry entry : chat.getEntries())
+                    if (shown(chat) && shown(entry) && entry.getId().equals(entryId)) {
+                        entry.getImages().stream().filter(ChatTools::shown)
+                                .forEach((GeneratedImage image) -> images.add(found(chat, image)));
+                        return entryDetails(entry);
+                    }
+            return null;
+        });
         if (result == null)
             throw new McpTools.ToolException("No chat entry with the ID '" + entryId + "', see get_chat");
+        putDownloadNames((ArrayNode) result.path("images"), images);
         return new McpTools.Result(result);
     }
 
@@ -171,27 +208,81 @@ class ChatTools {
         }
 
         ObjectNode result = McpTools.JSON.createObjectNode().put("imageId", imageId).put("entryId", found.entryId())
-                .put("path", found.path()).put("size", size).put("mimeType", mimeType).put("width", width)
-                .put("height", height).put("bytes", data.length);
+                .put("path", found.path()).put("downloadName", found.downloadName()).put("size", size)
+                .put("mimeType", mimeType).put("width", width).put("height", height).put("bytes", data.length);
         return new McpTools.Result(result, new McpTools.Image(data, mimeType));
+    }
+
+    private McpTools.Result downloadImage(JsonNode arguments) throws McpTools.ToolException, IOException {
+        String imageId = McpTools.text(arguments, "imageId");
+        String directory = McpTools.optionalText(arguments, "directory");
+
+        /*  ~/Downloads is created if missing, as by the download button; a given folder must exist  */
+        Path folder = Path.of(System.getProperty("user.home"), "Downloads");
+        if (directory != null) {
+            try {
+                folder = Path.of(directory);
+            }
+            catch (InvalidPathException e) {
+                folder = null;
+            }
+            if (folder == null || !folder.isAbsolute() || !Files.isDirectory(folder))
+                throw new McpTools.ToolException("The argument 'directory' must be the absolute path of an "
+                        + "existing folder, not '" + directory + "'");
+        }
+        Found found = file(chats, imageId);
+        String fileName = DownloadsFolder.copy(new File(found.path()), found.chatName(), found.createdAt(),
+                folder.toFile());
+        events.changed(LibraryEvents.Kind.DOWNLOAD, fileName);
+        return new McpTools.Result(McpTools.JSON.createObjectNode().put("imageId", imageId)
+                .put("fileName", fileName).put("path", folder.resolve(fileName).toString()));
+    }
+
+    /*  a shown image or video with its file  */
+    private static Found file(ChatLibrary chats, String imageId) throws McpTools.ToolException {
+        Found found = chats.read((List<Chat> all) -> all.stream().filter(ChatTools::shown)
+                .flatMap((Chat chat) -> chat.getEntries().stream().filter(ChatTools::shown)
+                        .flatMap((ChatEntry entry) -> entry.getImages().stream())
+                        .filter((GeneratedImage image) -> image.getId().equals(imageId) && shown(image))
+                        .map((GeneratedImage image) -> found(chat, image)))
+                .findFirst().orElse(null));
+        if (found == null)
+            throw new McpTools.ToolException("No image with the ID '" + imageId + "', see get_entry");
+        if (found.path() == null || !Files.isRegularFile(Path.of(found.path())))
+            throw new McpTools.ToolException("The file of the image '" + imageId + "' is not available");
+        return found;
     }
 
     /*  a shown image with its file, which must not be a video  */
     private static Found find(ChatLibrary chats, String imageId) throws McpTools.ToolException {
-        Found found = chats.read((List<Chat> all) -> all.stream().filter(ChatTools::shown)
-                .flatMap((Chat chat) -> chat.getEntries().stream()).filter(ChatTools::shown)
-                .flatMap((ChatEntry entry) -> entry.getImages().stream())
-                .filter((GeneratedImage image) -> image.getId().equals(imageId) && shown(image)).findFirst()
-                .map((GeneratedImage image) -> new Found(image.getChatEntryId(), image.getLocalFilePath(),
-                        image.isVideo(), image.getImageWidth(), image.getImageHeight()))
-                .orElse(null));
-        if (found == null)
-            throw new McpTools.ToolException("No image with the ID '" + imageId + "', see get_entry");
+        Found found = file(chats, imageId);
         if (found.video())
             throw new McpTools.ToolException("'" + imageId + "' is a video, its file is " + found.path());
-        if (found.path() == null || !Files.isRegularFile(Path.of(found.path())))
-            throw new McpTools.ToolException("The file of the image '" + imageId + "' is not available");
         return found;
+    }
+
+    /**
+     * Copies an image with what names its download, on the JavaFX thread.
+     *
+     * @param chat  the chat of the image
+     * @param image the image
+     * @return the copy
+     */
+    static Found found(Chat chat, GeneratedImage image) {
+        return new Found(image.getChatEntryId(), image.getLocalFilePath(), image.isVideo(), image.getImageWidth(),
+                image.getImageHeight(), chat.getName(), image.getCreatedAt());
+    }
+
+    /**
+     * Puts the names the download button gives the files into the JSON of the images; reads the files, so off the
+     * JavaFX thread.
+     *
+     * @param nodes  the JSON of the images
+     * @param images the images in the same order
+     */
+    static void putDownloadNames(ArrayNode nodes, List<Found> images) {
+        for (int i = 0; i < images.size(); i++)
+            ((ObjectNode) nodes.get(i)).put("downloadName", images.get(i).downloadName());
     }
 
     /**

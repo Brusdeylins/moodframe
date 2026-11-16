@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Downloaded images and videos are named by their chat and creation time, like a macOS screenshot:
   "Lighthouse series 2026-11-16 17.36.17.png"; umlauts and other letters of the chat name stay, an existing file is
   kept and the copy numbered
+- MCP: the new tool `download_image` copies an image or video like the download button, into the Downloads folder or
+  another one; `get_image`, `get_entry` and `generate` tell the file name the download button gives each image
 - New images in the library are named "moodframe_..." with a readable model name like "nano-banana-2" instead of
   "flux_..."; existing files keep their name
 - Large preview: a frame in the colors of the logo, with a soft glow, marks the edges of every image and video, also

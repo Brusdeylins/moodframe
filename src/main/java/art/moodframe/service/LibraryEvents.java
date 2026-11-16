@@ -17,9 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class LibraryEvents {
 
-    /** What changed. */
+    /** What changed; {@link #DOWNLOAD} changes nothing, an image was copied into a folder for the status bar. */
     public enum Kind {
-        MOOD, FRAME, ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR, FAVORITE, CHAT, ENTRY;
+        MOOD, FRAME, ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR, FAVORITE, CHAT, ENTRY, DOWNLOAD;
 
         /**
          * Tells the kind of a text building block.
@@ -39,7 +39,8 @@ public class LibraryEvents {
          * Something changed.
          *
          * @param kind what changed
-         * @param id   the ID of the changed entry, null if several changed (for example a new order or an import)
+         * @param id   the ID of the changed entry, null if several changed (for example a new order or an import);
+         *             the name of the copy for {@link Kind#DOWNLOAD}
          */
         void changed(Kind kind, String id);
     }

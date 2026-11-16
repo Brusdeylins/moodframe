@@ -355,10 +355,10 @@ public class MoodframeApplication extends Application {
                                 art.moodframe.service.GenerationService.class);
                         return new art.moodframe.mcp.McpService(config, generation != null
                                 ? art.moodframe.mcp.McpTools.all(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash, generation,
+                                        favorites, trash, events, generation,
                                         art.moodframe.service.MoodAnalysisService.create(config))
                                 : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash));
+                                        favorites, trash, events));
                     });
 
             /*  A newer version on the update site: hint behind the version in the header, checked at the start  */

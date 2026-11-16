@@ -47,23 +47,47 @@ public final class DownloadsFolder {
         return copy(source, chatName, createdAt, new File(System.getProperty("user.home"), "Downloads"));
     }
 
-    /** Copies a file into the given folder, see {@link #copy(File, String, LocalDateTime)}. */
-    static String copy(File source, String chatName, LocalDateTime createdAt, File downloadsDir) throws IOException {
+    /**
+     * Copies a file into the given folder, see {@link #copy(File, String, LocalDateTime)}.
+     *
+     * @param source       the image or video file
+     * @param chatName     the name of the chat of the image, null without chat
+     * @param createdAt    the creation time of the image, null for the time the file was last changed
+     * @param downloadsDir the folder, created if missing
+     * @return the name of the copy
+     * @throws IOException if the copy fails
+     */
+    public static String copy(File source, String chatName, LocalDateTime createdAt, File downloadsDir)
+            throws IOException {
         if (!downloadsDir.exists())
             downloadsDir.mkdirs();
 
-        boolean video = source.getName().toLowerCase().endsWith(".mp4");
-        String extension = video ? ".mp4" : extensionOf(source);
-        LocalDateTime time = createdAt != null ? createdAt
-                : LocalDateTime.ofInstant(Instant.ofEpochMilli(source.lastModified()), ZoneId.systemDefault());
-        String name = chatName(chatName) + " " + time.format(TIME);
-        String filename = name + extension;
+        String filename = fileName(source, chatName, createdAt);
+        String name = filename.substring(0, filename.lastIndexOf('.'));
+        String extension = filename.substring(filename.lastIndexOf('.'));
         for (int number = 2; new File(downloadsDir, filename).exists(); number++)
             filename = name + " " + number + extension;
         File target = new File(downloadsDir, filename);
         Files.copy(source.toPath(), target.toPath());
         logger.info("Image downloaded to Downloads folder: {}", target.getAbsolutePath());
         return filename;
+    }
+
+    /**
+     * Gets the name a copy gets without numbering, {@code <chat> <yyyy-MM-dd> <HH.mm.ss>.<ext>}; reads the first bytes
+     * of an image for its extension.
+     *
+     * @param source    the image or video file
+     * @param chatName  the name of the chat of the image, null without chat
+     * @param createdAt the creation time of the image, null for the time the file was last changed
+     * @return the name, e.g. {@code Lighthouse series 2026-11-16 17.36.17.png}
+     */
+    public static String fileName(File source, String chatName, LocalDateTime createdAt) {
+        boolean video = source.getName().toLowerCase().endsWith(".mp4");
+        String extension = video ? ".mp4" : extensionOf(source);
+        LocalDateTime time = createdAt != null ? createdAt
+                : LocalDateTime.ofInstant(Instant.ofEpochMilli(source.lastModified()), ZoneId.systemDefault());
+        return chatName(chatName) + " " + time.format(TIME) + extension;
     }
 
     /**

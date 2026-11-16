@@ -134,7 +134,7 @@ class McpEditToolsTest {
 
         provider = new Provider(repository);
         GenerationService generation = new GenerationService(config, chats, moods, provider);
-        tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, generation,
+        tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                 new MoodAnalysisService(null, null, config));
     }
 
@@ -406,8 +406,11 @@ class McpEditToolsTest {
                 null);
         assertTrue(price > 0);
         assertEquals(McpTools.usd(2 * price), result.path("cost").asDouble(), "a FLUX entry costs its images");
-        for (JsonNode image : result.path("images"))
+        for (JsonNode image : result.path("images")) {
             assertTrue(Files.isRegularFile(Path.of(image.path("path").asText())));
+            assertTrue(image.path("downloadName").asText().matches("Generated \\d{4}-\\d\\d-\\d\\d "
+                    + "\\d\\d\\.\\d\\d\\.\\d\\d\\.(png|jpeg|webp)"), image.path("downloadName").asText());
+        }
         assertFalse(result.has("hint"));
         String entryId = result.path("entryId").asText();
         assertTrue(ids(call("get_chat", "{\"chatId\":\"" + chatId + "\"}").path("entries")).contains(entryId));

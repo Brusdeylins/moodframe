@@ -142,8 +142,9 @@ class GenerateTools {
         tools.add("generate", "Generates images or a video in a chat like the send button of MoodFrame; this costs "
                 + "money at the provider, see preview_generation for the estimate. The entry shows in the chat in "
                 + "MoodFrame at once. Waits up to 'wait' seconds and returns the entry id, its status, the format "
-                + "the model takes, the cost in USD and, once completed, the images with id and file path; a longer "
-                + "job returns PENDING or PROCESSING, get_entry tells the rest later.",
+                + "the model takes, the cost in USD and, once completed, the images with id, file path and "
+                + "downloadName, the file name the download button of MoodFrame gives them (see download_image); a "
+                + "longer job returns PENDING or PROCESSING, get_entry tells the rest later.",
                 McpTools.input(order, "chatId", "prompt", "model"), this::generate);
     }
 
@@ -205,6 +206,7 @@ class GenerateTools {
         }
 
         ChatEntry entry = submission.entry();
+        List<ChatTools.Found> files = new ArrayList<>();
         ObjectNode result = chats.read((List<Chat> all) -> {
             ObjectNode node = McpTools.JSON.createObjectNode().put("entryId", entry.getId()).put("chatId", chatId)
                     .put("status", entry.getStatus().name()).put("error", entry.getErrorMessage());
@@ -212,11 +214,15 @@ class GenerateTools {
             node.put("cost", McpTools.usd(entry.getCost()));
             ArrayNode images = node.putArray("images");
             entry.getImages().stream().filter((GeneratedImage image) -> image.getDownloadStatus()
-                    == GeneratedImage.DownloadStatus.CACHED).forEach((GeneratedImage image) -> images.addObject()
-                    .put("id", image.getId()).put("path", image.getLocalFilePath()).put("video", image.isVideo())
-                    .put("width", image.getImageWidth()).put("height", image.getImageHeight()));
+                    == GeneratedImage.DownloadStatus.CACHED).forEach((GeneratedImage image) -> {
+                images.addObject().put("id", image.getId()).put("path", image.getLocalFilePath())
+                        .put("video", image.isVideo()).put("width", image.getImageWidth())
+                        .put("height", image.getImageHeight());
+                files.add(ChatTools.found(chat, image));
+            });
             return node;
         });
+        ChatTools.putDownloadNames((ArrayNode) result.path("images"), files);
         if (!finished)
             result.put("hint", "Still running" + (wait > 0 ? " after " + wait + " s" : "") + "; get_entry with the "
                     + "entryId tells the status and the images later");

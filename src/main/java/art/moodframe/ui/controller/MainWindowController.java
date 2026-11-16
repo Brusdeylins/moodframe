@@ -1380,8 +1380,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Shows a change of the library in the lists and the open chat, whoever made it. A burst of changes, for example an
-     * import, reloads a list once per change.
+     * Shows a change of the library in the lists and the open chat, whoever made it, and a download of another caller
+     * in the status bar. A burst of changes, for example an import, reloads a list once per change.
      *
      * @param kind what changed
      * @param id   the ID of the changed entry, null if several changed
@@ -1398,6 +1398,8 @@ public class MainWindowController implements I18nChangeListener {
                 case FAVORITE -> reorderFavorites();
                 case CHAT -> showChatChange(id);
                 case ENTRY -> showEntryChange(id);
+                case DOWNLOAD -> setStatus(java.text.MessageFormat.format(
+                        I18nManager.getText("download.image.success"), id));
             }
         } catch (Exception e) {
             logger.error("Failed to show the change of {} {}", kind, id, e);

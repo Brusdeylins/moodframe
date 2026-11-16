@@ -90,7 +90,10 @@ The tools:
 
 - **Read:** `list_chats`, `get_chat`, `get_entry`, `get_image`, `get_capabilities`, `list_moods`, `get_mood`,
   `list_blocks`, `get_block`, `list_frames` and `list_trash` read the chats, the images, the library, the trash and the
-  models you can generate with.
+  models you can generate with. `get_entry`, `get_image` and `generate` tell each image's `downloadName`, the file name
+  the download button gives it, like "Lighthouse series 2026-11-16 17.36.17.png".
+- **Download:** `download_image` copies an image or video like the download button, into `~/Downloads` or another
+  folder, numbered if the name is taken; the status bar tells the download.
 - **Chats:** `create_chat`, `rename_chat`, `delete_chat`, `delete_entry`, `delete_image` and `cancel_generation` manage
   chats, entries and images.
 - **Moods:** `create_mood`, `update_mood`, `delete_mood` and `mood_from_image`, which finds the building blocks of an
