@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - New images in the library are named "moodframe_..." with a readable model name like "nano-banana-2" instead of
   "flux_..."; existing files keep their name
 
+### FIX
+- Light themes: the hints of the buttons in the full view and on the bar over an image show dark text instead of
+  white text on a light background
+
 ## 2.1.0 (2026-11-16)
 
 ### FEATURE

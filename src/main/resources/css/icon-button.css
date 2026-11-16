@@ -25,14 +25,18 @@
 }
 
 /*  On the dark bar over an image and in the full view: white icons, a light surface and a brighter red, the same in
-    all themes  */
+    all themes. The icon colors are set on the icons only, as the tooltip of a button takes the theme colors from the
+    button.  */
 .image-action-bar .icon-button,
 .image-preview-overlay .icon-button {
     -icon-button-hover:   rgba(255, 255, 255, 0.2);
     -icon-button-pressed: rgba(255, 255, 255, 0.32);
-    -color-fg-default:    white;
-    -color-fg-muted:      white;
-    -color-danger-fg:     #ff6b6b;
+}
+.image-action-bar .icon-button .ikonli-font-icon,
+.image-preview-overlay .icon-button .ikonli-font-icon {
+    -color-fg-default: white;
+    -color-fg-muted:   white;
+    -color-danger-fg:  #ff6b6b;
 }
 
 .icon-button:hover {
