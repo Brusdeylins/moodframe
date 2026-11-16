@@ -405,6 +405,12 @@
                         <Label fx:id="backgroundImageDescLabel" styleClass="text-muted, text-small" text="%settings.background.image.description" wrapText="true" />
                     </VBox>
 
+                    <!-- Turning frame of the large preview -->
+                    <VBox spacing="4.0">
+                        <CheckBox fx:id="previewFrameAnimatedCheckBox" text="%settings.preview.frame.animated" />
+                        <Label fx:id="previewFrameAnimatedDescLabel" styleClass="text-muted, text-small" text="%settings.preview.frame.animated.description" wrapText="true" />
+                    </VBox>
+
                     <Separator />
                     
                     <!-- Preview Area -->

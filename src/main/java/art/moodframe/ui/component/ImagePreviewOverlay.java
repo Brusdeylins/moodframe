@@ -77,6 +77,7 @@ import java.util.function.Consumer;
  * @updated 2.0.0 - Gallery of the images view
  * @updated 2.1.0 - Poster and the video player of the system for a video JavaFX cannot play
  * @updated 2.1.0 - What helps under Linux to play videos, with a command to copy
+ * @updated 2.2.0 - Slowly turning mood frame around image and video instead of the drop shadow
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -90,6 +91,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private StackPane navigationLayer; // Transparent + fixed buttons
     private AnchorPane navigationAnchor; // Absolute positioning container for buttons
     private ImageView imageView;
+
+    /*  The slowly turning frame in the colors of the logo around the shown image or video  */
+    private PreviewFrame moodFrame;
 
     // Navigation buttons
     private Button closeButton;
@@ -179,7 +183,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             }
         });
 
-        // Create main image view with drop shadow
+        // Create main image view
         imageView = new ImageView();
         imageView.setPreserveRatio(true);
         imageView.setSmooth(true);
@@ -190,13 +194,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         imageView.setPickOnBounds(true);
         imageView.setManaged(false); // This prevents the image from affecting parent layout
 
-        // Add drop shadow directly to the image (10px offset, 10px blur, 0.4 opacity)
-        javafx.scene.effect.DropShadow dropShadow = new javafx.scene.effect.DropShadow();
-        dropShadow.setOffsetX(10);
-        dropShadow.setOffsetY(10);
-        dropShadow.setRadius(10);
-        dropShadow.setColor(javafx.scene.paint.Color.BLACK.deriveColor(0, 1, 1, 0.4));
-        imageView.setEffect(dropShadow);
+        /*  The mood frame lies behind the image, its glow takes the place of the former drop shadow  */
+        moodFrame = new PreviewFrame();
+        displayLayer.getChildren().add(moodFrame);
 
         displayLayer.getChildren().add(imageView);
         StackPane.setAlignment(imageView, Pos.CENTER);
@@ -209,6 +209,19 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         mediaView.setManaged(false);
         displayLayer.getChildren().add(mediaView);
         StackPane.setAlignment(mediaView, Pos.CENTER);
+
+        /*  The frame follows whichever of image and video is shown, also while zooming, panning and resizing
+            (change listeners, as an invalidation listener on bounds nobody reads fires only once)  */
+        javafx.beans.value.ChangeListener<Object> reframe = (observable, was, now) -> reframe();
+        for (javafx.scene.Node view : List.of(imageView, mediaView)) {
+            view.boundsInParentProperty().addListener(reframe);
+            view.visibleProperty().addListener(reframe);
+        }
+        imageView.imageProperty().addListener(reframe);
+        mediaView.mediaPlayerProperty().addListener(reframe);
+
+        /*  The colors turn only while the preview is shown, unless the user switched that off  */
+        visibleProperty().addListener((observable, was, shown) -> moodFrame.setRunning(shown && isFrameAnimated()));
 
         // =================== LAYER 2: NAVIGATION LAYER ===================
         // This layer uses AnchorPane for absolute positioning to prevent layout
@@ -800,6 +813,23 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             imageView.setLayoutY((containerHeight - displayHeight) / 2);
         }
 
+    }
+
+    /*  The frame surrounds the video once its size is known, else the image, and nothing while neither shows  */
+    private void reframe() {
+        MediaPlayer player = mediaView.getMediaPlayer();
+        javafx.scene.Node shown = null;
+        if (mediaView.isVisible() && player != null && player.getMedia().getWidth() > 0)
+            shown = mediaView;
+        else if (imageView.isVisible() && imageView.getImage() != null)
+            shown = imageView;
+        moodFrame.frame(shown == null ? null : shown.localToParent(shown.getLayoutBounds()));
+    }
+
+    /*  JavaFX 23 does not tell whether the system reduces motion, so the user decides in the settings  */
+    private static boolean isFrameAnimated() {
+        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        return config == null || config.isPreviewFrameAnimated();
     }
 
     /**

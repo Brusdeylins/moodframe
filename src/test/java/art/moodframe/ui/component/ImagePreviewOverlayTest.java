@@ -1,5 +1,7 @@
 package art.moodframe.ui.component;
 
+import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.MediaSupport;
 import art.moodframe.util.SystemOpen;
@@ -12,16 +14,19 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,12 +38,14 @@ import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -48,10 +55,13 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The full view of a video which JavaFX cannot play, here an unreadable one: a hint and the video player of the
@@ -496,5 +506,194 @@ class ImagePreviewOverlayTest {
             });
         }
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    /*  The overlay at the size of the area it covers in the main window, laid out as by a pulse  */
+    private static ImagePreviewOverlay overlayOfSize(double width, double height) {
+        ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+        new Scene(overlay, width, height);
+        resize(overlay, width, height);
+        return overlay;
+    }
+
+    private static void resize(ImagePreviewOverlay overlay, double width, double height) {
+        overlay.resize(width, height);
+        overlay.layout();
+    }
+
+    private static PreviewFrame frame(ImagePreviewOverlay overlay) {
+        return find(overlay, PreviewFrame.class).get(0);
+    }
+
+    private static Path image(Path dir, String name, int width, int height, int rgb) throws Exception {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++)
+                image.setRGB(x, y, rgb);
+        }
+        Path file = dir.resolve(name);
+        ImageIO.write(image, "png", file.toFile());
+        return file;
+    }
+
+    /*  The line of the frame lies flush outside the shown image on all four sides, its glow behind the image  */
+    private static void assertFramed(ImagePreviewOverlay overlay) {
+        ImageView view = find(overlay, ImageView.class).get(0);
+        PreviewFrame frame = frame(overlay);
+        Bounds image = view.localToParent(view.getLayoutBounds());
+        assertTrue(image.getWidth() > 0 && image.getHeight() > 0);
+        assertTrue(shown(frame));
+        List<Node> siblings = frame.getParent().getChildrenUnmodifiable();
+        assertTrue(siblings.indexOf(frame) < siblings.indexOf(view));
+        List<Bounds> lines = frame.getChildren().stream().filter(Rectangle.class::isInstance)
+                .map((line) -> line.localToParent(line.getLayoutBounds())).toList();
+        assertEquals(4, lines.size());
+        assertEquals(image.getMinY(), lines.get(0).getMaxY(), 0.001);
+        assertEquals(image.getMaxX(), lines.get(1).getMinX(), 0.001);
+        assertEquals(image.getMaxY(), lines.get(2).getMinY(), 0.001);
+        assertEquals(image.getMinX(), lines.get(3).getMaxX(), 0.001);
+        assertEquals(image.getMinX() - 2.0, lines.stream().mapToDouble(Bounds::getMinX).min().orElseThrow(), 0.001);
+        assertEquals(image.getMaxX() + 2.0, lines.stream().mapToDouble(Bounds::getMaxX).max().orElseThrow(), 0.001);
+        assertEquals(image.getMinY() - 2.0, lines.stream().mapToDouble(Bounds::getMinY).min().orElseThrow(), 0.001);
+        assertEquals(image.getMaxY() + 2.0, lines.stream().mapToDouble(Bounds::getMaxY).max().orElseThrow(), 0.001);
+        for (Bounds line : lines) {
+            double overlapX = Math.min(line.getMaxX(), image.getMaxX()) - Math.max(line.getMinX(), image.getMinX());
+            double overlapY = Math.min(line.getMaxY(), image.getMaxY()) - Math.max(line.getMinY(), image.getMinY());
+            assertTrue(overlapX <= 0.001 || overlapY <= 0.001, () -> "the line " + line + " covers " + image);
+        }
+    }
+
+    @Test
+    void theMoodFrameLiesFlushAroundTheImageAndFollowsIt() throws Exception {
+        Path dark = image(dir, "dark.png", 1600, 900, 0x050505);
+        Path tall = image(dir, "tall.png", 300, 500, 0xffffff);
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = overlayOfSize(1000, 700);
+            created.showImages(List.of(dark.toString(), tall.toString()), 0);
+            return created;
+        });
+        try {
+            onFxThread(() -> {
+                assertFramed(overlay);
+                return null;
+            });
+
+            /*  a smaller window, zooming and panning, the next image and back  */
+            onFxThread(() -> {
+                resize(overlay, 700, 500);
+                return null;
+            });
+            onFxThread(() -> {
+                assertFramed(overlay);
+                press(overlay, KeyCode.PLUS);
+                assertFramed(overlay);
+                press(overlay, KeyCode.RIGHT);
+                assertFramed(overlay);
+                press(overlay, KeyCode.LEFT);
+                return null;
+            });
+            onFxThread(() -> {
+                assertFramed(overlay);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    @Test
+    void theColorsTurnWhileThePreviewIsShownOnly() throws Exception {
+        Path image = image(dir, "image.png", 640, 480, 0x202020);
+        Object realConfig = useConfig(true);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        PreviewFrame frame = onFxThread(() -> frame(overlay));
+        try {
+            assertFalse(onFxThread(frame::isRunning));
+            onFxThread(() -> {
+                overlay.showImage(image.toString());
+                return null;
+            });
+            assertTrue(onFxThread(frame::isRunning));
+            double before = onFxThread(frame::getPhase);
+            Thread.sleep(1000);
+            double after = onFxThread(frame::getPhase);
+            assertNotEquals(before, after, 0.01);
+
+            /*  closed, the frame stands still, opened again it turns on  */
+            onFxThread(() -> {
+                press(overlay, KeyCode.ESCAPE);
+                return null;
+            });
+            assertFalse(onFxThread(frame::isRunning));
+            double closed = onFxThread(frame::getPhase);
+            Thread.sleep(300);
+            assertEquals(closed, onFxThread(frame::getPhase));
+            onFxThread(() -> {
+                overlay.showImage(image.toString());
+                return null;
+            });
+            assertTrue(onFxThread(frame::isRunning));
+        }
+        finally {
+            restoreConfig(realConfig);
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+    }
+
+    @Test
+    void switchedOffInTheSettingsTheFrameStandsStill() throws Exception {
+        Path image = image(dir, "image.png", 640, 480, 0xffffff);
+        Object realConfig = useConfig(false);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        try {
+            PreviewFrame frame = onFxThread(() -> {
+                overlay.showImage(image.toString());
+                assertFramed(overlay);
+                return frame(overlay);
+            });
+            assertFalse(onFxThread(frame::isRunning));
+            double before = onFxThread(frame::getPhase);
+            Thread.sleep(300);
+            assertEquals(before, onFxThread(frame::getPhase));
+        }
+        finally {
+            restoreConfig(realConfig);
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+    }
+
+    /*  A configuration without file that lets the frame turn or not, instead of what another test left behind  */
+    private static Object useConfig(boolean animated) throws Exception {
+        Object realConfig = services().get(ApplicationConfig.class);
+        ApplicationConfig config = mock(ApplicationConfig.class);
+        when(config.isPreviewFrameAnimated()).thenReturn(animated);
+        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+        return realConfig;
+    }
+
+    private static void restoreConfig(Object realConfig) throws Exception {
+        if (realConfig != null)
+            services().put(ApplicationConfig.class, realConfig);
+        else
+            services().remove(ApplicationConfig.class);
+    }
+
+    /*  the services the factory holds, of which this test takes out again what it put in  */
+    @SuppressWarnings("unchecked")
+    private static Map<Class<?>, Object> services() throws Exception {
+        Field services = ServiceFactory.class.getDeclaredField("services");
+        services.setAccessible(true);
+        return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
     }
 }

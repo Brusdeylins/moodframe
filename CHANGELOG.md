@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
   kept and the copy numbered
 - New images in the library are named "moodframe_..." with a readable model name like "nano-banana-2" instead of
   "flux_..."; existing files keep their name
+- Large preview: a frame in the colors of the logo, with a soft glow, marks the edges of every image and video, also
+  of dark ones; its colors slowly turn around the image (Settings → Appearance switches the motion off)
 
 ### FIX
 - Light themes: the hints of the buttons in the full view and on the bar over an image show dark text instead of

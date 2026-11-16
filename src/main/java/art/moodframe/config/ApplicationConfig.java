@@ -526,6 +526,25 @@ public class ApplicationConfig {
     }
 
     /**
+     * Whether the colors of the frame around the large preview wander around the image.
+     *
+     * @return true unless the user switched it off (default: on)
+     */
+    public boolean isPreviewFrameAnimated() {
+        return Boolean.parseBoolean(properties.getProperty("ui.preview.frame.animated", "true"));
+    }
+
+    /**
+     * Lets the colors of the frame around the large preview wander, or stand still.
+     *
+     * @param animated true to let them wander
+     */
+    public void setPreviewFrameAnimated(boolean animated) {
+        properties.setProperty("ui.preview.frame.animated", String.valueOf(animated));
+        saveConfiguration();
+    }
+
+    /**
      * Gets the default color style selection.
      *
      * @return the default color style name, or "None" if not set

@@ -200,6 +200,10 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private Label backgroundImageDescLabel;
     @FXML
+    private CheckBox previewFrameAnimatedCheckBox;
+    @FXML
+    private Label previewFrameAnimatedDescLabel;
+    @FXML
     private Label themePreviewLabel;
     @FXML
     private Label themeSampleLabel;
@@ -661,6 +665,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 if (config != null)
                     config.setBackgroundImageEnabled(on);
                 ThemeManager.notifyAppearanceChanged();
+            });
+        }
+
+        /*  turning frame of the large preview, taken on its next opening  */
+        if (previewFrameAnimatedCheckBox != null) {
+            previewFrameAnimatedCheckBox.setSelected(config == null || config.isPreviewFrameAnimated());
+            previewFrameAnimatedCheckBox.selectedProperty().addListener((obs, was, on) -> {
+                if (config != null)
+                    config.setPreviewFrameAnimated(on);
             });
         }
     }
@@ -2806,6 +2819,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
         }
         if (backgroundImageDescLabel != null) {
             backgroundImageDescLabel.setText(I18nManager.getText("settings.background.image.description"));
+        }
+        if (previewFrameAnimatedCheckBox != null) {
+            previewFrameAnimatedCheckBox.setText(I18nManager.getText("settings.preview.frame.animated"));
+        }
+        if (previewFrameAnimatedDescLabel != null) {
+            previewFrameAnimatedDescLabel.setText(I18nManager.getText("settings.preview.frame.animated.description"));
         }
         if (themeChangesLabel != null) {
             themeChangesLabel.setText(I18nManager.getText("settings.theme.changes"));
