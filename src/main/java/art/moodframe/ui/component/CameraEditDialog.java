@@ -5,6 +5,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.input.InputEvent;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -46,7 +48,7 @@ import java.util.function.IntToDoubleFunction;
  * <p>
  * Left the settings (tiles for the camera type, sliders with detents for focal length, aperture, shutter and ISO,
  * symbol rows for perspective and shot size), right a schematic preview and an example picture of the stage under the
- * mouse or else of the one changed last, below the generated prompt, all live. Every setting starts at "Any". A type
+ * mouse, being dragged or set by keyboard, below the generated prompt, all live. Every setting starts at "Any". A type
  * with a fixed lens or an automatic sets those settings itself and shows them read-only ({@link CameraSettings#fixes});
  * a stage whose prompt text contradicts the chosen type or lens is blocked and names the reason
  * ({@link CameraSettings#blocker}). A camera of the user is saved in place or as a new one, a standard camera only as
@@ -130,9 +132,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final Label validationLabel = new Label();
     private final Label helpLabel = new Label();
 
-    /*  shows the example once the mouse leaves a value: the stage changed last, else the empty frame; a change made
-        by the dialog itself, such as a reset, is none of the user  */
+    /*  shows the example once the mouse leaves a value: the stage set by keyboard while its control keeps the focus,
+        else the empty frame; a change by the mouse or by the dialog itself, such as a reset, sets none  */
     private Runnable restingExample;
+    private Node keyed;
+    private boolean keyboard;
     private boolean adjusting;
 
     /**
@@ -249,13 +253,22 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
         updateTexts();
 
-        /*  Every change shows at once in the preview, the example and the prompt; leaving a type releases the
-            settings it fixed  */
+        /*  Every change shows at once in the preview and the prompt, in the example a change by keyboard until its
+            control loses the focus; leaving a type releases the settings it fixed  */
         restingExample = example::clear;
+        dialogPane.addEventFilter(InputEvent.ANY, (event) -> keyboard = event instanceof KeyEvent);
+        dialogPane.getScene().focusOwnerProperty().addListener((obs, oldOwner, newOwner) -> {
+            if (keyed != null && newOwner != keyed) {
+                keyed = null;
+                restingExample = example::clear;
+                if (newOwner == null || !newOwner.isHover())
+                    example.clear();
+            }
+        });
         for (ToggleGroup group : List.of(bodyGroup, specialGroup, perspectiveGroup, shotGroup))
             group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal != null)
-                    changed((Enum<?>) newVal.getUserData());
+                    changed((Node) newVal, (Enum<?>) newVal.getUserData());
             });
         bodyGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null)
@@ -294,7 +307,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 selected(shotGroup, Shot.class));
     }
 
-    /*  sets every control to the settings; as the dialog changes them, the example keeps what the user changed  */
+    /*  sets every control to the settings; as the dialog changes them, the example shows none of these changes  */
     private void show(CameraSettings settings) {
         boolean outer = adjusting;
         adjusting = true;
@@ -378,16 +391,19 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 settings.shot()));
     }
 
-    /*  a value the user changed: the example shows it, also later while the mouse is over no value  */
-    private void changed(Enum<?> stage) {
-        if (adjusting)
+    /*  a value the user set by keyboard on its control: the example shows it, also while the mouse is over no value,
+        until the control loses the focus  */
+    private void changed(Node control, Enum<?> stage) {
+        if (adjusting || !keyboard)
             return;
+        keyed = control;
         restingExample = () -> example.show(stage);
         restingExample.run();
     }
 
     /*  while the mouse is over a control, the example shows the stage under it, kept as its user data, afterwards the
-        one changed last; a greyed stage shows none, as it cannot be chosen  */
+        resting one, after a drag only once released, filtered as a slider consumes it; a greyed stage shows none, as
+        it cannot be chosen  */
     private void hover(Node node, Function<MouseEvent, Node> control) {
         node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> {
             Node target = control.apply(event);
@@ -396,7 +412,14 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             else
                 example.show((Enum<?>) target.getUserData());
         });
-        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> restingExample.run());
+        node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> {
+            if (!node.isPressed())
+                restingExample.run();
+        });
+        node.addEventFilter(MouseEvent.MOUSE_RELEASED, (event) -> {
+            if (!node.isHover())
+                restingExample.run();
+        });
     }
 
     /*  the heading of a setting a camera type can fix, with the hint naming the type beside it  */
@@ -570,7 +593,13 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             slider.setValue(target);
         });
 
-        slider.valueProperty().addListener((obs, oldVal, newVal) -> changed(stage(slider, stages)));
+        /*  dragging, also along the track, shows the value under the thumb, a key the value it sets  */
+        slider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (slider.isValueChanging() || slider.isPressed())
+                example.show(stage(slider, stages));
+            else
+                changed(slider, stage(slider, stages));
+        });
 
         VBox track = glyphs.isEmpty() ? new VBox(slider, scale) : new VBox(marks, slider, scale);
         hover(track, (event) -> names.get(detent(slider, event)));

@@ -423,8 +423,7 @@ class CameraEditDialogTest {
             return null;
         });
         hover(focal, 4);
-        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Lens.FISHEYE)),
-                "the slider replaced by the fisheye shows no 50 mm but the lens chosen last");
+        assertNull(picture.getImage(), "the slider replaced by the fisheye shows no 50 mm, nor the lens chosen last");
 
         onFxThread(() -> {
             toggle(dialog, CameraSettings.Lens.FISHEYE).fire();
@@ -432,8 +431,7 @@ class CameraEditDialogTest {
             return null;
         });
         hover(focal, 2);
-        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Body.ACTION_CAM)),
-                "24 mm, not the lens of the action cam, shows none");
+        assertNull(picture.getImage(), "24 mm, not the lens of the action cam, shows none");
         hover(focal, 1);
         assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Lens.MM_14)),
                 "the fixed 14 mm shows its example");
@@ -478,8 +476,8 @@ class CameraEditDialogTest {
     }
 
     @Test
-    void showsTheExampleOfAValueChangedByKeyboardAndKeepsItAfterTheMouseLeaves() throws Exception {
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+    void showsTheExampleOfAValueSetByKeyboardUntilItsSliderLosesTheFocus() throws Exception {
+        CameraEditDialog dialog = open(CameraSettings.ANY);
         List<Slider> sliders = sliders(dialog);
         Slider shutter = sliders.get(2);
         ImageView picture = (ImageView) dialog.getDialogPane().lookupAll(".image-view").stream()
@@ -488,8 +486,8 @@ class CameraEditDialogTest {
 
         onFxThread(() -> {
             dialog.getDialogPane().applyCss();
-            Event.fireEvent(shutter, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.RIGHT, false, false, false,
-                    false));
+            shutter.requestFocus();
+            Event.fireEvent(shutter, key(KeyCode.RIGHT));
             return null;
         });
         assertEquals(1.0, shutter.getValue(), "one step to the right: 1/4000 s");
@@ -508,7 +506,99 @@ class CameraEditDialogTest {
             return null;
         });
         assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Shutter.FROZEN)),
-                "back to the value changed last instead of the empty frame");
+                "back to the value set by keyboard, as the slider keeps the focus");
+
+        onFxThread(() -> {
+            Event.fireEvent(shutter, key(KeyCode.TAB));
+            return null;
+        });
+        assertTrue(onFxThread(() -> dialog.getDialogPane().getScene().getFocusOwner() != shutter), "tab moves on");
+        assertNull(picture.getImage(), "the empty frame once the slider loses the focus");
+    }
+
+    @Test
+    void keepsTheExampleOfATileChosenByArrowKeyAsTheFocusMovesOnToIt() throws Exception {
+        CameraEditDialog dialog = open(CameraSettings.ANY);
+        ToggleButton fullFrame = toggle(dialog, CameraSettings.Body.FULL_FRAME);
+        ToggleButton mediumFormat = toggle(dialog, CameraSettings.Body.MEDIUM_FORMAT);
+        ImageView picture = (ImageView) dialog.getDialogPane().lookupAll(".image-view").stream()
+                .filter((node) -> node.getParent().getParent() instanceof CameraExample).findFirst().orElseThrow();
+
+        onFxThread(() -> {
+            dialog.getDialogPane().applyCss();
+            fullFrame.requestFocus();
+            Event.fireEvent(fullFrame, key(KeyCode.RIGHT));
+            return null;
+        });
+        assertTrue(mediumFormat.isSelected(), "the arrow key chooses the next tile");
+        assertTrue(onFxThread(() -> dialog.getDialogPane().getScene().getFocusOwner() == mediumFormat));
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Body.MEDIUM_FORMAT)),
+                "the tile chosen by keyboard, which now has the focus");
+    }
+
+    @Test
+    void clearsTheExampleOnceTheMouseLeavesAClickedTileOrAReleasedSlider() throws Exception {
+        CameraEditDialog dialog = open(CameraSettings.ANY);
+        ToggleButton tile = toggle(dialog, CameraSettings.Body.FULL_FRAME);
+        Slider aperture = sliders(dialog).get(1);
+        ImageView picture = (ImageView) dialog.getDialogPane().lookupAll(".image-view").stream()
+                .filter((node) -> node.getParent().getParent() instanceof CameraExample).findFirst().orElseThrow();
+        onFxThread(() -> {
+            dialog.setX(0);
+            dialog.setY(0);
+            dialog.setHeight(700);
+            dialog.show();
+            return null;
+        });
+        Robot robot = onFxThread(Robot::new);
+        try {
+            onFxThread(() -> {
+                Bounds bounds = tile.localToScreen(tile.getLayoutBounds());
+                robot.mouseMove(bounds.getCenterX(), bounds.getCenterY());
+                robot.mouseClick(MouseButton.PRIMARY);
+                return null;
+            });
+            assertTrue(onFxThread(tile::isSelected));
+            assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Body.FULL_FRAME)),
+                    "the clicked tile while the mouse is over it");
+            leave(robot);
+            assertNull(picture.getImage(), "the empty frame once the mouse leaves the clicked tile");
+
+            Point2D from = onFxThread(() -> {
+                Node thumb = aperture.lookup(".thumb");
+                Bounds bounds = thumb.localToScreen(thumb.getLayoutBounds());
+                return new Point2D(bounds.getCenterX(), bounds.getCenterY());
+            });
+            onFxThread(() -> {
+                robot.mouseMove(from);
+                robot.mousePress(MouseButton.PRIMARY);
+                robot.mouseMove(from.getX() + 60, from.getY());
+                robot.mouseMove(from.getX() + 120, from.getY());
+                return null;
+            });
+            CameraSettings.Aperture dragged = onFxThread(() -> CameraSettings.Aperture.values()[
+                    (int) Math.round(aperture.getValue()) - 1]);
+            assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(dragged)),
+                    "the f-number under the thumb while dragging");
+            onFxThread(() -> {
+                robot.mouseMove(from.getX() + 120, from.getY() + 200);
+                return null;
+            });
+            assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(dragged)),
+                    "the drag keeps the example below the slider");
+            onFxThread(() -> {
+                robot.mouseRelease(MouseButton.PRIMARY);
+                return null;
+            });
+            onFxThread(() -> null);
+            assertNull(picture.getImage(), "the empty frame once released away from the slider");
+        } finally {
+            leave(robot);
+            onFxThread(() -> {
+                dialog.getDialogPane().getScene().getWindow().hide();
+                return null;
+            });
+        }
     }
 
     @Test
@@ -532,6 +622,20 @@ class CameraEditDialogTest {
 
         assertEquals(edges[2], edges[0], 1, "the ground line starts at the left edge of the example");
         assertEquals(edges[3], edges[1], 1, "the ground line ends at the right edge of the example");
+    }
+
+    private static KeyEvent key(KeyCode code) {
+        return new KeyEvent(KeyEvent.KEY_PRESSED, "", "", code, false, false, false, false);
+    }
+
+    /** Moves the mouse of the system off the dialog, so the tooltip under it keeps no closed dialog either. */
+    private static void leave(Robot robot) throws Exception {
+        onFxThread(() -> {
+            robot.mouseMove(Screen.getPrimary().getBounds().getMaxX() - 1,
+                    Screen.getPrimary().getBounds().getMaxY() - 1);
+            return null;
+        });
+        onFxThread(() -> null);
     }
 
     private static MouseEvent mouse(javafx.event.EventType<MouseEvent> type) {
