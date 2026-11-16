@@ -50,7 +50,11 @@ body {
     color: var(--fg-body);
     font: 400 16px/1.55 var(--font-text);
     -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
 }
+/*  no word alone in the last line: running text wraps pretty (inherited from the body), headlines, leads and
+    eyebrows balance their lines  */
+h1, h2, .lead, .eyebrow { text-wrap: balance; }
 img, svg { display: block; max-width: 100%; height: auto; }
 /*  a faint cloud, a little stretched upward, rises out of the lower edge of the page behind Install and answers
     the one in the hero; sides and top fade out, the body clips what lies below the page (html scrolls, so the clip
