@@ -131,9 +131,9 @@ public final class CameraPromptBuilder {
             Shutter.MOTION_BLUR, "a slow shutter of about 1/15 s: everything that moves, such as hair, fabric, water, "
                     + "leaves, people or vehicles, if present, smeared into long, clearly visible streaks; static "
                     + "parts sharp",
-            Shutter.LONG_EXPOSURE, "a 5-second exposure of exactly this scene, nothing added: whatever moves, such as "
-                    + "hair, fabric or leaves, smeared strongly; water a silky veil, walkers ghosts, vehicles light "
-                    + "trails; still parts sharp");
+            Shutter.LONG_EXPOSURE, "a 5-second exposure of exactly this scene, nothing added: hair, fabric or leaves "
+                    + "in wind smeared; water a silky veil, walkers ghosts, cars light trails; people standing still "
+                    + "and static parts sharp");
 
     private static final Map<Iso, String> ISOS = Map.of(
             Iso.ISO_100, "ISO 100: the finest grain or noise, barely visible, a clean, smooth image with the most "

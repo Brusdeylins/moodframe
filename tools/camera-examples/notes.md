@@ -37,3 +37,5 @@
 - shot-EXTREME_WIDE: user expected a different (wider) background; e67d70e5 shrunk to 50 % and outpainted -> 04f34d0f. Conflict tests: 14mm+CLOSE_UP 144a4847, 135mm+EXTREME_WIDE d3987723 (diptych!)
 - shutter waterfall graded (user 2026-11-16): FROZEN 3b9ef40f crisp jets, NORMAL F2, MOTION_BLUR 83f68bff streaks, LONG_EXPOSURE cde6cbe1 silky veil
 - shutter-FROZEN: 3b9ef40f had giant drops (user: proportions); distant waterfall cannot show single drops -> 0ca1555b crisp ribbons
+- shutter waterfall v2 (user: outline and river must not change, only blur; frozen thinner/crisper): F2 waterfall+river pasted into each stage image, Waterfall.java: frozen = thin+sharpen, MB = vertical blur 25 px of the water pixels only, LE = 90 px; river unchanged
+- shutter-FROZEN v3: stronger thin (5 px min) + sharpen 2.4, only on water pixels (luminance mask dilated 3 px)
