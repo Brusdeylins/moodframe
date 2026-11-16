@@ -6,9 +6,11 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DownloadsFolderTest {
@@ -37,6 +39,22 @@ class DownloadsFolderTest {
         assertEquals("x".repeat(80), DownloadsFolder.chatName("x".repeat(120)));
         assertEquals("MoodFrame", DownloadsFolder.chatName(null));
         assertEquals("MoodFrame", DownloadsFolder.chatName(" /:? "));
+        assertEquals("x".repeat(79), DownloadsFolder.chatName("x".repeat(79) + "😀y"));
+    }
+
+    @Test
+    void keepsUmlautsAndNamesANameGivenInNfdLikeInNfc(@TempDir Path dir) throws Exception {
+        File png = file(dir, "moodframe_20261116_173617_nano-banana-2_c8db09f7.png", 0x89, 0x50, 0x4E, 0x47);
+        File downloads = dir.resolve("Downloads").toFile();
+        LocalDateTime createdAt = LocalDateTime.of(2026, 11, 16, 17, 36, 17);
+        String nfc = "Größe Übung – Café";
+        String nfd = Normalizer.normalize(nfc, Normalizer.Form.NFD);
+
+        assertNotEquals(nfc, nfd);
+        assertEquals("Größe Übung – Café 2026-11-16 17.36.17.png",
+                DownloadsFolder.copy(png, nfc, createdAt, downloads));
+        assertEquals("Größe Übung – Café 2026-11-16 17.36.17 2.png",
+                DownloadsFolder.copy(png, nfd, createdAt, downloads));
     }
 
     @Test

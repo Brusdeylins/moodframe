@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -66,17 +67,22 @@ public final class DownloadsFolder {
     }
 
     /**
-     * Gets the chat name as part of a file name: without the characters a file system does not allow, the white
-     * space collapsed, at most 80 characters; {@code MoodFrame} without a name.
+     * Gets the chat name as part of a file name: in Unicode NFC with umlauts and other letters kept, without the
+     * characters a file system does not allow, the white space collapsed, at most 80 characters; {@code MoodFrame}
+     * without a name.
      *
      * @param chatName the name of the chat (may be null)
      * @return the cleaned name
      */
     static String chatName(String chatName) {
-        String name = chatName == null ? ""
-                : FORBIDDEN.matcher(chatName.replaceAll("\\s", " ")).replaceAll("").replaceAll(" +", " ").trim();
+        /*  NFC, as macOS hands out names decomposed (NFD) at times and the numbering compares the names  */
+        String name = chatName == null ? "" : Normalizer.normalize(chatName, Normalizer.Form.NFC);
+        name = FORBIDDEN.matcher(name.replaceAll("\\s", " ")).replaceAll("").replaceAll(" +", " ").trim();
+
+        /*  Never cut a character outside the BMP, like an emoji, in half  */
         if (name.length() > MAX_CHAT_NAME)
-            name = name.substring(0, MAX_CHAT_NAME).trim();
+            name = name.substring(0, Character.isHighSurrogate(name.charAt(MAX_CHAT_NAME - 1))
+                    ? MAX_CHAT_NAME - 1 : MAX_CHAT_NAME).trim();
         return name.isEmpty() ? "MoodFrame" : name;
     }
 
