@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
   shows faintly instead of distracting from the image
 - Large preview: every button lies on a round dark surface, so it shows on white, black and colorful images alike
 - Large preview: zoomed in, the image pans up to its edges, where the frame shows that the edge is reached
+- Large preview: the buttons at the top keep the same distance from the sides as the arrows and stand right above
+  them
 
 ### FIX
 - Light themes: the hints of the buttons in the full view and on the bar over an image show dark text instead of

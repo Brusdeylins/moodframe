@@ -874,6 +874,56 @@ class ImagePreviewOverlayTest {
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
+    /*  The shown button of the given icon, in the coordinates of the overlay  */
+    private static Bounds buttonBounds(ImagePreviewOverlay overlay, String iconPattern) {
+        Button button = previewButtons(overlay).stream()
+                .filter((candidate) -> candidate.getGraphic() instanceof FontIcon icon
+                        && icon.getIconLiteral().matches(iconPattern))
+                .findFirst().orElseThrow(() -> new AssertionError("no shown button " + iconPattern));
+        return button.localToScene(button.getLayoutBounds());
+    }
+
+    @Test
+    void theTopButtonsKeepTheSideMarginOfTheImageArrows() throws Exception {
+        Path image = image(dir, "image.png", 640, 480, 0x808080);
+        String before = Application.getUserAgentStylesheet();
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = styledOverlayOfSize("primer-dark", 1000, 700);
+            created.showImages(List.of(image.toString(), image.toString(), image.toString()), 1);
+            created.layout();
+            return created;
+        });
+        try {
+            onFxThread(() -> {
+                Bounds close    = buttonBounds(overlay, "mdi2c-close");
+                Bounds zoom     = buttonBounds(overlay, "mdi2m-magnify(-plus|-minus)?");
+                Bounds next     = buttonBounds(overlay, "mdi2c-chevron-right");
+                Bounds download = buttonBounds(overlay, "mdi2d-download");
+                Bounds edit     = buttonBounds(overlay, "mdi2p-pencil");
+                Bounds previous = buttonBounds(overlay, "mdi2c-chevron-left");
+
+                /*  the top buttons stand exactly above the arrows, 30 px off the sides, 20 px below the top  */
+                assertEquals(next.getMaxX(), close.getMaxX(), 1.0);
+                assertEquals(previous.getMinX(), download.getMinX(), 1.0);
+                assertEquals(1000 - 30, close.getMaxX(), 1.0);
+                assertEquals(30, download.getMinX(), 1.0);
+                assertEquals(1000 - 80, zoom.getMaxX(), 1.0);
+                assertEquals(80, edit.getMinX(), 1.0);
+                for (Bounds top : List.of(close, zoom, download, edit))
+                    assertEquals(20, top.getMinY(), 1.0);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                Application.setUserAgentStylesheet(before);
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
     @Test
     void everyButtonShowsOnWhiteAndOnBlackImagesInAllThemes() throws Exception {
         Path white = image(dir, "white.png", 2400, 1600, 0xffffff);

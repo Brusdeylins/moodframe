@@ -430,13 +430,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * interference.
      */
     private void setAbsoluteButtonPositions() {
-        // Close button - top right corner (absolute position)
+        // Close button - top right corner, above the next image button (absolute position)
         AnchorPane.setTopAnchor(closeButton, 20.0);
-        AnchorPane.setRightAnchor(closeButton, 20.0);
+        AnchorPane.setRightAnchor(closeButton, 30.0);
 
         // Toggle Zoom button - top right, next to close button (absolute position)
         AnchorPane.setTopAnchor(zoom100Button, 20.0);
-        AnchorPane.setRightAnchor(zoom100Button, 70.0); // 20 + 40 + 10 margin from close button
+        AnchorPane.setRightAnchor(zoom100Button, 80.0); // 30 + 40 + 10 margin from close button
 
         // Image navigation - left and right sides (centered vertically)
         AnchorPane.setLeftAnchor(prevImageButton, 30.0);
@@ -460,12 +460,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         AnchorPane.setTopAnchor(prevChatButton, 20.0);
         AnchorPane.setBottomAnchor(nextChatButton, 20.0);
 
-        // Action buttons - top left (absolute position)
+        // Action buttons - top left, above the previous image button (absolute position)
         AnchorPane.setTopAnchor(downloadButton, 20.0);
-        AnchorPane.setLeftAnchor(downloadButton, 20.0);
+        AnchorPane.setLeftAnchor(downloadButton, 30.0);
 
         AnchorPane.setTopAnchor(editThisButton, 20.0);
-        AnchorPane.setLeftAnchor(editThisButton, 70.0); // 20 + 40 + 10 margin from download button
+        AnchorPane.setLeftAnchor(editThisButton, 80.0); // 30 + 40 + 10 margin from download button
 
         // Play/Pause button - bottom center (positioned via layout listener)
         AnchorPane.setBottomAnchor(playPauseButton, 80.0);
