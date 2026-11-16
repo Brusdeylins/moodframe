@@ -35,6 +35,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
+import javafx.stage.Stage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -977,6 +978,254 @@ class ImagePreviewOverlayTest {
             onFxThread(() -> {
                 Application.setUserAgentStylesheet(before);
                 return null;
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    /*  As in the main window: the preview above the layout of the app, which needs 894 px at least  */
+    private static StackPane mainWindowOfSize(ImagePreviewOverlay overlay, double width, double height) {
+        Region app = new Region();
+        app.setMinWidth(894.0);
+        StackPane root = new StackPane(app, overlay);
+        Scene scene = new Scene(root, width, height);
+        scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
+        layOut(root, width, height);
+        return root;
+    }
+
+    /*  Lays out the window, not shown, at the given size, as a pulse does  */
+    private static void layOut(StackPane root, double width, double height) {
+        root.applyCss();
+        root.resize(width, height);
+        root.layout();
+    }
+
+    /*  The preview covers exactly the window, with every shown button and label inside it, the side buttons 30 px
+        off its edges, the arrows of the chat centered, the image in the middle  */
+    private static void assertCoversTheWindow(ImagePreviewOverlay overlay, double width, double height) {
+        String size = width + "x" + height;
+        Bounds covered = overlay.localToScene(overlay.getLayoutBounds());
+        assertEquals(0.0, covered.getMinX(), 0.5, size);
+        assertEquals(0.0, covered.getMinY(), 0.5, size);
+        assertEquals(width, covered.getWidth(), 0.5, size);
+        assertEquals(height, covered.getHeight(), 0.5, size);
+        List<Node> shownNodes = new ArrayList<>(previewButtons(overlay));
+        assertTrue(shownNodes.size() >= 6, () -> size + ": " + shownNodes.size() + " buttons");
+        find(overlay, Label.class).stream().filter((label) -> shown(label) && label.getText() != null
+                && !label.getText().isEmpty()).forEach(shownNodes::add);
+        for (Node node : shownNodes) {
+            Bounds bounds = node.localToScene(node.getLayoutBounds());
+            assertTrue(bounds.getMinX() >= -0.5 && bounds.getMaxX() <= width + 0.5 && bounds.getMinY() >= -0.5
+                    && bounds.getMaxY() <= height + 0.5, () -> size + ": " + node + " at " + bounds);
+        }
+        for (String left : List.of("mdi2d-download", "mdi2c-chevron-left"))
+            assertEquals(30.0, buttonBounds(overlay, left).getMinX(), 1.0, size + ", " + left);
+        for (String right : List.of("mdi2c-close", "mdi2c-chevron-right"))
+            assertEquals(width - 30.0, buttonBounds(overlay, right).getMaxX(), 1.0, size + ", " + right);
+        for (Button chat : previewButtons(overlay))
+            if (chat.getGraphic() instanceof FontIcon icon && icon.getIconLiteral().matches("mdi2c-chevron-(up|down)"))
+                assertEquals(width / 2, chat.localToScene(chat.getLayoutBounds()).getCenterX(), 1.0, size);
+        Bounds image = imageBounds(overlay);
+        assertEquals(width / 2, image.getCenterX(), 1.0, size + ": " + image);
+        assertEquals(height / 2, image.getCenterY(), 1.0, size + ": " + image);
+    }
+
+    @Test
+    void inAWindowShrunkBelowTheMinimumOfTheAppThePreviewCoversItExactly() throws Exception {
+        Path image = image(dir, "image.png", 1200, 900, 0x808080);
+        List<String> paths = List.of(image.toString(), image.toString(), image.toString());
+        String before = Application.getUserAgentStylesheet();
+        Platform.setImplicitExit(false);
+        AtomicReference<Stage> stage = new AtomicReference<>();
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme("primer-dark").getUserAgentStylesheet());
+            return new ImagePreviewOverlay();
+        });
+        try {
+
+            /*  open in a large window which then shrinks to the smallest size of the app; laid out without showing
+                it, as the headless screen of the tests holds no window larger than 1280 x 800  */
+            onFxThread(() -> {
+                StackPane root = mainWindowOfSize(overlay, 1800, 1100);
+                overlay.showImages(paths, 1);
+                overlay.updateChatNavigationButtons(true, true);
+                layOut(root, 1800, 1100);
+                layOut(root, 800, 600);
+                assertTrue(root.minWidth(-1) > 800, () -> "the app needs " + root.minWidth(-1));
+                assertCoversTheWindow(overlay, 800, 600);
+                return null;
+            });
+
+            /*  shown in a window of that size, then the gallery of the images view with its counter and line  */
+            onFxThread(() -> {
+                StackPane root = (StackPane) overlay.getParent();
+                stage.set(new Stage());
+                stage.get().setScene(root.getScene());
+                stage.get().setWidth(800);
+                stage.get().setHeight(600);
+                stage.get().show();
+                layOut(root, 800, 600);
+                assertCoversTheWindow(overlay, 800, 600);
+                overlay.closeOverlay();
+                overlay.showGallery(paths, List.of("Mood · Frame · Model", "Mood", "Frame"), 1);
+                layOut(root, 800, 600);
+                assertCoversTheWindow(overlay, 800, 600);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                if (stage.get() != null)
+                    stage.get().hide();
+                Application.setUserAgentStylesheet(before);
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    /*  Every edge of the image on a whole device pixel of the given screen scale, the line of the frame flush  */
+    private static void assertOnDevicePixels(ImagePreviewOverlay overlay, double scale) {
+        Bounds image = imageBounds(overlay);
+        for (double edge : new double[] { image.getMinX(), image.getMaxX(), image.getMinY(), image.getMaxY() })
+            assertEquals(Math.round(edge * scale) / scale, edge, 1e-6, () -> scale + ": " + image);
+        assertFramed(overlay);
+    }
+
+    /*  In the picture of a white image, the last pixel at each of the given number of shown edges belongs to the
+        image, the two right outside to the 2 px line of the frame, in one color: no seam of the dark stage  */
+    private static void assertNoSeam(ImagePreviewOverlay overlay, int shownEdges) {
+        Bounds image = imageBounds(overlay);
+        PixelReader pixels = overlay.getScene().snapshot(null).getPixelReader();
+        int x0 = (int) image.getMinX();
+        int x1 = (int) image.getMaxX();
+        int y0 = (int) image.getMinY();
+        int y1 = (int) image.getMaxY();
+        int cx = (int) Math.max(x0, Math.min(x1, overlay.getWidth() / 2));
+        int cy = (int) Math.max(y0, Math.min(y1, overlay.getHeight() / 2));
+        int checked = 0;
+        int[][] edges = { { x0, cy, -1, 0 }, { x1 - 1, cy, 1, 0 }, { cx, y0, 0, -1 }, { cx, y1 - 1, 0, 1 } };
+        for (int[] edge : edges) {
+            int x = edge[0];
+            int y = edge[1];
+            int outerX = x + 2 * edge[2];
+            int outerY = y + 2 * edge[3];
+            if (outerX < 0 || outerY < 0 || outerX >= overlay.getWidth() || outerY >= overlay.getHeight()
+                    || x < 0 || y < 0 || x >= overlay.getWidth() || y >= overlay.getHeight())
+                continue;
+            Color inside = pixels.getColor(x, y);
+            Color line = pixels.getColor(x + edge[2], y + edge[3]);
+            Color outer = pixels.getColor(outerX, outerY);
+            String what = image + " at " + x + "," + y + ": " + inside + ", " + line + ", " + outer;
+            assertTrue(inside.getRed() > 0.98 && inside.getGreen() > 0.98 && inside.getBlue() > 0.98, what);
+            assertTrue(Math.max(line.getRed(), Math.max(line.getGreen(), line.getBlue())) > 0.6, what);
+            assertTrue(Math.abs(line.getRed() - outer.getRed()) < 0.03 && Math.abs(line.getGreen() - outer.getGreen())
+                    < 0.03 && Math.abs(line.getBlue() - outer.getBlue()) < 0.03, what);
+            checked++;
+        }
+        assertEquals(shownEdges, checked, image::toString);
+    }
+
+    @Test
+    void imageAndFrameLieOnWholePixelsWithoutASeam() throws Exception {
+        Path white = image(dir, "white.png", 2000, 1500, 0xffffff);
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = overlayOfSize(1000, 700);
+            created.showImages(List.of(white.toString()), 0);
+            created.layout();
+            return created;
+        });
+        try {
+
+            /*  fitted, its size and its centered position would be fractions of pixels  */
+            onFxThread(() -> {
+                assertOnDevicePixels(overlay, 1.0);
+                assertNoSeam(overlay, 4);
+                return null;
+            });
+
+            /*  zoomed in, still within the window, then larger than it  */
+            for (int edges : new int[] { 4, 0 }) {
+                onFxThread(() -> {
+                    press(overlay, KeyCode.PLUS);
+                    assertOnDevicePixels(overlay, 1.0);
+                    assertNoSeam(overlay, edges);
+                    return null;
+                });
+            }
+
+            /*  panned by fractions of pixels, up to the upper left edges, a little back, up to the lower right ones  */
+            double[][] deltas = { { 10.3, -7.7 }, { 3000.0, 3000.0 }, { -0.4, 0.6 }, { -3000.0, -3000.0 } };
+            int[] shown = { 0, 2, 2, 2 };
+            for (int i = 0; i < deltas.length; i++) {
+                double[] delta = deltas[i];
+                int edges = shown[i];
+                onFxThread(() -> {
+                    drag(overlay, delta[0], delta[1]);
+                    assertOnDevicePixels(overlay, 1.0);
+                    assertNoSeam(overlay, edges);
+                    return null;
+                });
+            }
+
+            /*  a window of odd size, the image there panned up to the lower right edges once more  */
+            onFxThread(() -> {
+                resize(overlay, 917, 633);
+                assertOnDevicePixels(overlay, 1.0);
+                assertNoSeam(overlay, 0);
+                drag(overlay, -3000.0, -3000.0);
+                assertOnDevicePixels(overlay, 1.0);
+                assertNoSeam(overlay, 2);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    @Test
+    void atAScreenScaleOf2ImageAndFrameLieOnItsDevicePixels() throws Exception {
+        Path white = image(dir, "white.png", 2000, 1500, 0xffffff);
+        Platform.setImplicitExit(false);
+        AtomicReference<Stage> stage = new AtomicReference<>();
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = new ImagePreviewOverlay();
+            stage.set(new Stage());
+            stage.get().setScene(new Scene(created, 1000, 700));
+            stage.get().show();
+            stage.get().setRenderScaleX(2.0);
+            stage.get().setRenderScaleY(2.0);
+            resize(created, 1000, 700);
+            created.showImages(List.of(white.toString()), 0);
+            created.layout();
+            return created;
+        });
+        try {
+            onFxThread(() -> {
+                assertOnDevicePixels(overlay, 2.0);
+                Bounds image = imageBounds(overlay);
+                assertTrue(image.getMinX() % 1.0 != 0.0 || image.getMaxX() % 1.0 != 0.0
+                        || image.getMinY() % 1.0 != 0.0 || image.getMaxY() % 1.0 != 0.0,
+                        () -> "on half pixels, not just on whole ones: " + image);
+                press(overlay, KeyCode.PLUS);
+                press(overlay, KeyCode.PLUS);
+                drag(overlay, 10.3, -7.7);
+                assertOnDevicePixels(overlay, 2.0);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                stage.get().hide();
+                return I18nManager.removeChangeListener(overlay);
             });
         }
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);

@@ -28,6 +28,10 @@ All notable changes to this project will be documented in this file.
   white text on a light background
 - Large preview: a smaller window fits the image and the video anew, so the buttons no longer cover them; zoomed in,
   the zoom stays
+- Large preview: in a small window, also one shrunk from a large size, all buttons lie inside it again instead of
+  being cut off at the sides
+- Large preview: the frame lies right at the edge of the image and the video, without a dark seam of a pixel in
+  between, also zoomed in, panned and on Retina screens
 
 ## 2.1.0 (2026-11-16)
 

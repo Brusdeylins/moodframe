@@ -80,6 +80,7 @@ import java.util.function.Consumer;
  * @updated 2.2.0 - Slowly turning mood frame around image and video instead of the drop shadow
  * @updated 2.2.0 - Nearly opaque dark stage in all themes, also in the light ones
  * @updated 2.2.0 - Image and video fit anew on every resize, panning ends at the frame, round surface of the buttons
+ * @updated 2.1.1 - Exactly the size of a shrunk window, image, video and frame on device pixels
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -187,9 +188,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             }
         });
 
-        // Create main image view
+        /*  Image and video get both fit sizes, in their ratio and rounded to device pixels; preserving the ratio
+            once more would shift an edge off the pixels again  */
         imageView = new ImageView();
-        imageView.setPreserveRatio(true);
+        imageView.setPreserveRatio(false);
         imageView.setSmooth(true);
         imageView.setCache(true);
 
@@ -197,6 +199,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // rendering
         imageView.setPickOnBounds(true);
         imageView.setManaged(false); // This prevents the image from affecting parent layout
+
+        /*  Panning moves the image by whole device pixels only  */
+        imageView.translateXProperty().addListener((observable, was, now) -> placeImage());
+        imageView.translateYProperty().addListener((observable, was, now) -> placeImage());
 
         /*  The mood frame lies behind the image, its glow takes the place of the former drop shadow  */
         moodFrame = new PreviewFrame();
@@ -207,7 +213,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
         // Create MediaView for video playback (initially hidden)
         mediaView = new MediaView();
-        mediaView.setPreserveRatio(true);
+        mediaView.setPreserveRatio(false);
         mediaView.setSmooth(true);
         mediaView.setVisible(false);
         mediaView.setManaged(false);
@@ -234,6 +240,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         navigationAnchor.setStyle("-fx-background-color: transparent;");
         navigationAnchor.setPickOnBounds(false);
         navigationAnchor.setMouseTransparent(false);
+
+        /*  Without a minimum, overlay and buttons take exactly the size of the window: the buttons centered via their
+            layout position made the minimum half the former size, so a shrunk window cut off the buttons  */
+        navigationAnchor.setMinSize(0.0, 0.0);
 
         // Wrap in StackPane for compatibility with existing code
         navigationLayer = new StackPane();
@@ -796,9 +806,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double originalWidth = imageView.getImage().getWidth();
         double originalHeight = imageView.getImage().getHeight();
 
-        // Calculate actual display size based on zoom level
-        double displayWidth = originalWidth * currentZoom;
-        double displayHeight = originalHeight * currentZoom;
+        /*  The display size at the zoom level, rounded to whole device pixels  */
+        double displayWidth = displayLayer.snapPositionX(originalWidth * currentZoom);
+        double displayHeight = displayLayer.snapPositionY(originalHeight * currentZoom);
 
         // Set the ImageView to display at exact pixel size
         imageView.setFitWidth(displayWidth);
@@ -810,13 +820,21 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
         // Manually center the image since setManaged(false) disables automatic
         // centering
+        placeImage();
+
+    }
+
+    /*  The image lies centered, moved by the pan, with its edges on device pixels (also at a screen scale of 2), so
+        the frame lies flush against it and no seam of the dark stage shines through the smoothed edges  */
+    private void placeImage() {
         double containerWidth = displayLayer.getWidth();
         double containerHeight = displayLayer.getHeight();
-        if (containerWidth > 0 && containerHeight > 0) {
-            imageView.setLayoutX((containerWidth - displayWidth) / 2);
-            imageView.setLayoutY((containerHeight - displayHeight) / 2);
-        }
-
+        if (containerWidth <= 0 || containerHeight <= 0)
+            return;
+        double x = (containerWidth - imageView.getFitWidth()) / 2 + imageView.getTranslateX();
+        double y = (containerHeight - imageView.getFitHeight()) / 2 + imageView.getTranslateY();
+        imageView.setLayoutX(displayLayer.snapPositionX(x) - imageView.getTranslateX());
+        imageView.setLayoutY(displayLayer.snapPositionY(y) - imageView.getTranslateY());
     }
 
     /*  The frame surrounds the video once its size is known, else the image, and nothing while neither shows  */
@@ -1307,14 +1325,15 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             double scaleH = Math.max(1.0, containerHeight - 120) / mediaHeight;
             double scale = Math.min(scaleW, scaleH);
             scale = Math.min(scale, 1.0); // Don't upscale
-            videoWidth = mediaWidth * scale;
-            videoHeight = mediaHeight * scale;
+            videoWidth = displayLayer.snapPositionX(mediaWidth * scale);
+            videoHeight = displayLayer.snapPositionY(mediaHeight * scale);
             mediaView.setFitWidth(videoWidth);
             mediaView.setFitHeight(videoHeight);
         }
 
-        mediaView.setLayoutX((containerWidth - videoWidth) / 2);
-        mediaView.setLayoutY((containerHeight - videoHeight) / 2);
+        /*  On device pixels like the image, for the frame to lie flush against it  */
+        mediaView.setLayoutX(displayLayer.snapPositionX((containerWidth - videoWidth) / 2));
+        mediaView.setLayoutY(displayLayer.snapPositionY((containerHeight - videoHeight) / 2));
     }
 
     /**
