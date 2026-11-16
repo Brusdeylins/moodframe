@@ -35,3 +35,5 @@
 - shot: MEDIUM and CLOSE_UP as plain crops of F2 (same position, tighter framing; no model), DETAIL ba904e81 from 130 px eye crop, EXTREME_WIDE e67d70e5 (step back, flowers shrink with her); perspective-TOP_DOWN example 2ad385bd chosen by user; TOP_DOWN text 'all at true scale' (street test c730dbb0/7a9f3e58: giant musician gone)
 - shot-WIDE: dress like F2 -> a5d2250e; TOP_DOWN text v3 'no larger than people or things beside it' (c9db3134 ok, 9add70bf still big+frontal)
 - shot-EXTREME_WIDE: user expected a different (wider) background; e67d70e5 shrunk to 50 % and outpainted -> 04f34d0f. Conflict tests: 14mm+CLOSE_UP 144a4847, 135mm+EXTREME_WIDE d3987723 (diptych!)
+- shutter waterfall graded (user 2026-11-16): FROZEN 3b9ef40f crisp jets, NORMAL F2, MOTION_BLUR 83f68bff streaks, LONG_EXPOSURE cde6cbe1 silky veil
+- shutter-FROZEN: 3b9ef40f had giant drops (user: proportions); distant waterfall cannot show single drops -> 0ca1555b crisp ribbons
