@@ -1,0 +1,37 @@
+- body-ACTION_CAM: example is a NEW image (no reference), edits of F2 never changed the geometry (8 attempts); "fisheye" triggers a circular image, "extreme barrel distortion filling the whole rectangular frame" works about 1 in 2.
+- body-ACTION_CAM: example prompt adds 'both arms relaxed at her sides ... no selfie stick visible' to the motif (not to the camera text); image dc89f76d
+
+## Ticket: fixed settings of a camera body (user 2026-11-16)
+- Bodies with a fixed lens set lens (and aperture where fixed) automatically and show them read-only ("set by Action Cam"); "any" is not offered for a fixed stage.
+- A fixed stage adds no second prompt fragment; only stages that refine the body add text. The body text must not already name aperture or focal length when the stage can still be set separately (no double or contradicting phrases).
+- Conflict table CameraSettings.java:45 review (pro view): Smartphone free 85/135 mm and Macro (tele 4-5x, macro mode); 35mm Film free ISO 100 (Ektar 100) and change ISO 100 text to "finest grain or noise"; Instant: fixed normal lens, all other lenses blocked, auto aperture; Action Cam: also block f/1.4 and f/4; Macro: free f/11 (macro uses f/8-f/16).
+- Edits cannot change geometry with Nano Banana Pro (barrel distortion, roll, tilt-shift, focal length tele): show a hint in the camera dialog/at send when a reference image is attached and such a stage is chosen.
+- Shutter per body: Instant (SX-70 automatic 1/175 s to ~14 s, no manual control) -> block FROZEN, shutter "automatic"; Smartphone: no block, but LONG_EXPOSURE is computational (Live Photo frames merged / night mode stacking), text may say so; iPhone 18 Pro has variable aperture (Halide 3.2), camera model list still names iPhone 17 Pro.
+- Shutter and ISO as sliders with detents (1/4000, 1/125, 1/15, 10 s), icons above the detents.
+- body-ACTION_CAM example = image 2 (dc89f76d, new render, other woman, arm towards camera) chosen by user for "more action".
+- lens-MM_85, lens-MM_135, lens-TILT_SHIFT: examples are NEW images (edits of F2 unchanged, 3 attempts each)
+- Method (user 2026-11-16): settings an edit cannot show are first rendered as a NEW image with the camera text (shows what the model really does), then the F2 woman (face, hair, dress, pose) is put into that image with two references ("Image 1 is the photo to keep, image 2 shows a woman. Replace the woman in image 1 ... keep her exact position, size and perspective"). Used for lens FISHEYE, MM_85, MM_135, MM_400, TILT_SHIFT (renders 273142cf, dec6e7e3, 97177005, 0efe38b4, 57511a67).
+- lens-MACRO: on the eye (user: not the chest)
+- lens-FISHEYE: render adf4d298 (stronger text) + F2 woman composite 4a094adc; physics: nothing (no sun rays, no flare) outside the image circle
+- lens-MACRO: 1e4ba2a0 had a blurred plant between lens and eye ("keep all objects"); text now "nothing between the lens and the detail"; then edits for brown iris and gaze into the camera like F2 -> f8f16223
+- lens MM_85/135/400 (user: must be F2 scene): F2 cropped tighter around the woman (1300/950/650 px from 2048, = zoom from the same position), then re-rendered sharp with a slightly softer background -> 2ffb2489, 9f299145, 14f3bb59
+- lens-MACRO: eye crop of F2 as reference (scratchpad acc98/eyes.png) -> 93eb1ca0 (brown, gaze into camera)
+- lens-TILT_SHIFT: edits of F2 give at most a weak blur (60cdb402); open with user
+- Physics fix (user): F2 is the 35mm image. 50/85/135/400 = crops of F2 (1434/1300/950/650 px) re-rendered sharp; 24/14 = F2 shrunk to 69%/40% in the middle of a gray canvas, outpainted with NEW content (no repeated flowers); 14mm seam fixed by an edit -> ed03a6c9
+- lens-FISHEYE: software equidistant projection (Fisheye.java, 70°, circle edge = sides of source) of ed03a6c9, so content stays F2; model renders had foreign mountains/flowers
+- lens-MACRO: crop of one eye of F2 (eye1.png, 110 px) as reference -> 984c2e72 (almond, dark iris)
+- Tilt-shift split (user 2026-11-16): lens-SHIFT (architecture, verticals parallel) new value, example c6c9381f (F2 woman on an old town square in front of a clock tower, street level); lens-TILT_SHIFT (miniature) example 980abbad = the same square, tower and woman rendered anew from a rooftop with the shift image as reference (edit kept street level). Text tested on a city: textbook miniature (273ad63c, 8033d8f8).
+- lens-TILT_SHIFT: 980abbad had the woman twice as large as the people around her, seen from the front, no shadow (user: giant); fixed by an edit -> cc4ff6cf
+- lens-TILT_SHIFT text without 'toy model', 'boosted colors', viewpoint (user: lens only, realistic photo); tested on city (f3ab904e, 6d67365d) and square with woman -> c6ed2341
+- aperture: sun per stop (glow / short rays / starburst) added; edits of F2 a898c2f5, 332516bb, e1b84f07; generic test café scene 90ebd8e8, 95063839, d47e9a5d all correct
+- lens-MACRO: user's eye crop (images/103.png) + eye1 as references -> 2809fa6d; mirrored horizontally (macro_mirror.png), because F2 crop shows her right eye (outer corner left). aperture-F_1_4: stronger text -> e880e5b7 (flowers beside her stay sharp: same distance, physically right)
+- lens-MACRO final: 64 px crop of the viewer's left eye of F2 (eye3.png, offset y625 x1003), re-rendered sharp keeping framing -> b1da150d (mirror approach dropped)
+- shutter-LONG_EXPOSURE: text 5-second, wind things smeared, clouds barely soft; F2 edit 74d323ec reworked (open smile like F2, flowers blurred) -> c5c9861e; street counter-test 9344ffce accepted by user
+- iso: user idea: F2 at night under full moon (edit bb0c1681) as base for both ISO images -> ISO_100 91211220, ISO_3200 ae1ddc78; grain only visible at 100% (iso-night-100pct.png); jazz counter-test feeda06a / e856884d ok
+- example size 640x640 (retina, user); ISO examples as 500 px face crops (crop offset y500 x1000 of 2048)
+- perspective: TOP_DOWN old text gave eye level on the street test; new 'bird's-eye ... only the ground and tops' works (78a8a7bf); F2 example as new render with F2 reference, standing woman foreshortened looking up -> 8f66ff21 (first try had her lying down). DUTCH_ANGLE: edit cannot roll; F2 rotated -20° in software and cropped (dutch.png). Street counter-tests LOW 4ad3e0e6, HIGH b5b5e6cf, DUTCH c9423828 ok.
+- perspective-HIGH_ANGLE: woman looked different (user); F2 woman put into 17e048a9 -> 06139967
+- perspective-LOW_ANGLE: dress blown too strongly (user); edit with F2 reference -> 0413feb8 (user chose right one)
+- shot: MEDIUM and CLOSE_UP as plain crops of F2 (same position, tighter framing; no model), DETAIL ba904e81 from 130 px eye crop, EXTREME_WIDE e67d70e5 (step back, flowers shrink with her); perspective-TOP_DOWN example 2ad385bd chosen by user; TOP_DOWN text 'all at true scale' (street test c730dbb0/7a9f3e58: giant musician gone)
+- shot-WIDE: dress like F2 -> a5d2250e; TOP_DOWN text v3 'no larger than people or things beside it' (c9db3134 ok, 9add70bf still big+frontal)
+- shot-EXTREME_WIDE: user expected a different (wider) background; e67d70e5 shrunk to 50 % and outpainted -> 04f34d0f. Conflict tests: 14mm+CLOSE_UP 144a4847, 135mm+EXTREME_WIDE d3987723 (diptych!)

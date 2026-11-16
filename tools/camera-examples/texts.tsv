@@ -1,0 +1,38 @@
+body-SMARTPHONE	shot on a smartphone: everything sharp from front to back, bright HDR with lifted shadows, oversharpened edges, punchy colors, a small hard sunstar with green lens ghosts, if the sun is present
+body-COMPACT_35MM	shot on a 35mm film compact camera: a candid analog snapshot, coarse, clearly visible film grain, faded film colors, darker corners, a warm halation glow around the sun and bright lights, if present
+body-FULL_FRAME	shot on a full-frame digital camera: crisp fine detail, clean tones, a wide dynamic range with detail in the brightest and darkest areas, natural colors
+body-MEDIUM_FORMAT	shot on a medium format camera: exceptionally fine detail, very smooth tonal transitions, rich lifelike midtones, the main subject sharp, the background falling off softly into gentle blur
+body-INSTANT	scan of an instant film photo: a square picture in a cream-white frame with a much wider bottom border, soft detail, low contrast, pastel colors
+body-DRONE	aerial drone photo from far above, about 50 meters high, looking steeply down: the main subject tiny, the terrain around it spread out below like a map
+body-ACTION_CAM	action camera: the camera very close to the main subject, which looms large, the background small and far away, extreme barrel distortion filling the rectangular frame, the horizon curved into an arc
+lens-MM_14	14mm ultra-wide lens, 114° view: a very wide view, everything in the frame much smaller, far more of the surroundings at every edge, lines stretched and converging near the edges
+lens-MM_24	24mm wide-angle lens, 84° view: a wide view, everything in the frame smaller, much more of the surroundings at the edges, a strong sense of depth
+lens-MM_35	35mm lens, 63° view: a moderately wide view, the main subject together with its surroundings, natural perspective
+lens-MM_50	50mm lens, 47° view: a natural perspective like the human eye, undistorted proportions, near and far in natural relation
+lens-MM_85	85mm lens, 29° view: a narrower view, everything in the frame larger, less of the surroundings, the background enlarged and pulled closer, softly out of focus
+lens-MM_135	135mm telephoto lens, 18° view: a narrow view, everything much larger, only a small slice of the background, strongly enlarged and pulled close behind the main subject, flattened depth
+lens-MM_400	400mm super-telephoto lens, 6° view from very far away: the background hugely enlarged and stacked flat right behind the main subject, distant mountains or buildings, if present, looming huge
+lens-MACRO	macro lens at 1:1: a tiny detail of the main subject, such as the eye of a person, filling the frame, nothing between the lens and the detail, finest textures visible, a paper-thin plane in focus
+lens-FISHEYE	circular fisheye lens: a round 180° image circle on pure black, nothing outside it, everything inside heavily bulging from the center, straight lines bent into strong curves, the horizon a deep arc
+lens-TILT_SHIFT	tilt-shift lens with tilted focus: a realistic photo with only a narrow horizontal band in sharp focus, everything above and below it progressively and strongly blurred
+lens-SHIFT	shift lens: the camera level, all vertical lines, such as the edges of buildings, if present, perfectly parallel and upright, no converging lines, even when looking up at tall things
+lens-ANAMORPHIC	anamorphic lens: a widescreen cinematic look, oval out-of-focus highlights, long horizontal blue lens flares from bright lights, if present, slight barrel distortion
+aperture-F_1_4	f/1.4: razor-thin focus on the main subject only; the background melts into smooth, featureless color areas, foreground things near the camera into soft blurs; bright lights as round glows
+aperture-F_4	f/4: a moderate depth of field, the main subject sharp, things well in front of or behind it gently blurred but recognizable; the sun, if present, with short soft rays
+aperture-F_11	f/11: a deep depth of field, everything sharp from the nearest foreground to the far background; the sun or bright point lights, if present, as crisp starbursts with long rays
+shutter-FROZEN	a very fast shutter of 1/4000 s: everything that moves, such as hair, fabric, water drops, people or vehicles, if present, frozen crisply in mid-motion, no blur
+shutter-NORMAL	
+shutter-MOTION_BLUR	a slow shutter of about 1/15 s: everything that moves, such as hair, fabric, water, leaves, people or vehicles, if present, smeared into long, clearly visible streaks; static parts sharp
+shutter-LONG_EXPOSURE	a 5-second exposure of exactly this scene, nothing added: whatever moves, such as hair, fabric or leaves, smeared strongly; water a silky veil, walkers ghosts, vehicles light trails; still parts sharp
+iso-ISO_100	ISO 100: a clean, smooth image without any visible noise, the finest detail, rich colors and the widest tonal range
+iso-ISO_3200	ISO 3200: strong, clearly visible grain and color noise across the whole image, strongest in the shadows, slightly softer detail and muted colors
+perspective-EYE_LEVEL	eye level: the camera at the height of the main subject, looking straight at it, vertical lines upright
+perspective-LOW_ANGLE	a low angle: the camera low, looking up at the main subject, which looms large, the sky or ceiling behind it, vertical lines, if present, converging upward
+perspective-HIGH_ANGLE	a high angle: the camera above the main subject, looking down at it, the main subject smaller, the ground behind it
+perspective-TOP_DOWN	a top-down view from high above, looking straight down: the main subject seen from above like everything around it, no larger than people or things beside it, only ground and tops visible, no horizon
+perspective-DUTCH_ANGLE	a dutch angle: the camera rolled sideways by about 20 degrees, the whole image clearly tilted, the horizon, if present, and all vertical lines running diagonally
+shot-EXTREME_WIDE	an extreme wide shot: the main subject tiny within a vast view of its surroundings
+shot-WIDE	a wide shot: the whole main subject in the frame with space around it, such as a person from head to toe
+shot-MEDIUM	a medium shot: the camera closer, about half of the main subject in the frame, such as a person from the waist up, the rest cut off by the frame edge
+shot-CLOSE_UP	a close-up: the main subject fills the frame, such as a face with head and shoulders
+shot-DETAIL	an extreme close-up: a single small detail of the main subject fills the whole frame, such as the eyes or a hand
