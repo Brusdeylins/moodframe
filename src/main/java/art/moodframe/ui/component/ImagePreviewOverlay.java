@@ -78,6 +78,7 @@ import java.util.function.Consumer;
  * @updated 2.1.0 - Poster and the video player of the system for a video JavaFX cannot play
  * @updated 2.1.0 - What helps under Linux to play videos, with a command to copy
  * @updated 2.2.0 - Slowly turning mood frame around image and video instead of the drop shadow
+ * @updated 2.2.0 - Nearly opaque dark stage in all themes, also in the light ones
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -165,7 +166,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // =================== LAYER 1: DISPLAY LAYER ===================
         // This layer contains the black background and the image (can zoom/pan)
         displayLayer = new StackPane();
-        displayLayer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8);");
+
+        /*  A dark stage in all themes, as in photo programs: the app behind it shows only faintly  */
+        displayLayer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.92);");
 
         // CRITICAL: Enable clipping to prevent image overflow from affecting button
         // positions

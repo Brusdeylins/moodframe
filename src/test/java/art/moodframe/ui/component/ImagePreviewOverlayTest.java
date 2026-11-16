@@ -24,6 +24,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -671,6 +673,66 @@ class ImagePreviewOverlayTest {
                 return I18nManager.removeChangeListener(overlay);
             });
         }
+    }
+
+    /*  The relative luminance of WCAG 2.x: 0 for black, 1 for white  */
+    private static double luminance(Color color) {
+        double[] channels = { color.getRed(), color.getGreen(), color.getBlue() };
+        for (int i = 0; i < channels.length; i++)
+            channels[i] = channels[i] <= 0.04045 ? channels[i] / 12.92 : Math.pow((channels[i] + 0.055) / 1.055, 2.4);
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    }
+
+    private static double contrast(Color one, Color other) {
+        double lighter = Math.max(luminance(one), luminance(other));
+        double darker  = Math.min(luminance(one), luminance(other));
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    @Test
+    void inLightThemesThePreviewIsADarkStageWithReadableButtons() throws Exception {
+        Path image = image(dir, "white.png", 640, 480, 0xffffff);
+        String before = Application.getUserAgentStylesheet();
+        String iconButtonCss = ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm();
+        try {
+            for (String theme : List.of("primer-light", "nord-light", "cupertino-light")) {
+                onFxThread(() -> {
+                    Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
+
+                    /*  The app behind the preview at its brightest: white  */
+                    Region app = new Region();
+                    app.setStyle("-fx-background-color: white;");
+                    ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+                    Scene scene = new Scene(new StackPane(app, overlay), 1000, 700);
+                    scene.getStylesheets().add(iconButtonCss);
+                    overlay.showImage(image.toString());
+                    overlay.applyCss();
+                    overlay.layout();
+
+                    /*  A corner of the stage, away from the image, its glow and the buttons  */
+                    Color stage = scene.snapshot(null).getPixelReader().getColor(5, 695);
+                    assertTrue(luminance(stage) < 0.01, () -> theme + ": stage " + stage);
+                    int checked = 0;
+                    for (Button button : find(overlay, Button.class)) {
+                        if (shown(button) && button.getGraphic() instanceof FontIcon icon
+                                && icon.getIconColor() instanceof Color color) {
+                            assertTrue(contrast(color, stage) >= 7.0, () -> theme + ": " + icon.getIconLiteral());
+                            checked++;
+                        }
+                    }
+                    assertTrue(checked >= 4, theme + ": " + checked + " buttons");
+                    overlay.closeOverlay();
+                    return I18nManager.removeChangeListener(overlay);
+                });
+            }
+        }
+        finally {
+            onFxThread(() -> {
+                Application.setUserAgentStylesheet(before);
+                return null;
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
     /*  A configuration without file that lets the frame turn or not, instead of what another test left behind  */
