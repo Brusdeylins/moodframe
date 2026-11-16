@@ -21,6 +21,7 @@ import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.FrameListCell;
@@ -2466,7 +2467,7 @@ public class MainWindowController implements I18nChangeListener {
         ButtonType recreate = new ButtonType(I18nManager.getText("entry.mood.missing.recreate"),
                 ButtonBar.ButtonData.YES);
         ButtonType skip = new ButtonType(I18nManager.getText("entry.mood.missing.skip"), ButtonBar.ButtonData.NO);
-        ButtonType cancel = new ButtonType(I18nManager.getText("button.cancel"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType cancel = DialogButtons.cancel();
         alert.getButtonTypes().setAll(recreate, skip, cancel);
         ButtonType answer = alert.showAndWait().orElse(cancel);
         return answer == cancel ? null : answer == recreate;
@@ -5061,6 +5062,7 @@ public class MainWindowController implements I18nChangeListener {
 
             // Show error alert
             Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.getButtonTypes().setAll(DialogButtons.ok());
             alert.setTitle("Settings Error");
             alert.setHeaderText("Could not open settings dialog");
             alert.setContentText("Error: " + e.getMessage());
@@ -6751,12 +6753,14 @@ public class MainWindowController implements I18nChangeListener {
             boolean confirmed = true;
             if (hasAnySuccessfulImage) {
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                ButtonType ok = DialogButtons.ok();
+                alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
                 alert.setTitle(I18nManager.getText("delete.entry.title"));
                 alert.setHeaderText(I18nManager.getText("delete.entry.header"));
                 alert.setContentText(I18nManager.getText("delete.entry.content"));
 
                 Optional<ButtonType> result = alert.showAndWait();
-                confirmed = result.isPresent() && result.get() == ButtonType.OK;
+                confirmed = result.isPresent() && result.get() == ok;
             }
 
             if (confirmed) {
@@ -6839,12 +6843,14 @@ public class MainWindowController implements I18nChangeListener {
             boolean confirmed = true;
             if (imageExists) {
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                ButtonType ok = DialogButtons.ok();
+                alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
                 alert.setTitle(I18nManager.getText("delete.image.title"));
                 alert.setHeaderText(I18nManager.getText("delete.image.header"));
                 alert.setContentText(I18nManager.getText("delete.image.content"));
 
                 Optional<ButtonType> result = alert.showAndWait();
-                confirmed = result.isPresent() && result.get() == ButtonType.OK;
+                confirmed = result.isPresent() && result.get() == ok;
             }
 
             if (confirmed) {

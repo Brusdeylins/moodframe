@@ -19,6 +19,7 @@ import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.cell.BrainstormSessionListCell;
 import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.component.ColorBox;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
 import art.moodframe.model.ModelFamilies;
@@ -401,11 +402,12 @@ public class BrainstormDialog extends Stage {
     private void deleteSession(BrainstormSession toDelete) {
         BrainstormChat running = chats.get(toDelete.getId());
         if (running != null && running.busy) {
+            ButtonType yes = DialogButtons.yes();
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-                    I18nManager.getText("brainstorm.history.delete.running"), ButtonType.YES, ButtonType.NO);
+                    I18nManager.getText("brainstorm.history.delete.running"), yes, DialogButtons.no());
             alert.initOwner(this);
             alert.setHeaderText(null);
-            if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
+            if (alert.showAndWait().orElse(null) != yes) {
                 return;
             }
         }
@@ -800,6 +802,7 @@ public class BrainstormDialog extends Stage {
 
         YouTubeClip clip = card.clip();
         TextInputDialog dialog = new TextInputDialog(clip.hasRange() ? clip.rangeLabel() : "");
+        dialog.getDialogPane().getButtonTypes().setAll(DialogButtons.ok(), DialogButtons.cancel());
         dialog.initOwner(this);
         dialog.setTitle(I18nManager.getText("brainstorm.video.range.title"));
         dialog.setHeaderText(null);
@@ -1366,11 +1369,12 @@ public class BrainstormDialog extends Stage {
                     String free = name;
                     for (int counter = 1; taken.contains(free); counter++)
                         free = name + " (" + counter + ")";
+                    ButtonType yes = DialogButtons.yes();
                     Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-                            I18nManager.getText("brainstorm.block.taken", name, free), ButtonType.YES, ButtonType.NO);
+                            I18nManager.getText("brainstorm.block.taken", name, free), yes, DialogButtons.no());
                     alert.initOwner(this);
                     alert.setHeaderText(null);
-                    if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
+                    if (alert.showAndWait().orElse(null) != yes) {
                         blockRow.nameField.requestFocus();
                         return;
                     }

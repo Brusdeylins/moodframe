@@ -1,6 +1,7 @@
 package art.moodframe.ui.dialog;
 
 import art.moodframe.service.UpdateCheckService;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
@@ -60,7 +61,7 @@ public final class UpdateDialog {
         VBox content = new VBox(12, versions);
         alert.getDialogPane().setContent(content);
 
-        ButtonType close = new ButtonType(I18nManager.getText("button.close"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType close = DialogButtons.close();
         ButtonType dismiss = new ButtonType(I18nManager.getText("update.dismiss"), ButtonBar.ButtonData.OTHER);
         alert.getButtonTypes().setAll(close);
 

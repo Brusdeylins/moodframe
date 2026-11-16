@@ -54,6 +54,7 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
     private final PromptBlockService blockService;
     private final ButtonType saveButtonType;
     private final ButtonType saveAsNewButtonType;
+    private final ButtonType cancelButtonType = DialogButtons.cancel();
 
     // UI Elements for localization
     private Label nameLabel;
@@ -85,7 +86,7 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)
             dialogPane.getButtonTypes().add(saveButtonType);
-        dialogPane.getButtonTypes().add(ButtonType.CANCEL);
+        dialogPane.getButtonTypes().add(cancelButtonType);
 
         // Create the content grid
         GridPane grid = new GridPane();
@@ -157,7 +158,7 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
         Platform.runLater(() -> nameField.requestFocus());
 
         setResultConverter((buttonType) -> {
-            if (buttonType == null || buttonType == ButtonType.CANCEL)
+            if (buttonType == null || buttonType == cancelButtonType)
                 return null;
             return new Result(buttonType == saveButtonType ? Save.SAVE : Save.SAVE_AS_NEW, nameField.getText().trim(),
                     promptTextArea.getText().trim(), photographicCheckBox.isSelected());
@@ -207,6 +208,7 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
         if (saveAsNewButtonType != null)
             ((Button) getDialogPane().lookupButton(saveAsNewButtonType)).setText(
                     I18nManager.getText("block.dialog.save.new"));
+        ((Button) getDialogPane().lookupButton(cancelButtonType)).setText(I18nManager.getText("button.cancel"));
     }
 
     @Override

@@ -8,6 +8,7 @@ import art.moodframe.service.BrainstormContext;
 import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.MoodAnalysisService;
 import art.moodframe.ui.component.ColorBox;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -313,11 +314,12 @@ public class MoodImageDialog extends Stage {
                     String free = name;
                     for (int counter = 1; taken.contains(free); counter++)
                         free = name + " (" + counter + ")";
+                    ButtonType yes = DialogButtons.yes();
                     Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-                            I18nManager.getText("brainstorm.block.taken", name, free), ButtonType.YES, ButtonType.NO);
+                            I18nManager.getText("brainstorm.block.taken", name, free), yes, DialogButtons.no());
                     alert.initOwner(this);
                     alert.setHeaderText(null);
-                    if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) {
+                    if (alert.showAndWait().orElse(null) != yes) {
                         row.nameField.requestFocus();
                         return;
                     }

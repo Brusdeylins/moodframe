@@ -42,6 +42,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
     private final ColorStyleService colorStyleService;
     private final ButtonType saveButtonType;
     private final ButtonType saveAsNewButtonType;
+    private final ButtonType cancelButtonType = DialogButtons.cancel();
 
     // UI Elements for localization
     private Label nameLabel;
@@ -85,7 +86,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)
             dialogPane.getButtonTypes().add(saveButtonType);
-        dialogPane.getButtonTypes().add(ButtonType.CANCEL);
+        dialogPane.getButtonTypes().add(cancelButtonType);
 
         // Create the content grid
         GridPane grid = new GridPane();
@@ -156,7 +157,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
 
         // Set result converter
         setResultConverter(buttonType -> {
-            if (buttonType == null || buttonType == ButtonType.CANCEL) {
+            if (buttonType == null || buttonType == cancelButtonType) {
                 return null;
             }
 
@@ -223,6 +224,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
         if (saveAsNewButtonType != null)
             ((Button) getDialogPane().lookupButton(saveAsNewButtonType)).setText(
                     I18nManager.getText("block.dialog.save.new"));
+        ((Button) getDialogPane().lookupButton(cancelButtonType)).setText(I18nManager.getText("button.cancel"));
 
         if (nameLabel != null) {
             nameLabel.setText(I18nManager.getText("colorstyle.dialog.name"));
@@ -301,10 +303,11 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
             content.getChildren().add(picker);
 
             dialog.getDialogPane().setContent(content);
-            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            ButtonType ok = DialogButtons.ok();
+            dialog.getDialogPane().getButtonTypes().addAll(ok, DialogButtons.cancel());
 
             dialog.setResultConverter(bt -> {
-                if (bt == ButtonType.OK) {
+                if (bt == ok) {
                     return picker.getValue();
                 }
                 return null;

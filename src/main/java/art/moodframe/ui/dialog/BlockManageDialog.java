@@ -5,6 +5,7 @@ import art.moodframe.service.BlockUsage;
 import art.moodframe.service.TrashCenter;
 import art.moodframe.service.TrashCleanupService;
 import art.moodframe.service.TrashGroup;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -262,8 +263,8 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         alert.setContentText(moods.isEmpty() ? I18nManager.getText("block.manage.delete.note")
                 : I18nManager.getText("block.manage.delete.moods", String.join(", ", moods)));
         ButtonType deleteButton = new ButtonType(I18nManager.getText("block.manage.delete"), ButtonBar.ButtonData.YES);
-        alert.getButtonTypes().setAll(deleteButton, ButtonType.CANCEL);
-        if (alert.showAndWait().orElse(ButtonType.CANCEL) != deleteButton)
+        alert.getButtonTypes().setAll(deleteButton, DialogButtons.cancel());
+        if (alert.showAndWait().orElse(null) != deleteButton)
             return;
 
         if (!library.delete(entry))
@@ -319,14 +320,14 @@ public class BlockManageDialog<T> extends Dialog<Void> {
     }
 
     private void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, message);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, message, DialogButtons.ok());
         alert.initOwner(getDialogPane().getScene().getWindow());
         alert.setHeaderText(null);
         alert.showAndWait();
     }
 
     private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, message);
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, DialogButtons.ok());
         alert.initOwner(getDialogPane().getScene().getWindow());
         alert.setHeaderText(null);
         alert.showAndWait();

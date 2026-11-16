@@ -107,6 +107,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final PromptBlockService blockService;
     private final ButtonType saveButtonType;
     private final ButtonType saveAsNewButtonType;
+    private final ButtonType cancelButtonType = DialogButtons.cancel();
     private final Map<Object, String> texts = new IdentityHashMap<>();
     private final List<Runnable> headings = new ArrayList<>();
     private final List<Blockable<?>> blockables = new ArrayList<>();
@@ -157,7 +158,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             dialogPane.getButtonTypes().add(saveAsNewButtonType);
         if (saveButtonType != null)
             dialogPane.getButtonTypes().add(saveButtonType);
-        dialogPane.getButtonTypes().add(ButtonType.CANCEL);
+        dialogPane.getButtonTypes().add(cancelButtonType);
 
         /*  Name  */
         nameField.setText(block != null ? block.getName() : "");
@@ -276,7 +277,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         Platform.runLater(nameField::requestFocus);
 
         setResultConverter((buttonType) -> {
-            if (buttonType == null || buttonType == ButtonType.CANCEL)
+            if (buttonType == null || buttonType == cancelButtonType)
                 return null;
             return new Result(buttonType == saveButtonType ? BlockEditDialog.Save.SAVE
                     : BlockEditDialog.Save.SAVE_AS_NEW, nameField.getText().trim(), settings());
@@ -674,6 +675,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         if (saveAsNewButtonType != null)
             ((Button) getDialogPane().lookupButton(saveAsNewButtonType)).setText(
                     I18nManager.getText("block.dialog.save.new"));
+        ((Button) getDialogPane().lookupButton(cancelButtonType)).setText(I18nManager.getText("button.cancel"));
     }
 
     @Override

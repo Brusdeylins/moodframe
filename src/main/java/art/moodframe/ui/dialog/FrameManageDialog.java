@@ -7,6 +7,7 @@ import art.moodframe.service.FrameService;
 import art.moodframe.service.TrashCenter;
 import art.moodframe.service.TrashCleanupService;
 import art.moodframe.service.TrashGroup;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;
@@ -150,6 +151,7 @@ public class FrameManageDialog extends Stage {
         String name = suggestion;
         while (true) {
             TextInputDialog dialog = new TextInputDialog(name);
+            dialog.getDialogPane().getButtonTypes().setAll(DialogButtons.ok(), DialogButtons.cancel());
             dialog.initOwner(owner);
             dialog.setTitle(I18nManager.getText("frame.name.title"));
             dialog.setHeaderText(header);
@@ -161,7 +163,8 @@ public class FrameManageDialog extends Stage {
             if (!name.isEmpty() && (name.equals(ownName) || !frameService.exists(name)))
                 return name;
             if (!name.isEmpty()) {
-                Alert alert = new Alert(Alert.AlertType.WARNING, I18nManager.getText("frame.name.taken", name));
+                Alert alert = new Alert(Alert.AlertType.WARNING, I18nManager.getText("frame.name.taken", name),
+                        DialogButtons.ok());
                 alert.initOwner(owner);
                 alert.setHeaderText(null);
                 alert.showAndWait();
@@ -250,7 +253,7 @@ public class FrameManageDialog extends Stage {
     }
 
     private void showMessage(Alert.AlertType type, String message) {
-        Alert alert = new Alert(type, message);
+        Alert alert = new Alert(type, message, DialogButtons.ok());
         alert.initOwner(this);
         alert.setHeaderText(null);
         alert.showAndWait();

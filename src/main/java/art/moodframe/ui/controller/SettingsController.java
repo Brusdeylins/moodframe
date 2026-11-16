@@ -15,6 +15,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.mcp.McpService;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
@@ -415,7 +416,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             // Configure Close button width initially
             Platform.runLater(() -> {
                 settingsDialogPane.getButtonTypes().stream()
-                        .filter(buttonType -> buttonType == ButtonType.CLOSE)
+                        .filter(buttonType -> buttonType.getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE)
                         .findFirst()
                         .ifPresent(buttonType -> {
                             Button closeButton = (Button) settingsDialogPane.lookupButton(buttonType);
@@ -1878,10 +1879,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
         alert.setContentText(content.toString());
 
         // Set button types
-        alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        ButtonType yes = DialogButtons.yes();
+        alert.getButtonTypes().setAll(yes, DialogButtons.no());
 
         Optional<ButtonType> result2 = alert.showAndWait();
-        return result2.isPresent() && result2.get() == ButtonType.YES;
+        return result2.isPresent() && result2.get() == yes;
     }
 
     // Corporate Proxy Event Handlers
@@ -1933,12 +1935,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     // Check if file already exists
                     if (Files.exists(targetPath)) {
                         Alert overwriteConfirm = new Alert(Alert.AlertType.CONFIRMATION);
+                        ButtonType ok = DialogButtons.ok();
+                        overwriteConfirm.getButtonTypes().setAll(ok, DialogButtons.cancel());
                         overwriteConfirm.setTitle("File Exists");
                         overwriteConfirm.setHeaderText("Overwrite existing certificate?");
                         overwriteConfirm
                                 .setContentText("The file '" + sourceFile.getName() + "' already exists. Replace it?");
 
-                        if (overwriteConfirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+                        if (overwriteConfirm.showAndWait().orElse(null) != ok) {
                             failedCount++;
                             failedFiles.append("\n- ").append(sourceFile.getName()).append(" (skipped)");
                             continue;
@@ -1987,12 +1991,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
         }
 
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        ButtonType ok = DialogButtons.ok();
+        confirmation.getButtonTypes().setAll(ok, DialogButtons.cancel());
         confirmation.setTitle("Remove Certificate");
         confirmation.setHeaderText("Remove Certificate");
         confirmation.setContentText("Are you sure you want to remove the certificate '" + selectedCertificate + "'?");
 
         confirmation.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
+            if (response == ok) {
                 try {
                     String certPathStr = config.getCertificatePath();
                     Path certificatePath = Paths.get(certPathStr, selectedCertificate);
@@ -2118,12 +2124,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void onResetProxyConfig() {
 
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        ButtonType ok = DialogButtons.ok();
+        confirmation.getButtonTypes().setAll(ok, DialogButtons.cancel());
         confirmation.setTitle("Reset Proxy Configuration");
         confirmation.setHeaderText("Reset Proxy Settings");
         confirmation.setContentText("This will clear all proxy settings and certificates. Continue?");
 
         confirmation.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
+            if (response == ok) {
                 try {
                     // Clear proxy settings
                     config.setProxyHost(null);
@@ -2259,13 +2267,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void onResetSettings() {
 
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        ButtonType ok = DialogButtons.ok();
+        confirmation.getButtonTypes().setAll(ok, DialogButtons.cancel());
         confirmation.setTitle("Reset Settings");
         confirmation.setHeaderText("Reset all settings to defaults?");
         confirmation.setContentText(
                 "This will reset all settings except API key and proxy password. Custom styles will be deleted. This action cannot be undone.");
 
         confirmation.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
+            if (response == ok) {
                 try {
                     // Reset configuration to defaults (preserves API key and proxy password)
                     config.resetToDefaults();
@@ -2562,6 +2572,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.getButtonTypes().setAll(DialogButtons.ok());
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
@@ -2573,6 +2584,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void showInfo(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.getButtonTypes().setAll(DialogButtons.ok());
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
@@ -2687,7 +2699,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
                 // Update the Close button text and width
                 settingsDialogPane.getButtonTypes().stream()
-                        .filter(buttonType -> buttonType == ButtonType.CLOSE)
+                        .filter(buttonType -> buttonType.getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE)
                         .findFirst()
                         .ifPresent(buttonType -> {
                             Button closeButton = (Button) settingsDialogPane.lookupButton(buttonType);

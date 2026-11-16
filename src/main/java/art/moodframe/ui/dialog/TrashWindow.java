@@ -7,6 +7,7 @@ import art.moodframe.service.TrashCleanupService;
 import art.moodframe.service.TrashEntry;
 import art.moodframe.service.TrashGroup;
 import art.moodframe.ui.cell.TrashEntryCell;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
@@ -155,8 +156,8 @@ public class TrashWindow extends Stage {
         alert.setContentText(I18nManager.getText(I18nManager.hasText(note) ? note : "trash.delete.confirm.note"));
 
         ButtonType deleteButton = new ButtonType(I18nManager.getText("trash.delete"), ButtonBar.ButtonData.YES);
-        alert.getButtonTypes().setAll(deleteButton, ButtonType.CANCEL);
-        if (alert.showAndWait().orElse(ButtonType.CANCEL) != deleteButton)
+        alert.getButtonTypes().setAll(deleteButton, DialogButtons.cancel());
+        if (alert.showAndWait().orElse(null) != deleteButton)
             return;
 
         List<String> ids = entries.stream().map(TrashEntry::id).toList();
@@ -166,7 +167,7 @@ public class TrashWindow extends Stage {
     }
 
     private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, message);
+        Alert alert = new Alert(Alert.AlertType.ERROR, message, DialogButtons.ok());
         alert.initOwner(this);
         alert.setHeaderText(null);
         alert.showAndWait();
