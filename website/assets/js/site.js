@@ -135,7 +135,7 @@ const TEXT = {
         "camera.title": "Denken wie ein Fotograf",
         "camera.lead": "Kameratyp, Objektiv, Blende, Verschluss, ISO, Perspektive und Ausschnitt wählst du wie an einer echten Kamera. <b>Mood</b>Frame macht daraus Worte, die jedes Bildmodell versteht.",
         "camera.point.result": "Jede Einstellung beschreibt, was ein Fotograf im Bild erkennt: f/1.4 macht vorn und hinten unscharf, 1/4000\u00a0s friert das Wasser ein, 14\u00a0mm zeigt viel mehr von der Umgebung.",
-        "camera.point.examples": "Ein Beispielbild für jede Stufe, alle von derselben Szene, damit du genau siehst,<br>was sich\u00a0ändert.",
+        "camera.point.examples": "Ein Beispielbild für jede Stufe, alle von derselben Szene,<br>damit du genau siehst, was sich\u00a0ändert.",
         "camera.point.locks": "Einstellungen, die sich widersprechen, sind mit Begründung gesperrt;<br>eine Kamera mit festem Objektiv wie die Action Cam stellt es selbst ein.",
         "camera.point.preview": "Eine Vorschau zeigt Bildwinkel, Schärfe und Kamerahöhe,<br>der fertige Prompt steht direkt\u00a0darunter.",
         "brainstorm.title": "Von der vagen Idee zum fertigen Prompt",
