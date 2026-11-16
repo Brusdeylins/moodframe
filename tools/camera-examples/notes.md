@@ -39,3 +39,4 @@
 - shutter-FROZEN: 3b9ef40f had giant drops (user: proportions); distant waterfall cannot show single drops -> 0ca1555b crisp ribbons
 - shutter waterfall v2 (user: outline and river must not change, only blur; frozen thinner/crisper): F2 waterfall+river pasted into each stage image, Waterfall.java: frozen = thin+sharpen, MB = vertical blur 25 px of the water pixels only, LE = 90 px; river unchanged
 - shutter-FROZEN v3: stronger thin (5 px min) + sharpen 2.4, only on water pixels (luminance mask dilated 3 px)
+- shutter v4: lower river course (left of the dress) copied from F2 with RiverLeft.java; MB stage had a thicker river there (user)
