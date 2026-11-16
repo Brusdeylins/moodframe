@@ -34,6 +34,8 @@ All notable changes to this project will be documented in this file.
   being cut off at the sides
 - Large preview: the frame lies right at the edge of the image and the video, without a dark seam of a pixel in
   between, also zoomed in, panned and on Retina screens
+- Large preview: image and video keep the same distance from the buttons on all four sides, fitted and zoomed in;
+  panned up to an edge, the image stops at that distance instead of running under the arrows
 
 ## 2.1.0 (2026-11-16)
 

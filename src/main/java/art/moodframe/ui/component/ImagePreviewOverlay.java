@@ -9,6 +9,8 @@ import art.moodframe.util.MediaSupport;
 import art.moodframe.util.SystemOpen;
 import art.moodframe.util.VideoPoster;
 import art.moodframe.util.VideoRemedy;
+import javafx.geometry.BoundingBox;
+import javafx.geometry.Bounds;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -81,6 +83,7 @@ import java.util.function.Consumer;
  * @updated 2.2.0 - Nearly opaque dark stage in all themes, also in the light ones
  * @updated 2.2.0 - Image and video fit anew on every resize, panning ends at the frame, round surface of the buttons
  * @updated 2.1.1 - Exactly the size of a shrunk window, image, video and frame on device pixels
+ * @updated 2.1.1 - Image and video fit into the safe area between the buttons, panning ends at its edge
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -666,15 +669,14 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             return; // Don't start dragging if clicking on buttons
         }
 
-        // Don't allow dragging if image is smaller than overlay (fit-to-screen)
+        // Don't allow dragging if image is smaller than the safe area (fit-to-screen)
         if (imageView.getImage() != null) {
             double imageWidth = imageView.getFitWidth();
             double imageHeight = imageView.getFitHeight();
-            double overlayWidth = getWidth();
-            double overlayHeight = getHeight();
+            Bounds area = safeArea();
 
-            // If image fits completely in the overlay, don't allow panning
-            if (imageWidth <= overlayWidth && imageHeight <= overlayHeight) {
+            // If image fits completely in the safe area, don't allow panning
+            if (imageWidth <= area.getWidth() && imageHeight <= area.getHeight()) {
                 return;
             }
         }
@@ -732,14 +734,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         if (imageView.getImage() != null) {
             double imageWidth = imageView.getFitWidth();
             double imageHeight = imageView.getFitHeight();
-            double overlayWidth = getWidth();
-            double overlayHeight = getHeight();
+            Bounds area = safeArea();
 
-            // If image fits completely in the overlay, show default cursor
-            if (imageWidth <= overlayWidth && imageHeight <= overlayHeight) {
+            // If image fits completely in the safe area, show default cursor
+            if (imageWidth <= area.getWidth() && imageHeight <= area.getHeight()) {
                 setCursor(javafx.scene.Cursor.DEFAULT);
             } else {
-                // Image is larger than overlay, show hand cursor to indicate panning is
+                // Image is larger than the safe area, show hand cursor to indicate panning is
                 // possible
                 setCursor(javafx.scene.Cursor.OPEN_HAND);
             }
@@ -824,15 +825,17 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
     }
 
-    /*  The image lies centered, moved by the pan, with its edges on device pixels (also at a screen scale of 2), so
-        the frame lies flush against it and no seam of the dark stage shines through the smoothed edges  */
+    /*  The image lies centered in the safe area, moved by the pan, with its edges on device pixels (also at a screen
+        scale of 2), so the frame lies flush against it and no seam of the dark stage shines through the smoothed
+        edges  */
     private void placeImage() {
         double containerWidth = displayLayer.getWidth();
         double containerHeight = displayLayer.getHeight();
         if (containerWidth <= 0 || containerHeight <= 0)
             return;
-        double x = (containerWidth - imageView.getFitWidth()) / 2 + imageView.getTranslateX();
-        double y = (containerHeight - imageView.getFitHeight()) / 2 + imageView.getTranslateY();
+        Bounds area = safeArea();
+        double x = area.getCenterX() - imageView.getFitWidth() / 2 + imageView.getTranslateX();
+        double y = area.getCenterY() - imageView.getFitHeight() / 2 + imageView.getTranslateY();
         imageView.setLayoutX(displayLayer.snapPositionX(x) - imageView.getTranslateX());
         imageView.setLayoutY(displayLayer.snapPositionY(y) - imageView.getTranslateY());
     }
@@ -854,9 +857,31 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         return config == null || config.isPreviewFrameAnimated();
     }
 
+    /*  The safe area of image and video keeps the same gap to the buttons on all four sides, which frame and glow
+        fill; a hidden button does not count, but the image arrows always do, so paging never shifts the image  */
+    private Bounds safeArea() {
+        double gap    = PreviewFrame.EXTENT;
+        double left   = AnchorPane.getLeftAnchor(prevImageButton) + prevImageButton.prefWidth(-1) + gap;
+        double right  = AnchorPane.getRightAnchor(nextImageButton) + nextImageButton.prefWidth(-1) + gap;
+        double top    = gap;
+        double bottom = gap;
+        for (Region node : List.of(downloadButton, editThisButton, zoom100Button, closeButton, prevChatButton))
+            if (node.isVisible())
+                top = Math.max(top, AnchorPane.getTopAnchor(node) + node.prefHeight(-1) + gap);
+        for (Region node : List.of(nextChatButton, playPauseButton, galleryInfo))
+            if (node.isVisible())
+                bottom = Math.max(bottom, AnchorPane.getBottomAnchor(node) + node.prefHeight(-1) + gap);
+
+        /*  At least a pixel, also before the first layout, and centered between the buttons in a tiny window  */
+        double width  = Math.max(1.0, getWidth() - left - right);
+        double height = Math.max(1.0, getHeight() - top - bottom);
+        return new BoundingBox((left + getWidth() - right - width) / 2, (top + getHeight() - bottom - height) / 2,
+                width, height);
+    }
+
     /**
-     * Constrains the image position: a larger image pans at most until its mood frame shows at an edge.
-     * For images smaller than the overlay, prevents any panning.
+     * Constrains the image position: a larger image pans at most until its edge reaches the safe area.
+     * For images smaller than the safe area, prevents any panning.
      */
     private void constrainImagePosition() {
         if (imageView.getImage() == null) {
@@ -867,22 +892,22 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double imageWidth = imageView.getFitWidth();
         double imageHeight = imageView.getFitHeight();
 
-        // Get overlay dimensions
-        double overlayWidth = getWidth();
-        double overlayHeight = getHeight();
+        // Get safe area dimensions
+        Bounds area = safeArea();
+        double areaWidth = area.getWidth();
+        double areaHeight = area.getHeight();
 
-        // If image is smaller than or equal to overlay, center it and prevent panning
-        if (imageWidth <= overlayWidth && imageHeight <= overlayHeight) {
+        // If image is smaller than or equal to the safe area, center it and prevent panning
+        if (imageWidth <= areaWidth && imageHeight <= areaHeight) {
             imageView.setTranslateX(0);
             imageView.setTranslateY(0);
             return;
         }
 
-        /*  Per axis, a larger image pans until its edge lies the extent of the frame inside the overlay, so frame
-            and glow show there; along an axis it fits, it stays centered  */
-        double frame = PreviewFrame.EXTENT;
-        double maxTranslateX = imageWidth  > overlayWidth  ? (imageWidth  - overlayWidth)  / 2 + frame : 0;
-        double maxTranslateY = imageHeight > overlayHeight ? (imageHeight - overlayHeight) / 2 + frame : 0;
+        /*  Per axis, a larger image pans until its edge lies on the edge of the safe area, where frame and glow fill
+            the gap to the buttons; along an axis it fits, it stays centered  */
+        double maxTranslateX = imageWidth  > areaWidth  ? (imageWidth  - areaWidth)  / 2 : 0;
+        double maxTranslateY = imageHeight > areaHeight ? (imageHeight - areaHeight) / 2 : 0;
 
         // Constrain X position using imageView
         double currentX = imageView.getTranslateX();
@@ -918,14 +943,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double originalWidth = image.getWidth();
         double originalHeight = image.getHeight();
 
-        /*  The available preview area (overlay size minus the margins for the buttons), at least a pixel, also
-            before the first layout  */
-        double overlayWidth = Math.max(1.0, getWidth() - 160);
-        double overlayHeight = Math.max(1.0, getHeight() - 120);
+        /*  The available preview area is the safe area between the buttons  */
+        Bounds area = safeArea();
 
         // Calculate scale factor needed to fit image in preview area
-        double scaleToFitWidth = overlayWidth / originalWidth;
-        double scaleToFitHeight = overlayHeight / originalHeight;
+        double scaleToFitWidth = area.getWidth() / originalWidth;
+        double scaleToFitHeight = area.getHeight() / originalHeight;
         baseScaleToFit = Math.min(scaleToFitWidth, scaleToFitHeight);
 
         // Ensure we don't scale UP small images to fit
@@ -1272,11 +1295,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             mediaView.setVisible(true);
             isVideoMode = true;
 
-            // Fit video to overlay
-            double overlayWidth = getWidth() - 160;
-            double overlayHeight = getHeight() - 120;
-            mediaView.setFitWidth(overlayWidth > 0 ? overlayWidth : 800);
-            mediaView.setFitHeight(overlayHeight > 0 ? overlayHeight : 600);
+            // Fit video to the safe area
+            Bounds area = safeArea();
+            mediaView.setFitWidth(getWidth() > 0 ? area.getWidth() : 800);
+            mediaView.setFitHeight(getHeight() > 0 ? area.getHeight() : 600);
 
             // Center the video manually since managed=false
             mediaPlayer.setOnReady(this::fitVideoToOverlay);
@@ -1306,13 +1328,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         }
     }
 
-    /*  The video fits the overlay minus the margins for the buttons, never above its own size, and stays centered;
-        once its player is ready and after every resize  */
+    /*  The video fits the safe area between the buttons, never above its own size, and stays centered in it; once
+        its player is ready and after every resize  */
     private void fitVideoToOverlay() {
         if (!isVideoMode || mediaPlayer == null)
             return;
-        double containerWidth = displayLayer.getWidth();
-        double containerHeight = displayLayer.getHeight();
+        Bounds area = safeArea();
         double videoWidth = mediaView.getFitWidth();
         double videoHeight = mediaView.getFitHeight();
 
@@ -1321,8 +1342,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double mediaWidth = media.getWidth();
         double mediaHeight = media.getHeight();
         if (mediaWidth > 0 && mediaHeight > 0) {
-            double scaleW = Math.max(1.0, containerWidth - 160) / mediaWidth;
-            double scaleH = Math.max(1.0, containerHeight - 120) / mediaHeight;
+            double scaleW = area.getWidth() / mediaWidth;
+            double scaleH = area.getHeight() / mediaHeight;
             double scale = Math.min(scaleW, scaleH);
             scale = Math.min(scale, 1.0); // Don't upscale
             videoWidth = displayLayer.snapPositionX(mediaWidth * scale);
@@ -1332,8 +1353,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         }
 
         /*  On device pixels like the image, for the frame to lie flush against it  */
-        mediaView.setLayoutX(displayLayer.snapPositionX((containerWidth - videoWidth) / 2));
-        mediaView.setLayoutY(displayLayer.snapPositionY((containerHeight - videoHeight) / 2));
+        mediaView.setLayoutX(displayLayer.snapPositionX(area.getCenterX() - videoWidth / 2));
+        mediaView.setLayoutY(displayLayer.snapPositionY(area.getCenterY() - videoHeight / 2));
     }
 
     /**
@@ -1498,6 +1519,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             counterLabel.setText((currentImageIndex + 1) + " / " + imagePaths.size());
             captionLabel.setText(captions.get(currentImageIndex));
         }
+
+        /*  The box of the gallery borders the safe area, which the next layout fits the image into anew  */
+        requestLayout();
     }
 
     // Image info label removed - navigation is now via buttons only
@@ -1558,6 +1582,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         prevChatButton.setManaged(hasPrevious);
         nextChatButton.setVisible(hasNext);
         nextChatButton.setManaged(hasNext);
+
+        /*  The arrows of the chat border the safe area, which the next layout fits image and video into anew  */
+        requestLayout();
     }
 
     /**
@@ -1663,7 +1690,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
     /**
      * Fits image to overlay after resize by recalculating zoom limits: a fitted image is fitted anew, a zoomed one
-     * keeps its zoom within the new limits and its position within the overlay.
+     * keeps its zoom within the new limits and its position within the safe area.
      */
     private void fitImageToOverlay() {
         if (imageView.getImage() == null)

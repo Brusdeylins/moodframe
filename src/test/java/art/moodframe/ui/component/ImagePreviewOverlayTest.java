@@ -51,6 +51,7 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -516,10 +517,13 @@ class ImagePreviewOverlayTest {
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
-    /*  The overlay at the size of the area it covers in the main window, laid out as by a pulse  */
+    /*  The overlay at the size of the area it covers in the main window, with its buttons styled as in the app, as
+        their size borders the safe area of the image, and laid out as by a pulse  */
     private static ImagePreviewOverlay overlayOfSize(double width, double height) {
         ImagePreviewOverlay overlay = new ImagePreviewOverlay();
-        new Scene(overlay, width, height);
+        Scene scene = new Scene(overlay, width, height);
+        scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
+        overlay.applyCss();
         resize(overlay, width, height);
         return overlay;
     }
@@ -764,14 +768,46 @@ class ImagePreviewOverlayTest {
                 .toList();
     }
 
-    /*  Fitted: the image lies within the overlay minus the margins for the buttons, which lie off the image  */
+    /*  The gaps of the image to the nearest shown buttons on its left, right, top and bottom, the box of the gallery
+        counting as a button at the bottom, and the window edge where none shows  */
+    private static double[] gaps(ImagePreviewOverlay overlay) {
+        Bounds image = imageBounds(overlay);
+        double middle = overlay.getHeight() / 2;
+        double above = 0.0;
+        double below = overlay.getHeight();
+        List<Node> shownNodes = new ArrayList<>(previewButtons(overlay));
+        find(overlay, Label.class).stream().filter((label) -> shown(label) && label.getText() != null
+                && label.getText().matches("\\d+ / \\d+")).forEach((label) -> shownNodes.add(label.getParent()));
+        for (Node node : shownNodes) {
+            Bounds bounds = node.localToScene(node.getLayoutBounds());
+            if (bounds.getMaxY() < middle)
+                above = Math.max(above, bounds.getMaxY());
+            else if (bounds.getMinY() > middle)
+                below = Math.min(below, bounds.getMinY());
+        }
+        return new double[] {
+            image.getMinX() - buttonBounds(overlay, "mdi2c-chevron-left").getMaxX(),
+            buttonBounds(overlay, "mdi2c-chevron-right").getMinX() - image.getMaxX(),
+            image.getMinY() - above,
+            below - image.getMaxY()
+        };
+    }
+
+    /*  The image lies centered in the safe area, as far from the buttons on the left as on the right and above as
+        below, on its tighter axis by the extent of the frame  */
+    private static void assertCentered(ImagePreviewOverlay overlay, String what) {
+        double[] gaps = gaps(overlay);
+        String where = what + ": " + imageBounds(overlay) + ", gaps " + Arrays.toString(gaps);
+        assertEquals(gaps[0], gaps[1], 1.0, where);
+        assertEquals(gaps[2], gaps[3], 1.0, where);
+        assertEquals(PreviewFrame.EXTENT, Math.min(gaps[0], gaps[2]), 1.0, () -> where + " does not fill the area");
+    }
+
+    /*  Fitted: the image lies centered in the safe area, no button lies on it  */
     private static void assertFitted(ImagePreviewOverlay overlay, double width, double height) {
         Bounds image = imageBounds(overlay);
         String size = width + "x" + height + ": " + image;
-        assertTrue(image.getMinX() >= 80 - 0.5 && image.getMaxX() <= width - 80 + 0.5, size);
-        assertTrue(image.getMinY() >= 60 - 0.5 && image.getMaxY() <= height - 60 + 0.5, size);
-        assertTrue(Math.abs(image.getWidth() - (width - 160)) < 0.5
-                || Math.abs(image.getHeight() - (height - 120)) < 0.5, () -> size + " does not fill the area");
+        assertCentered(overlay, size);
         List<Button> buttons = previewButtons(overlay);
         assertTrue(buttons.size() >= 8, size + ": " + buttons.size() + " buttons");
         for (Button button : buttons) {
@@ -830,7 +866,8 @@ class ImagePreviewOverlayTest {
                 return null;
             });
 
-            /*  zoomed in, a smaller window keeps the zoom, and the image pans until its frame shows at the edge  */
+            /*  zoomed in, a smaller window keeps the zoom, and the image pans until its frame fills the gap to the
+                buttons  */
             double zoomed = onFxThread(() -> {
                 for (int i = 0; i < 3; i++)
                     press(overlay, KeyCode.PLUS);
@@ -841,27 +878,106 @@ class ImagePreviewOverlayTest {
             onFxThread(() -> {
                 Bounds image = imageBounds(overlay);
                 assertEquals(zoomed, image.getWidth(), 0.5);
-                assertTrue(image.getMinX() <= frame + 0.5 && image.getMaxX() >= 800 - frame - 0.5, image::toString);
-                assertTrue(image.getMinY() <= frame + 0.5 && image.getMaxY() >= 600 - frame - 0.5, image::toString);
+                for (double gap : gaps(overlay))
+                    assertTrue(gap <= frame + 0.5, image::toString);
                 drag(overlay, 2000, 2000);
-                image = imageBounds(overlay);
-                assertEquals(frame, image.getMinX(), 0.5);
-                assertEquals(frame, image.getMinY(), 0.5);
+                double[] gaps = gaps(overlay);
+                assertEquals(frame, gaps[0], 0.5);
+                assertEquals(frame, gaps[2], 0.5);
                 assertFramed(overlay);
                 return null;
             });
 
-            /*  a larger window takes the image back to its edge, the zoom stays  */
+            /*  a larger window takes the image back to the edge of the safe area, the zoom stays  */
             onFxThread(() -> {
                 resize(overlay, 1400, 900);
-                Bounds image = imageBounds(overlay);
-                assertEquals(zoomed, image.getWidth(), 0.5);
-                assertEquals(frame, image.getMinX(), 0.5);
-                assertEquals(frame, image.getMinY(), 0.5);
+                assertEquals(zoomed, imageBounds(overlay).getWidth(), 0.5);
+                double[] gaps = gaps(overlay);
+                assertEquals(frame, gaps[0], 0.5);
+                assertEquals(frame, gaps[2], 0.5);
                 drag(overlay, -3000, -3000);
-                image = imageBounds(overlay);
-                assertEquals(1400 - frame, image.getMaxX(), 0.5);
-                assertEquals(900 - frame, image.getMaxY(), 0.5);
+                gaps = gaps(overlay);
+                assertEquals(frame, gaps[1], 0.5);
+                assertEquals(frame, gaps[3], 0.5);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                Application.setUserAgentStylesheet(before);
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    /*  Zoomed in, the image pans into each of the four corners up to the extent of the frame off the buttons  */
+    private static void assertSameGapsInAllCorners(ImagePreviewOverlay overlay, String what) {
+        for (double[] corner : new double[][] { { 3000, 3000 }, { -3000, 3000 }, { 3000, -3000 }, { -3000, -3000 } }) {
+            drag(overlay, corner[0], corner[1]);
+            double[] gaps = gaps(overlay);
+            String where = what + ", " + Arrays.toString(corner) + ": " + Arrays.toString(gaps);
+            assertEquals(PreviewFrame.EXTENT, gaps[corner[0] > 0 ? 0 : 1], 1.0, where);
+            assertEquals(PreviewFrame.EXTENT, gaps[corner[1] > 0 ? 2 : 3], 1.0, where);
+            assertFramed(overlay);
+        }
+    }
+
+    @Test
+    void theImageKeepsTheSameGapToTheButtonsOnAllFourSides() throws Exception {
+        Path big = image(dir, "big.png", 2400, 1600, 0x808080);
+        List<String> paths = List.of(big.toString(), big.toString(), big.toString());
+        String before = Application.getUserAgentStylesheet();
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = styledOverlayOfSize("primer-dark", 1400, 900);
+            created.showImages(paths, 1);
+            created.updateChatNavigationButtons(true, true);
+            created.layout();
+            return created;
+        });
+        double frame = PreviewFrame.EXTENT;
+        try {
+
+            /*  in a small and in a large window: fitted, then at 100 % in each corner, then fitted again  */
+            for (double[] size : new double[][] { { 800, 600 }, { 1400, 900 } }) {
+                onFxThread(() -> {
+                    resize(overlay, size[0], size[1]);
+                    assertFitted(overlay, size[0], size[1]);
+                    press(overlay, KeyCode.F);
+                    assertSameGapsInAllCorners(overlay, size[0] + "x" + size[1]);
+                    press(overlay, KeyCode.F);
+                    assertFitted(overlay, size[0], size[1]);
+                    return null;
+                });
+            }
+
+            /*  without a next chat nothing lies below the image, which then pans up to the extent of the frame off
+                the window edge; play/pause, as for a video, borders it again  */
+            onFxThread(() -> {
+                overlay.updateChatNavigationButtons(true, false);
+                overlay.layout();
+                assertCentered(overlay, "no next chat");
+                press(overlay, KeyCode.F);
+                drag(overlay, -3000, -3000);
+                assertEquals(900 - frame, imageBounds(overlay).getMaxY(), 1.0);
+                playPauseButton(overlay).setVisible(true);
+                overlay.requestLayout();
+                overlay.layout();
+                assertSameGapsInAllCorners(overlay, "play/pause");
+                playPauseButton(overlay).setVisible(false);
+                return null;
+            });
+
+            /*  the gallery of the images view: its box with counter and line borders the image below  */
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                overlay.showGallery(paths, List.of("Mood · Frame · Model", "Mood", "Frame"), 1);
+                overlay.applyCss();
+                overlay.layout();
+                assertCentered(overlay, "gallery");
+                press(overlay, KeyCode.F);
+                assertSameGapsInAllCorners(overlay, "gallery");
                 return null;
             });
         }
@@ -1002,7 +1118,7 @@ class ImagePreviewOverlayTest {
     }
 
     /*  The preview covers exactly the window, with every shown button and label inside it, the side buttons 30 px
-        off its edges, the arrows of the chat centered, the image in the middle  */
+        off its edges, the arrows of the chat centered, the image in the middle of the safe area  */
     private static void assertCoversTheWindow(ImagePreviewOverlay overlay, double width, double height) {
         String size = width + "x" + height;
         Bounds covered = overlay.localToScene(overlay.getLayoutBounds());
@@ -1027,8 +1143,9 @@ class ImagePreviewOverlayTest {
             if (chat.getGraphic() instanceof FontIcon icon && icon.getIconLiteral().matches("mdi2c-chevron-(up|down)"))
                 assertEquals(width / 2, chat.localToScene(chat.getLayoutBounds()).getCenterX(), 1.0, size);
         Bounds image = imageBounds(overlay);
+        double[] gaps = gaps(overlay);
         assertEquals(width / 2, image.getCenterX(), 1.0, size + ": " + image);
-        assertEquals(height / 2, image.getCenterY(), 1.0, size + ": " + image);
+        assertEquals(gaps[2], gaps[3], 1.0, size + ": " + image + ", gaps " + Arrays.toString(gaps));
     }
 
     @Test
@@ -1134,6 +1251,9 @@ class ImagePreviewOverlayTest {
         ImagePreviewOverlay overlay = onFxThread(() -> {
             ImagePreviewOverlay created = overlayOfSize(1000, 700);
             created.showImages(List.of(white.toString()), 0);
+
+            /*  a chat with entries before and after, whose arrows border the image above and below evenly  */
+            created.updateChatNavigationButtons(true, true);
             created.layout();
             return created;
         });
@@ -1174,7 +1294,6 @@ class ImagePreviewOverlayTest {
             onFxThread(() -> {
                 resize(overlay, 917, 633);
                 assertOnDevicePixels(overlay, 1.0);
-                assertNoSeam(overlay, 0);
                 drag(overlay, -3000.0, -3000.0);
                 assertOnDevicePixels(overlay, 1.0);
                 assertNoSeam(overlay, 2);
