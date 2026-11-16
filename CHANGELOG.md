@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2.1.1 (unreleased)
+## 2.1.1 (2026-11-16)
 
 ### IMPROVEMENT
 - Status bar: the hints on memory and images appear after half a second, stay while the pointer rests on them and
