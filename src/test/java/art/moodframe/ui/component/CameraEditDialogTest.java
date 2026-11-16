@@ -29,6 +29,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,6 +94,27 @@ class CameraEditDialogTest {
 
         assertEquals(BlockEditDialog.Save.SAVE, result.save());
         assertEquals(CameraSettings.ANY, result.settings());
+    }
+
+    @Test
+    void namesTheLensStageLensAndObjektivAsItHoldsTheSpecialLensesToo() throws Exception {
+        Locale before = I18nManager.getCurrentLocale();
+        try {
+            for (Map.Entry<Locale, String> stage : Map.of(Locale.ENGLISH, "Lens", Locale.GERMAN, "Objektiv")
+                    .entrySet()) {
+                CameraEditDialog dialog = onFxThread(() -> {
+                    I18nManager.setLocale(stage.getKey());
+                    return new CameraEditDialog(null);
+                });
+
+                assertEquals(1, labels(dialog, stage.getValue()), stage.getKey() + ": the heading of the lens stage");
+            }
+        } finally {
+            onFxThread(() -> {
+                I18nManager.setLocale(before);
+                return null;
+            });
+        }
     }
 
     @Test

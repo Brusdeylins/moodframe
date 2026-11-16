@@ -53,8 +53,7 @@ and keeps every brainstorm; several run side by side.
   new prompt or mood
 - **Infographics:** Brainstorm gathers the facts from the web or a YouTube video and lays them out as an infographic,
   with the frame Text in Image
-- **Camera dialog:** camera type, focal length, aperture, perspective and shot size, with an example image for every
-  stage
+- **Camera dialog:** camera type, lens, aperture, perspective and shot size, with an example image for every stage
 - **Video:** video clips with Gemini Omni, in the same chats as your images
 - **Costs in view:** the price shows before you send, the costs per image and per chat afterwards
 - **One trash:** chats, images, building blocks, moods and frames, all restorable
