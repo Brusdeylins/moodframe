@@ -7,6 +7,7 @@ import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.geometry.Bounds;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
@@ -16,7 +17,9 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelReader;
@@ -24,10 +27,22 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.robot.Robot;
+import javafx.scene.shape.Line;
+import javafx.stage.Screen;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,14 +51,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Builds the camera dialog on the JavaFX thread without showing it, works its controls and reads its result. */
+/**
+ * Builds the camera dialog on the JavaFX thread, mostly without showing it, works its controls and reads its result.
+ */
 class CameraEditDialogTest {
+
+    private static final List<CameraSettings.Lens> FOCAL_LENGTHS = Arrays.stream(CameraSettings.Lens.values())
+            .filter((lens) -> !lens.isSpecial()).toList();
+    private static final List<CameraSettings.Lens> SPECIAL_LENSES = Arrays.stream(CameraSettings.Lens.values())
+            .filter(CameraSettings.Lens::isSpecial).toList();
+
+    /*  the dialogs opened by a test: never shown, they keep following the language until released  */
+    private static final List<CameraEditDialog> opened = new ArrayList<>();
 
     @BeforeAll
     static void startToolkit() throws Exception {
@@ -53,18 +79,49 @@ class CameraEditDialogTest {
         } catch (IllegalStateException alreadyStarted) {
             started.countDown();
         }
+
+        /*  closing the one dialog a test shows must not end the toolkit for the tests after it  */
+        Platform.setImplicitExit(false);
         started.await(10, TimeUnit.SECONDS);
     }
 
-    /** Runs a step on the JavaFX thread and returns its result. */
+    /*  the full test run fills the heap of its JVM already, so a dialog of this class leaves nothing behind  */
+    @AfterEach
+    void releaseDialogs() {
+        opened.forEach(I18nManager::removeChangeListener);
+        opened.clear();
+    }
+
+    /** Opens the dialog for a camera of the user, released after the test. */
+    private static CameraEditDialog open(CameraSettings settings) throws Exception {
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
+                settings)));
+        opened.add(dialog);
+        return dialog;
+    }
+
+    /** Runs a step on the JavaFX thread and returns its result; a failed assertion of the step fails the test. */
     private static <T> T onFxThread(Supplier<T> step) throws Exception {
         AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<RuntimeException> exception = new AtomicReference<>();
+        AtomicReference<Error> error = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
-            result.set(step.get());
-            done.countDown();
+            try {
+                result.set(step.get());
+            } catch (RuntimeException failure) {
+                exception.set(failure);
+            } catch (Error failure) {
+                error.set(failure);
+            } finally {
+                done.countDown();
+            }
         });
         assertTrue(done.await(10, TimeUnit.SECONDS));
+        if (error.get() != null)
+            throw error.get();
+        if (exception.get() != null)
+            throw exception.get();
         return result.get();
     }
 
@@ -268,6 +325,158 @@ class CameraEditDialogTest {
         }), "with no allowed focal length after 400 mm, 135 mm is the nearest one before it");
     }
 
+    /** Every camera type, "Any" first, with every special lens, none first. */
+    static Stream<Arguments> typesAndSpecialLenses() {
+        return Stream.concat(Stream.of((CameraSettings.Body) null), Arrays.stream(CameraSettings.Body.values()))
+                .flatMap((body) -> Stream.concat(Stream.of((CameraSettings.Lens) null), SPECIAL_LENSES.stream())
+                        .map((lens) -> Arguments.of(body, lens)));
+    }
+
+    @ParameterizedTest(name = "{0} with {1}")
+    @MethodSource("typesAndSpecialLenses")
+    void showsEverySettingAtItsControlAndGreysExactlyWhatCannotBeChosen(CameraSettings.Body body,
+            CameraSettings.Lens special) throws Exception {
+        CameraEditDialog dialog = open(new CameraSettings(null, CameraSettings.Lens.MM_85, CameraSettings.Aperture.F_4,
+                CameraSettings.Shutter.FROZEN, CameraSettings.Iso.ISO_3200, CameraSettings.Perspective.LOW_ANGLE,
+                CameraSettings.Shot.WIDE));
+        Slider focal = sliders(dialog).getFirst();
+
+        onFxThread(() -> {
+            toggle(dialog, body).fire();
+            assertShowsSettings(dialog);
+            if (special == null)
+                return null;
+            ToggleButton lens = toggle(dialog, special);
+            lens.fire();
+            assertShowsSettings(dialog);
+            if (!lens.isSelected()) {
+                assertTrue(lens.isDisabled(), "a lens is left unchosen only if it cannot be chosen");
+                return null;
+            }
+            assertEquals(0.0, focal.getValue(), "the focal length goes to \"Any\"");
+            assertTrue(focal.isDisabled(), "and is locked");
+            focal.setValue(4);
+            assertEquals(0.0, focal.getValue(), "a focal length set anyway goes back to \"Any\"");
+            assertEquals(special, settings(dialog).lens(), "and keeps the special lens");
+
+            lens.fire();
+            assertShowsSettings(dialog);
+            assertFalse(lens.isSelected(), "a second click deselects the special lens");
+            assertEquals(0.0, focal.getValue(), "the free slider stands at \"Any\"");
+            assertFalse(focal.isDisabled());
+            return null;
+        });
+    }
+
+    @Test
+    void namesTheReasonOnEveryGreyedControlOfTheLens() throws Exception {
+        CameraEditDialog dialog = open(new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85,
+                null, null, null, null, null));
+        Slider focal = sliders(dialog).getFirst();
+        Node focalBox = focal.getParent().getParent();
+        String fixed = I18nManager.getText("camera.dialog.fixed", I18nManager.getText("camera.body.action_cam"));
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Lens.FISHEYE).fire();
+            return null;
+        });
+        assertEquals(I18nManager.getText("camera.dialog.replaced", I18nManager.getText("camera.lens.fisheye")),
+                reason(focalBox), "the replaced slider names the lens");
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.ACTION_CAM).fire();
+            return null;
+        });
+        assertNull(reason(focalBox), "the fixed lens replaces no slider");
+        assertFalse(focal.isDisabled(), "the fixed focal length stays readable");
+        for (CameraSettings.Lens lens : SPECIAL_LENSES)
+            assertEquals(fixed, reason(toggle(dialog, lens).getParent()), lens + " is set by the type");
+        assertEquals(fixed, reason(labels(focal).getFirst().getParent()), "\"Any\" is set by the type");
+        assertEquals(fixed, reason(labels(focal).get(2).getParent()), "24 mm is set by the type");
+        assertNull(reason(labels(focal).get(1).getParent()), "14 mm is the value of the type");
+    }
+
+    @Test
+    void showsNoExampleForAStageThatCannotBeChosen() throws Exception {
+        CameraEditDialog dialog = open(new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null,
+                null));
+        Slider focal = sliders(dialog).getFirst();
+        ImageView picture = (ImageView) dialog.getDialogPane().lookupAll(".image-view").stream()
+                .filter((node) -> node.getParent().getParent() instanceof CameraExample).findFirst().orElseThrow();
+        onFxThread(() -> {
+            DialogPane pane = dialog.getDialogPane();
+            pane.applyCss();
+            pane.resize(pane.prefWidth(-1), pane.prefHeight(-1));
+            pane.layout();
+            return null;
+        });
+
+        hover(focal, 6);
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Lens.MM_135)),
+                "an allowed focal length shows its example");
+        hover(focal, 7);
+        assertNull(picture.getImage(), "400 mm, blocked by the smartphone, shows none");
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Body.FULL_FRAME).fire();
+            toggle(dialog, CameraSettings.Lens.FISHEYE).fire();
+            return null;
+        });
+        hover(focal, 4);
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Lens.FISHEYE)),
+                "the slider replaced by the fisheye shows no 50 mm but the lens chosen last");
+
+        onFxThread(() -> {
+            toggle(dialog, CameraSettings.Lens.FISHEYE).fire();
+            toggle(dialog, CameraSettings.Body.ACTION_CAM).fire();
+            return null;
+        });
+        hover(focal, 2);
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Body.ACTION_CAM)),
+                "24 mm, not the lens of the action cam, shows none");
+        hover(focal, 1);
+        assertTrue(picture.getImage().getUrl().endsWith(CameraExample.resource(CameraSettings.Lens.MM_14)),
+                "the fixed 14 mm shows its example");
+    }
+
+    @Test
+    void dragsNoFocalLengthIntoTheSliderASpecialLensReplaced() throws Exception {
+        CameraEditDialog dialog = open(new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null, null,
+                null));
+        Slider focal = sliders(dialog).getFirst();
+        onFxThread(() -> {
+            dialog.setX(0);
+            dialog.setY(0);
+            dialog.setHeight(700);
+            dialog.show();
+            return null;
+        });
+        try {
+            drag(focal);
+            assertTrue(focal.getValue() > 0, "the drag works on the free slider");
+
+            onFxThread(() -> {
+                toggle(dialog, CameraSettings.Lens.FISHEYE).fire();
+                return null;
+            });
+            drag(focal);
+            assertEquals(0.0, focal.getValue(), "dragging the replaced slider changes nothing");
+            assertEquals(CameraSettings.Lens.FISHEYE, onFxThread(() -> settings(dialog)).lens());
+        } finally {
+
+            /*  the mouse leaves the dialog first, else the tooltip under it keeps the closed dialog  */
+            onFxThread(() -> {
+                new Robot().mouseMove(Screen.getPrimary().getBounds().getMaxX() - 1,
+                        Screen.getPrimary().getBounds().getMaxY() - 1);
+                return null;
+            });
+            onFxThread(() -> {
+                dialog.getDialogPane().getScene().getWindow().hide();
+                return null;
+            });
+        }
+    }
+
     @Test
     void showsTheExampleOfAValueChangedByKeyboardAndKeepsItAfterTheMouseLeaves() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
@@ -345,6 +554,127 @@ class CameraEditDialogTest {
         }
         assertTrue(ground.length > 0, "nothing drawn");
         return new double[] { ground[0], ground[ground.length - 1] + 1 };
+    }
+
+    /**
+     * Checks every control against the settings of the dialog, on the JavaFX thread: each shows its setting, and a
+     * stage is greyed exactly when it is blocked, replaced by a special lens or, as part of a setting the type fixes,
+     * cannot be chosen.
+     */
+    private static void assertShowsSettings(CameraEditDialog dialog) {
+        CameraSettings settings = settings(dialog);
+        List<Slider> sliders = sliders(dialog);
+        boolean replaced = settings.lens() != null && settings.lens().isSpecial();
+        assertDetents(sliders.get(0), CameraSettings.Lens.class, FOCAL_LENGTHS, settings.lens(), settings, replaced);
+        assertDetents(sliders.get(1), CameraSettings.Aperture.class, List.of(CameraSettings.Aperture.values()),
+                settings.aperture(), settings, false);
+        assertDetents(sliders.get(2), CameraSettings.Shutter.class, List.of(CameraSettings.Shutter.values()),
+                settings.shutter(), settings, false);
+        assertDetents(sliders.get(3), CameraSettings.Iso.class, List.of(CameraSettings.Iso.values()), settings.iso(),
+                settings, false);
+        assertToggles(dialog, CameraSettings.Body.class, settings.body(), settings);
+        assertToggles(dialog, CameraSettings.Lens.class, settings.lens(), settings);
+        assertToggles(dialog, CameraSettings.Perspective.class, settings.perspective(), settings);
+        assertToggles(dialog, CameraSettings.Shot.class, settings.shot(), settings);
+    }
+
+    private static <E extends Enum<E>> void assertDetents(Slider slider, Class<E> setting, List<E> stages, E value,
+            CameraSettings settings, boolean replaced) {
+        String name = setting.getSimpleName();
+        assertEquals(value != null ? stages.indexOf(value) + 1 : 0, slider.getValue(),
+                name + " stands at " + value);
+        assertEquals(replaced, slider.isDisabled(), name + " is greyed while replaced only");
+        assertEquals(settings.fixes(setting), slider.isMouseTransparent(), name + " is read-only while fixed");
+        List<Label> labels = labels(slider);
+        for (int index = 0; index <= stages.size(); index++) {
+            E stage = index > 0 ? stages.get(index - 1) : null;
+            assertEquals(replaced || greyed(settings, setting, stage), labels.get(index).isDisabled(),
+                    name + " " + stage + " greyed");
+        }
+        for (Line tick : ticks(slider))
+            assertEquals(replaced ? 0.4 : 1.0, tick.getOpacity(), name + " tick greyed with its track");
+    }
+
+    private static <E extends Enum<E>> void assertToggles(CameraEditDialog dialog, Class<E> setting, E value,
+            CameraSettings settings) {
+        ToggleGroup group = dialog.getDialogPane().lookupAll(".toggle-button").stream().map(ToggleButton.class::cast)
+                .filter((button) -> setting.isInstance(button.getUserData())).findFirst().orElseThrow()
+                .getToggleGroup();
+        for (Toggle toggle : group.getToggles()) {
+            E stage = setting.cast(toggle.getUserData());
+            String name = setting.getSimpleName() + " " + stage;
+            assertEquals(stage == value, toggle.isSelected(), name + " selected");
+            assertEquals(greyed(settings, setting, stage), ((Node) toggle).isDisabled(), name + " greyed");
+        }
+    }
+
+    /** Whether a stage cannot be chosen: the type fixes its setting to another value, or the type or lens blocks it. */
+    private static <E extends Enum<E>> boolean greyed(CameraSettings settings, Class<E> setting, E stage) {
+        return settings.fixes(setting) && stage != settings.fixed(setting) || settings.blocker(stage) != null;
+    }
+
+    private static CameraSettings settings(CameraEditDialog dialog) {
+        return dialog.getResultConverter().call(dialog.getDialogPane().getButtonTypes().getFirst()).settings();
+    }
+
+    /** Moves the mouse over a detent of a slider, on the track that shows the example. */
+    private static void hover(Slider slider, int detent) throws Exception {
+        onFxThread(() -> {
+            Line tick = ticks(slider).get(detent);
+            Point2D point = tick.localToScene(tick.getStartX(), tick.getEndY());
+            Event.fireEvent(slider.getParent(), new MouseEvent(MouseEvent.MOUSE_MOVED, point.getX(), point.getY(),
+                    point.getX(), point.getY(), MouseButton.NONE, 0, false, false, false, false, false, false, false,
+                    false, false, false, null));
+            return null;
+        });
+    }
+
+    /** Drags the thumb of a shown slider to the right with the mouse of the system, as the user would. */
+    private static void drag(Slider slider) throws Exception {
+        Robot robot = onFxThread(Robot::new);
+        Point2D from = onFxThread(() -> {
+            Node thumb = slider.lookup(".thumb");
+            Bounds bounds = thumb.localToScreen(thumb.getLayoutBounds());
+            return new Point2D(bounds.getCenterX(), bounds.getCenterY());
+        });
+        onFxThread(() -> {
+            robot.mouseMove(from);
+            robot.mousePress(MouseButton.PRIMARY);
+            return null;
+        });
+        for (int step = 1; step <= 10; step++) {
+            double x = from.getX() + step * 20;
+            onFxThread(() -> {
+                robot.mouseMove(x, from.getY());
+                return null;
+            });
+        }
+        onFxThread(() -> {
+            robot.mouseRelease(MouseButton.PRIMARY);
+            return null;
+        });
+        onFxThread(() -> null);
+    }
+
+    /** The text of the tooltip naming why the control in a wrapper is greyed, null without one. */
+    private static String reason(Node wrapper) {
+        Tooltip tooltip = (Tooltip) wrapper.getProperties().get("javafx.scene.control.Tooltip");
+        return tooltip != null ? tooltip.getText() : null;
+    }
+
+    /** The labels below the detents of a slider, "Any" first. */
+    private static List<Label> labels(Slider slider) {
+        return scale(slider).getChildren().stream().filter(StackPane.class::isInstance)
+                .map((wrapper) -> (Label) ((StackPane) wrapper).getChildren().getFirst()).toList();
+    }
+
+    private static List<Line> ticks(Slider slider) {
+        return scale(slider).getChildren().stream().filter(Line.class::isInstance).map(Line.class::cast).toList();
+    }
+
+    /*  the ticks and labels below a slider, the last part of its track  */
+    private static Pane scale(Slider slider) {
+        return (Pane) ((VBox) slider.getParent()).getChildren().getLast();
     }
 
     private static List<Slider> sliders(CameraEditDialog dialog) {

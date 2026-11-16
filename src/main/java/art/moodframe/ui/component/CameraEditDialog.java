@@ -69,7 +69,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
 
     /*  a control of a stage that a chosen type or lens can block, in the wrapper naming the reason: a disabled control
         gets no mouse events  */
-    private record Blockable(Enum<?> stage, Control control, Node wrapper, Tooltip reason) {
+    private record Blockable<E extends Enum<E>>(Class<E> setting, E stage, Control control, Node wrapper,
+            Tooltip reason) {
     }
 
     /*  a setting a camera type can fix: its controls read-only but not greyed, the hint beside its heading naming the
@@ -108,11 +109,14 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private final ButtonType saveAsNewButtonType;
     private final Map<Object, String> texts = new IdentityHashMap<>();
     private final List<Runnable> headings = new ArrayList<>();
-    private final List<Blockable> blockables = new ArrayList<>();
+    private final List<Blockable<?>> blockables = new ArrayList<>();
     private final List<Fixable<?>> fixables = new ArrayList<>();
     private final TextField nameField = new TextField();
     private final ToggleGroup bodyGroup = new ToggleGroup();
     private final Slider focalSlider = new Slider(0, FOCAL_LENGTHS.size(), 0);
+    private final VBox focalTrack;
+    private final StackPane focalBox;
+    private final Tooltip replaced = new Tooltip();
     private final ToggleGroup specialGroup = new ToggleGroup();
     private final Slider apertureSlider = new Slider(0, Aperture.values().length, 0);
     private final Slider shutterSlider = new Slider(0, Shutter.values().length, 0);
@@ -168,25 +172,23 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             bodyTiles.getChildren().add(tile(bodyGroup, body, "camera.body." + key(body), BODY_ICONS.get(body),
                     settings.body()));
 
-        /*  Focal length: a slider with detents, the special lenses beside it; a special lens overrides the slider  */
+        /*  Focal length: a slider with detents, the special lenses beside it; a special lens replaces the slider, which
+            then stands greyed at "Any", in the box naming the lens; a second click on the lens frees it again  */
         Label focalAny = text(new Label(), "camera.dialog.any");
-        VBox focalTrack = detents(focalSlider, FOCAL_LENGTHS, (lens) -> String.valueOf(lens.millimeters()), Map.of(),
+        focalTrack = detents(focalSlider, FOCAL_LENGTHS, (lens) -> String.valueOf(lens.millimeters()), Map.of(),
                 focalAny);
+        focalBox = new StackPane(focalTrack);
         List<Control> lensControls = new ArrayList<>(List.of(focalSlider));
         FlowPane specialRow = new FlowPane(4, 4);
         for (Lens lens : SPECIAL_LENSES) {
             ToggleButton button = text(new ToggleButton(), "camera.lens." + key(lens));
             button.setToggleGroup(specialGroup);
             button.setUserData(lens);
-            StackPane wrapper = blockable(lens, button);
-            hover(button, (event) -> lens);
+            StackPane wrapper = blockable(Lens.class, lens, button);
+            hover(button, (event) -> button);
             lensControls.add(button);
             specialRow.getChildren().add(wrapper);
         }
-        focalSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (specialGroup.getSelectedToggle() != null && oldVal.intValue() != newVal.intValue())
-                specialGroup.selectToggle(null);
-        });
 
         /*  Aperture, shutter and ISO: sliders with detents, the shutter and ISO with their symbols above  */
         Label apertureAny = text(new Label(), "camera.dialog.any");
@@ -212,7 +214,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         /*  Left all settings in the order of the prompt, right the preview with the example below it  */
         VBox settingsBox = new VBox(6,
                 heading("camera.dialog.type"), bodyTiles,
-                fixable(Lens.class, "camera.dialog.lens", lensControls, focalAny), focalTrack, specialRow,
+                fixable(Lens.class, "camera.dialog.lens", lensControls, focalAny), focalBox, specialRow,
                 fixable(Aperture.class, "camera.dialog.aperture", List.of(apertureSlider), apertureAny), apertureTrack,
                 new HBox(20, shutter, iso), perspective, shot);
         settingsBox.setMinWidth(SETTINGS_WIDTH);
@@ -296,8 +298,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         boolean outer = adjusting;
         adjusting = true;
         select(bodyGroup, settings.body());
-
-        /*  the slider first, as moving it drops a special lens  */
         focalSlider.setValue(settings.lens() != null ? FOCAL_LENGTHS.indexOf(settings.lens()) + 1 : 0);
         select(specialGroup, settings.lens() != null && settings.lens().isSpecial() ? settings.lens() : null);
         apertureSlider.setValue(settings.aperture() != null ? settings.aperture().ordinal() + 1 : 0);
@@ -308,21 +308,22 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         adjusting = outer;
     }
 
-    /*  the preview and the prompt for a photographic style; a special lens dims the slider it overrides. A setting
-        the type fixes takes its value, a stage blocked by the type or lens just chosen goes back to "Any" first,
-        each change updating anew.  */
+    /*  the preview and the prompt for a photographic style; a special lens replaces the slider, which stands greyed
+        at "Any". A setting the type fixes takes its value, a stage blocked by the type or lens just chosen goes back
+        to "Any" first, each change updating anew.  */
     private void update() {
         CameraSettings settings = settings();
         CameraSettings allowed = settings.withoutConflicts();
-        if (!allowed.equals(settings)) {
+        Lens special = selected(specialGroup, Lens.class);
+        if (!allowed.equals(settings) || special != null && focalSlider.getValue() != 0) {
             show(allowed);
             return;
         }
-        for (Blockable blockable : blockables) {
-            Enum<?> blocker = settings.blocker(blockable.stage());
-            blockable.control().setDisable(blocker != null);
-            if (blocker != null) {
-                blockable.reason().setText(I18nManager.getText("camera.dialog.blocked", CameraExample.name(blocker)));
+        for (Blockable<?> blockable : blockables) {
+            String reason = reason(settings, blockable);
+            blockable.control().setDisable(reason != null);
+            if (reason != null) {
+                blockable.reason().setText(reason);
                 Tooltip.install(blockable.wrapper(), blockable.reason());
             }
             else
@@ -330,15 +331,30 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         }
         for (Fixable<?> fixable : fixables)
             fix(fixable, settings);
+        focalTrack.setDisable(special != null);
+        if (special != null) {
+            replaced.setText(I18nManager.getText("camera.dialog.replaced", CameraExample.name(special)));
+            Tooltip.install(focalBox, replaced);
+        }
+        else
+            Tooltip.uninstall(focalBox, replaced);
         String camera = CameraPromptBuilder.build(settings, true);
         preview.show(settings);
         promptArea.setText(camera.isEmpty() ? I18nManager.getText("camera.dialog.prompt.empty")
                 : "Camera: " + camera + ".");
-        focalSlider.setOpacity(specialGroup.getSelectedToggle() != null ? 0.5 : 1);
+    }
+
+    /*  why a stage cannot be chosen, null if it can: the type fixes its setting to another value, so also "Any" of a
+        setting fixed to a value, or the stage contradicts the chosen type or lens  */
+    private static <E extends Enum<E>> String reason(CameraSettings settings, Blockable<E> blockable) {
+        if (settings.fixes(blockable.setting()) && blockable.stage() != settings.fixed(blockable.setting()))
+            return I18nManager.getText("camera.dialog.fixed", CameraExample.name(settings.body()));
+        Enum<?> blocker = settings.blocker(blockable.stage());
+        return blocker != null ? I18nManager.getText("camera.dialog.blocked", CameraExample.name(blocker)) : null;
     }
 
     /*  a setting fixed by the type: read-only but not greyed, as it shows the value of the type; "Any" does not exist
-        then, it reads "Auto" for an automatic or stands back behind the fixed value  */
+        then, it reads "Auto" for an automatic or stands back greyed behind the fixed value  */
     private static <E extends Enum<E>> void fix(Fixable<E> fixable, CameraSettings settings) {
         boolean fixed = settings.fixes(fixable.setting());
         for (Control control : fixable.controls()) {
@@ -349,8 +365,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
                 : "");
         fixable.any().setText(I18nManager.getText(fixed && settings.fixed(fixable.setting()) == null
                 ? "camera.dialog.auto" : "camera.dialog.any"));
-        if (fixed && settings.fixed(fixable.setting()) != null)
-            fixable.any().setDisable(true);
     }
 
     /*  leaving a type sets the settings it fixed back to "Any": the type chose them, not the user  */
@@ -371,9 +385,16 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         restingExample.run();
     }
 
-    /*  while the mouse is over a control, the example shows the stage under it, afterwards the one changed last  */
-    private void hover(Node node, Function<MouseEvent, Enum<?>> stage) {
-        node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> example.show(stage.apply(event)));
+    /*  while the mouse is over a control, the example shows the stage under it, kept as its user data, afterwards the
+        one changed last; a greyed stage shows none, as it cannot be chosen  */
+    private void hover(Node node, Function<MouseEvent, Node> control) {
+        node.addEventHandler(MouseEvent.MOUSE_MOVED, (event) -> {
+            Node target = control.apply(event);
+            if (target.isDisabled())
+                restingExample.run();
+            else
+                example.show((Enum<?>) target.getUserData());
+        });
         node.addEventHandler(MouseEvent.MOUSE_EXITED, (event) -> restingExample.run());
     }
 
@@ -388,9 +409,9 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     }
 
     /*  a control of a stage that a chosen type or lens can block, wrapped for the reason  */
-    private StackPane blockable(Enum<?> stage, Control control) {
+    private <E extends Enum<E>> StackPane blockable(Class<E> setting, E stage, Control control) {
         StackPane wrapper = new StackPane(control);
-        blockables.add(new Blockable(stage, control, wrapper, new Tooltip()));
+        blockables.add(new Blockable<>(setting, stage, control, wrapper, new Tooltip()));
         return wrapper;
     }
 
@@ -410,7 +431,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         tile.setWrapText(true);
         tile.setTextAlignment(TextAlignment.CENTER);
         join(group, tile, value, value == selected);
-        hover(tile, (event) -> value);
+        hover(tile, (event) -> tile);
         return tile;
     }
 
@@ -418,6 +439,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
     private <E extends Enum<E>> VBox symbols(String headingKey, ToggleGroup group, E[] values,
             Function<E, String> key, Map<E, String> icons, E selected) {
         HBox row = new HBox(4);
+        Class<E> setting = values[0].getDeclaringClass();
         Map<Toggle, String> names = new IdentityHashMap<>();
         List<E> choices = new ArrayList<>();
         choices.add(null);
@@ -433,8 +455,8 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
             button.setTooltip(tooltip);
             names.put(button, name);
             join(group, button, value, value == selected);
-            StackPane wrapper = blockable(value, button);
-            hover(button, (event) -> value);
+            StackPane wrapper = blockable(setting, value, button);
+            hover(button, (event) -> button);
             row.getChildren().add(wrapper);
         }
 
@@ -476,16 +498,23 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         slider.setSnapToTicks(true);
         slider.setBlockIncrement(1);
 
+        Class<E> setting = stages.getFirst().getDeclaringClass();
         List<Line> ticks = new ArrayList<>();
+        List<Label> names = new ArrayList<>();
         List<Node> labels = new ArrayList<>();
         List<Node> glyphs = new ArrayList<>();
         for (int index = 0; index <= stages.size(); index++) {
             E stage = index > 0 ? stages.get(index - 1) : null;
             Label name = stage != null ? new Label(label.apply(stage)) : any;
             name.getStyleClass().add("text-small");
-            labels.add(blockable(stage, name));
+            name.setUserData(stage);
+            names.add(name);
+            labels.add(blockable(setting, stage, name));
             Line tick = new Line(0, 1, 0, 5);
             tick.setStyle("-fx-stroke: -color-slider-tick;");
+
+            /*  a greyed track fades its ticks like its labels, which the theme fades to 40 %  */
+            tick.opacityProperty().bind(tick.disabledProperty().map((disabled) -> disabled ? 0.4 : 1.0));
             ticks.add(tick);
             if (stage != null && icons.containsKey(stage))
                 glyphs.add(icon(icons.get(stage), 13));
@@ -543,10 +572,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         slider.valueProperty().addListener((obs, oldVal, newVal) -> changed(stage(slider, stages)));
 
         VBox track = glyphs.isEmpty() ? new VBox(slider, scale) : new VBox(marks, slider, scale);
-        hover(track, (event) -> {
-            int index = detent(slider, event);
-            return index > 0 ? stages.get(index - 1) : null;
-        });
+        hover(track, (event) -> names.get(detent(slider, event)));
         return track;
     }
 
