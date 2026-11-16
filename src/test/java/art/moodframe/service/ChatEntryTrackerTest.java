@@ -105,4 +105,21 @@ class ChatEntryTrackerTest {
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
         assertFalse(onFxThread(() -> tracker.cancel(entry)));
     }
+
+    @Test
+    void aFailedEntryTellsWhyItsImagesFailed() throws Exception {
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ApplicationConfig.class), mock(ChatRepository.class),
+                Runnable::run);
+        String reason = "Gemini generation failed: Request contains an invalid argument";
+        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
+        for (String message : new String[] { reason, null, reason })
+            entry.getImages().add(new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.FAILED)
+                    .errorMessage(message).build());
+
+        tracker.refresh(entry);
+        drainFxThread();
+        drainFxThread();
+        assertEquals(ChatEntry.Status.FAILED, entry.getStatus());
+        assertEquals(reason, entry.getErrorMessage(), "each reason once, an image without one adds nothing");
+    }
 }

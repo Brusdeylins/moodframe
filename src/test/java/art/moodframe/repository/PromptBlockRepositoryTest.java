@@ -103,8 +103,9 @@ class PromptBlockRepositoryTest {
         assertTrue(repository.update(changed));
         assertEquals(CameraSettings.Perspective.TOP_DOWN,
                 CameraSettings.fromJson(repository.findById(stored.getId()).getParams()).perspective());
-        assertEquals("a top-down view: the camera directly above the main subject, looking straight down",
-                repository.findById(stored.getId()).getText());
+        assertEquals("a top-down view from high above, looking straight down: the main subject seen from above like "
+                + "everything around it, no larger than people or things beside it, only ground and tops visible, no "
+                + "horizon", repository.findById(stored.getId()).getText());
     }
 
     private static void execute(String sql) throws Exception {

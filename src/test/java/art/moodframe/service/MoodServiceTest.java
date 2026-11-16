@@ -92,12 +92,14 @@ class MoodServiceTest {
         /*  Full frame, 85 mm, f/1.4, eye level and close-up contradict each other in no stage  */
         String prompt = new PromptComposer(10000).compose("a coffee cup",
                 moods.selection(moods.find("std:mood:lifestyle-product")));
-        assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera, crisp fine detail, clean tones, "
-                + "detail kept in the brightest and darkest areas; 85mm lens: a tight view, the main subject large in "
-                + "the frame, the background clearly enlarged and pulled close behind it; f/1.4: only the main "
-                + "subject in focus, everything behind it strongly blurred into soft shapes; eye level: the camera at "
-                + "the height of the main subject, looking straight at it; a close-up: the camera close to the main "
-                + "subject, which fills the frame."), prompt);
+        assertTrue(prompt.contains("\nCamera: shot on a full-frame digital camera: crisp fine detail, clean tones, "
+                + "a wide dynamic range with detail in the brightest and darkest areas, natural colors; 85mm lens, 29° "
+                + "view: a narrower view, everything in the frame larger, less of the surroundings, the background "
+                + "enlarged and pulled closer, softly out of focus; f/1.4: razor-thin focus on the main subject only; "
+                + "the background melts into smooth, featureless color areas, foreground things near the camera into "
+                + "soft blurs; bright lights as round glows; eye level: the camera at the height of the main subject, "
+                + "looking straight at it, vertical lines upright; a close-up: the main subject fills the frame, such "
+                + "as a face with head and shoulders."), prompt);
         assertEquals("Calm · Styled Set · Faded Cream · Soft Natural · Product Tabletop",
                 moods.describe(moods.find("std:mood:styled-set")));
     }
@@ -208,7 +210,7 @@ class MoodServiceTest {
         Mood product = moods.find("std:mood:clean-product");
         String prompt = new PromptComposer(10000).compose("a perfume bottle", moods.selection(product));
 
-        assertTrue(prompt.contains("\nCamera: shot on Hasselblad X2D, a medium format camera, "), prompt);
+        assertTrue(prompt.contains("\nCamera: shot on Hasselblad X2D, a medium format camera: "), prompt);
         assertTrue(moods.describe(product).endsWith(" · Product Tabletop"), moods.describe(product));
     }
 

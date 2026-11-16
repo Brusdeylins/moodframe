@@ -378,6 +378,23 @@ class McpEditToolsTest {
     }
 
     @Test
+    void previewWithAReferenceImageTellsTheEditIntroOfTheCamera() throws Exception {
+        File photo = tempDir.resolve("reference.png").toFile();
+        ImageIO.write(new BufferedImage(64, 36, BufferedImage.TYPE_INT_RGB), "png", photo);
+        String order = "\"prompt\":\"a harbor at dawn\",\"model\":\"" + MODEL + "\",\"blocks\":{\"camera\":"
+                + "\"Classic Portrait\"},\"referenceImages\":[" + JSON.writeValueAsString(photo.getPath()) + "]";
+
+        String prompt = call("preview_generation", "{" + order + "}").path("prompt").asText();
+        assertTrue(prompt.contains(PromptComposer.EDIT_CAMERA_INTRO + " Camera: "), prompt);
+
+        /*  The order sent makes the same prompt  */
+        String chatId = call("create_chat", "{\"name\":\"Edit\"}").path("id").asText();
+        JsonNode generated = call("generate", "{\"chatId\":\"" + chatId + "\"," + order + "}");
+        assertEquals(prompt, chats.findEntry(generated.path("entryId").asText()).getEnhancedPrompt());
+        assertEquals(prompt, provider.sent.get(provider.sent.size() - 1).getPrompt());
+    }
+
+    @Test
     void generatesIntoTheChatAndDeletesToTheTrash() throws Exception {
         String chatId = call("create_chat", "{\"name\":\"Generated\"}").path("id").asText();
         JsonNode result = call("generate", "{\"chatId\":\"" + chatId + "\",\"prompt\":\"a lighthouse\","

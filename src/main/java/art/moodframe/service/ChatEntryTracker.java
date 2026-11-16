@@ -204,6 +204,12 @@ public class ChatEntryTracker {
                 } else if (allFailed) {
                     // All images failed - mark as FAILED
                     chatEntry.setStatus(ChatEntry.Status.FAILED);
+
+                    /*  The entry tells why, with the distinct reasons of its images (the provider's answer)  */
+                    if (chatEntry.getErrorMessage() == null || chatEntry.getErrorMessage().isBlank())
+                        chatEntry.setErrorMessage(chatEntry.getImages().stream().map(GeneratedImage::getErrorMessage)
+                                .filter((String message) -> message != null && !message.isBlank()).distinct()
+                                .reduce((String first, String next) -> first + "; " + next).orElse(null));
                 }
 
                 chatEntry.setCompletedAt(LocalDateTime.now());

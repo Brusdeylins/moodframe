@@ -28,7 +28,8 @@ class PromptComposerTest {
     private static final PromptBlock PORTRAIT = PromptBlockService.camera("portrait", "Portrait", new CameraSettings(
             CameraSettings.Body.FULL_FRAME, null, CameraSettings.Lens.MM_85, null, null, null, null,
             CameraSettings.Shot.CLOSE_UP));
-    private static final String CLOSE_UP = "a close-up: the camera close to the main subject, which fills the frame";
+    private static final String CLOSE_UP = "a close-up: the main subject fills the frame, such as a face with head and "
+            + "shoulders";
     private static final ColorStyle OCEAN = new ColorStyle("Ocean Breeze", List.of("#48BDFF", "#0096C7"), true);
 
     private final PromptComposer composer = new PromptComposer(2000);
@@ -43,9 +44,9 @@ class PromptComposerTest {
                 a lighthouse on a cliff
                 Atmosphere: quiet morning fog.
                 Lighting: soft daylight from a large window.
-                Camera: eye level: the camera at the height of the main subject, looking straight at it; a wide \
-                shot: the whole main subject in the frame with space around it; all people and objects of the scene \
-                kept.
+                Camera: eye level: the camera at the height of the main subject, looking straight at it, vertical \
+                lines upright; a wide shot: the whole main subject in the frame with space around it, such as a \
+                person from head to toe.
                 Color palette: the image is composed predominantly of these colors: color 1 hex #48BDFF, \
                 color 2 hex #0096C7. The palette takes precedence over the color of the light. The colors appear \
                 only as colors of objects, surfaces and light; the image contains no written color codes, \

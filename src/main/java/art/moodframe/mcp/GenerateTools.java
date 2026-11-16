@@ -360,7 +360,8 @@ class GenerateTools {
         return names;
     }
 
-    /*  the reference images as Base64, within the limits of the model; only checked unless encoded  */
+    /*  the reference images as Base64, within the limits of the model; unless encoded, only checked and their paths
+        stand in, so a preview counts them like the order sent  */
     private List<String> references(JsonNode images, GenerationModel model, boolean encode)
             throws McpTools.ToolException, IOException {
         if (images == null || images.isNull() || images.isEmpty())
@@ -379,8 +380,10 @@ class GenerateTools {
             if (!image.isTextual())
                 throw new McpTools.ToolException("A reference image is an image ID or an absolute path");
             Path file = ChatTools.imageFile(chats, image.asText());
-            if (!encode)
+            if (!encode) {
+                encoded.add(file.toString());
                 continue;
+            }
             try {
                 encoded.add(attachments.attachImage(file.toFile()).getBase64Data());
             }

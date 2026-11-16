@@ -36,8 +36,9 @@ public class PromptComposer {
             "All text is short, correctly spelled and clearly legible, set in one consistent typeface.";
 
     /** Put before the camera of a photographic style when the order has a reference image. */
-    public static final String EDIT_CAMERA_INTRO =
-            "Change only the camera of the reference photo; keep the subject, the scene and the light.";
+    public static final String EDIT_CAMERA_INTRO = "Change only the camera of the reference photo, as if the photo "
+            + "were taken again with these settings; keep the subject, all people and objects, the scene and the "
+            + "light.";
 
     /**
      * The selected building blocks; every part may be null.
