@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.1.0 (2026-11-16)
+
+### FEATURE
+- MCP server: AI agents on your computer, like Claude Code, read and change the library and generate images
+  (Settings → MCP, local only, with a token); entries made by an agent carry an "MCP" badge
+- Camera dialog like a real camera: sliders for focal length, aperture, shutter and ISO, camera types with a fixed
+  lens or automatic set them read-only, contradicting settings are locked with the reason
+- New lens "Shift (Architecture)" next to "Tilt-Shift (Miniature)"
+- New example images in the camera dialog: one scene for every setting, in double resolution
+- Linux: MoodFrame notices a new version itself; all systems show "update available" next to the version
+- Arch Linux: AUR package moodframe-bin
+
+### IMPROVEMENT
+- Camera texts rewritten and checked against photography, so every setting shows in the image; edits of a
+  reference image get their own lead sentence
+- Right panel: one group open at a time, each with a summary and a colored line; the panel is wider so the lists fit
+- Generation group: folded it shows count, model and attachments; the model and its parameters come first
+- Camera dialog: the stage is called "Lens", the example image shows only while you point at or change a value, the
+  preview follows aperture and tilt-shift
+- Theme: dark when the system reports nothing; light and dark detected on Linux
+- Video: when JavaFX cannot play a clip, MoodFrame offers the system player and says what to install
+- JavaFX 23: videos also play with ffmpeg 7
+
+### FIX
+- FLUX images show their price instead of $0; older FLUX entries are filled in once with the list price
+- Dialog buttons follow the language of the app instead of the system's
+- The edit and lock buttons of a building block no longer stay visible after a click
+- `preview_generation` shows the prompt with the lead sentence for reference images; a failed generation reports
+  its error
+
 ## 2.0.1 (2026-11-14)
 
 ### IMPROVEMENT
