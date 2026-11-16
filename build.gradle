@@ -30,7 +30,7 @@ def getConveyorCommand() {
 }
 
 group = 'art.moodframe'
-version = '2.1.0'
+version = '2.1.1'
 description = 'MoodFrame - desktop studio for AI image generation'
 
 java {
