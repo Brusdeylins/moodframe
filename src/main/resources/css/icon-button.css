@@ -39,6 +39,30 @@
     -color-danger-fg:  #ff6b6b;
 }
 
+/*  In the full view the buttons lie over the image: each on a round dark surface with a fine light rim, so its
+    white icon shows on white, black and colorful images alike, as in photo viewers. Hovered and pressed, the light
+    surface lies on top of it.  */
+.image-preview-overlay .preview-button {
+    -preview-button-surface:      rgba(0, 0, 0, 0.5);
+    -color-button-border:         rgba(255, 255, 255, 0.3);
+    -color-button-border-hover:   rgba(255, 255, 255, 0.3);
+    -color-button-border-focused: rgba(255, 255, 255, 0.3);
+    -fx-background-color:  -preview-button-surface, -color-button-bg;
+    -fx-background-insets: 0, 0;
+    -fx-background-radius: 18px, 18px;
+    -fx-border-radius:     18px;
+    -fx-min-width:         36px;
+    -fx-pref-width:        36px;
+    -fx-max-width:         36px;
+    -fx-min-height:        36px;
+    -fx-pref-height:       36px;
+    -fx-max-height:        36px;
+    -fx-alignment:         center;
+}
+.image-preview-overlay .preview-button:hover {
+    -fx-background-color: -preview-button-surface, -color-button-bg-hover;
+}
+
 .icon-button:hover {
     -fx-background-color: -color-button-bg-hover;
 }

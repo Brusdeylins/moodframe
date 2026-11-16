@@ -16,10 +16,14 @@ All notable changes to this project will be documented in this file.
   of dark ones; its colors slowly turn around the image (Settings → Appearance switches the motion off)
 - Large preview: a dark stage in all themes, also in the light ones, like in photo programs; the app behind it only
   shows faintly instead of distracting from the image
+- Large preview: every button lies on a round dark surface, so it shows on white, black and colorful images alike
+- Large preview: zoomed in, the image pans up to its edges, where the frame shows that the edge is reached
 
 ### FIX
 - Light themes: the hints of the buttons in the full view and on the bar over an image show dark text instead of
   white text on a light background
+- Large preview: a smaller window fits the image and the video anew, so the buttons no longer cover them; zoomed in,
+  the zoom stays
 
 ## 2.1.0 (2026-11-16)
 

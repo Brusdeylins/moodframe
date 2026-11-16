@@ -79,6 +79,7 @@ import java.util.function.Consumer;
  * @updated 2.1.0 - What helps under Linux to play videos, with a command to copy
  * @updated 2.2.0 - Slowly turning mood frame around image and video instead of the drop shadow
  * @updated 2.2.0 - Nearly opaque dark stage in all themes, also in the light ones
+ * @updated 2.2.0 - Image and video fit anew on every resize, panning ends at the frame, round surface of the buttons
  */
 public class ImagePreviewOverlay extends StackPane implements I18nChangeListener {
 
@@ -271,7 +272,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         closeIcon.setIconSize(20);
         closeIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         closeButton.setGraphic(closeIcon);
-        closeButton.getStyleClass().add("icon-button");
+        closeButton.getStyleClass().addAll("icon-button", "preview-button");
         closeButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.close")));
 
         // Previous image button (left side)
@@ -280,7 +281,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         prevImageIcon.setIconSize(24);
         prevImageIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         prevImageButton.setGraphic(prevImageIcon);
-        prevImageButton.getStyleClass().add("icon-button");
+        prevImageButton.getStyleClass().addAll("icon-button", "preview-button");
         prevImageButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.prev.image")));
 
         // Next image button (right side)
@@ -289,7 +290,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         nextImageIcon.setIconSize(24);
         nextImageIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         nextImageButton.setGraphic(nextImageIcon);
-        nextImageButton.getStyleClass().add("icon-button");
+        nextImageButton.getStyleClass().addAll("icon-button", "preview-button");
         nextImageButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.next.image")));
 
         // Previous chat entry button (top center)
@@ -298,7 +299,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         prevChatIcon.setIconSize(24);
         prevChatIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         prevChatButton.setGraphic(prevChatIcon);
-        prevChatButton.getStyleClass().add("icon-button");
+        prevChatButton.getStyleClass().addAll("icon-button", "preview-button");
         prevChatButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.prev.chat")));
 
         // Next chat entry button (bottom center)
@@ -307,7 +308,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         nextChatIcon.setIconSize(24);
         nextChatIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         nextChatButton.setGraphic(nextChatIcon);
-        nextChatButton.getStyleClass().add("icon-button");
+        nextChatButton.getStyleClass().addAll("icon-button", "preview-button");
         nextChatButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.nav.next.chat")));
 
         // Download button (bottom left)
@@ -316,7 +317,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         downloadIcon.setIconSize(20);
         downloadIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         downloadButton.setGraphic(downloadIcon);
-        downloadButton.getStyleClass().add("icon-button");
+        downloadButton.getStyleClass().addAll("icon-button", "preview-button");
         downloadButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.download.image")));
 
         // Edit This button (bottom right)
@@ -325,7 +326,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         editIcon.setIconSize(20);
         editIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         editThisButton.setGraphic(editIcon);
-        editThisButton.getStyleClass().add("icon-button");
+        editThisButton.getStyleClass().addAll("icon-button", "preview-button");
         editThisButton.setTooltip(new Tooltip(I18nManager.getText("tooltip.preview.edit.image")));
 
         // Toggle Zoom button (100% <-> Fit to screen) - top right, next to close button
@@ -335,7 +336,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         zoomToggleIcon.setIconSize(20);
         zoomToggleIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         zoom100Button.setGraphic(zoomToggleIcon);
-        zoom100Button.getStyleClass().add("icon-button");
+        zoom100Button.getStyleClass().addAll("icon-button", "preview-button");
         // Ensure button can receive mouse events
         zoom100Button.setMouseTransparent(false);
         zoom100Button.setPickOnBounds(true);
@@ -346,7 +347,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         playIcon.setIconSize(24);
         playIcon.setIconColor(javafx.scene.paint.Color.WHITE);
         playPauseButton.setGraphic(playIcon);
-        playPauseButton.getStyleClass().add("icon-button");
+        playPauseButton.getStyleClass().addAll("icon-button", "preview-button");
         playPauseButton.setTooltip(new Tooltip("Play / Pause"));
         playPauseButton.setVisible(false);
 
@@ -836,7 +837,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     }
 
     /**
-     * Constrains the image position to keep it always partially visible.
+     * Constrains the image position: a larger image pans at most until its mood frame shows at an edge.
      * For images smaller than the overlay, prevents any panning.
      */
     private void constrainImagePosition() {
@@ -859,10 +860,11 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             return;
         }
 
-        // For larger images, calculate maximum allowed translation to keep part of
-        // image visible
-        double maxTranslateX = Math.max(0, (imageWidth - overlayWidth / 2) / 2);
-        double maxTranslateY = Math.max(0, (imageHeight - overlayHeight / 2) / 2);
+        /*  Per axis, a larger image pans until its edge lies the extent of the frame inside the overlay, so frame
+            and glow show there; along an axis it fits, it stays centered  */
+        double frame = PreviewFrame.EXTENT;
+        double maxTranslateX = imageWidth  > overlayWidth  ? (imageWidth  - overlayWidth)  / 2 + frame : 0;
+        double maxTranslateY = imageHeight > overlayHeight ? (imageHeight - overlayHeight) / 2 + frame : 0;
 
         // Constrain X position using imageView
         double currentX = imageView.getTranslateX();
@@ -898,9 +900,10 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double originalWidth = image.getWidth();
         double originalHeight = image.getHeight();
 
-        // Get available preview area (overlay size minus margins)
-        double overlayWidth = getWidth() - 160; // Leave margins for nav buttons
-        double overlayHeight = getHeight() - 120; // Leave space for info label
+        /*  The available preview area (overlay size minus the margins for the buttons), at least a pixel, also
+            before the first layout  */
+        double overlayWidth = Math.max(1.0, getWidth() - 160);
+        double overlayHeight = Math.max(1.0, getHeight() - 120);
 
         // Calculate scale factor needed to fit image in preview area
         double scaleToFitWidth = overlayWidth / originalWidth;
@@ -913,9 +916,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Maximum zoom is 1.0 (original pixel size, 1:1 ratio)
         maxZoomForCurrentImage = 1.0;
 
-        // Minimum zoom is the scale needed to fit in preview area
-        // But never smaller than 0.1 for usability
-        minZoomForCurrentImage = Math.max(0.1, baseScaleToFit);
+        /*  Minimum zoom is the scale needed to fit in preview area, also below 0.1 in a very small window  */
+        minZoomForCurrentImage = baseScaleToFit;
 
     }
 
@@ -1259,29 +1261,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             mediaView.setFitHeight(overlayHeight > 0 ? overlayHeight : 600);
 
             // Center the video manually since managed=false
-            mediaPlayer.setOnReady(() -> {
-                double containerWidth = displayLayer.getWidth();
-                double containerHeight = displayLayer.getHeight();
-                double videoWidth = mediaView.getFitWidth();
-                double videoHeight = mediaView.getFitHeight();
-
-                // Recalculate with actual media dimensions to maintain aspect ratio
-                double mediaWidth = media.getWidth();
-                double mediaHeight = media.getHeight();
-                if (mediaWidth > 0 && mediaHeight > 0) {
-                    double scaleW = (containerWidth - 160) / mediaWidth;
-                    double scaleH = (containerHeight - 120) / mediaHeight;
-                    double scale = Math.min(scaleW, scaleH);
-                    scale = Math.min(scale, 1.0); // Don't upscale
-                    videoWidth = mediaWidth * scale;
-                    videoHeight = mediaHeight * scale;
-                    mediaView.setFitWidth(videoWidth);
-                    mediaView.setFitHeight(videoHeight);
-                }
-
-                mediaView.setLayoutX((containerWidth - videoWidth) / 2);
-                mediaView.setLayoutY((containerHeight - videoHeight) / 2);
-            });
+            mediaPlayer.setOnReady(this::fitVideoToOverlay);
 
             // Show play/pause button, hide zoom button
             playPauseButton.setVisible(true);
@@ -1306,6 +1286,35 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         } catch (Exception e) {
             showVideoFallback(videoFile, e);
         }
+    }
+
+    /*  The video fits the overlay minus the margins for the buttons, never above its own size, and stays centered;
+        once its player is ready and after every resize  */
+    private void fitVideoToOverlay() {
+        if (!isVideoMode || mediaPlayer == null)
+            return;
+        double containerWidth = displayLayer.getWidth();
+        double containerHeight = displayLayer.getHeight();
+        double videoWidth = mediaView.getFitWidth();
+        double videoHeight = mediaView.getFitHeight();
+
+        // Recalculate with actual media dimensions to maintain aspect ratio
+        Media media = mediaPlayer.getMedia();
+        double mediaWidth = media.getWidth();
+        double mediaHeight = media.getHeight();
+        if (mediaWidth > 0 && mediaHeight > 0) {
+            double scaleW = Math.max(1.0, containerWidth - 160) / mediaWidth;
+            double scaleH = Math.max(1.0, containerHeight - 120) / mediaHeight;
+            double scale = Math.min(scaleW, scaleH);
+            scale = Math.min(scale, 1.0); // Don't upscale
+            videoWidth = mediaWidth * scale;
+            videoHeight = mediaHeight * scale;
+            mediaView.setFitWidth(videoWidth);
+            mediaView.setFitHeight(videoHeight);
+        }
+
+        mediaView.setLayoutX((containerWidth - videoWidth) / 2);
+        mediaView.setLayoutY((containerHeight - videoHeight) / 2);
     }
 
     /**
@@ -1626,40 +1635,28 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     protected void layoutChildren() {
         super.layoutChildren();
 
-        // Refit image when overlay is resized
-        if (isVisible() && imageView.getImage() != null) {
+        // Refit image or video when overlay is resized
+        if (isVisible()) {
             fitImageToOverlay();
+            fitVideoToOverlay();
         }
     }
 
     /**
-     * Fits image to overlay after resize by recalculating zoom limits.
+     * Fits image to overlay after resize by recalculating zoom limits: a fitted image is fitted anew, a zoomed one
+     * keeps its zoom within the new limits and its position within the overlay.
      */
     private void fitImageToOverlay() {
         if (imageView.getImage() == null)
             return;
 
-        // Recalculate zoom limits based on new overlay size
+        /*  Fitted is the fit zoom of the size before, which the limits of the new size replace  */
+        boolean fitted = currentZoom <= baseScaleToFit * 1.001;
         calculateZoomLimits(imageView.getImage());
-
-        // If current zoom is below new minimum, adjust to fit
-        if (currentZoom < minZoomForCurrentImage) {
-            currentZoom = minZoomForCurrentImage;
-            applyZoomAndSize();
-            constrainImagePosition();
-        }
-
-        // If we're at fit-to-preview zoom, update to new fit size
-        if (Math.abs(currentZoom - baseScaleToFit) < 0.01) {
-            currentZoom = baseScaleToFit;
-            applyZoomAndSize();
-            // Reset position for fit-to-preview
-            imageView.setTranslateX(0);
-            imageView.setTranslateY(0);
-        }
-
-        // Update zoom button state after window resize
-        updateZoomButtonState();
+        currentZoom = fitted ? baseScaleToFit
+                : Math.max(minZoomForCurrentImage, Math.min(currentZoom, maxZoomForCurrentImage));
+        applyZoom();
+        constrainImagePosition();
     }
 
     /**

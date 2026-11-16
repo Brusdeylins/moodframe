@@ -34,6 +34,11 @@ public class PreviewFrame extends Group {
     private static final double GLOW_OPACITY = 0.5;
     private static final Duration ROUND = Duration.seconds(20.0);
 
+    /**
+     * How far line and glow reach outside the framed bounds, in pixels.
+     */
+    public static final double EXTENT = GLOW + GLOW_RADIUS;
+
     /*  The colors of the wordmark as a closed loop, the same in all themes  */
     private static final Stop[] STOPS = {
         new Stop(0.0,  Color.web("#ff6b4a")), new Stop(0.25, Color.web("#f5b83d")),

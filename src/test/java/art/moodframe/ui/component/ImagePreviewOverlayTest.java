@@ -14,6 +14,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.event.Event;
+import javafx.event.EventType;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -21,9 +23,12 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelReader;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -724,6 +729,198 @@ class ImagePreviewOverlayTest {
                     overlay.closeOverlay();
                     return I18nManager.removeChangeListener(overlay);
                 });
+            }
+        }
+        finally {
+            onFxThread(() -> {
+                Application.setUserAgentStylesheet(before);
+                return null;
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    /*  The overlay of the given size in a theme, styled as in the app and laid out as by a pulse  */
+    private static ImagePreviewOverlay styledOverlayOfSize(String theme, double width, double height) {
+        Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
+        ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+        Scene scene = new Scene(overlay, width, height);
+        scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
+        overlay.applyCss();
+        resize(overlay, width, height);
+        return overlay;
+    }
+
+    /*  The shown image and the shown buttons, in the coordinates of the overlay, which is the root of its scene  */
+    private static Bounds imageBounds(ImagePreviewOverlay overlay) {
+        ImageView view = find(overlay, ImageView.class).get(0);
+        return view.localToScene(view.getLayoutBounds());
+    }
+
+    private static List<Button> previewButtons(ImagePreviewOverlay overlay) {
+        return find(overlay, Button.class).stream()
+                .filter((button) -> button.getStyleClass().contains("preview-button") && shown(button))
+                .toList();
+    }
+
+    /*  Fitted: the image lies within the overlay minus the margins for the buttons, which lie off the image  */
+    private static void assertFitted(ImagePreviewOverlay overlay, double width, double height) {
+        Bounds image = imageBounds(overlay);
+        String size = width + "x" + height + ": " + image;
+        assertTrue(image.getMinX() >= 80 - 0.5 && image.getMaxX() <= width - 80 + 0.5, size);
+        assertTrue(image.getMinY() >= 60 - 0.5 && image.getMaxY() <= height - 60 + 0.5, size);
+        assertTrue(Math.abs(image.getWidth() - (width - 160)) < 0.5
+                || Math.abs(image.getHeight() - (height - 120)) < 0.5, () -> size + " does not fill the area");
+        List<Button> buttons = previewButtons(overlay);
+        assertTrue(buttons.size() >= 8, size + ": " + buttons.size() + " buttons");
+        for (Button button : buttons) {
+            Bounds bounds = button.localToScene(button.getLayoutBounds());
+            assertFalse(bounds.intersects(image), () -> size + ": " + button.getTooltip().getText() + " " + bounds);
+        }
+        assertFramed(overlay);
+    }
+
+    /*  Pans the image by dragging over the overlay, as the user does  */
+    private static void drag(ImagePreviewOverlay overlay, double deltaX, double deltaY) {
+        Node layer = overlay.getChildrenUnmodifiable().get(1);
+        double x = overlay.getWidth() / 2;
+        double y = overlay.getHeight() / 2;
+        Event.fireEvent(layer, mouse(MouseEvent.MOUSE_PRESSED, x, y));
+        Event.fireEvent(layer, mouse(MouseEvent.MOUSE_DRAGGED, x + deltaX, y + deltaY));
+        Event.fireEvent(layer, mouse(MouseEvent.MOUSE_RELEASED, x + deltaX, y + deltaY));
+    }
+
+    private static MouseEvent mouse(EventType<MouseEvent> type, double x, double y) {
+        return new MouseEvent(type, x, y, x, y, MouseButton.PRIMARY, 1, false, false, false, false, true, false, false,
+                false, false, false, null);
+    }
+
+    @Test
+    void theImageFitsTheWindowAnewAndPansUpToItsFrame() throws Exception {
+        Path big = image(dir, "big.png", 2400, 1600, 0x808080);
+        String before = Application.getUserAgentStylesheet();
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = styledOverlayOfSize("primer-dark", 1400, 900);
+            created.showImages(List.of(big.toString(), big.toString(), big.toString()), 1);
+            created.updateChatNavigationButtons(true, true);
+            created.layout();
+            return created;
+        });
+        double frame = PreviewFrame.EXTENT;
+        try {
+            Bounds fitted = onFxThread(() -> {
+                assertFitted(overlay, 1400, 900);
+                return imageBounds(overlay);
+            });
+
+            /*  smaller, very small, zooming out there and larger again: fitted each time, as large as at first  */
+            for (double[] size : new double[][] { { 800, 600 }, { 300, 200 }, { 1400, 900 } }) {
+                onFxThread(() -> {
+                    resize(overlay, size[0], size[1]);
+                    assertFitted(overlay, size[0], size[1]);
+                    press(overlay, KeyCode.MINUS);
+                    assertFitted(overlay, size[0], size[1]);
+                    return null;
+                });
+            }
+            onFxThread(() -> {
+                assertEquals(fitted.getWidth(), imageBounds(overlay).getWidth(), 0.5);
+                assertEquals(fitted.getHeight(), imageBounds(overlay).getHeight(), 0.5);
+                return null;
+            });
+
+            /*  zoomed in, a smaller window keeps the zoom, and the image pans until its frame shows at the edge  */
+            double zoomed = onFxThread(() -> {
+                for (int i = 0; i < 3; i++)
+                    press(overlay, KeyCode.PLUS);
+                resize(overlay, 800, 600);
+                return imageBounds(overlay).getWidth();
+            });
+            assertTrue(zoomed > 2 * fitted.getWidth() / 1.5, "zoomed: " + zoomed);
+            onFxThread(() -> {
+                Bounds image = imageBounds(overlay);
+                assertEquals(zoomed, image.getWidth(), 0.5);
+                assertTrue(image.getMinX() <= frame + 0.5 && image.getMaxX() >= 800 - frame - 0.5, image::toString);
+                assertTrue(image.getMinY() <= frame + 0.5 && image.getMaxY() >= 600 - frame - 0.5, image::toString);
+                drag(overlay, 2000, 2000);
+                image = imageBounds(overlay);
+                assertEquals(frame, image.getMinX(), 0.5);
+                assertEquals(frame, image.getMinY(), 0.5);
+                assertFramed(overlay);
+                return null;
+            });
+
+            /*  a larger window takes the image back to its edge, the zoom stays  */
+            onFxThread(() -> {
+                resize(overlay, 1400, 900);
+                Bounds image = imageBounds(overlay);
+                assertEquals(zoomed, image.getWidth(), 0.5);
+                assertEquals(frame, image.getMinX(), 0.5);
+                assertEquals(frame, image.getMinY(), 0.5);
+                drag(overlay, -3000, -3000);
+                image = imageBounds(overlay);
+                assertEquals(1400 - frame, image.getMaxX(), 0.5);
+                assertEquals(900 - frame, image.getMaxY(), 0.5);
+                return null;
+            });
+        }
+        finally {
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                Application.setUserAgentStylesheet(before);
+                return I18nManager.removeChangeListener(overlay);
+            });
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    @Test
+    void everyButtonShowsOnWhiteAndOnBlackImagesInAllThemes() throws Exception {
+        Path white = image(dir, "white.png", 2400, 1600, 0xffffff);
+        Path black = image(dir, "black.png", 2400, 1600, 0x000000);
+        String before = Application.getUserAgentStylesheet();
+        try {
+            for (String theme : List.of("primer-light", "primer-dark", "nord-light", "nord-dark", "cupertino-light",
+                    "cupertino-dark", "dracula")) {
+                for (Path image : List.of(white, black)) {
+                    onFxThread(() -> {
+                        ImagePreviewOverlay overlay = styledOverlayOfSize(theme, 1000, 700);
+                        overlay.showImages(List.of(image.toString(), image.toString(), image.toString()), 1);
+                        overlay.updateChatNavigationButtons(true, true);
+
+                        /*  At 100 % the image lies under all buttons  */
+                        press(overlay, KeyCode.F);
+                        overlay.applyCss();
+                        overlay.layout();
+                        Bounds shown = imageBounds(overlay);
+                        assertTrue(shown.getMinX() < 0 && shown.getMaxX() > 1000, shown::toString);
+                        assertTrue(shown.getMinY() < 0 && shown.getMaxY() > 700, shown::toString);
+                        PixelReader pixels = overlay.getScene().snapshot(null).getPixelReader();
+                        List<Button> buttons = previewButtons(overlay);
+                        assertTrue(buttons.size() >= 8, theme + ": " + buttons.size() + " buttons");
+                        for (Button button : buttons) {
+
+                            /*  The surface just inside the rim, above the icon, against the brightest icon pixel  */
+                            Bounds bounds = button.localToScene(button.getLayoutBounds());
+                            Color surface = pixels.getColor((int) bounds.getCenterX(), (int) bounds.getMinY() + 4);
+                            Bounds glyph = button.getGraphic().localToScene(button.getGraphic().getLayoutBounds());
+                            Color icon = surface;
+                            for (int y = (int) glyph.getMinY(); y < glyph.getMaxY(); y++) {
+                                for (int x = (int) glyph.getMinX(); x < glyph.getMaxX(); x++) {
+                                    Color pixel = pixels.getColor(x, y);
+                                    if (luminance(pixel) > luminance(icon))
+                                        icon = pixel;
+                                }
+                            }
+                            String what = theme + ", " + image.getFileName() + ", " + button.getTooltip().getText()
+                                    + ": " + icon + " on " + surface;
+                            assertTrue(contrast(icon, surface) >= 3.0, what + " = " + contrast(icon, surface));
+                            assertTrue(luminance(surface) < 0.25, what);
+                        }
+                        overlay.closeOverlay();
+                        return I18nManager.removeChangeListener(overlay);
+                    });
+                }
             }
         }
         finally {
