@@ -92,7 +92,7 @@ import static org.mockito.Mockito.mock;
  * hovered, like the other icon buttons. The line of Generation runs straight, those of Mood and Frame bend inwards.
  * Every list of the panel opens flush with the left edge of its field, inside the panel. Folded, Generation sums up
  * count (or duration) and model and the attachments in two lines, no higher than Mood and Frame; unfolded, it shows
- * the model first, then Google Search grounding, the count, the other fields and the attachment.
+ * the model first, right below it the fields of the model, then count or duration and the attachment, 15 px apart.
  */
 class MainWindowPanelLayoutTest {
 
@@ -687,43 +687,70 @@ class MainWindowPanelLayoutTest {
                 "no higher in German either");
     }
 
-    /*  the detail fields of Generation that show, by their id; the one holding the model as "model"  */
-    private static List<String> shownGenerationFields() {
-        return ((VBox) group("generationGroupPane").lookup(".panel-group-details")).getChildren().stream()
-                .filter((field) -> field.isVisible() && field.isManaged())
-                .map((field) -> field.lookup("#modelFamilyChoiceBox") != null ? "model" : field.getId()).toList();
+    /*  the detail fields of Generation that show, top down, with the fields of BFL and FLUX.2 taken out of their
+        containers  */
+    private static List<Node> shownGenerationFields(Parent fields) {
+        List<Node> shown = new ArrayList<>();
+        for (Node field : fields.getChildrenUnmodifiable()) {
+            if (!field.isVisible() || !field.isManaged())
+                continue;
+            if ("bflParametersContainer".equals(field.getId()) || "flux2ParametersContainer".equals(field.getId()))
+                shown.addAll(shownGenerationFields((Parent) field));
+            else
+                shown.add(field);
+        }
+        return shown;
+    }
+
+    /*  a detail field of Generation by its id; the one holding the model as "model", the one of the seed as "seed"  */
+    private static String fieldName(Node field) {
+        if (field.lookup("#modelFamilyChoiceBox") != null)
+            return "model";
+        return field.lookup("#seedTextField") != null ? "seed" : field.getId();
     }
 
     @Test
-    void theUnfoldedGenerationCardShowsModelGroundingCountTheOtherFieldsAndTheAttachmentInThisOrder()
+    void theUnfoldedGenerationCardShowsTheModelItsFieldsCountOrDurationAndTheAttachmentInThisOrder()
             throws Exception {
         show("generation");
+        String attachment = "multiImageAttachmentContainer";
         Map<String, List<String>> fields = Map.of(
                 "Nano Banana Pro", List.of("model", "geminiAdvancedFeaturesContainer", "imageCountContainer",
-                        "multiImageAttachmentContainer"),
-                "Nano Banana 2", List.of("model", "geminiAdvancedFeaturesContainer", "imageCountContainer",
-                        "geminiThinkingLevelContainer", "multiImageAttachmentContainer"),
-                "FLUX 3 Image", List.of("model", "imageCountContainer", "bflParametersContainer",
-                        "flux2ParametersContainer", "multiImageAttachmentContainer"),
-                "Gemini Omni", List.of("model", "videoParametersContainer", "multiImageAttachmentContainer"));
-        for (String model : MODELS) {
+                        attachment),
+                "Nano Banana 2", List.of("model", "geminiAdvancedFeaturesContainer", "geminiThinkingLevelContainer",
+                        "imageCountContainer", attachment),
+                "FLUX 3 Image", List.of("model", "flux2SafetyContainer", "seed", "imageCountContainer", attachment),
+                "FLUX.2 [pro]", List.of("model", "bflPromptUpsamplingCheckBox", "flux2SafetyContainer", "seed",
+                        "imageCountContainer", attachment),
+                "FLUX.2 [flex]", List.of("model", "bflPromptUpsamplingCheckBox", "flux2SafetyContainer",
+                        "flux2GuidanceContainer", "flux2StepsContainer", "seed", "imageCountContainer", attachment),
+                "FLUX.2 [max]", List.of("model", "flux2GroundingSearchContainer", "bflPromptUpsamplingCheckBox",
+                        "flux2SafetyContainer", "seed", "imageCountContainer", attachment),
+                "Gemini Omni", List.of("model", "videoParametersContainer", attachment));
+        Parent details = (Parent) group("generationGroupPane").lookup(".panel-group-details");
+        for (Map.Entry<String, List<String>> expected : fields.entrySet()) {
+            String model = expected.getKey();
             chooseModel(model);
-            assertEquals(fields.get(model), shownGenerationFields(), model);
+            List<Node> shown = shownGenerationFields(details);
+            assertEquals(expected.getValue(), shown.stream().map(MainWindowPanelLayoutTest::fieldName).toList(), model);
+
+            /*  one below the other, 15 px apart like the rest of the folded fields  */
+            for (int i = 1; i < shown.size(); i++) {
+                Node above = shown.get(i - 1);
+                Node below = shown.get(i);
+                double gap = below.localToScene(below.getLayoutBounds()).getMinY()
+                        - above.localToScene(above.getLayoutBounds()).getMaxY();
+                assertEquals(15.0, gap, 0.5, model + ": " + fieldName(above) + " to " + fieldName(below));
+            }
             assertTrue(shown(root.lookup("#generationSummaryModel")), model + ": the summary stays");
             assertEquals(countAndModel(model), text("generationSummaryModel"), model);
         }
 
-        /*  the model under its heading, Google Search grounding right below it  */
+        /*  the model under its heading, Google Search grounding as its first field  */
         assertEquals("Model", text("modelLabel"));
         chooseModel("Nano Banana Pro");
         Node grounding = root.lookup("#geminiAdvancedFeaturesContainer").lookup(".check-box");
         assertEquals("Google Search Grounding", ((CheckBox) grounding).getText());
-        double modelBottom = root.lookup("#modelFamilyChoiceBox").localToScene(
-                root.lookup("#modelFamilyChoiceBox").getLayoutBounds()).getMaxY();
-        double groundingTop = grounding.localToScene(grounding.getLayoutBounds()).getMinY();
-        double countTop = root.lookup("#imageCountLabel").localToScene(root.lookup("#imageCountLabel")
-                .getLayoutBounds()).getMinY();
-        assertTrue(modelBottom < groundingTop && groundingTop < countTop, "model, grounding, count");
         onFxThread(() -> I18nManager.setLocale(Locale.GERMAN));
         assertEquals("Modell", text("modelLabel"));
     }

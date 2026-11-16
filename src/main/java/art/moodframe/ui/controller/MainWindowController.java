@@ -4678,11 +4678,14 @@ public class MainWindowController implements I18nChangeListener {
         if (geminiAdvancedFeaturesContainer != null)
             geminiAdvancedFeaturesContainer.setDisable(!enableInput);
 
-        // Disable the video parameters (duration) and the FLUX.2 parameters when no chat is selected
+        // Disable the video parameters (duration) and the FLUX.2 parameters, with the web search of [max], when no
+        // chat is selected
         if (videoParametersContainer != null)
             videoParametersContainer.setDisable(!enableInput);
         if (flux2ParametersContainer != null)
             flux2ParametersContainer.setDisable(!enableInput);
+        if (flux2GroundingSearchContainer != null)
+            flux2GroundingSearchContainer.setDisable(!enableInput);
 
         // Update placeholder text to guide user
         if (!hasApiKey) {

@@ -54,20 +54,29 @@ class MainWindowPanelTest {
     }
 
     @Test
-    void generationSummarizesInTwoSmallLinesAndFoldsTheModelFirst() {
+    void generationSummarizesInTwoSmallLinesAndFoldsTheModelWithItsFieldsFirst() {
         List<Element> parts = children(byId("generationGroupPane"));
-        assertEquals(List.of("generationSummaryModel", "generationSummaryAttachments"), children(parts.get(2)).stream()
-                .map((e) -> e.getAttribute("fx:id")).toList(), "the two lines of the summary");
+        assertEquals(List.of("generationSummaryModel", "generationSummaryAttachments"), ids(children(parts.get(2))),
+                "the two lines of the summary");
         for (Element line : children(parts.get(2)))
             assertEquals("text-small, text-muted", line.getAttribute("styleClass"), "small like the hints");
 
-        /*  the model with its heading, then grounding, count and the other fields; the attachment last  */
+        /*  the model with its heading, right below it its fields, then count or duration; the attachment last  */
         List<Element> details = children(parts.get(3));
         assertTrue(inside(byId("modelLabel"), details.get(0)) && inside(byId("modelFamilyChoiceBox"), details.get(0))
                 && inside(byId("modelComboBox"), details.get(0)), "the model comes first");
-        assertEquals(List.of("geminiAdvancedFeaturesContainer", "imageCountContainer"), details.subList(1, 3).stream()
-                .map((e) -> e.getAttribute("fx:id")).toList(), "grounding, then the count");
-        assertEquals("multiImageAttachmentContainer", details.get(details.size() - 2).getAttribute("fx:id"));
+        assertEquals(List.of("geminiAdvancedFeaturesContainer", "geminiThinkingLevelContainer", "bflParametersContainer",
+                "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer",
+                "imageAttachmentSection"), ids(details.subList(1, details.size())),
+                "the fields of the model, then count or duration, then the attachment");
+
+        /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps, seed  */
+        List<Element> flux = children(byId("bflParametersContainer"));
+        assertEquals(List.of("flux2GroundingSearchContainer", "bflPromptUpsamplingCheckBox", "flux1SafetyContainer",
+                "flux2ParametersContainer"), ids(flux.subList(0, 4)));
+        assertEquals(List.of("flux2SafetyContainer", "flux2GuidanceContainer", "flux2StepsContainer"),
+                ids(children(byId("flux2ParametersContainer"))), "safety, guidance, steps");
+        assertTrue(flux.size() == 5 && inside(byId("seedTextField"), flux.get(4)), "the seed last");
     }
 
     @Test
@@ -102,6 +111,11 @@ class MainWindowPanelTest {
     /*  the element with the id  */
     private static Element byId(String id) {
         return elements.stream().filter((e) -> id.equals(e.getAttribute("fx:id"))).findFirst().orElseThrow();
+    }
+
+    /*  the ids of the elements  */
+    private static List<String> ids(List<Element> elements) {
+        return elements.stream().map((e) -> e.getAttribute("fx:id")).toList();
     }
 
     /*  the child elements, without text and comments  */

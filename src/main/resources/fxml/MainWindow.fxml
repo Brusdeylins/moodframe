@@ -547,7 +547,7 @@
                             </VBox>
                         </VBox>
 
-                        <!-- Generation: model, count, the fields of the model and the attachment -->
+                        <!-- Generation: model, the fields of the model, count and the attachment -->
                         <VBox fx:id="generationGroupPane" styleClass="panel-group, panel-group-gen">
                             <Path styleClass="panel-group-line" managed="false" />
 
@@ -566,8 +566,7 @@
                                 <Label fx:id="generationSummaryAttachments" styleClass="text-small, text-muted" />
                             </VBox>
 
-                            <!-- Folded: the model, Google Search grounding, count, the other fields of the model and the
-                                 attachment -->
+                            <!-- Folded: the model, its fields, count (for a video the duration) and the attachment -->
                             <VBox styleClass="panel-group-details" spacing="15.0">
 
                                 <!-- Model; the hidden field holds the selected variant (family and resolution), the model
@@ -578,23 +577,36 @@
                                     <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
                                 </VBox>
 
-                                <!-- Gemini Advanced Features: Google Search grounding, directly below the model -->
+                                <!-- Gemini Advanced Features: Google Search grounding, the first field of the model -->
                                 <VBox fx:id="geminiAdvancedFeaturesContainer"
                                       visible="false" managed="false"
                                       spacing="0" />
 
-                                <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its
-                                     duration instead -->
-                                <VBox fx:id="imageCountContainer" spacing="5.0">
-                                    <Label fx:id="imageCountLabel" text="Images: 1" styleClass="text-bold" />
-                                    <Slider fx:id="imageCountSlider"
-                                            min="1" max="4" value="1"
-                                            showTickLabels="true" showTickMarks="true"
-                                            majorTickUnit="1.0" snapToTicks="true" />
+                                <!-- Gemini 3 Pro Thinking Level, explained in the tooltip of label and field -->
+                                <VBox fx:id="geminiThinkingLevelContainer" spacing="5.0"
+                                      visible="false" managed="false">
+                                    <fx:define>
+                                        <Tooltip fx:id="geminiThinkingLevelTooltip" text="Low: Fast generation | High: Better reasoning" />
+                                    </fx:define>
+                                    <Label fx:id="geminiThinkingLevelLabel" text="Reasoning Quality:"
+                                           styleClass="text-bold" tooltip="$geminiThinkingLevelTooltip" />
+                                    <ChoiceBox fx:id="geminiThinkingLevelChoiceBox" maxWidth="Infinity" minWidth="0"
+                                               tooltip="$geminiThinkingLevelTooltip" />
                                 </VBox>
 
                                 <!-- BFL-Specific Parameters Container -->
                                 <VBox fx:id="bflParametersContainer" spacing="15.0">
+
+                                    <!-- FLUX.2 [max] Grounding Search Info, explained in its tooltip; first, like
+                                         Google Search grounding -->
+                                    <VBox fx:id="flux2GroundingSearchContainer" spacing="5.0"
+                                          visible="false" managed="false">
+                                        <Label text="Web Search" styleClass="text-bold">
+                                            <tooltip>
+                                                <Tooltip text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt." />
+                                            </tooltip>
+                                        </Label>
+                                    </VBox>
 
                                     <!-- BFL Prompt Upsampling, explained in its tooltip -->
                                     <CheckBox fx:id="bflPromptUpsamplingCheckBox" text="Prompt Enhancement"
@@ -613,16 +625,49 @@
                                                 majorTickUnit="1.0" snapToTicks="true" />
                                     </VBox>
 
-                                    <!-- FLUX.2 Safety Tolerance (0-5 scale) - same position as FLUX.1 safety -->
-                                    <VBox fx:id="flux2SafetyContainer" spacing="5.0"
+                                    <!-- FLUX.2 Specific Parameters Container: safety, guidance and steps, before the
+                                         seed -->
+                                    <VBox fx:id="flux2ParametersContainer" spacing="15.0"
                                           visible="false" managed="false">
-                                        <Label fx:id="flux2SafetyLabel" text="Safety Tolerance:" styleClass="text-bold" />
-                                        <Slider fx:id="flux2SafetySlider"
-                                                min="0" max="5" value="2"
-                                                showTickLabels="true" showTickMarks="true"
-                                                majorTickUnit="1" minorTickCount="0" snapToTicks="true" />
-                                        <Label fx:id="flux2SafetyValueLabel" text="Default (2)"
-                                               styleClass="text-small" />
+
+                                        <!-- FLUX.2 Safety Tolerance (0-5 scale) - same position as FLUX.1 safety -->
+                                        <VBox fx:id="flux2SafetyContainer" spacing="5.0"
+                                              visible="false" managed="false">
+                                            <Label fx:id="flux2SafetyLabel" text="Safety Tolerance:" styleClass="text-bold" />
+                                            <Slider fx:id="flux2SafetySlider"
+                                                    min="0" max="5" value="2"
+                                                    showTickLabels="true" showTickMarks="true"
+                                                    majorTickUnit="1" minorTickCount="0" snapToTicks="true" />
+                                            <Label fx:id="flux2SafetyValueLabel" text="Default (2)"
+                                                   styleClass="text-small" />
+                                        </VBox>
+
+                                        <!-- FLUX.2 [flex] Guidance, explained in the tooltip of label and slider -->
+                                        <VBox fx:id="flux2GuidanceContainer" spacing="5.0"
+                                              visible="false" managed="false">
+                                            <fx:define>
+                                                <Tooltip fx:id="flux2GuidanceTooltip" text="Controls prompt adherence (higher = stricter)" />
+                                            </fx:define>
+                                            <Label fx:id="flux2GuidanceLabel" text="Guidance: 5.0" styleClass="text-bold" tooltip="$flux2GuidanceTooltip" />
+                                            <Slider fx:id="flux2GuidanceSlider" tooltip="$flux2GuidanceTooltip"
+                                                    min="1.5" max="10.0" value="5.0"
+                                                    showTickLabels="true" showTickMarks="true"
+                                                    majorTickUnit="1.0" minorTickCount="1" />
+                                        </VBox>
+
+                                        <!-- FLUX.2 [flex] Steps, explained in the tooltip of label and slider -->
+                                        <VBox fx:id="flux2StepsContainer" spacing="5.0"
+                                              visible="false" managed="false">
+                                            <fx:define>
+                                                <Tooltip fx:id="flux2StepsTooltip" text="Inference steps (higher = more detail)" />
+                                            </fx:define>
+                                            <Label fx:id="flux2StepsLabel" text="Steps: 50" styleClass="text-bold" tooltip="$flux2StepsTooltip" />
+                                            <Slider fx:id="flux2StepsSlider" tooltip="$flux2StepsTooltip"
+                                                    min="1" max="50" value="50"
+                                                    showTickLabels="true" showTickMarks="true"
+                                                    majorTickUnit="10" minorTickCount="4" snapToTicks="true" />
+                                        </VBox>
+
                                     </VBox>
 
                                     <!-- Seed -->
@@ -647,49 +692,17 @@
 
                                 </VBox>
 
-                                <!-- FLUX.2 Specific Parameters Container -->
-                                <VBox fx:id="flux2ParametersContainer" spacing="15.0"
-                                      visible="false" managed="false">
-
-                                    <!-- FLUX.2 [max] Grounding Search Info, explained in its tooltip -->
-                                    <VBox fx:id="flux2GroundingSearchContainer" spacing="5.0"
-                                          visible="false" managed="false">
-                                        <Label text="Web Search" styleClass="text-bold">
-                                            <tooltip>
-                                                <Tooltip text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt." />
-                                            </tooltip>
-                                        </Label>
-                                    </VBox>
-
-                                    <!-- FLUX.2 [flex] Guidance, explained in the tooltip of label and slider -->
-                                    <VBox fx:id="flux2GuidanceContainer" spacing="5.0"
-                                          visible="false" managed="false">
-                                        <fx:define>
-                                            <Tooltip fx:id="flux2GuidanceTooltip" text="Controls prompt adherence (higher = stricter)" />
-                                        </fx:define>
-                                        <Label fx:id="flux2GuidanceLabel" text="Guidance: 5.0" styleClass="text-bold" tooltip="$flux2GuidanceTooltip" />
-                                        <Slider fx:id="flux2GuidanceSlider" tooltip="$flux2GuidanceTooltip"
-                                                min="1.5" max="10.0" value="5.0"
-                                                showTickLabels="true" showTickMarks="true"
-                                                majorTickUnit="1.0" minorTickCount="1" />
-                                    </VBox>
-
-                                    <!-- FLUX.2 [flex] Steps, explained in the tooltip of label and slider -->
-                                    <VBox fx:id="flux2StepsContainer" spacing="5.0"
-                                          visible="false" managed="false">
-                                        <fx:define>
-                                            <Tooltip fx:id="flux2StepsTooltip" text="Inference steps (higher = more detail)" />
-                                        </fx:define>
-                                        <Label fx:id="flux2StepsLabel" text="Steps: 50" styleClass="text-bold" tooltip="$flux2StepsTooltip" />
-                                        <Slider fx:id="flux2StepsSlider" tooltip="$flux2StepsTooltip"
-                                                min="1" max="50" value="50"
-                                                showTickLabels="true" showTickMarks="true"
-                                                majorTickUnit="10" minorTickCount="4" snapToTicks="true" />
-                                    </VBox>
-
+                                <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its
+                                     duration instead -->
+                                <VBox fx:id="imageCountContainer" spacing="5.0">
+                                    <Label fx:id="imageCountLabel" text="Images: 1" styleClass="text-bold" />
+                                    <Slider fx:id="imageCountSlider"
+                                            min="1" max="4" value="1"
+                                            showTickLabels="true" showTickMarks="true"
+                                            majorTickUnit="1.0" snapToTicks="true" />
                                 </VBox>
 
-                                <!-- Video Parameters Container -->
+                                <!-- Video Parameters Container: the duration in place of the count -->
                                 <VBox fx:id="videoParametersContainer" spacing="15.0"
                                       visible="false" managed="false">
 
@@ -719,18 +732,6 @@
                                                   prefHeight="60" wrapText="true" />
                                     </VBox>
 
-                                </VBox>
-
-                                <!-- Gemini 3 Pro Thinking Level, explained in the tooltip of label and field -->
-                                <VBox fx:id="geminiThinkingLevelContainer" spacing="5.0"
-                                      visible="false" managed="false">
-                                    <fx:define>
-                                        <Tooltip fx:id="geminiThinkingLevelTooltip" text="Low: Fast generation | High: Better reasoning" />
-                                    </fx:define>
-                                    <Label fx:id="geminiThinkingLevelLabel" text="Reasoning Quality:"
-                                           styleClass="text-bold" tooltip="$geminiThinkingLevelTooltip" />
-                                    <ChoiceBox fx:id="geminiThinkingLevelChoiceBox" maxWidth="Infinity" minWidth="0"
-                                               tooltip="$geminiThinkingLevelTooltip" />
                                 </VBox>
 
                                 <!-- Multi-Image Attachment Section -->
