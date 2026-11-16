@@ -5562,6 +5562,8 @@ public class MainWindowController implements I18nChangeListener {
                 editImageFromPath(filePath);
             });
 
+            imagePreviewOverlay.setOnDownloadRequested(filePath -> downloadImageFromPath(filePath));
+
             // Forward overlay status messages (e.g. download feedback) to the footer
             imagePreviewOverlay.setOnStatusMessage(message -> setStatus(message));
 
@@ -5869,7 +5871,8 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Downloads an image from the given file path to the Downloads folder.
+     * Downloads an image from the given file path to the Downloads folder, named by its chat and its creation time,
+     * which the shown entries know.
      */
     private void downloadImageFromPath(String filePath) {
         if (filePath == null || filePath.isEmpty() || !new File(filePath).exists()) {
@@ -5878,8 +5881,22 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
+        /*  The file is found by its name, which is the same in the images folder and in the trash  */
+        String name = new File(filePath).getName();
+        String chatName = null;
+        java.time.LocalDateTime createdAt = null;
+        for (ChatEntry entry : chatEntriesListView.getItems()) {
+            for (GeneratedImage image : entry.getImages()) {
+                if (image.getLocalFilePath() != null && new File(image.getLocalFilePath()).getName().equals(name)) {
+                    Chat chat = getCurrentChatFromEntry(entry);
+                    chatName = chat != null ? chat.getName() : null;
+                    createdAt = image.getCreatedAt();
+                }
+            }
+        }
+
         try {
-            String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath));
+            String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath), chatName, createdAt);
             Platform.runLater(() -> setStatus(
                     java.text.MessageFormat.format(I18nManager.getText("download.image.success"), filename)));
         } catch (Exception e) {

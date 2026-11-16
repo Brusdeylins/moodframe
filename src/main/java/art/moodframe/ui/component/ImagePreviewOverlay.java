@@ -147,6 +147,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private Runnable onPrevChatRequested; // Navigate to previous chat entry with images
     private Runnable onNextChatRequested; // Navigate to next chat entry with images
     private Consumer<String> onEditThisRequested; // Create new prompt from current image path
+    private Consumer<String> onDownloadRequested; // Download the current image path
     private Consumer<String> onStatusMessage; // Forward status messages to the main window footer
 
     /**
@@ -924,7 +925,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     }
 
     /**
-     * Downloads the current image as PNG to the system Downloads folder.
+     * Downloads the current image to the system Downloads folder, named by the main window after its chat.
      */
     private void downloadCurrentImage() {
         if (imagePaths == null || imagePaths.isEmpty() || currentImageIndex < 0
@@ -932,28 +933,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             return;
         }
 
-        File sourceFile = new File(imagePaths.get(currentImageIndex));
-        if (!sourceFile.exists()) {
-            logger.warn("Cannot download image - file not found: {}", sourceFile);
-            if (onStatusMessage != null) {
-                onStatusMessage.accept(I18nManager.getText("download.image.notfound"));
-            }
-            return;
-        }
-
-        try {
-            String filename = art.moodframe.util.DownloadsFolder.copy(sourceFile);
-            if (onStatusMessage != null) {
-                onStatusMessage.accept(java.text.MessageFormat.format(
-                        I18nManager.getText("download.image.success"), filename));
-            }
-        } catch (Exception e) {
-            logger.error("Failed to download image to Downloads folder", e);
-            if (onStatusMessage != null) {
-                onStatusMessage.accept(java.text.MessageFormat.format(
-                        I18nManager.getText("download.image.error"), e.getMessage()));
-            }
-        }
+        if (onDownloadRequested != null)
+            onDownloadRequested.accept(imagePaths.get(currentImageIndex));
     }
 
     /**
@@ -1585,6 +1566,15 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      */
     public void setOnEditThisRequested(Consumer<String> callback) {
         this.onEditThisRequested = callback;
+    }
+
+    /**
+     * Sets the callback to be called when the download of the current image is requested.
+     *
+     * @param callback the download callback with image path parameter
+     */
+    public void setOnDownloadRequested(Consumer<String> callback) {
+        this.onDownloadRequested = callback;
     }
 
     /**

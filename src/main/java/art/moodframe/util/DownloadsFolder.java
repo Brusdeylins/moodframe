@@ -7,13 +7,15 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.regex.Pattern;
 
 /**
- * Copies a generated image or video into the Downloads folder of the user, named by time and with the
- * extension of its real format.
+ * Copies a generated image or video into the Downloads folder of the user, named by its chat and creation time like
+ * a macOS screenshot and with the extension of its real format.
  *
  * @since 1.9.1
  */
@@ -21,29 +23,61 @@ public final class DownloadsFolder {
 
     private static final Logger logger = LoggerFactory.getLogger(DownloadsFolder.class);
 
+    /*  Characters a file system does not allow in a name, and control characters  */
+    private static final Pattern FORBIDDEN = Pattern.compile("[/\\\\:*?\"<>|\\p{Cntrl}]");
+    private static final int MAX_CHAT_NAME = 80;
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss");
+
     private DownloadsFolder() {
     }
 
     /**
-     * Copies a file into {@code ~/Downloads} as {@code moodframe_image_<time>.<ext>} or
-     * {@code moodframe_video_<time>.mp4}.
+     * Copies a file into {@code ~/Downloads} as {@code <chat> <yyyy-MM-dd> <HH.mm.ss>.<ext>}, e.g.
+     * {@code Lighthouse series 2026-11-16 17.36.17.png}; an existing file is kept and the copy numbered
+     * {@code ... 2.png}, {@code ... 3.png} and so on.
      *
-     * @param source the image or video file
+     * @param source    the image or video file
+     * @param chatName  the name of the chat of the image, null without chat
+     * @param createdAt the creation time of the image, null for the time the file was last changed
      * @return the name of the copy
      * @throws IOException if the copy fails
      */
-    public static String copy(File source) throws IOException {
-        File downloadsDir = new File(System.getProperty("user.home"), "Downloads");
+    public static String copy(File source, String chatName, LocalDateTime createdAt) throws IOException {
+        return copy(source, chatName, createdAt, new File(System.getProperty("user.home"), "Downloads"));
+    }
+
+    /** Copies a file into the given folder, see {@link #copy(File, String, LocalDateTime)}. */
+    static String copy(File source, String chatName, LocalDateTime createdAt, File downloadsDir) throws IOException {
         if (!downloadsDir.exists())
             downloadsDir.mkdirs();
 
         boolean video = source.getName().toLowerCase().endsWith(".mp4");
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        String filename = (video ? "moodframe_video_" : "moodframe_image_") + timestamp + (video ? ".mp4" : extensionOf(source));
+        String extension = video ? ".mp4" : extensionOf(source);
+        LocalDateTime time = createdAt != null ? createdAt
+                : LocalDateTime.ofInstant(Instant.ofEpochMilli(source.lastModified()), ZoneId.systemDefault());
+        String name = chatName(chatName) + " " + time.format(TIME);
+        String filename = name + extension;
+        for (int number = 2; new File(downloadsDir, filename).exists(); number++)
+            filename = name + " " + number + extension;
         File target = new File(downloadsDir, filename);
-        Files.copy(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(source.toPath(), target.toPath());
         logger.info("Image downloaded to Downloads folder: {}", target.getAbsolutePath());
         return filename;
+    }
+
+    /**
+     * Gets the chat name as part of a file name: without the characters a file system does not allow, the white
+     * space collapsed, at most 80 characters; {@code MoodFrame} without a name.
+     *
+     * @param chatName the name of the chat (may be null)
+     * @return the cleaned name
+     */
+    static String chatName(String chatName) {
+        String name = chatName == null ? ""
+                : FORBIDDEN.matcher(chatName.replaceAll("\\s", " ")).replaceAll("").replaceAll(" +", " ").trim();
+        if (name.length() > MAX_CHAT_NAME)
+            name = name.substring(0, MAX_CHAT_NAME).trim();
+        return name.isEmpty() ? "MoodFrame" : name;
     }
 
     /**

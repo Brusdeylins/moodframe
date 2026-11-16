@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 ### IMPROVEMENT
 - Status bar: the hints on memory and images appear after half a second, stay while the pointer rests on them and
   follow the new values
+- Downloaded images and videos are named by their chat and creation time, like a macOS screenshot:
+  "Lighthouse series 2026-11-16 17.36.17.png"; an existing file is kept and the copy numbered
+- New images in the library are named "moodframe_..." with a readable model name like "nano-banana-2" instead of
+  "flux_..."; existing files keep their name
 
 ## 2.1.0 (2026-11-16)
 

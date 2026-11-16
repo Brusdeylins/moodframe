@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.util.ImageSize;
 import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Locale;
 
 /**
  * Writes generated images to the images directory: decodes Base64 answers, downloads the result of a BFL
@@ -181,7 +183,7 @@ public class ImageFileStore {
 
     /**
      * Generates image filename with extension using UUID for guaranteed uniqueness.
-     * Format: flux_{timestamp}_{model}_{uuid-short}.{format}
+     * Format: moodframe_{timestamp}_{model}_{uuid-short}.{format}
      *
      * This approach ensures:
      * - No filename collisions (UUID is globally unique)
@@ -190,27 +192,14 @@ public class ImageFileStore {
      * - No need for counters or state management
      */
     public static String filename(GeneratedImage generatedImage) {
-        String timestamp = generatedImage.getCreatedAt()
-                .toString()
-                .replaceAll("[:\\-\\.]", "")
-                .replaceAll("T", "_")
-                .substring(0, 15); // YYYYMMDD_HHMMSS
-
         String format = generatedImage.getFormat() != null ? generatedImage.getFormat() : "png";
-
-        // Use first 8 characters of UUID for uniqueness (extremely low collision probability)
-        String shortUuid = generatedImage.getId().substring(0, 8);
-
-        return String.format("flux_%s_%s_%s.%s",
-                timestamp,
-                generatedImage.getModel().replaceAll("[^a-zA-Z0-9]", ""),
-                shortUuid,
-                format);
+        return filenameWithoutExtension(generatedImage) + "." + format;
     }
 
     /**
      * Generates image filename without extension using UUID for guaranteed uniqueness.
-     * Format: flux_{timestamp}_{model}_{uuid-short}
+     * Format: moodframe_{timestamp}_{model}_{uuid-short}, the model by its readable short name (e.g.
+     * {@code nano-banana-2}); files named {@code flux_...} by older versions keep their name.
      *
      * This approach ensures:
      * - No filename collisions (UUID is globally unique)
@@ -228,10 +217,21 @@ public class ImageFileStore {
         // Use first 8 characters of UUID for uniqueness (extremely low collision probability)
         String shortUuid = generatedImage.getId().substring(0, 8);
 
-        return String.format("flux_%s_%s_%s",
+        return String.format("moodframe_%s_%s_%s",
                 timestamp,
-                generatedImage.getModel().replaceAll("[^a-zA-Z0-9]", ""),
+                modelName(generatedImage.getModel()),
                 shortUuid);
+    }
+
+    /**
+     * Gets the short name of a model for a file name: its family name for a known API model id (e.g.
+     * {@code gemini-3.1-flash-image} becomes {@code nano-banana-2}, {@code flux.2-pro} becomes
+     * {@code flux-2-pro}), else the id itself, lower case with dashes between letters and digits.
+     */
+    private static String modelName(String model) {
+        GenerationModel known = GenerationModel.fromApiModelId(model);
+        String name = known != null && known != GenerationModel.OPENAI_IMAGE ? known.getFamilyName() : model;
+        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 
     /**

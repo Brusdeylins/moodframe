@@ -62,7 +62,22 @@ class ImageFileStoreTest {
 
     @Test
     void namesFilesByTimeModelAndId() {
-        assertEquals("flux_20261026_143005_NanoBanana21K_01234567", ImageFileStore.filenameWithoutExtension(image()));
+        assertEquals("moodframe_20261026_143005_nano-banana-2-1k_01234567",
+                ImageFileStore.filenameWithoutExtension(image()));
+    }
+
+    @Test
+    void namesTheModelByItsReadableShortName() {
+        GeneratedImage image = image();
+
+        image.setModel("gemini-3.1-flash-image");
+        assertEquals("moodframe_20261026_143005_nano-banana-2_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("flux.2-pro");
+        assertEquals("moodframe_20261026_143005_flux-2-pro_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("gemini-omni-1.1-flash");
+        assertEquals("moodframe_20261026_143005_gemini-omni_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("gpt-image-1.5");
+        assertEquals("moodframe_20261026_143005_gpt-image-1-5_01234567", ImageFileStore.filenameWithoutExtension(image));
     }
 
     @Test

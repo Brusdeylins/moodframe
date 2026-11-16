@@ -242,6 +242,21 @@ class ChatRepositoryTest {
         assertEquals("2752x1536", repository.findGeneratedImageById(image.getId()).orElseThrow().getDimensions());
     }
 
+    @Test
+    void loadsAnImageNamedByAnOlderVersionByItsStoredPath() throws Exception {
+        String path = tempDir.resolve("images").resolve("flux_20261116_173617_gemini31flashimage_c8db09f7.png")
+                .toString();
+        GeneratedImage image = new GeneratedImage.Builder().chatEntryId(save(new ChatEntry.Builder()
+                .chatId(chat().getId()).userPrompt("a coast").build()).getId()).localFilePath(path)
+                .fileName("flux_20261116_173617_gemini31flashimage_c8db09f7.png")
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        repository.saveGeneratedImage(image);
+
+        GeneratedImage stored = repository.findGeneratedImageById(image.getId()).orElseThrow();
+        assertEquals(path, stored.getLocalFilePath());
+        assertEquals("flux_20261116_173617_gemini31flashimage_c8db09f7.png", stored.getFileName());
+    }
+
     private Chat chat() throws Exception {
         Chat chat = new Chat.Builder().name("Hafen").build();
         repository.saveChat(chat);
