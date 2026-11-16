@@ -68,25 +68,22 @@ public class MemoryStatusComponent extends HBox {
         tasksIcon.setIconSize(14);
         tasksLabel = new Label("0 imgs");
 
-        /*  one tooltip per display, installed once and only re-texted on updates:
-            a new one per update restarted the show delay  */
+        /*  one tooltip per display, installed once on the group of symbol and text, so it stays while the pointer
+            moves between them, and only re-texted on updates: a new one per update restarted the show delay  */
+        HBox memoryGroup = new HBox(getSpacing(), memoryIcon, memoryLabel);
         memoryTooltip = new Tooltip();
         memoryTooltip.setShowDelay(TOOLTIP_SHOW_DELAY);
         memoryTooltip.setShowDuration(Duration.INDEFINITE);
-        Tooltip.install(memoryIcon, memoryTooltip);
-        Tooltip.install(memoryLabel, memoryTooltip);
+        Tooltip.install(memoryGroup, memoryTooltip);
 
+        HBox tasksGroup = new HBox(getSpacing(), tasksIcon, tasksLabel);
         tasksTooltip = new Tooltip();
         tasksTooltip.setShowDelay(TOOLTIP_SHOW_DELAY);
         tasksTooltip.setShowDuration(Duration.INDEFINITE);
-        Tooltip.install(tasksIcon, tasksTooltip);
-        Tooltip.install(tasksLabel, tasksTooltip);
+        Tooltip.install(tasksGroup, tasksTooltip);
 
         // Add components to layout
-        getChildren().addAll(
-            memoryIcon, memoryLabel,
-            tasksIcon, tasksLabel
-        );
+        getChildren().addAll(memoryGroup, tasksGroup);
 
         // Setup update timeline
         updateTimeline = new Timeline(

@@ -443,9 +443,12 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label sessionInfoLabel;
     @FXML
+    private HBox apiKeyStatusGroup;
+    @FXML
     private FontIcon apiKeyStatusIcon;
     @FXML
     private Label apiKeyStatusLabel;
+    private Tooltip apiKeyStatusTooltip;
 
     // Chat Management: the list of the chats belongs to the library of the chats
     private ObservableList<Chat> chatList;
@@ -1055,6 +1058,13 @@ public class MainWindowController implements I18nChangeListener {
         chatHeader.setPadding(new javafx.geometry.Insets(chatHeader.getPadding().getTop(), BoxInset.RIGHT,
                 chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
         promptTextArea.setPadding(new javafx.geometry.Insets(2.0, 2.0, 2.0, BoxInset.LEFT - 1.0 - BoxInset.TEXT));
+
+        /*  symbol and text of the API key status share one tooltip on their group, like the other displays of the
+            status bar, so it stays while the pointer moves between them  */
+        apiKeyStatusTooltip = new Tooltip();
+        apiKeyStatusTooltip.setShowDelay(javafx.util.Duration.millis(500));
+        apiKeyStatusTooltip.setShowDuration(javafx.util.Duration.INDEFINITE);
+        Tooltip.install(apiKeyStatusGroup, apiKeyStatusTooltip);
 
         // Configure SplitPane with restored position
         try {
@@ -4787,11 +4797,13 @@ public class MainWindowController implements I18nChangeListener {
             apiKeyStatusIcon.getStyleClass().add("success");
             apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
             apiKeyStatusLabel.setStyle("-fx-text-fill: -color-success-emphasis;");
+            apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.valid.tooltip"));
         } else {
             apiKeyStatusIcon.setIconLiteral("mdi2k-key");
             apiKeyStatusIcon.getStyleClass().add("danger");
             apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
             apiKeyStatusLabel.setStyle("-fx-text-fill: -color-danger-emphasis;");
+            apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.none.tooltip"));
         }
 
         updateUIState();
@@ -6433,8 +6445,10 @@ public class MainWindowController implements I18nChangeListener {
             String currentText = apiKeyStatusLabel.getText();
             if (currentText.contains("API Key Valid") || currentText.contains("API-Schlüssel gültig")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
+                apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.valid.tooltip"));
             } else if (currentText.contains("No API Key") || currentText.contains("Kein API-Schlüssel")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
+                apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.none.tooltip"));
             } else if (currentText.contains("Invalid") || currentText.contains("ungültig")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.invalid"));
             }

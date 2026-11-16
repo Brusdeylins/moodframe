@@ -37,9 +37,8 @@
     -fx-icon-color: #dc3545;
 }
 
-/* Tooltips for detailed information */
+/* Tooltips for detailed information, in the font size of all tooltips of the theme */
 .memory-status .tooltip {
-    -fx-font-size: 11px;
     -fx-max-width: 300px;
     -fx-wrap-text: true;
 }

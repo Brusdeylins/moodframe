@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
   them
 
 ### FIX
+- Status bar: symbol and text of each display share one hint, which no longer jumps between them and shows in the
+  font size of all other hints; the API key display explains its state in its hint
 - Light themes: the hints of the buttons in the full view and on the bar over an image show dark text instead of
   white text on a light background
 - Large preview: a smaller window fits the image and the video anew, so the buttons no longer cover them; zoomed in,
