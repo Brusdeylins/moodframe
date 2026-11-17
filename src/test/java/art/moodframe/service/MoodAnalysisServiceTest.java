@@ -201,6 +201,7 @@ class MoodAnalysisServiceTest {
         when(config.hasGeminiApiKey()).thenReturn(true);
         when(config.isGeminiProviderEnabled()).thenReturn(true);
         when(config.getBrainstormEngine()).thenReturn("openai");
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
         when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
         when(config.getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
         when(openAi.chatTurn(eq("gpt-test"), anyString(), any(JSONArray.class), eq(false), eq(false), eq(false)))

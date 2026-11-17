@@ -3,6 +3,7 @@ package art.moodframe.service;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
 import java.util.List;
@@ -20,7 +21,8 @@ public interface OpenAiApiService {
      * Tests the connection by listing the models ({@code GET /models}). A successful test stores the image
      * models, see {@link #getImageModels()}.
      *
-     * @return a future with true if the API accepted the bearer token
+     * @return a future with true if the API accepted the bearer token, false on a definite refusal (HTTP 400, 401, 403
+     *         or 404); it fails on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
     CompletableFuture<Boolean> testConnection();
 
@@ -62,9 +64,30 @@ public interface OpenAiApiService {
      * Checks that a language model can serve the brainstorm: it answers a plain question and calls a function.
      *
      * @param model the model id
-     * @return the reason why the model does not work, or null if it works
+     * @return the reason why the model does not work, or null if it works; completes exceptionally if the check
+     *         could not decide (no network, timeout, HTTP 429 or 5xx)
      */
     CompletableFuture<String> checkChatModel(String model);
+
+    /**
+     * Researches a question with the built-in web search of the Responses API ({@code POST /responses}).
+     *
+     * @param model the model id
+     * @param query what to find out
+     * @return the found text and its sources
+     * @since 2.1.2
+     */
+    CompletableFuture<ResearchNote> research(String model, String query);
+
+    /**
+     * Checks that a language model can search the web with the built-in web search of the Responses API.
+     *
+     * @param model the model id
+     * @return the reason why the search does not work, or null if it works; completes exceptionally if the check
+     *         could not decide (no network, timeout, HTTP 429 or 5xx)
+     * @since 2.1.2
+     */
+    CompletableFuture<String> checkWebSearch(String model);
 
     /**
      * Asks the language model a single question without a conversation.

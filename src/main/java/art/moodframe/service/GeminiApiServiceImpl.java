@@ -54,6 +54,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             + "for an image or video brief. Answer concisely in the language of the question with concrete, "
             + "checkable facts (numbers, names, terms), at most 300 words. Question: ";
     private static final String RESEARCH_RETRY_INSTRUCTION = "Use the Google Search tool now, you did not search. ";
+
     static final JSONArray BRAINSTORM_TOOLS = new JSONArray()
             .put(new JSONObject()
                     .put("name", "research")
@@ -194,13 +195,17 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                             logger.debug("Gemini API error response: {}", body);
                         }
 
+                        /*  Only a definite answer (HTTP 400, 401, 403, 404) decides, any other failure is transient  */
+                        if (!ApiHttpException.isDefinite(response.code()))
+                            throw new ApiHttpException(response.code(),
+                                    I18nManager.getText("brainstorm.error.http", response.code()));
                         return false;
                     }
                 }
 
-            } catch (Exception e) {
+            } catch (java.io.IOException e) {
                 logger.error("Gemini API connection test failed with exception", e);
-                return false;
+                throw new java.io.UncheckedIOException(e);
             }
         });
     }
@@ -1338,13 +1343,56 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     public CompletableFuture<ResearchNote> research(String query) {
         return CompletableFuture.supplyAsync(() -> {
             requireApiKey();
+            return researchWithRetry(query);
+        });
+    }
 
-            ResearchNote note = researchOnce(RESEARCH_INSTRUCTION + query, query);
-            if (note.sources().isEmpty()) {
-                logger.info("Research without sources, asking again: {}", query);
-                note = researchOnce(RESEARCH_RETRY_INSTRUCTION + RESEARCH_INSTRUCTION + query, query);
+    /*  a research that is asked again once if the model answered without searching  */
+    private ResearchNote researchWithRetry(String query) {
+        ResearchNote note = researchOnce(RESEARCH_INSTRUCTION + query, query);
+        if (note.sources().isEmpty()) {
+            logger.info("Research without sources, asking again: {}", query);
+            note = researchOnce(RESEARCH_RETRY_INSTRUCTION + RESEARCH_INSTRUCTION + query, query);
+        }
+        return note;
+    }
+
+    @Override
+    public CompletableFuture<String> checkChatModel() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                requireApiKey();
+                JSONObject requestBody = new JSONObject()
+                        .put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts",
+                                new JSONArray().put(new JSONObject().put("text", "Answer with the word OK.")))))
+                        .put("generationConfig", new JSONObject()
+                                .put("thinkingConfig", new JSONObject().put("thinkingLevel", "low")));
+                JSONObject candidate = postBrainstorm(BRAINSTORM_MODEL, requestBody, RESEARCH_TIMEOUT_SECONDS);
+                JSONArray parts = candidate.optJSONObject("content") != null
+                        ? candidate.getJSONObject("content").optJSONArray("parts") : null;
+                return parts != null && !parts.isEmpty() ? null : "The model gave no answer.";
+            } catch (RuntimeException e) {
+                logger.warn("Gemini language model check failed: {}", e.getMessage());
+                if (!ApiHttpException.isDefinite(e))
+                    throw e;
+                return e.getMessage();
             }
-            return note;
+        });
+    }
+
+    @Override
+    public CompletableFuture<String> checkWebSearch() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                requireApiKey();
+                ResearchNote note = researchWithRetry(ApiProviderValidator.SEARCH_CHECK_QUESTION);
+                return note.sources().isEmpty() ? "The model did not search the web." : null;
+            } catch (RuntimeException e) {
+                logger.warn("Gemini web search check failed: {}", e.getMessage());
+                if (!ApiHttpException.isDefinite(e))
+                    throw e;
+                return e.getMessage();
+            }
         });
     }
 
@@ -1394,7 +1442,8 @@ public class GeminiApiServiceImpl implements GeminiApiService {
             String responseBody = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) {
                 logger.error("Brainstorm request failed: HTTP {} - {}", response.code(), responseBody);
-                throw new RuntimeException(I18nManager.getText("brainstorm.error.http", response.code()));
+                throw new ApiHttpException(response.code(),
+                        I18nManager.getText("brainstorm.error.http", response.code()));
             }
             JSONArray candidates = new JSONObject(responseBody).optJSONArray("candidates");
             if (candidates == null || candidates.length() == 0) {

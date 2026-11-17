@@ -15,7 +15,8 @@ public final class ProviderPolicy {
 
     /**
      * Checks if OpenAI is the only provider in use: an OpenAI image model is selected and the brainstorm talks to
-     * OpenAI. Then no other provider (Gemini, BFL) may be contacted.
+     * OpenAI, which can brainstorm (language model and web search). Then no other provider (Gemini, BFL) may be
+     * contacted; an OpenAI without web search leaves the brainstorm to Gemini, so Gemini is checked then.
      *
      * @param config the application configuration
      * @return true if only OpenAI is to be contacted

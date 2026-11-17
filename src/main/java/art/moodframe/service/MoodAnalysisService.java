@@ -117,7 +117,7 @@ public class MoodAnalysisService {
      * else null for Gemini; as in the brainstorm.
      */
     private String openAiModel() {
-        return openAiService != null && config.isOpenAiBrainstormAvailable()
+        return openAiService != null && config.isOpenAiChatAvailable()
                 && ("openai".equals(config.getBrainstormEngine()) || !geminiUsable()) ? config.getOpenAiChatModel() : null;
     }
 

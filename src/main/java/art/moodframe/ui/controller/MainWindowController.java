@@ -11,6 +11,7 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
+import art.moodframe.service.ApiProviderValidator;
 import art.moodframe.service.ChatHistoryService;
 import art.moodframe.service.ChatLibrary;
 import art.moodframe.service.FavoriteService;
@@ -554,6 +555,12 @@ public class MainWindowController implements I18nChangeListener {
         setupEventHandlers();
         setupDragAndDrop();
         setupMultiImageAttachmentPanel();
+
+        /*  The check of the accounts runs in the background since the start: its end refreshes button and status bar  */
+        ApiProviderValidator validator = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(ApiProviderValidator.class);
+        if (validator != null)
+            validator.addCompletionListener(() -> Platform.runLater(this::refreshApiKeyStatus));
         checkApiKeyStatus();
         setupServices();
         setupMemoryMonitoring();
@@ -667,20 +674,33 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Enables the brainstorm button only if Gemini (key and provider) or OpenAI (provider and language model) is usable and
-     * a chat is selected (like the other input controls).
+     * Enables the brainstorm button only if an account (Google Gemini or OpenAI) has a language model and a web search
+     * and a chat is selected (like the other input controls); a disabled button names its reason.
      */
     private void updateBrainstormButton() {
         if (brainstormButton == null) {
             return;
         }
 
-        boolean available = config != null && (config.hasGeminiApiKey() && config.isGeminiProviderEnabled()
-                || config.isOpenAiBrainstormAvailable());
-        boolean hasChatSelected = currentChat != null && !currentChat.isDeleted();
-        brainstormButton.setDisable(!available || !hasChatSelected);
-        brainstormButton.setTooltip(new Tooltip(I18nManager.getText(!available ? "brainstorm.tooltip.no.key"
-                : !hasChatSelected ? "brainstorm.tooltip.no.chat" : "brainstorm.tooltip")));
+        String hint = brainstormHint(config, currentChat != null && !currentChat.isDeleted());
+        brainstormButton.setDisable(!"brainstorm.tooltip".equals(hint));
+        brainstormButton.setTooltip(new Tooltip(I18nManager.getText(hint)));
+    }
+
+    /**
+     * Decides on the hint of the brainstorm button: the reason why it is disabled (no API key, no account with a
+     * language model and a web search, no chat), or the normal hint if it is enabled.
+     *
+     * @param config          the application configuration, may be null
+     * @param hasChatSelected true if a chat is selected
+     * @return the i18n key of the hint, {@code brainstorm.tooltip} if the button is enabled
+     */
+    static String brainstormHint(art.moodframe.config.ApplicationConfig config, boolean hasChatSelected) {
+        if (config == null || !config.hasGeminiApiKey() && !config.hasOpenAiApiKey())
+            return "brainstorm.tooltip.no.key";
+        if (!config.isGeminiBrainstormAvailable() && !config.isOpenAiBrainstormAvailable())
+            return "brainstorm.tooltip.no.search";
+        return hasChatSelected ? "brainstorm.tooltip" : "brainstorm.tooltip.no.chat";
     }
 
     /**
@@ -4797,16 +4817,90 @@ public class MainWindowController implements I18nChangeListener {
             apiKeyStatusIcon.getStyleClass().add("success");
             apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
             apiKeyStatusLabel.setStyle("-fx-text-fill: -color-success-emphasis;");
-            apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.valid.tooltip"));
+            apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.valid.tooltip"));
         } else {
             apiKeyStatusIcon.setIconLiteral("mdi2k-key");
             apiKeyStatusIcon.getStyleClass().add("danger");
             apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
             apiKeyStatusLabel.setStyle("-fx-text-fill: -color-danger-emphasis;");
-            apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.none.tooltip"));
+            apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.none.tooltip"));
         }
 
         updateUIState();
+    }
+
+    /**
+     * Builds the hint of the API key display: the given text, followed by the result of the last check of every
+     * configured account.
+     *
+     * @param key the i18n key of the text
+     * @return the hint
+     */
+    private String apiKeyHint(String key) {
+        ApiProviderValidator validator = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(ApiProviderValidator.class);
+        String checks = config != null ? accountChecks(config, validator) : "";
+        return I18nManager.getText(key) + (checks.isEmpty() ? "" : "\n\n" + checks);
+    }
+
+    /**
+     * Describes the last check of every configured account in one line each: connection, language model and web
+     * search with ✓ or ✗ and the reason of a failure (BFL: connection only), e.g.
+     * "OpenAI: connection ✓, gpt-x ✓, web search ✗ (HTTP 404)"; a check that could not decide keeps the last
+     * result and says so; a switched-off account is marked. The flags stem from the configuration, the reasons of
+     * the running program from the validator.
+     *
+     * @param config    the application configuration
+     * @param validator the validator of the program start, may be null
+     * @return the lines, empty if no account is configured
+     */
+    static String accountChecks(art.moodframe.config.ApplicationConfig config, ApiProviderValidator validator) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (config.hasApiKey())
+            lines.add(accountCheck(account("BFL", config.isBflProviderEnabled()), ApiProvider.BFL,
+                    config.isBflProviderValidated(), null, false, false, validator));
+        if (config.hasGeminiApiKey())
+            lines.add(accountCheck(account("Google", config.isGeminiProviderEnabled()), ApiProvider.GOOGLE_GEMINI,
+                    config.isGeminiProviderValidated(), I18nManager.getText("status.api.check.model"),
+                    config.isGeminiChatOk(), config.isGeminiWebSearch(), validator));
+        if (config.hasOpenAiApiKey())
+            lines.add(accountCheck(account("OpenAI", config.isOpenAiProviderEnabled()), ApiProvider.OPENAI,
+                    config.isOpenAiProviderValidated(), config.getOpenAiChatModel(), config.isOpenAiChatOk(),
+                    config.isOpenAiWebSearch(), validator));
+        return String.join("\n", lines);
+    }
+
+    /*  the name of an account, marked if the user switched it off: then it is not offered whatever its checks say  */
+    private static String account(String name, boolean enabled) {
+        return enabled ? name : name + " (" + I18nManager.getText("status.api.check.off") + ")";
+    }
+
+    /*  one line of the checks of an account; without a model (BFL) only the connection, with a blank one "no model"  */
+    private static String accountCheck(String account, ApiProvider provider, boolean connection, String model,
+            boolean chatOk, boolean webSearch, ApiProviderValidator validator) {
+        StringBuilder line = new StringBuilder(account).append(": ").append(checkResult(
+                I18nManager.getText("status.api.check.connection"), connection, provider,
+                ApiProviderValidator.Check.CONNECTION, validator));
+        if (connection && model != null && model.isBlank())
+            line.append(", ").append(I18nManager.getText("status.api.check.nomodel"));
+        else if (connection && model != null) {
+            line.append(", ").append(checkResult(model, chatOk, provider, ApiProviderValidator.Check.LANGUAGE_MODEL,
+                    validator));
+            line.append(", ").append(checkResult(I18nManager.getText("status.api.check.search"), webSearch, provider,
+                    ApiProviderValidator.Check.WEB_SEARCH, validator));
+        }
+        return line.toString();
+    }
+
+    /*  "name ✓" or "name ✗", with the reason of the last check if known (also for a kept ✓), cut short  */
+    private static String checkResult(String name, boolean ok, ApiProvider provider,
+            ApiProviderValidator.Check check, ApiProviderValidator validator) {
+        String result = name + (ok ? " ✓" : " ✗");
+        String reason = validator != null ? validator.getReason(provider, check) : null;
+        if (reason == null || reason.isBlank())
+            return result;
+        reason = reason.strip().replaceAll("\\s+", " ");
+        return result + " (" + (reason.length() > 80 ? reason.substring(0, 79) + "…" : reason) + ")";
     }
 
     /**
@@ -6454,10 +6548,10 @@ public class MainWindowController implements I18nChangeListener {
             String currentText = apiKeyStatusLabel.getText();
             if (currentText.contains("API Key Valid") || currentText.contains("API-Schlüssel gültig")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
-                apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.valid.tooltip"));
+                apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.valid.tooltip"));
             } else if (currentText.contains("No API Key") || currentText.contains("Kein API-Schlüssel")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
-                apiKeyStatusTooltip.setText(I18nManager.getText("status.api.key.none.tooltip"));
+                apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.none.tooltip"));
             } else if (currentText.contains("Invalid") || currentText.contains("ungültig")) {
                 apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.invalid"));
             }

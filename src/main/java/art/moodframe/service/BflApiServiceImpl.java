@@ -340,10 +340,16 @@ public class BflApiServiceImpl implements BflApiService {
             })
             .exceptionally(throwable -> {
                 logger.warn("API connection test failed: {}", throwable.getMessage());
-                return false;
+
+                /*  Only a definite answer (HTTP 400, 401, 403, 404) decides, any other failure is transient  */
+                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                if (ApiHttpException.isDefinite(cause))
+                    return false;
+                throw throwable instanceof java.util.concurrent.CompletionException completion
+                        ? completion : new java.util.concurrent.CompletionException(throwable);
             });
     }
-    
+
     @Override
     public CompletableFuture<String> getMyFinetunes() {
         if (!isConfigured()) {
@@ -883,18 +889,12 @@ public class BflApiServiceImpl implements BflApiService {
     /**
      * Custom exception for BFL API errors.
      */
-    public static class BflApiException extends RuntimeException {
-        private final int statusCode;
+    public static class BflApiException extends ApiHttpException {
         private final String responseBody;
         
         public BflApiException(int statusCode, String message, String responseBody) {
-            super(message);
-            this.statusCode = statusCode;
+            super(statusCode, message);
             this.responseBody = responseBody;
-        }
-        
-        public int getStatusCode() {
-            return statusCode;
         }
         
         public String getResponseBody() {
@@ -908,7 +908,7 @@ public class BflApiServiceImpl implements BflApiService {
          * @return the approved maximum, or null for any other error or without the value
          */
         public Integer getMaximumApprovedSafetyTolerance() {
-            if (statusCode != 422 || responseBody == null)
+            if (getStatusCode() != 422 || responseBody == null)
                 return null;
             try {
                 var detail = new ObjectMapper().readTree(responseBody).path("detail");
@@ -924,7 +924,7 @@ public class BflApiServiceImpl implements BflApiService {
         @Override
         public String toString() {
             return String.format("BflApiException{statusCode=%d, message='%s'}", 
-                statusCode, getMessage());
+                getStatusCode(), getMessage());
         }
     }
 }

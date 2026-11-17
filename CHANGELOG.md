@@ -2,11 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2.2.0 (unreleased)
+## 2.1.2 (unreleased)
 
 ### IMPROVEMENT
 - Right panel: the edit pencil of an image unfolds the group Generation with the attached image and folds Mood and
   Frame, like a click on its title; the paperclip, drag and drop and paste leave the groups as they are
+- Brainstorm with OpenAI: researches with the built-in web search of the OpenAI Responses API; Settings check the web
+  search together with the language model and with every connection test, a language model without web search
+  stays chosen for the other chat features (e.g. the mood analysis)
+- Every program start checks each account in the background: connection, language model and web search of OpenAI
+  and Google, the connection of BFL; the hint of the API key display in the status bar shows the result per account
+  with the reason of a failure; a check that fails for the moment (no network, timeout, HTTP 429 or 5xx) keeps the
+  last result; a disabled account gets its connection checked only, and with OpenAI as the only provider in use
+  Google and BFL are not contacted at the start
+- The brainstorm is offered only with an account that has a language model and a web search; the hint of a disabled
+  brainstorm button names the reason. After the update, an account is offered as soon as the first program start
+  with network has checked it
 
 ## 2.1.1 (2026-11-16)
 

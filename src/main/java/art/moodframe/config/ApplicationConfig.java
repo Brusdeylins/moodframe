@@ -1716,6 +1716,90 @@ public class ApplicationConfig {
     }
 
     /**
+     * Checks if the brainstorm language model of OpenAI answers and calls tools, as found by its last check.
+     *
+     * @return true if the last check of the language model succeeded
+     * @since 2.1.2
+     */
+    public boolean isOpenAiChatOk() {
+        return Boolean.parseBoolean(properties.getProperty("provider.openai.chat_ok", "false"));
+    }
+
+    /**
+     * Sets if the brainstorm language model of OpenAI answers and calls tools.
+     *
+     * @param chatOk true if the check of the language model succeeded
+     * @since 2.1.2
+     */
+    public void setOpenAiChatOk(boolean chatOk) {
+        properties.setProperty("provider.openai.chat_ok", String.valueOf(chatOk));
+        saveConfiguration();
+    }
+
+    /**
+     * Checks if the brainstorm language model of OpenAI can search the web, as found by its last check.
+     *
+     * @return true if the brainstorm can research with OpenAI
+     * @since 2.1.2
+     */
+    public boolean isOpenAiWebSearch() {
+        return Boolean.parseBoolean(properties.getProperty("provider.openai.web_search", "false"));
+    }
+
+    /**
+     * Sets if the brainstorm language model of OpenAI can search the web.
+     *
+     * @param webSearch true if the web search check of the model succeeded
+     * @since 2.1.2
+     */
+    public void setOpenAiWebSearch(boolean webSearch) {
+        properties.setProperty("provider.openai.web_search", String.valueOf(webSearch));
+        saveConfiguration();
+    }
+
+    /**
+     * Checks if the brainstorm language model of Gemini answers, as found by its last check.
+     *
+     * @return true if the last check of the language model succeeded
+     * @since 2.1.2
+     */
+    public boolean isGeminiChatOk() {
+        return Boolean.parseBoolean(properties.getProperty("provider.gemini.chat_ok", "false"));
+    }
+
+    /**
+     * Sets if the brainstorm language model of Gemini answers.
+     *
+     * @param chatOk true if the check of the language model succeeded
+     * @since 2.1.2
+     */
+    public void setGeminiChatOk(boolean chatOk) {
+        properties.setProperty("provider.gemini.chat_ok", String.valueOf(chatOk));
+        saveConfiguration();
+    }
+
+    /**
+     * Checks if Gemini can search the web with Google Search, as found by its last check.
+     *
+     * @return true if the brainstorm can research with Gemini
+     * @since 2.1.2
+     */
+    public boolean isGeminiWebSearch() {
+        return Boolean.parseBoolean(properties.getProperty("provider.gemini.web_search", "false"));
+    }
+
+    /**
+     * Sets if Gemini can search the web with Google Search.
+     *
+     * @param webSearch true if the web search check succeeded
+     * @since 2.1.2
+     */
+    public void setGeminiWebSearch(boolean webSearch) {
+        properties.setProperty("provider.gemini.web_search", String.valueOf(webSearch));
+        saveConfiguration();
+    }
+
+    /**
      * Gets the AI the brainstorm talks to.
      *
      * @return {@code "openai"} or {@code "gemini"} (default)
@@ -1737,13 +1821,36 @@ public class ApplicationConfig {
     }
 
     /**
-     * Checks if the brainstorm can use OpenAI: the provider is enabled and a language model is chosen.
+     * Checks if an OpenAI language model can answer: the provider is enabled and a language model is chosen.
      *
-     * @return true if OpenAI can answer in the brainstorm
+     * @return true if the OpenAI language model can answer, e.g. for the mood analysis
+     * @since 2.1.2
+     */
+    public boolean isOpenAiChatAvailable() {
+        return hasOpenAiApiKey() && isOpenAiProviderEnabled() && !getOpenAiChatModel().isBlank();
+    }
+
+    /**
+     * Checks if the brainstorm can use OpenAI: the language model can answer and the last checks found the
+     * connection, the language model and its web search working.
+     *
+     * @return true if OpenAI can answer and research in the brainstorm
      * @since 1.9.0
      */
     public boolean isOpenAiBrainstormAvailable() {
-        return hasOpenAiApiKey() && isOpenAiProviderEnabled() && !getOpenAiChatModel().isBlank();
+        return isOpenAiChatAvailable() && isOpenAiProviderValidated() && isOpenAiChatOk() && isOpenAiWebSearch();
+    }
+
+    /**
+     * Checks if the brainstorm can use Google Gemini: a key, the provider enabled, and the last checks found the
+     * connection, the language model and Google Search working.
+     *
+     * @return true if Gemini can answer and research in the brainstorm
+     * @since 2.1.2
+     */
+    public boolean isGeminiBrainstormAvailable() {
+        return hasGeminiApiKey() && isGeminiProviderEnabled() && isGeminiProviderValidated() && isGeminiChatOk()
+                && isGeminiWebSearch();
     }
 
     private static java.util.List<String> splitIds(String ids) {

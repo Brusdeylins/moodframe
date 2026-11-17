@@ -3,6 +3,7 @@ package art.moodframe.service;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ResearchNote;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -174,18 +175,116 @@ class OpenAiApiServiceTest {
     }
 
     @Test
-    void webResearchOnlyReadsPublicAddresses() {
-        assertTrue(!WebResearchService.isPublicHttpUrl("http://localhost:8080/x"));
-        assertTrue(!WebResearchService.isPublicHttpUrl("http://127.0.0.1/"));
-        assertTrue(!WebResearchService.isPublicHttpUrl("http://192.168.1.1/"));
-        assertTrue(!WebResearchService.isPublicHttpUrl("http://169.254.169.254/latest"));
-        assertTrue(!WebResearchService.isPublicHttpUrl("file:///etc/passwd"));
+    void webSearchBodyForcesTheBuiltInSearch() {
+        JSONObject body = OpenAiApiServiceImpl.webSearchBody("m", "question");
+
+        assertEquals("m", body.getString("model"));
+        assertEquals("question", body.getString("input"));
+        assertEquals("web_search", body.getJSONArray("tools").getJSONObject(0).getString("type"));
+        assertEquals("required", body.getString("tool_choice"));
     }
 
     @Test
-    void webResearchResolvesSearchLinksAndStripsTags() {
-        assertEquals("https://example.org/a b",
-                WebResearchService.resolveResultUrl("//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fa%20b&amp;rut=x"));
-        assertEquals("Hi & bye", WebResearchService.plainText("<p>Hi&nbsp;&amp;\n <b>bye</b></p>"));
+    void researchAnswerYieldsTheTextAndEachCitedSourceOnce() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "web_search_call").put("id", "ws_1").put("status", "completed"))
+                .put(new JSONObject().put("type", "message").put("role", "assistant").put("content", new JSONArray()
+                        .put(new JSONObject().put("type", "output_text").put("text", " The nautilus has 30 chambers. ")
+                                .put("annotations", new JSONArray()
+                                        .put(citation("https://www.nautilus.example/shell?utm_source=openai"))
+                                        .put(citation("https://facts.example.org/n"))
+                                        .put(citation("https://www.nautilus.example/shell?utm_source=openai"))))))).toString();
+
+        ResearchNote note = OpenAiApiServiceImpl.parseResearch("nautilus", body);
+
+        assertEquals("nautilus", note.query());
+        assertEquals("The nautilus has 30 chambers.", note.result());
+        assertEquals(List.of(
+                new ResearchNote.Source("nautilus.example", "https://www.nautilus.example/shell?utm_source=openai"),
+                new ResearchNote.Source("facts.example.org", "https://facts.example.org/n")), note.sources());
+    }
+
+    @Test
+    void researchAnswerWithoutTextFails() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "web_search_call").put("status", "completed"))).toString();
+
+        assertThrows(RuntimeException.class, () -> OpenAiApiServiceImpl.parseResearch("q", body));
+    }
+
+    @Test
+    void researchKeepsTheTextAndTheOtherSourcesWhenACitedUrlIsBroken() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "message").put("role", "assistant").put("content", new JSONArray()
+                        .put(new JSONObject().put("type", "output_text").put("text", "The nautilus floats.")
+                                .put("annotations", new JSONArray()
+                                        .put(citation("https://bad.example/a b{c}"))
+                                        .put(citation("https://facts.example.org/n"))))))).toString();
+
+        ResearchNote note = OpenAiApiServiceImpl.parseResearch("nautilus", body);
+
+        assertEquals("The nautilus floats.", note.result());
+        assertEquals(List.of(
+                new ResearchNote.Source("https://bad.example/a b{c}", "https://bad.example/a b{c}"),
+                new ResearchNote.Source("facts.example.org", "https://facts.example.org/n")), note.sources());
+    }
+
+    @Test
+    void webSearchCheckWorksIfTheModelSearched() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "web_search_call").put("status", "completed"))
+                .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
+
+        assertNull(OpenAiApiServiceImpl.webSearchProblem(200, body));
+    }
+
+    @Test
+    void webSearchCheckNamesTheReasonIfTheModelDidNotSearch() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
+
+        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+    }
+
+    @Test
+    void aFailedSearchCallIsNoWorkingSearch() {
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "web_search_call").put("status", "failed"))
+                .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
+
+        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+    }
+
+    @Test
+    void webSearchCheckNamesTheErrorOfTheApi() {
+        String body = new JSONObject().put("error", new JSONObject()
+                .put("message", "Tool 'web_search' is not supported with this model.")).toString();
+
+        assertEquals("OpenAI error 400: Tool 'web_search' is not supported with this model.",
+                OpenAiApiServiceImpl.webSearchProblem(400, body));
+        assertEquals("OpenAI error 404", OpenAiApiServiceImpl.webSearchProblem(404, "Not Found"));
+    }
+
+    @Test
+    void webSearchCheckDecidesNothingOnATransientError() {
+        assertEquals(429, assertThrows(ApiHttpException.class,
+                () -> OpenAiApiServiceImpl.webSearchProblem(429, "{}")).getStatusCode());
+        assertEquals(503, assertThrows(ApiHttpException.class,
+                () -> OpenAiApiServiceImpl.webSearchProblem(503, "Service Unavailable")).getStatusCode());
+    }
+
+    @Test
+    void webSearchCheckAsksForTheCurrentTimeAndCountsATimeWithoutSearchAsNoSearch() {
+        assertTrue(ApiProviderValidator.SEARCH_CHECK_QUESTION.contains("what time is it right now"));
+        String body = new JSONObject().put("output", new JSONArray()
+                .put(new JSONObject().put("type", "message").put("role", "assistant").put("content", new JSONArray()
+                        .put(new JSONObject().put("type", "output_text").put("text", "14:32"))))).toString();
+
+        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+    }
+
+    private static JSONObject citation(String url) {
+        return new JSONObject().put("type", "url_citation").put("url", url).put("title", "t")
+                .put("start_index", 0).put("end_index", 5);
     }
 }

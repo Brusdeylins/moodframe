@@ -294,9 +294,9 @@ public class BrainstormDialog extends Stage {
     }
 
     /**
-     * Creates the choice between Google Gemini and the OpenAI language model of the settings, that passed the test
-     * there. It lists what can answer and is disabled with only one entry. The choice belongs to the shown chat and
-     * is stored with it; the last choice is also the default for new chats.
+     * Creates the choice between Google Gemini and the OpenAI language model of the settings. It lists only the
+     * accounts whose last check found a language model and a web search, and is disabled with only one entry. The
+     * choice belongs to the shown chat and is stored with it; the last choice is also the default for new chats.
      *
      * @return the choice, or null if nothing can answer
      */
@@ -305,7 +305,7 @@ public class BrainstormDialog extends Stage {
         if (appConfig == null)
             return null;
 
-        boolean geminiUsable = appConfig.hasGeminiApiKey() && appConfig.isGeminiProviderEnabled();
+        boolean geminiUsable = appConfig.isGeminiBrainstormAvailable();
         boolean openAiUsable = appConfig.isOpenAiBrainstormAvailable();
         if (!geminiUsable && !openAiUsable)
             return null;

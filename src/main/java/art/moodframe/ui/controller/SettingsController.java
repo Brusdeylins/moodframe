@@ -19,6 +19,7 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.service.ApiProviderValidator;
 import art.moodframe.service.BflApiService;
 
 import javafx.collections.FXCollections;
@@ -1353,7 +1354,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     bflProviderEnabledCheckBox.setSelected(true);
                     config.setBflProviderEnabled(true);
                 }
-                config.setBflProviderValidated(true);
+                connectionTested(art.moodframe.model.ApiProvider.BFL, true);
             } else {
                 showConnectionStatus("error", I18nManager.getText("settings.test.api.connection.failed", testedRegion));
                 restoreSavedKey("bfl");
@@ -1366,6 +1367,19 @@ public class SettingsController implements Initializable, I18nChangeListener {
             restoreSavedKey("bfl");
             logger.warn("API connection test failed: {}", exception != null ? exception.getMessage() : "Unknown error");
         });
+    }
+
+    /*  stores a decided connection test, so the status bar also drops the reason of an earlier check  */
+    private void connectionTested(art.moodframe.model.ApiProvider provider, boolean works) {
+        ApiProviderValidator validator = ServiceFactory.getInstance().getService(ApiProviderValidator.class);
+        if (validator != null)
+            validator.connectionTested(provider, works);
+        else if (provider == art.moodframe.model.ApiProvider.BFL)
+            config.setBflProviderValidated(works);
+        else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI)
+            config.setGeminiProviderValidated(works);
+        else
+            config.setOpenAiProviderValidated(works);
     }
 
     /** The message for a BFL connection test that ended with an exception. */
@@ -1467,17 +1481,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.testing.status"));
         runConnectionTest(testGeminiConnectionButton, I18nManager.getText("settings.gemini.test"), () -> {
-            try {
-                art.moodframe.service.GeminiApiService apiService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.GeminiApiService.class);
-                if (apiService == null)
-                    throw new RuntimeException("Gemini API service not available");
-                apiService.setApiKey(apiKey);
-                return apiService.testConnection().get();
-            } catch (Exception e) {
-                logger.error("Gemini API connection test failed", e);
-                return false;
-            }
+            art.moodframe.service.GeminiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.GeminiApiService.class);
+            if (apiService == null)
+                throw new RuntimeException("Gemini API service not available");
+            apiService.setApiKey(apiKey);
+            return apiService.testConnection().get();
         }, (success) -> {
             if (success) {
                 geminiApiKeyValidated = true;
@@ -1490,11 +1499,52 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     geminiProviderEnabledCheckBox.setSelected(true);
                     config.setGeminiProviderEnabled(true);
                 }
-                config.setGeminiProviderValidated(true);
+                connectionTested(art.moodframe.model.ApiProvider.GOOGLE_GEMINI, true);
+                checkGeminiBrainstorm();
             } else {
                 geminiTestFailed("settings.gemini.test.failed");
             }
-        }, (exception) -> geminiTestFailed("settings.gemini.test.error"));
+        }, (exception) -> {
+            /*  Not decided (no network, timeout, HTTP 429 or 5xx): the typed token is not taken, the rest stays  */
+            logger.warn("Gemini API connection test could not decide", exception);
+            geminiApiKeyValidated = false;
+            validatedGeminiApiKey = null;
+            restoreSavedKey("gemini");
+            showGeminiConnectionStatus("error", I18nManager.getText("settings.test.undecided",
+                    ApiProviderValidator.reasonOf(exception)));
+        });
+    }
+
+    /**
+     * Checks the brainstorm language model of Gemini and its Google Search after a successful connection test; the
+     * validator stores the results, so the brainstorm is offered without a restart. The status shows the outcome.
+     */
+    private void checkGeminiBrainstorm() {
+        ApiProviderValidator validator = ServiceFactory.getInstance().getService(ApiProviderValidator.class);
+        if (validator == null)
+            return;
+
+        showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.check.testing"));
+        validator.checkGeminiModel().whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+                javafx.application.Platform.runLater(() -> {
+            /*  A decided failure goes before an undecided one, as it is what the validator just stored  */
+            ApiProviderValidator.Outcome failed = check == null ? null
+                    : check.chat().decided() && !check.chat().works() ? check.chat()
+                    : check.search().decided() && !check.search().works() ? check.search()
+                    : !check.chat().works() ? check.chat() : !check.search().works() ? check.search() : null;
+            if (check != null && failed == null) {
+                showGeminiConnectionStatus("success", I18nManager.getText("settings.gemini.check.ok"));
+                return;
+            }
+
+            /*  An undecided check keeps the last result, which may still offer Gemini for the brainstorm  */
+            if (failed == null || !failed.decided())
+                showGeminiConnectionStatus("info", I18nManager.getText("settings.gemini.check.kept",
+                        failed == null ? ApiProviderValidator.reasonOf(error) : failed.problem()));
+            else
+                showGeminiConnectionStatus("error", I18nManager.getText("settings.gemini.check.failed",
+                        failed.problem()));
+        }));
     }
 
     /** Shows a failed Gemini test, puts the saved token back and switches the provider off. */
@@ -1505,7 +1555,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         showGeminiConnectionStatus("error", I18nManager.getText(messageKey));
         geminiProviderEnabledCheckBox.setDisable(true);
         geminiProviderEnabledCheckBox.setSelected(false);
-        config.setGeminiProviderValidated(false);
+        connectionTested(art.moodframe.model.ApiProvider.GOOGLE_GEMINI, false);
         config.setGeminiProviderEnabled(false);
     }
 
@@ -1561,20 +1611,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.testing.status"));
         runConnectionTest(testOpenaiConnectionButton, I18nManager.getText("settings.openai.test"), () -> {
-            try {
-                art.moodframe.service.OpenAiApiService apiService = ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.OpenAiApiService.class);
-                if (apiService == null)
-                    throw new RuntimeException("OpenAI API service not available");
+            art.moodframe.service.OpenAiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.OpenAiApiService.class);
+            if (apiService == null)
+                throw new RuntimeException("OpenAI API service not available");
 
-                /*  The token and the URL are only set in the service, they are saved with "Save"  */
-                apiService.setApiKey(apiKey);
-                apiService.setBaseUrl(baseUrl);
-                return apiService.testConnection().get();
-            } catch (Exception e) {
-                logger.error("OpenAI API connection test failed", e);
-                return false;
-            }
+            /*  The token and the URL are only set in the service, they are saved with "Save"  */
+            apiService.setApiKey(apiKey);
+            apiService.setBaseUrl(baseUrl);
+            return apiService.testConnection().get();
         }, (success) -> {
             if (!success) {
                 openaiTestFailed("settings.openai.test.failed");
@@ -1604,8 +1649,20 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 openaiProviderEnabledCheckBox.setSelected(true);
                 config.setOpenAiProviderEnabled(true);
             }
-            config.setOpenAiProviderValidated(true);
-        }, (exception) -> openaiTestFailed("settings.openai.test.error"));
+            connectionTested(art.moodframe.model.ApiProvider.OPENAI, true);
+
+            /*  A changed token or base URL can change what the chosen language model can do: check it again  */
+            onOpenaiChatModelChosen(openaiChatModelBox.getValue());
+        }, (exception) -> {
+            /*  Not decided (no network, timeout, HTTP 429 or 5xx): typed token and URL not taken, the rest stays  */
+            logger.warn("OpenAI API connection test could not decide", exception);
+            openaiApiKeyValidated = false;
+            validatedOpenaiApiKey = null;
+            validatedOpenaiBaseUrl = null;
+            restoreSavedKey("openai");
+            showOpenaiConnectionStatus("error", I18nManager.getText("settings.test.undecided",
+                    ApiProviderValidator.reasonOf(exception)));
+        });
     }
 
     /** Shows a failed OpenAI test, puts the saved token and URL back and switches the provider off. */
@@ -1617,7 +1674,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         showOpenaiConnectionStatus("error", I18nManager.getText(messageKey));
         openaiProviderEnabledCheckBox.setDisable(true);
         openaiProviderEnabledCheckBox.setSelected(false);
-        config.setOpenAiProviderValidated(false);
+        connectionTested(art.moodframe.model.ApiProvider.OPENAI, false);
         config.setOpenAiProviderEnabled(false);
     }
 
@@ -1658,11 +1715,16 @@ public class SettingsController implements Initializable, I18nChangeListener {
         boolean enabled = openaiProviderEnabledCheckBox.isSelected();
         config.setOpenAiProviderEnabled(enabled);
         logger.info("OpenAI provider " + (enabled ? "enabled" : "disabled"));
+
+        /*  A disabled provider was not checked at the start: switched on, its language model is checked now  */
+        if (enabled && config.isOpenAiProviderValidated())
+            onOpenaiChatModelChosen(openaiChatModelBox.getValue());
     }
 
     /**
-     * Tests a chosen language model (plain answer and function call). A model that fails is not accepted: the
-     * choice goes back to "none" and the status shows the reason.
+     * Tests a chosen language model (plain answer, function call and web search). The validator stores the results
+     * as soon as the check ends, also after the dialog was closed; "Save" takes the finished check of a newly chosen
+     * model. The status line shows the outcome, see {@link #openaiModelStatus}.
      *
      * @param chosen the chosen entry of the language model choice
      */
@@ -1670,26 +1732,59 @@ public class SettingsController implements Initializable, I18nChangeListener {
         if (openaiChatModelUpdating || chosen == null || chosen.equals(I18nManager.getText("settings.openai.chat.none")))
             return;
 
-        art.moodframe.service.OpenAiApiService apiService = ServiceFactory.getInstance()
-                .getService(art.moodframe.service.OpenAiApiService.class);
-        if (apiService == null)
+        ApiProviderValidator validator = ServiceFactory.getInstance().getService(ApiProviderValidator.class);
+        if (validator == null)
             return;
 
         openaiChatModelBox.setDisable(true);
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.chat.testing", chosen));
-        apiService.checkChatModel(chosen).whenComplete((String problem, Throwable error) -> javafx.application.Platform.runLater(() -> {
+        validator.checkOpenAiModel(chosen).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+                javafx.application.Platform.runLater(() -> {
             openaiChatModelBox.setDisable(false);
-            String reason = error != null ? error.getMessage() : problem;
-            if (reason == null) {
-                showOpenaiConnectionStatus("success", I18nManager.getText("settings.openai.chat.ok", chosen));
-                return;
+            OpenaiModelStatus status = openaiModelStatus(chosen, check, error);
+            if (!status.keepsChoice()) {
+                openaiChatModelUpdating = true;
+                openaiChatModelBox.setValue(I18nManager.getText("settings.openai.chat.none"));
+                openaiChatModelUpdating = false;
             }
-
-            openaiChatModelUpdating = true;
-            openaiChatModelBox.setValue(I18nManager.getText("settings.openai.chat.none"));
-            openaiChatModelUpdating = false;
-            showOpenaiConnectionStatus("error", I18nManager.getText("settings.openai.chat.failed", chosen, reason));
+            showOpenaiConnectionStatus(status.type(), status.message());
         }));
+    }
+
+    /**
+     * The status after the check of a chosen OpenAI language model.
+     *
+     * @param keepsChoice false if the choice goes back to "none"
+     * @param type        the status type: {@code success}, {@code info} or {@code error}
+     * @param message     the status line
+     */
+    record OpenaiModelStatus(boolean keepsChoice, String type, String message) {
+    }
+
+    /**
+     * Decides on the status after the check of a chosen OpenAI language model. Only a model that definitely does not
+     * answer or call tools goes back to "none"; one without web search stays chosen for the mood analysis and the
+     * other chat features, it is only not offered for the brainstorm; an undecided check keeps it, too.
+     *
+     * @param model the checked model
+     * @param check the outcomes of the check, or null if the check failed as a whole
+     * @param error the failure of the check as a whole, or null
+     * @return the status
+     */
+    static OpenaiModelStatus openaiModelStatus(String model, ApiProviderValidator.ModelCheck check, Throwable error) {
+        /*  A check that could not decide (no network, timeout, HTTP 429 or 5xx) keeps the model: test again  */
+        if (check == null || !check.chat().decided())
+            return new OpenaiModelStatus(true, "error", I18nManager.getText("settings.openai.chat.check.failed", model,
+                    check != null ? check.chat().problem()
+                            : error != null ? ApiProviderValidator.reasonOf(error) : null));
+        if (!check.chat().works())
+            return new OpenaiModelStatus(false, "error", I18nManager.getText("settings.openai.chat.failed", model,
+                    check.chat().problem()));
+        if (check.search().works())
+            return new OpenaiModelStatus(true, "success", I18nManager.getText("settings.openai.chat.ok", model));
+        return new OpenaiModelStatus(true, "info", I18nManager.getText(check.search().decided()
+                        ? "settings.openai.chat.nosearch" : "settings.openai.chat.search.kept",
+                model, check.search().problem()));
     }
 
     /**
@@ -1742,6 +1837,10 @@ public class SettingsController implements Initializable, I18nChangeListener {
         boolean enabled = geminiProviderEnabledCheckBox.isSelected();
         config.setGeminiProviderEnabled(enabled);
         logger.info("Gemini provider " + (enabled ? "enabled" : "disabled"));
+
+        /*  A disabled provider was not checked at the start: switched on, its language model is checked now  */
+        if (enabled && config.isGeminiProviderValidated())
+            checkGeminiBrainstorm();
     }
 
     /**
@@ -2451,8 +2550,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
             config.setOpenAiBaseUrl(openaiBaseUrlField.getText());
             if (!openaiModelChecks.isEmpty()) {
                 String chatModel = openaiChatModelBox.getValue();
-                config.setOpenAiChatModel(chatModel == null || chatModel.equals(I18nManager.getText("settings.openai.chat.none"))
-                        ? "" : chatModel);
+                boolean noChatModel = chatModel == null || chatModel.equals(I18nManager.getText("settings.openai.chat.none"));
+                boolean chatModelChanged = !(noChatModel ? "" : chatModel).equals(config.getOpenAiChatModel());
+                config.setOpenAiChatModel(noChatModel ? "" : chatModel);
+
+                /*  The flags follow the saved model; a running check and that of an unchanged model store them  */
+                ApiProviderValidator validator = ServiceFactory.getInstance().getService(ApiProviderValidator.class);
+                if ((noChatModel || chatModelChanged) && validator != null)
+                    validator.storeOpenAiModelCheck(noChatModel ? "" : chatModel);
             }
             if (!openaiModelChecks.isEmpty())
                 config.setOpenAiModels(openaiModelChecks.entrySet().stream()

@@ -21,7 +21,8 @@ public interface GeminiApiService {
      * Tests the connection to the Google Gemini API.
      * This method validates the API key and checks if the API is accessible.
      *
-     * @return a CompletableFuture that resolves to true if connection is successful, false otherwise
+     * @return a CompletableFuture that resolves to true if connection is successful, false on a definite refusal
+     *         (HTTP 400, 401, 403 or 404); it fails on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
     CompletableFuture<Boolean> testConnection();
 
@@ -125,6 +126,25 @@ public interface GeminiApiService {
      * @since 1.8.1
      */
     CompletableFuture<ResearchNote> research(String query);
+
+    /**
+     * Checks that the brainstorm language model answers a minimal request.
+     *
+     * @return a CompletableFuture containing the reason why the model does not answer, or null if it works; it
+     *         completes exceptionally if the check could not decide (no network, timeout, HTTP 429 or 5xx)
+     * @since 2.1.2
+     */
+    CompletableFuture<String> checkChatModel();
+
+    /**
+     * Checks that the brainstorm language model can search the web with Google Search: a research request for the
+     * current time has to yield at least one source, asked again once like {@link #research(String)}.
+     *
+     * @return a CompletableFuture containing the reason why the search does not work, or null if it works; it
+     *         completes exceptionally if the check could not decide (no network, timeout, HTTP 429 or 5xx)
+     * @since 2.1.2
+     */
+    CompletableFuture<String> checkWebSearch();
 
     /**
      * Generates a video with Gemini Omni through the Interactions API. The call is synchronous: it returns

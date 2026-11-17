@@ -70,7 +70,6 @@ public class BrainstormService {
     private final BrainstormRepository repository;
     private final GeminiApiService geminiService;
     private final OpenAiApiService openAiService;
-    private final WebResearchService webResearch;
     private final YouTubeInfoService youTube;
     private final ApplicationConfig config;
     private final String template;
@@ -118,7 +117,6 @@ public class BrainstormService {
         this.geminiService = geminiService;
         this.openAiService = openAiService;
         this.config = config;
-        this.webResearch = config != null ? new WebResearchService(config) : null;
         this.youTube = config != null ? new YouTubeInfoService(config) : null;
         this.template = loadTemplate();
     }
@@ -128,11 +126,14 @@ public class BrainstormService {
      * Gemini is not usable), else null for Gemini. A choice that is no longer usable falls back to the other one.
      */
     private String openAiModel(BrainstormSession session) {
-        boolean geminiUsable = config != null && config.hasGeminiApiKey() && config.isGeminiProviderEnabled();
+        boolean geminiUsable = config != null && config.isGeminiBrainstormAvailable();
         String engine = session.getEngine() != null ? session.getEngine()
                 : config != null ? config.getBrainstormEngine() : "gemini";
-        return openAiService != null && config != null && config.isOpenAiBrainstormAvailable()
-                && ("openai".equals(engine) || !geminiUsable) ? config.getOpenAiChatModel() : null;
+
+        /*  Without a usable Gemini the session stays with OpenAI, so it never turns to Google unasked  */
+        return openAiService != null && config != null && config.isOpenAiChatAvailable()
+                && (config.isOpenAiBrainstormAvailable() && "openai".equals(engine) || !geminiUsable)
+                ? config.getOpenAiChatModel() : null;
     }
 
     private static String loadTemplate() {
@@ -544,7 +545,8 @@ public class BrainstormService {
     /** Runs one tool call and returns the functionResponse part; a failure is reported to the model as text. */
     private ToolRun runTool(BrainstormSession session, BrainstormTurn.Call call) {
         String sessionId = session.getId();
-        boolean openAi = openAiModel(session) != null;
+        String openAiModel = openAiModel(session);
+        boolean openAi = openAiModel != null;
         ResearchNote note = null;
         JSONObject response = new JSONObject();
         ensureNotDeleted(sessionId);
@@ -552,8 +554,7 @@ public class BrainstormService {
             if ("research".equals(call.name())) {
                 String query = call.args().optString("query");
                 onToolStatus.accept(sessionId, query);
-                note = (openAi && webResearch != null ? webResearch.research(query)
-                        : geminiService.research(query)).join();
+                note = (openAi ? openAiService.research(openAiModel, query) : geminiService.research(query)).join();
             } else if ("analyze_video".equals(call.name())) {
                 /*  The video analysis runs on Gemini, which is not contacted while OpenAI answers  */
                 if (openAi)

@@ -7,6 +7,7 @@ import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ResearchNote;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.TrustStoreManager;
 import okhttp3.MediaType;
@@ -44,11 +45,17 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
 
     /*  A gateway queues the images of one request series, the last one answers after minutes  */
     private static final int TIMEOUT_SECONDS = 3600;
+    private static final int RESEARCH_TIMEOUT_SECONDS = 60;
     private static final long MAX_SIDE = 4096;
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final String RESEARCH_INSTRUCTION = "Search the web for this question and base your answer only "
+            + "on what the search results say, never on memory. Research the following for an image or video brief. "
+            + "Answer concisely in the language of the question with concrete, checkable facts (numbers, names, "
+            + "terms), at most 300 words. Question: ";
 
     private final ApplicationConfig config;
     private final OkHttpClient httpClient;
+    private final OkHttpClient researchClient;
     private String apiKey;
     private String baseUrl;
 
@@ -68,6 +75,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         configureSSLContext(clientBuilder, config);
         this.httpClient = clientBuilder.build();
+        this.researchClient = httpClient.newBuilder().readTimeout(RESEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS).build();
     }
 
     static void configureSSLContext(OkHttpClient.Builder clientBuilder, ApplicationConfig config) {
@@ -116,6 +124,10 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 String body = response.body() != null ? response.body().string() : "";
                 if (!response.isSuccessful()) {
                     logger.warn("OpenAI API connection test failed: HTTP {} - {}", response.code(), body);
+
+                    /*  Only a definite answer (HTTP 400, 401, 403, 404) decides, any other failure is transient  */
+                    if (!ApiHttpException.isDefinite(response.code()))
+                        throw new ApiHttpException(response.code(), extractError(response.code(), body));
                     return false;
                 }
 
@@ -129,9 +141,9 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 config.setOpenAiModels(selected);
                 logger.info("OpenAI API connection test successful, {} model(s), selected: {}", ids.size(), selected);
                 return true;
-            } catch (Exception e) {
+            } catch (java.io.IOException e) {
                 logger.error("OpenAI API connection test failed with exception", e);
-                return false;
+                throw new java.io.UncheckedIOException(e);
             }
         });
     }
@@ -280,6 +292,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     @Override
     public CompletableFuture<String> checkChatModel(String model) {
         return CompletableFuture.supplyAsync(() -> {
+            if (!isConfigured())
+                return "OpenAI API key not configured";
             try {
                 JSONObject plain = postChat(new JSONObject().put("model", model).put("messages", new JSONArray()
                         .put(new JSONObject().put("role", "user").put("content", "Answer with the word OK."))));
@@ -300,9 +314,118 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 return null;
             } catch (RuntimeException e) {
                 logger.warn("OpenAI chat model check failed for {}: {}", model, e.getMessage());
+                if (!ApiHttpException.isDefinite(e))
+                    throw e;
                 return e.getMessage();
             }
         });
+    }
+
+    @Override
+    public CompletableFuture<ResearchNote> research(String model, String query) {
+        return CompletableFuture.supplyAsync(() -> parseResearch(query,
+                postResponses(webSearchBody(model, RESEARCH_INSTRUCTION + query))));
+    }
+
+    @Override
+    public CompletableFuture<String> checkWebSearch(String model) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (!isConfigured())
+                return "OpenAI API key not configured";
+
+            String body = webSearchBody(model, ApiProviderValidator.SEARCH_CHECK_QUESTION).toString();
+            try (Response response = post(researchClient, "/responses", () -> RequestBody.create(body, JSON))) {
+                String problem = webSearchProblem(response.code(), response.body() != null ? response.body().string() : "");
+                if (problem != null)
+                    logger.warn("OpenAI web search check failed for {}: {}", model, problem);
+                return problem;
+            } catch (java.io.IOException e) {
+                logger.warn("OpenAI web search check failed for {}: {}", model, e.getMessage());
+                throw new RuntimeException("OpenAI web search check failed: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    /**
+     * Decides on the answer of the web search check: the search works if the request succeeded and the model
+     * searched, i.e. {@code output} contains a {@code web_search_call} item. An answer of the model without that
+     * item did not search, even if it names a time.
+     *
+     * @param code         the HTTP status code
+     * @param responseBody the answer body
+     * @return the reason why the search does not work, or null if it works
+     * @throws ApiHttpException for a transient HTTP status (e.g. 429 or 5xx), which decides nothing
+     */
+    static String webSearchProblem(int code, String responseBody) {
+        if (code < 200 || code >= 300) {
+            if (!ApiHttpException.isDefinite(code))
+                throw new ApiHttpException(code, extractError(code, responseBody));
+            return extractError(code, responseBody);
+        }
+        JSONArray output = new JSONObject(responseBody).optJSONArray("output");
+        for (int i = 0; output != null && i < output.length(); i++)
+            if ("web_search_call".equals(output.getJSONObject(i).optString("type"))
+                    && !"failed".equals(output.getJSONObject(i).optString("status")))
+                return null;
+        return "The model did not search the web.";
+    }
+
+    /**
+     * Builds the body of {@code POST /responses} that has to search the web with the built-in web search.
+     *
+     * @param model the model id
+     * @param input the question
+     * @return the JSON body
+     */
+    static JSONObject webSearchBody(String model, String input) {
+        return new JSONObject().put("model", model).put("input", input)
+                .put("tools", new JSONArray().put(new JSONObject().put("type", "web_search")))
+                .put("tool_choice", "required");
+    }
+
+    /**
+     * Reads a researched answer of {@code POST /responses}: the text of the {@code output_text} parts of the
+     * {@code message} items, and as sources their {@code url_citation} annotations, each URL once, with the host
+     * without {@code www.} as domain.
+     *
+     * @param query        what was researched
+     * @param responseBody the JSON answer
+     * @return the found text and its sources
+     */
+    static ResearchNote parseResearch(String query, String responseBody) {
+        JSONArray output = new JSONObject(responseBody).optJSONArray("output");
+        StringBuilder text = new StringBuilder();
+        List<ResearchNote.Source> sources = new ArrayList<>();
+        for (int i = 0; output != null && i < output.length(); i++) {
+            JSONObject item = output.getJSONObject(i);
+            JSONArray content = "message".equals(item.optString("type")) ? item.optJSONArray("content") : null;
+            for (int k = 0; content != null && k < content.length(); k++) {
+                JSONObject part = content.getJSONObject(k);
+                if (!"output_text".equals(part.optString("type")))
+                    continue;
+                text.append(part.optString("text", ""));
+                JSONArray annotations = part.optJSONArray("annotations");
+                for (int a = 0; annotations != null && a < annotations.length(); a++) {
+                    JSONObject annotation = annotations.getJSONObject(a);
+                    String url = annotation.optString("url", "");
+                    if (!"url_citation".equals(annotation.optString("type")) || url.isEmpty()
+                            || sources.stream().anyMatch((ResearchNote.Source source) -> source.url().equals(url)))
+                        continue;
+                    String domain = url;
+                    try {
+                        String host = java.net.URI.create(url).getHost();
+                        if (host != null)
+                            domain = host;
+                    } catch (IllegalArgumentException e) {
+                        /*  A cited URL that is no valid URI keeps the raw URL as domain, the research stays  */
+                    }
+                    sources.add(new ResearchNote.Source(domain.startsWith("www.") ? domain.substring(4) : domain, url));
+                }
+            }
+        }
+        if (text.toString().isBlank())
+            throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
+        return new ResearchNote(query, text.toString().trim(), sources);
     }
 
     @Override
@@ -399,13 +522,18 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     }
 
     private Response post(String path, java.util.function.Supplier<RequestBody> body) throws java.io.IOException {
-        Response response = httpClient.newCall(request(baseUrl, path, body)).execute();
+        return post(httpClient, path, body);
+    }
+
+    private Response post(OkHttpClient client, String path, java.util.function.Supplier<RequestBody> body)
+            throws java.io.IOException {
+        Response response = client.newCall(request(baseUrl, path, body)).execute();
         if (response.code() != 404 || !java.net.URI.create(baseUrl).getPath().isEmpty())
             return response;
 
         /*  A base URL without a path is often meant as ".../v1"; the model list answers there, the rest does not  */
         String versioned = baseUrl + "/v1";
-        Response retry = httpClient.newCall(request(versioned, path, body)).execute();
+        Response retry = client.newCall(request(versioned, path, body)).execute();
         response.close();
         if (retry.code() == 404)
             return retry;
@@ -449,7 +577,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                         continue;
                     }
                     logger.error("OpenAI chat request failed: HTTP {} - {}", response.code(), responseBody);
-                    throw new RuntimeException(extractError(response.code(), responseBody));
+                    throw new ApiHttpException(response.code(), extractError(response.code(), responseBody));
                 }
             }
         } catch (RuntimeException e) {
@@ -457,6 +585,29 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
         } catch (Exception e) {
             logger.error("OpenAI chat request failed", e);
             throw new RuntimeException("OpenAI chat failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Posts a request of the Responses API and returns the answer body. A research waits at most 60 s for the
+     * answer, like the one of Gemini, not as long as an image generation.
+     *
+     * @throws RuntimeException with the reason if the request fails
+     */
+    private String postResponses(JSONObject body) {
+        if (!isConfigured())
+            throw new IllegalStateException("OpenAI API key not configured");
+
+        try (Response response = post(researchClient, "/responses", () -> RequestBody.create(body.toString(), JSON))) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+            if (!response.isSuccessful()) {
+                logger.warn("OpenAI responses request failed: HTTP {} - {}", response.code(), responseBody);
+                throw new ApiHttpException(response.code(), extractError(response.code(), responseBody));
+            }
+            return responseBody;
+        } catch (java.io.IOException e) {
+            logger.error("OpenAI responses request failed", e);
+            throw new RuntimeException("OpenAI web search failed: " + e.getMessage(), e);
         }
     }
 

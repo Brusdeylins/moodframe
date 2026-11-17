@@ -234,9 +234,9 @@ class BrainstormServiceTest {
         art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
         when(config.getBrainstormEngine()).thenReturn("openai");
         when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
         when(config.getOpenAiChatModel()).thenReturn("m");
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
+        when(config.isGeminiBrainstormAvailable()).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(text(VALID_REPLY)));
@@ -249,13 +249,54 @@ class BrainstormServiceTest {
     }
 
     @Test
+    void withoutAUsableGeminiASessionStaysWithOpenAi() {
+        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
+        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
+        when(config.getOpenAiChatModel()).thenReturn("m");
+        OpenAiApiService openAi = mock(OpenAiApiService.class);
+        when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
+                .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
+        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+
+        /*  The start check found no web search at OpenAI while the window was open; Gemini is not usable either  */
+        openAiService.sendUserMessage(session, "Hallo", context).join();
+
+        verify(openAi).chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false));
+        org.mockito.Mockito.verifyNoInteractions(gemini);
+    }
+
+    @Test
+    void openAiResearchesWithItsOwnWebSearch() {
+        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
+        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
+        when(config.getOpenAiChatModel()).thenReturn("m");
+        OpenAiApiService openAi = mock(OpenAiApiService.class);
+        when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
+                .thenReturn(CompletableFuture.completedFuture(call("research", new JSONObject().put("query", "nautilus"))))
+                .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
+        when(openAi.research("m", "nautilus")).thenReturn(CompletableFuture.completedFuture(
+                new ResearchNote("nautilus", "The nautilus has chambers.", List.of(SOURCE))));
+        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+
+        BrainstormReply reply = openAiService.sendUserMessage(session, "Ein Nautilus", context).join();
+
+        verify(openAi).research("m", "nautilus");
+        assertEquals(1, reply.getResearch().size());
+        assertEquals(List.of(SOURCE), reply.getResearch().get(0).sources());
+        org.mockito.Mockito.verifyNoInteractions(gemini);
+    }
+
+    @Test
     void eachSessionTalksToItsOwnLanguageModel() {
         art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
         when(config.getBrainstormEngine()).thenReturn("openai");
         when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
         when(config.getOpenAiChatModel()).thenReturn("m");
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
+        when(config.isGeminiBrainstormAvailable()).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         BrainstormService service = new BrainstormService(repository, gemini, openAi, config);
         answers(text(VALID_REPLY));
@@ -397,6 +438,7 @@ class BrainstormServiceTest {
         art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
         when(config.getBrainstormEngine()).thenReturn("openai");
         when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
+        when(config.isOpenAiChatAvailable()).thenReturn(true);
         when(config.getOpenAiChatModel()).thenReturn("m");
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))

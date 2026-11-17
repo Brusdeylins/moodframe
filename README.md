@@ -35,7 +35,8 @@ frame.
 
 ## Brainstorm: from a rough idea to a finished prompt
 
-A guided chat with Gemini or an OpenAI-compatible model works out the scene with you.
+A guided chat with Gemini or an OpenAI-compatible model works out the scene with you. It researches with the web
+search of the provider: Google Search for Gemini, the built-in web search of the Responses API for OpenAI.
 
 <p align="center"><img src="website/assets/img/brainstorm.png" alt="The Brainstorm window with a chat about a lighthouse and the finished draft" width="720"></p>
 
@@ -46,6 +47,13 @@ A guided chat with Gemini or an OpenAI-compatible model works out the scene with
 
 It knows your moods and building blocks, watches the YouTube videos you link in the time range you choose (Gemini),
 and keeps every brainstorm; several run side by side.
+
+Brainstorm needs an account with a language model *and* a web search. At every start MoodFrame checks each of your
+enabled accounts: connection, language model and web search. The status bar shows the result per account, and
+Brainstorm offers only the accounts that pass. The checks are small paid requests at each provider. If you use
+OpenAI only (an OpenAI image model and Brainstorm with OpenAI), MoodFrame contacts no other provider at the start, so
+Google and BFL are not checked. A compatible gateway takes part as soon as it answers `/responses` with the
+`web_search` tool.
 
 ## And there's more
 
@@ -67,7 +75,7 @@ and keeps every brainstorm; several run side by side.
 |---|---|
 | Black Forest Labs | FLUX 3 · FLUX.2 |
 | Google Gemini | Nano Banana · Omni video · Brainstorm |
-| OpenAI | OpenAI or your own compatible gateway |
+| OpenAI | OpenAI or your own compatible gateway · Brainstorm (with web search) |
 
 Your keys stay on your machine, encrypted.
 

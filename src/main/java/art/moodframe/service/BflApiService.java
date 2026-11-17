@@ -64,7 +64,8 @@ public interface BflApiService {
      * </p>
      * 
      * @return a CompletableFuture that completes with true if the API key is valid,
-     *         false otherwise
+     *         false on a definite refusal (HTTP 400, 401, 403 or 404); it fails on a
+     *         transient failure (no network, timeout, HTTP 429 or 5xx)
      * @throws IllegalStateException if no API key is configured
      * @throws RuntimeException      if corporate proxy connection fails
      */
