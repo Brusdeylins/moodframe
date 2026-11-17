@@ -5942,7 +5942,13 @@ public class MainWindowController implements I18nChangeListener {
             }
 
             // Auto-attach the image (bypassing file dialog)
-            attachImageDirectly(imageFile);
+            if (attachImageDirectly(imageFile)) {
+
+                /*  as a click on the title of Generation: unfold it, fold the other groups and remember it  */
+                showPanelGroup("generation");
+                if (config != null)
+                    config.setOpenPanelGroup("generation");
+            }
 
             // Clear prompt text to prepare for editing instructions
             promptTextArea.clear();
@@ -5967,8 +5973,10 @@ public class MainWindowController implements I18nChangeListener {
      * 1) If only one image attached with no empty slot: replace it
      * 2) If there's an empty slot: fill it with the new image
      * 3) If 2+ images and no empty slot: create new slot and attach (if under max limit)
+     *
+     * @return whether the image was attached, false if the maximum number of images is reached
      */
-    private void attachImageDirectly(File imageFile) throws Exception {
+    private boolean attachImageDirectly(File imageFile) throws Exception {
         // Use the MultiImageAttachmentPanel for image attachment (it shrinks images above the size limit)
         if (multiImagePanel != null) {
             int targetSlot = multiImagePanel.findTargetSlotForNewImage();
@@ -5979,7 +5987,7 @@ public class MainWindowController implements I18nChangeListener {
                 logger.warn("Cannot attach image: maximum number of images reached");
                 setStatus(I18nManager.getText("attachment.max.reached",
                     multiImagePanel.getAttachmentCount()));
-                return;
+                return false;
             }
         }
 
@@ -5992,6 +6000,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Update UI to reflect attachment (auto-adjusts model, aspect ratio, style)
         updateAttachmentState();
+        return true;
     }
 
     /**

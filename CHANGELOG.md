@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.2.0 (unreleased)
+
+### IMPROVEMENT
+- Right panel: the edit pencil of an image unfolds the group Generation with the attached image and folds Mood and
+  Frame, like a click on its title; the paperclip, drag and drop and paste leave the groups as they are
+
 ## 2.1.1 (2026-11-16)
 
 ### IMPROVEMENT

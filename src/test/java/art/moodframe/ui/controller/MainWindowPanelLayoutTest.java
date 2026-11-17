@@ -17,6 +17,7 @@ import art.moodframe.util.I18nManager;
 import art.moodframe.util.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.property.IntegerProperty;
 import javafx.css.PseudoClass;
 import javafx.event.Event;
 import javafx.fxml.FXMLLoader;
@@ -93,6 +94,7 @@ import static org.mockito.Mockito.mock;
  * Every list of the panel opens flush with the left edge of its field, inside the panel. Folded, Generation sums up
  * count (or duration) and model and the attachments in two lines, no higher than Mood and Frame; unfolded, it shows
  * the model first, right below it the fields of the model, then count or duration and the attachment, 15 px apart.
+ * The edit pencil of an image unfolds Generation like a click on its title; the paperclip and a failed edit do not.
  */
 class MainWindowPanelLayoutTest {
 
@@ -753,5 +755,74 @@ class MainWindowPanelLayoutTest {
         assertEquals("Google Search Grounding", ((CheckBox) grounding).getText());
         onFxThread(() -> I18nManager.setLocale(Locale.GERMAN));
         assertEquals("Modell", text("modelLabel"));
+    }
+
+    private static boolean unfolded(String id) {
+        return group(id).lookup(".panel-group-details").isVisible();
+    }
+
+    /*  the edit pencil of an image, as the cards, the grid and the large preview call it  */
+    private static void edit(File image) throws Exception {
+        onFxThread(() -> {
+            Method edit = MainWindowController.class.getDeclaredMethod("editImageFromPath", String.class);
+            edit.setAccessible(true);
+            edit.invoke(controller, image.getPath());
+        });
+    }
+
+    /*  waits until the attachment holds the given number of images and the window is laid out  */
+    private static void awaitAttachments(MultiImageAttachmentPanel attachments, int count) throws Exception {
+        for (int i = 0; i < 100 && attachments.getAttachmentCount() < count; i++)
+            Thread.sleep(100);
+        assertEquals(count, attachments.getAttachmentCount(), "the images are attached");
+        waitForLayout();
+    }
+
+    @Test
+    void theEditPencilUnfoldsGenerationLikeAClickOnItsTitleWhileThePaperclipAndAFailedEditLeaveTheGroups()
+            throws Exception {
+        show("mood");
+        chooseModel("Nano Banana Pro");
+        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        MultiImageAttachmentPanel attachments = attachments();
+        File image = home.resolve("edit.png").toFile();
+        ImageIO.write(new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB), "png", image);
+
+        /*  the paperclip attaches the image chosen in its file dialog to the square  */
+        onFxThread(() -> attachments.attachImageToSlot(0, image));
+        awaitAttachments(attachments, 1);
+        assertTrue(unfolded("moodGroupPane"), "the paperclip leaves Mood unfolded");
+        assertFalse(unfolded("generationGroupPane"), "the paperclip leaves Generation folded");
+        assertEquals("mood", config.getOpenPanelGroup(), "the paperclip leaves the remembered group");
+
+        /*  the edit pencil attaches the image and unfolds Generation  */
+        onFxThread(attachments::clearAllAttachments);
+        edit(image);
+        awaitAttachments(attachments, 1);
+        assertTrue(unfolded("generationGroupPane"), "the edit pencil unfolds Generation");
+        assertFalse(unfolded("moodGroupPane"), "the edit pencil folds Mood");
+        assertFalse(unfolded("frameGroupPane"), "the edit pencil folds Frame");
+        assertEquals("generation", config.getOpenPanelGroup(), "remembered like a click on the title");
+        assertTheCardsEncloseTheirFields("Generation unfolded by the edit pencil");
+
+        /*  an edit that attaches nothing changes no group: a missing image, or the attachment is full  */
+        unfold("moodGroupPane");
+        edit(home.resolve("missing.png").toFile());
+        assertTrue(unfolded("moodGroupPane"), "an edit of a missing image leaves Mood unfolded");
+        onFxThread(() -> {
+            Method add = MultiImageAttachmentPanel.class.getDeclaredMethod("addNewSlot");
+            add.setAccessible(true);
+            add.invoke(attachments);
+            attachments.attachImageToSlot(1, image);
+        });
+        awaitAttachments(attachments, 2);
+        Field max = MultiImageAttachmentPanel.class.getDeclaredField("maxImages");
+        max.setAccessible(true);
+        onFxThread(() -> ((IntegerProperty) max.get(attachments)).set(2));
+        edit(image);
+        assertEquals(2, attachments.getAttachmentCount(), "the full attachment takes no further image");
+        assertTrue(unfolded("moodGroupPane"), "an edit into the full attachment leaves Mood unfolded");
+        assertFalse(unfolded("generationGroupPane"), "an edit into the full attachment leaves Generation folded");
+        assertEquals("mood", config.getOpenPanelGroup(), "a failed edit leaves the remembered group");
     }
 }
