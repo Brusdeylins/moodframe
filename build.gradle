@@ -160,6 +160,20 @@ test {
     // Time limit of every test and lifecycle method, and of the whole run
     systemProperty 'junit.jupiter.execution.timeout.default', '60 s'
     timeout = Duration.ofMinutes(2)
+
+    // The full suite retains ~680 MB (FX nodes and image data), beyond the default worker heap of 512 MB
+    maxHeapSize = '1g'
+
+    // A fresh throwaway home from the JVM start on: logs, config, key and database never touch ~/.moodframe
+    def home = layout.buildDirectory.dir('test-home').get().asFile
+    systemProperty 'user.home', home.absolutePath
+    doFirst {
+        delete home
+        home.mkdirs()
+    }
+
+    // No API key of the developer's shell: without a key no test reaches a real provider
+    ['BFL_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'].each { environment.remove(it) }
 }
 
 // Camera check: test images per camera stage, rated blindly; costs money, so not part of "test"
