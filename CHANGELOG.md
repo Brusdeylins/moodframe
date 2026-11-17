@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2.1.2 (unreleased)
+## 2.1.2 (2026-11-17)
 
 ### IMPROVEMENT
 - Right panel: the edit pencil of an image unfolds the group Generation with the attached image and folds Mood and

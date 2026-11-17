@@ -24,7 +24,7 @@ import javafx.util.Duration;
  * the colors wander clockwise around the frame, one round in 20 seconds. JavaFX has no conic gradient, so each of
  * the four edges carries a repeating linear gradient whose period is the perimeter, shifted by the same phase.
  *
- * @since 2.2.0
+ * @since 2.1.1
  */
 public class PreviewFrame extends Group {
 

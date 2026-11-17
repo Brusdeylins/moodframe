@@ -79,9 +79,9 @@ import java.util.function.Consumer;
  * @updated 2.0.0 - Gallery of the images view
  * @updated 2.1.0 - Poster and the video player of the system for a video JavaFX cannot play
  * @updated 2.1.0 - What helps under Linux to play videos, with a command to copy
- * @updated 2.2.0 - Slowly turning mood frame around image and video instead of the drop shadow
- * @updated 2.2.0 - Nearly opaque dark stage in all themes, also in the light ones
- * @updated 2.2.0 - Image and video fit anew on every resize, panning ends at the frame, round surface of the buttons
+ * @updated 2.1.1 - Slowly turning mood frame around image and video instead of the drop shadow
+ * @updated 2.1.1 - Nearly opaque dark stage in all themes, also in the light ones
+ * @updated 2.1.1 - Image and video fit anew on every resize, panning ends at the frame, round surface of the buttons
  * @updated 2.1.1 - Exactly the size of a shrunk window, image, video and frame on device pixels
  * @updated 2.1.1 - Image and video fit into the safe area between the buttons, panning ends at its edge
  */
