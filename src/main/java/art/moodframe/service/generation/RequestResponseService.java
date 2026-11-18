@@ -60,17 +60,6 @@ public interface RequestResponseService {
     void setOnSafetyToleranceLowered(IntConsumer callback);
     
     /**
-     * Submits an image generation request to the BFL API.
-     * 
-     * @param request the generation request containing parameters
-     * @param chatEntry the chat entry to update with results
-     * @return CompletableFuture that completes when the request is submitted
-     * @throws IllegalArgumentException if request or chatEntry is null
-     * @throws RuntimeException if the API service is not configured
-     */
-    CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry);
-    
-    /**
      * Submits an image generation request with optional image attachment.
      * 
      * @param request the generation request containing parameters
@@ -85,14 +74,6 @@ public interface RequestResponseService {
             java.io.File attachedImageFile);
     
     /**
-     * Cancels a pending generation request.
-     * 
-     * @param jobId the job ID to cancel
-     * @return true if cancelled successfully
-     */
-    boolean cancelGeneration(String jobId);
-    
-    /**
      * Cancels a running chat entry: the polling of its BFL jobs stops, its images not finished yet fail and it ends
      * as cancelled. A request Gemini or OpenAI got already cannot be called back; an image it still delivers is
      * kept, the entry stays cancelled.
@@ -102,14 +83,6 @@ public interface RequestResponseService {
      */
     CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry);
 
-    /**
-     * Checks if a generation request is currently active.
-     * 
-     * @param jobId the job ID to check
-     * @return true if the request is active
-     */
-    boolean isGenerationActive(String jobId);
-    
     /**
      * Shuts down the service and releases resources.
      * 

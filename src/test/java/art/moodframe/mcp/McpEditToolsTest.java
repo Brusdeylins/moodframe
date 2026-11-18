@@ -510,11 +510,6 @@ class McpEditToolsTest {
         }
 
         @Override
-        public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry) {
-            return submitImageGeneration(request, chatEntry, null);
-        }
-
-        @Override
         public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
                 File attachedImageFile) {
             sent.add(request);
@@ -564,16 +559,6 @@ class McpEditToolsTest {
                 cancelled.complete(running);
             });
             return cancelled;
-        }
-
-        @Override
-        public boolean cancelGeneration(String jobId) {
-            return false;
-        }
-
-        @Override
-        public boolean isGenerationActive(String jobId) {
-            return false;
         }
 
         @Override

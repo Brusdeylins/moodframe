@@ -127,18 +127,6 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Submits an image generation request to the BFL API.
-     * 
-     * @param request   the generation request
-     * @param chatEntry the chat entry to update with results
-     * @return CompletableFuture that completes when the request is submitted
-     */
-    @Override
-    public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry) {
-        return submitImageGeneration(request, chatEntry, null);
-    }
-
-    /**
      * Submits an image generation request to the appropriate provider (BFL or Gemini)
      * with optional image attachment.
      *
@@ -233,11 +221,6 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     @Override
-    public boolean cancelGeneration(String jobId) {
-        return bflFlow.cancel(jobId);
-    }
-
-    @Override
     public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
         CompletableFuture<Boolean> cancelled = new CompletableFuture<>();
         Platform.runLater(() -> {
@@ -247,11 +230,6 @@ public class RequestResponseManager implements RequestResponseService {
             cancelled.complete(running);
         });
         return cancelled;
-    }
-
-    @Override
-    public boolean isGenerationActive(String jobId) {
-        return bflFlow.isActive(jobId);
     }
 
     @Override

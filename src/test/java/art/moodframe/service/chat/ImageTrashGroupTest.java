@@ -11,7 +11,6 @@ import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.service.trash.TrashManager;
 import art.moodframe.util.I18nManager;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -66,11 +65,6 @@ class ImageTrashGroupTest {
         repository = new ChatRepository(databaseManager, chatFiles);
         history = new ChatHistoryService(repository, trashManager, chatFiles);
         group = new ImageTrashGroup(repository, chatFiles, trashManager, null);
-    }
-
-    @AfterAll
-    static void stopTrash() {
-        trashManager.shutdown();
     }
 
     @Test

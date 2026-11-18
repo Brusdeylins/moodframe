@@ -709,11 +709,7 @@ public class MoodframeApplication extends Application {
                 thumbnailManager.shutdown();
             }
 
-            /*  Stop the workers of the trash and the size check, if they were started at all  */
-            art.moodframe.service.trash.TrashManager trashManager = ServiceFactory.getInstance()
-                    .getCreatedService(art.moodframe.service.trash.TrashManager.class);
-            if (trashManager != null)
-                trashManager.shutdown();
+            /*  Stop the workers of the size check, if they were started at all  */
             art.moodframe.service.chat.ImageSizeCheck sizeCheck = ServiceFactory.getInstance()
                     .getCreatedService(art.moodframe.service.chat.ImageSizeCheck.class);
             if (sizeCheck != null)

@@ -201,7 +201,8 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                         logger.info("Gemini API response received: {} bytes", responseBody.length());
 
                         // Log response structure (without image data for debugging)
-                        logResponseStructure(responseBody);
+                        if (logger.isDebugEnabled())
+                            logResponseStructure(responseBody);
 
                         // Check for content blocking before extracting image
                         String blockingReason = checkForContentBlocking(responseBody, request.hasInputImage(), request.hasVideoSource());

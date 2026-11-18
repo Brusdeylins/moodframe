@@ -1,8 +1,7 @@
 package art.moodframe.service.chat;
 
 import art.moodframe.model.AttachedImage;
-import javafx.concurrent.Task;
-import javafx.scene.image.Image;
+import art.moodframe.net.IoExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -222,107 +221,7 @@ public class ImageAttachmentService {
                 logger.error("Failed to create attachment for {}", file.getName(), e);
                 throw new RuntimeException(e);
             }
-        });
-    }
-    
-    /**
-     * Creates a JavaFX Task for creating an attachment with progress reporting.
-     * Useful for UI integration with progress indicators.
-     * 
-     * @param file the image file to process
-     * @return Task that produces an AttachedImage
-     */
-    public Task<AttachedImage> createAttachmentTask(File file) {
-        return new Task<AttachedImage>() {
-            @Override
-            protected AttachedImage call() throws Exception {
-                updateMessage("Validating image file...");
-                updateProgress(0, 3);
-                
-                AttachedImage attachment = createAttachment(file);
-                
-                updateMessage("Encoding to Base64...");
-                updateProgress(1, 3);
-                
-                encodeToBase64(attachment);
-                
-                updateMessage("Attachment ready");
-                updateProgress(3, 3);
-                
-                return attachment;
-            }
-        };
-    }
-    
-    /**
-     * Creates a preview image for UI display from an AttachedImage.
-     * 
-     * @param attachment the attachment
-     * @param maxWidth maximum width for the preview
-     * @param maxHeight maximum height for the preview
-     * @return JavaFX Image for UI display
-     * @throws IOException if image loading fails
-     */
-    public Image createPreviewImage(AttachedImage attachment, double maxWidth, double maxHeight) 
-            throws IOException {
-        if (attachment == null || attachment.getImageFile() == null) {
-            throw new IllegalArgumentException("Invalid attachment");
-        }
-        
-        File file = attachment.getImageFile();
-        if (!file.exists()) {
-            throw new IOException("Image file no longer exists");
-        }
-        
-        try {
-            // Load image with size constraints for preview
-            return new Image(file.toURI().toString(), maxWidth, maxHeight, true, true);
-        } catch (Exception e) {
-            throw new IOException("Failed to create preview image: " + e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * Validates if a file can be used as an attachment.
-     * 
-     * @param file the file to validate
-     * @return validation result
-     */
-    public ValidationResult validateFile(File file) {
-        if (file == null || !file.exists()) {
-            return new ValidationResult(false, "File does not exist");
-        }
-        
-        if (!file.isFile()) {
-            return new ValidationResult(false, "Path is not a file");
-        }
-        
-        // Check file size
-        long fileSize = file.length();
-        if (fileSize > maxFileSize) {
-            int maxMB = (int) (maxFileSize / (1024 * 1024));
-            return new ValidationResult(false,
-                String.format("File size %.1f MB exceeds %d MB limit", fileSize / (1024.0 * 1024.0), maxMB));
-        }
-        
-        // Validate file extension
-        String extension = getFileExtension(file.getName()).toLowerCase();
-        if (!isSupportedFormat(extension)) {
-            return new ValidationResult(false, 
-                "Unsupported format '" + extension + "'. Use PNG, JPEG, or WebP");
-        }
-        
-        // Try to read as image
-        try {
-            BufferedImage image = ImageIO.read(file);
-            if (image == null) {
-                return new ValidationResult(false, "File is not a valid image");
-            }
-        } catch (IOException e) {
-            return new ValidationResult(false, "Cannot read image file: " + e.getMessage());
-        }
-        
-        return new ValidationResult(true, "File is valid");
+        }, IoExecutor.get());
     }
     
     /**
@@ -343,29 +242,6 @@ public class ImageAttachmentService {
             }
         }
         return false;
-    }
-    
-    /**
-     * Gets the supported file extensions as a display string.
-     * 
-     * @return formatted extensions (e.g., "PNG, JPEG, WebP")
-     */
-    public String getSupportedFormatsDisplay() {
-        return String.join(", ", SUPPORTED_EXTENSIONS).toUpperCase();
-    }
-    
-    /**
-     * Creates a file extension filter string for JavaFX FileChooser.
-     * 
-     * @return filter string (e.g., "*.png;*.jpg;*.jpeg;*.webp")
-     */
-    public String getFileChooserFilter() {
-        StringBuilder filter = new StringBuilder();
-        for (int i = 0; i < SUPPORTED_EXTENSIONS.length; i++) {
-            if (i > 0) filter.append(";");
-            filter.append("*.").append(SUPPORTED_EXTENSIONS[i]);
-        }
-        return filter.toString();
     }
     
     /**
@@ -397,31 +273,5 @@ public class ImageAttachmentService {
             return "";
         }
         return fileName.substring(lastDotIndex + 1);
-    }
-    
-    /**
-     * Validation result for file validation.
-     */
-    public static class ValidationResult {
-        private final boolean valid;
-        private final String message;
-
-        public ValidationResult(boolean valid, String message) {
-            this.valid = valid;
-            this.message = message;
-        }
-
-        public boolean isValid() {
-            return valid;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("ValidationResult{valid=%s, message='%s'}", isValid(), getMessage());
-        }
     }
 }

@@ -202,14 +202,13 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Scales the image down to at most {@value #MAX_SIDE} pixels per side and encodes it as JPEG; transparent parts
-     * become white.
+     * Scales the image down to at most {@value #MAX_SIDE} pixels per side, the size the analysis takes; transparent
+     * parts become white.
      *
      * @param image the image
-     * @return the JPEG bytes
-     * @throws IOException if the image cannot be encoded
+     * @return an RGB copy of the image, scaled down if it is larger
      */
-    static byte[] encodeScaled(BufferedImage image) throws IOException {
+    public static BufferedImage scaledDown(BufferedImage image) {
         double scale = Math.min(1.0, MAX_SIDE / (double) Math.max(image.getWidth(), image.getHeight()));
         int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
         int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
@@ -218,7 +217,18 @@ public class MoodAnalysisService {
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         graphics.drawImage(image, 0, 0, width, height, Color.WHITE, null);
         graphics.dispose();
+        return rgb;
+    }
 
+    /**
+     * Scales the image down like {@link #scaledDown(BufferedImage)} and encodes it as JPEG.
+     *
+     * @param image the image
+     * @return the JPEG bytes
+     * @throws IOException if the image cannot be encoded
+     */
+    static byte[] encodeScaled(BufferedImage image) throws IOException {
+        BufferedImage rgb = scaledDown(image);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         if (!ImageIO.write(rgb, "jpg", out))
             throw new IOException("No JPEG encoder");

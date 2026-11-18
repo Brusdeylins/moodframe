@@ -71,21 +71,6 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Cancels a pending job.
-     *
-     * @param jobId the job ID to cancel
-     * @return true if cancelled successfully
-     */
-    public boolean cancel(String jobId) {
-        PendingRequest request = activeRequests.remove(jobId);
-        if (request != null && request.pollingTask != null) {
-            request.pollingTask.cancel(true);
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * Stops the polling of all jobs of a chat entry.
      *
      * @param entryId the ID of the entry
@@ -97,16 +82,6 @@ public class BflGenerationFlow {
                 request.cancelPolling();
             return ofEntry;
         });
-    }
-
-    /**
-     * Checks if a job is currently polled.
-     *
-     * @param jobId the job ID to check
-     * @return true if the job is active
-     */
-    public boolean isActive(String jobId) {
-        return activeRequests.containsKey(jobId);
     }
 
     /**
