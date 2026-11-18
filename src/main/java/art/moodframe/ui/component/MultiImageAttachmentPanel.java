@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -1010,13 +1009,14 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
         private void loadPreviewImage() {
             if (attachment == null || attachment.getImageFile() == null) return;
 
-            try (FileInputStream fis = new FileInputStream(attachment.getImageFile())) {
-                // Load with reasonable size, preserving aspect ratio
-                Image image = new Image(fis, 400, 400, true, true);
-                imageView.setImage(image);
-            } catch (Exception e) {
-                logger.warn("Failed to load preview image: {}", e.getMessage());
-            }
+            /*  Decoded in the background with reasonable size, preserving aspect ratio; the view shows it when done  */
+            Image image = new Image(attachment.getImageFile().toURI().toString(), 400, 400, true, true, true);
+            image.errorProperty().addListener((obs, wasError, error) -> {
+                if (error)
+                    logger.warn("Failed to load preview image: {}", image.getException() != null
+                            ? image.getException().getMessage() : attachment);
+            });
+            imageView.setImage(image);
         }
 
         private void openFileChooser() {

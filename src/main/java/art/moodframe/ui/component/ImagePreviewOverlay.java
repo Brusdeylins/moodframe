@@ -127,6 +127,12 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private Button playPauseButton;
     private boolean isVideoMode = false;
 
+    /*  the image decoded in the background that is shown once it is done, null while none is loading  */
+    private Image loadingImage;
+
+    /*  whether full-size images are decoded in the background; the tests of the layout decode them at once  */
+    static boolean decodeInBackground = true;
+
     /*  The fallback for a video JavaFX cannot play: its poster with a hint and the video player of the system  */
     private HBox videoFallback;
     private FontIcon videoFallbackIcon;
@@ -1229,23 +1235,21 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
                     // Stop any playing video first
                     stopVideo();
 
-                    Image image = new Image(imageFile.toURI().toString());
-                    imageView.setImage(image);
-
-                    // Show image, hide video
-                    imageView.setVisible(true);
-                    mediaView.setVisible(false);
-                    isVideoMode = false;
-                    playPauseButton.setVisible(false);
-
-                    // Calculate zoom limits based on actual pixel sizes
-                    calculateZoomLimits(image);
-
-                    // Reset zoom and pan
-                    resetImageTransform();
-
-                    // Update zoom button state for new image
-                    updateZoomButtonState();
+                    /*  The full-size image is decoded in the background; the previous image stays until it is
+                        done, then zoom and pan start anew from its pixel size  */
+                    Image image = new Image(imageFile.toURI().toString(), decodeInBackground);
+                    loadingImage = image;
+                    if (image.getProgress() >= 1.0 || image.isError())
+                        showLoaded(image, imagePath);
+                    else
+                        image.progressProperty().addListener((obs, oldProgress, progress) -> {
+                            if (progress.doubleValue() >= 1.0)
+                                showLoaded(image, imagePath);
+                        });
+                    image.errorProperty().addListener((obs, wasError, error) -> {
+                        if (error)
+                            showLoaded(image, imagePath);
+                    });
                 }
 
                 // Update navigation state
@@ -1260,12 +1264,50 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     }
 
     /**
+     * Shows an image once it is decoded, unless another image or a video was asked for meanwhile.
+     *
+     * @param image     the decoded image, or one that failed
+     * @param imagePath its path, for the log
+     */
+    private void showLoaded(Image image, String imagePath) {
+        if (loadingImage != image)
+            return;
+        loadingImage = null;
+        if (image.isError()) {
+            logger.error("Failed to load media: {}", imagePath, image.getException());
+            return;
+        }
+        imageView.setImage(image);
+
+        // Show image, hide video
+        imageView.setVisible(true);
+        mediaView.setVisible(false);
+        isVideoMode = false;
+        playPauseButton.setVisible(false);
+
+        // Calculate zoom limits based on actual pixel sizes
+        calculateZoomLimits(image);
+
+        // Reset zoom and pan
+        resetImageTransform();
+
+        // Update zoom button state for new image
+        updateZoomButtonState();
+    }
+
+    /** Whether an image is still decoded in the background, for the tests. */
+    boolean isLoading() {
+        return loadingImage != null;
+    }
+
+    /**
      * Loads a video file for playback using MediaView.
      *
      * @param videoFile the video file to play
      */
     private void loadVideo(File videoFile) {
-        // Stop any previous video
+        // Stop any previous video, and an image still loading
+        loadingImage = null;
         stopVideo();
 
         /*  Once JavaFX Media proved unusable on this system, every video goes straight to its fallback  */
@@ -1605,7 +1647,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             stopVideo();
         }
 
-        // Clear image to free memory
+        // Clear image to free memory, also one still loading
+        loadingImage = null;
         imageView.setImage(null);
         imagePaths = null;
         captions = null;
