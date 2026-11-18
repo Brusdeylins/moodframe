@@ -1,7 +1,10 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.cell;
 
 import art.moodframe.model.Frame;
 import art.moodframe.service.FrameService;
+import art.moodframe.ui.component.DropdownBounds;
+import art.moodframe.ui.component.FavoriteStar;
+import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

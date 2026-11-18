@@ -1,8 +1,10 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.dialog;
 
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.PromptBlockService;
+import art.moodframe.ui.component.CameraExample;
+import art.moodframe.ui.component.CameraPreview;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.event.Event;

@@ -2,7 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.service.ImageDragExporter;
+import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.MediaSupport;

@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.dialog;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -31,6 +31,9 @@ import art.moodframe.model.CameraSettings.Shutter;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.CameraPromptBuilder;
 import art.moodframe.service.PromptBlockService;
+import art.moodframe.ui.component.CameraExample;
+import art.moodframe.ui.component.CameraPreview;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 

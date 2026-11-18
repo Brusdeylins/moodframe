@@ -1,5 +1,6 @@
 package art.moodframe.ui.component;
 
+import art.moodframe.ui.dialog.CameraEditDialog;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.Button;

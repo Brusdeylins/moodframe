@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.dialog;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -13,6 +13,8 @@ import javafx.scene.paint.Color;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.service.ColorStyleService;
+import art.moodframe.ui.component.ColorBox;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 
