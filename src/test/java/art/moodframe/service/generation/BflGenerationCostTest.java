@@ -80,7 +80,7 @@ class BflGenerationCostTest {
         when(config.getApiTimeoutSeconds()).thenReturn(600);
 
         ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
-        BflGenerationFlow flow = new BflGenerationFlow(config, api, mock(ChatRepository.class), tracker, files,
+        BflGenerationFlow flow = new BflGenerationFlow(config, api, tracker, files,
                 scheduler, Runnable::run);
 
         /*  as the request manager sends it: placeholders first, the price per image set by the generation service  */

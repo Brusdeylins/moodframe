@@ -6,12 +6,10 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.ImageGenerationRequest;
-import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.ApiHttpException;
 import art.moodframe.service.provider.BflApiException;
 import art.moodframe.util.Secrets;
-import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +28,8 @@ import java.util.function.IntConsumer;
 
 /**
  * The asynchronous BFL flow of a generation: submit a job per image, poll its status until the image is ready,
- * download it. The images of the chat entry are changed on the FX thread, files and requests run on workers.
+ * download it. The images of the chat entry are changed on the FX thread through {@link FxModel}, files and
+ * requests run on workers, the database writes on the worker of the {@link ChatEntryTracker}.
  *
  * @since 1.9.1
  */
@@ -40,7 +39,6 @@ public class BflGenerationFlow {
 
     private final ApplicationConfig config;
     private final BflApiService bflApiService;
-    private final ChatRepository chatRepository;
     private final ChatEntryTracker tracker;
     private final ImageFileStore imageFiles;
     private final ScheduledExecutorService scheduler;
@@ -54,17 +52,15 @@ public class BflGenerationFlow {
      *
      * @param config         the application configuration (timeout, FLUX.2 safety tolerance)
      * @param bflApiService  the BFL API
-     * @param chatRepository where images are stored
-     * @param tracker        keeps the chat entry in step with its images
+     * @param tracker        keeps the chat entry in step with its images and stores them
      * @param imageFiles     writes the downloaded images
-     * @param scheduler      runs the status polling and the database writes
-     * @param io             runs the downloads of the images and the database writes they cause
+     * @param scheduler      runs the status polling
+     * @param io             runs the downloads of the images
      */
-    public BflGenerationFlow(ApplicationConfig config, BflApiService bflApiService, ChatRepository chatRepository,
-            ChatEntryTracker tracker, ImageFileStore imageFiles, ScheduledExecutorService scheduler, Executor io) {
+    public BflGenerationFlow(ApplicationConfig config, BflApiService bflApiService, ChatEntryTracker tracker,
+            ImageFileStore imageFiles, ScheduledExecutorService scheduler, Executor io) {
         this.config = config;
         this.bflApiService = bflApiService;
-        this.chatRepository = chatRepository;
         this.tracker = tracker;
         this.imageFiles = imageFiles;
         this.scheduler = scheduler;
@@ -222,7 +218,7 @@ public class BflGenerationFlow {
                         tracker.markFailed(chatEntry, "Request timeout after 30 seconds");
                     } else {
                         logger.error("Failed to submit generation request for image {}", imageIndex, throwable);
-                        tracker.markFailed(chatEntry, throwable.getMessage());
+                        tracker.markFailed(chatEntry, ChatEntryTracker.errorText(throwable, chatEntry));
                     }
                     return null;
                 });
@@ -263,7 +259,7 @@ public class BflGenerationFlow {
 
                 // Replace placeholder or add to chat entry (on FX thread) and persist to
                 // database (async)
-                Platform.runLater(() -> {
+                FxModel.change(() -> {
                     // Find and replace the placeholder with sortOrder matching imageIndex
                     boolean replacedPlaceholder = false;
                     for (int j = 0; j < chatEntry.getImages().size(); j++) {
@@ -288,16 +284,8 @@ public class BflGenerationFlow {
                     tracker.notifyImageUpdated(generatedImage);
                 });
 
-                // Persist to database asynchronously (don't block UI)
-                CompletableFuture.runAsync(() -> {
-                    if (chatRepository != null) {
-                        try {
-                            chatRepository.saveGeneratedImage(generatedImage);
-                        } catch (Exception e) {
-                            logger.error("Failed to save GeneratedImage to database: {}", generatedImage.getId(), e);
-                        }
-                    }
-                }, scheduler);
+                // Persist to database asynchronously (the new image is not shown yet, so no change waits for it)
+                tracker.saveImage(generatedImage);
 
                 // Start polling for this job
                 PendingRequest pendingRequest = new PendingRequest(jobId, chatEntry, generatedImage, request);
@@ -350,7 +338,7 @@ public class BflGenerationFlow {
                 pendingRequest.pollingAttempts * 3);
             pendingRequest.cancelPolling();
             activeRequests.remove(jobId);
-            Platform.runLater(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout"));
+            FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout"));
             return;
         }
         
@@ -368,7 +356,7 @@ public class BflGenerationFlow {
             
             /*  The image is bound to the UI, so its status is handled on the FX thread  */
             pollingFuture.thenAccept(jobResult -> {
-                    Platform.runLater(() -> handleJobStatusUpdate(jobResult, jobId, pendingRequest));
+                    FxModel.change(() -> handleJobStatusUpdate(jobResult, jobId, pendingRequest));
                 })
                 .exceptionally(throwable -> {
                     // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
@@ -498,7 +486,7 @@ public class BflGenerationFlow {
             activeRequests.remove(jobId);
 
             // Check if all images for this chat entry are done
-            Platform.runLater(() -> tracker.refresh(pendingRequest.chatEntry));
+            FxModel.change(() -> tracker.refresh(pendingRequest.chatEntry));
 
         } catch (Exception e) {
             logger.error("Failed to handle job completion for: {}", jobId, e);
@@ -527,23 +515,14 @@ public class BflGenerationFlow {
         tracker.notifyImageUpdated(pendingRequest.generatedImage);
 
         // Persist error information to database
-        CompletableFuture.runAsync(() -> {
-            if (chatRepository != null) {
-                try {
-                    chatRepository.saveGeneratedImage(pendingRequest.generatedImage);
-                } catch (Exception ex) {
-                    logger.error("Failed to save failed GeneratedImage to database: {}",
-                            pendingRequest.generatedImage.getId(), ex);
-                }
-            }
-        }, io);
+        tracker.saveImage(pendingRequest.generatedImage);
 
         // Stop polling and remove from active requests
         pendingRequest.cancelPolling();
         activeRequests.remove(jobId);
 
         // Check chat entry completion
-        Platform.runLater(() -> tracker.refresh(pendingRequest.chatEntry));
+        FxModel.change(() -> tracker.refresh(pendingRequest.chatEntry));
     }
 
     /**
@@ -560,21 +539,12 @@ public class BflGenerationFlow {
 
             /*  The image is bound to the UI, so it is changed on the FX thread; the database write goes back to a worker  */
             ImageFileStore.StoredImage result = stored;
-            Platform.runLater(() -> {
+            FxModel.change(() -> {
                 if (result != null)
                     result.applyTo(generatedImage);
                 else
                     generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-
-                if (chatRepository != null) {
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            chatRepository.saveGeneratedImage(generatedImage);
-                        } catch (Exception e) {
-                            logger.error("Failed to update GeneratedImage in database: {}", generatedImage.getId(), e);
-                        }
-                    }, io);
-                }
+                tracker.saveImage(generatedImage);
 
                 tracker.notifyImageUpdated(generatedImage);
                 tracker.refresh(chatEntry);

@@ -118,4 +118,28 @@ class ChatEntryTrackerTest {
         assertEquals(ChatEntry.Status.FAILED, entry.getStatus());
         assertEquals(reason, entry.getErrorMessage(), "each reason once, an image without one adds nothing");
     }
+
+    @Test
+    void storesOnAWorkerAfterTheChangeOnTheFxThread() throws Exception {
+        ChatRepository repository = mock(ChatRepository.class);
+        List<String> saved = new CopyOnWriteArrayList<>();
+        org.mockito.Mockito.doAnswer((invocation) -> {
+            ChatEntry stored = invocation.getArgument(0);
+            saved.add(stored.getStatus().name() + ":" + Platform.isFxApplicationThread());
+            return null;
+        }).when(repository).saveChatEntry(org.mockito.ArgumentMatchers.any());
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            ChatEntryTracker tracker = new ChatEntryTracker(repository, worker);
+            ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
+
+            tracker.markFailed(entry, "no answer");
+            drainFxThread();
+            tracker.saveEntry(entry).get(10, TimeUnit.SECONDS);
+            assertEquals(List.of("FAILED:false", "FAILED:false"), saved,
+                    "the write sees the change and runs off the JavaFX thread");
+        } finally {
+            worker.shutdownNow();
+        }
+    }
 }

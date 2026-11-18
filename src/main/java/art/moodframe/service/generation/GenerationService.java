@@ -18,7 +18,6 @@ import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.RequestOptions;
-import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -341,7 +340,7 @@ public class GenerationService {
                         return;
                     }
                     logger.error("Failed to submit API request", throwable);
-                    Platform.runLater(() -> {
+                    FxModel.change(() -> {
                         entry.setStatus(ChatEntry.Status.FAILED);
                         entry.setErrorMessage(throwable.getMessage());
                         finished.complete(ChatEntry.Status.FAILED);

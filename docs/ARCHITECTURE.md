@@ -55,7 +55,8 @@ The subpackages of `service`, each using only those above it in the table (no cy
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
 Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (e.g.
-`LibraryEvents`, `GenerationService`), and some model classes carry JavaFX properties for binding.
+`LibraryEvents`), and some model classes carry JavaFX properties for binding. A generation changes the chat entry
+and its images, which carry such properties, only through `service.generation.FxModel`.
 
 ## Threading
 
@@ -66,6 +67,10 @@ Known deviations: some services use `Platform.runLater` to hand results to the J
 - **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded
   pool of daemon threads, never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker
   (see `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit.
+- **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
+  and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
+  keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
+  executor, the BFL polling on named daemon threads.
 - **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
   thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
@@ -131,7 +136,11 @@ replace them with mocks and fake HTTP servers. Interfaces with a single implemen
 them were removed; a new interface is introduced when a second implementation or a test seam needs it.
 
 The three provider clients extend the provider SPI `service.provider.ImageProvider` (key, connection test,
-submission, seeds, attached images) and keep their own extras, such as the BFL job polling or the brainstorm chat.
+a copy with other credentials for the test of an unsaved key, submission, seeds, attached images, prompt limit, the
+parameters a model takes, download headers) and keep their own extras, such as the BFL job polling or the
+brainstorm chat. The generation knows no provider by name: what differs per provider lives in its client. Errors
+are `ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the
+MCP clients get in English.
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
 provider is a client, its entry in the registry, its models and its account settings in `ApplicationConfig`.
