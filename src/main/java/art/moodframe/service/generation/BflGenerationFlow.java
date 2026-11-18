@@ -8,7 +8,8 @@ import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.BflApiServiceImpl;
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.BflApiException;
 import art.moodframe.util.Secrets;
 import javafx.application.Platform;
 import org.slf4j.Logger;
@@ -199,7 +200,7 @@ public class BflGenerationFlow {
                     /*  An account without approval for the safety tolerance gets one retry with its approved
                         maximum, which also becomes the value of the FLUX.2 slider  */
                     Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
-                    Integer approved = cause instanceof BflApiServiceImpl.BflApiException bflError
+                    Integer approved = cause instanceof BflApiException bflError
                             ? bflError.getMaximumApprovedSafetyTolerance() : null;
                     if (approved == null)
                         return CompletableFuture.failedFuture(throwable);
@@ -358,7 +359,7 @@ public class BflGenerationFlow {
             
             // Use the correct polling URL from the BFL response instead of constructing one
             if (pendingRequest.pollingUrl != null && !pendingRequest.pollingUrl.isEmpty()) {
-                pollingFuture = ((BflApiServiceImpl) bflApiService).getJobResultWithPollingUrl(pendingRequest.pollingUrl);
+                pollingFuture = bflApiService.getJobResultWithPollingUrl(pendingRequest.pollingUrl);
             } else {
                 // Fallback to old method (will likely cause 404)
                 logger.warn("No polling URL available for job {}, using fallback method", jobId);
@@ -372,8 +373,7 @@ public class BflGenerationFlow {
                 .exceptionally(throwable -> {
                     // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
                     // This is expected behavior, not an error condition
-                    if (throwable.getCause() instanceof BflApiServiceImpl.BflApiException bflError 
-                        && bflError.getStatusCode() == 404) {
+                    if (throwable.getCause() instanceof ApiHttpException http && http.getStatusCode() == 404) {
                         
                         logger.debug("Job {} status check returned 404 (attempt {}/{}) - job still processing", 
                             jobId.substring(0, Math.min(8, jobId.length())), 

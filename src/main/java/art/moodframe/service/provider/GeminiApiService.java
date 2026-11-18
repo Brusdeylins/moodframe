@@ -23,6 +23,9 @@ public interface GeminiApiService extends ImageProvider {
         return ApiProvider.GOOGLE_GEMINI;
     }
 
+    @Override
+    GeminiApiService withCredentials(String apiKey, String endpoint);
+
     /**
      * Analyzes a YouTube video using Google Gemini's video understanding capabilities.
      *

@@ -6,7 +6,7 @@ import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.BflApiServiceImpl;
+import art.moodframe.service.provider.BflApiException;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -37,7 +37,7 @@ class BflSafetyToleranceTest {
     /*  as from the HTTP client: the error arrives wrapped in a CompletionException  */
     private static CompletableFuture<GenerationJobInfo> rejected(String body) {
         return CompletableFuture.<GenerationJobInfo>failedFuture(
-                new BflApiServiceImpl.BflApiException(422, "HTTP 422", body)).thenApply((info) -> info);
+                new BflApiException(422, "HTTP 422", body)).thenApply((info) -> info);
     }
 
     /*  submits one FLUX.2 image with safety tolerance 5, every submission is answered with the given body  */
@@ -88,15 +88,15 @@ class BflSafetyToleranceTest {
 
     @Test
     void readsTheApprovedMaximumOnlyFromTheMatchingError() {
-        assertEquals(4, new BflApiServiceImpl.BflApiException(422, "", NOT_APPROVED)
+        assertEquals(4, new BflApiException(422, "", NOT_APPROVED)
                 .getMaximumApprovedSafetyTolerance());
-        assertNull(new BflApiServiceImpl.BflApiException(400, "", NOT_APPROVED)
+        assertNull(new BflApiException(400, "", NOT_APPROVED)
                 .getMaximumApprovedSafetyTolerance());
-        assertNull(new BflApiServiceImpl.BflApiException(422, "", NOT_APPROVED.replace("not_approved", "other"))
+        assertNull(new BflApiException(422, "", NOT_APPROVED.replace("not_approved", "other"))
                 .getMaximumApprovedSafetyTolerance());
-        assertNull(new BflApiServiceImpl.BflApiException(422, "", "Unprocessable Entity")
+        assertNull(new BflApiException(422, "", "Unprocessable Entity")
                 .getMaximumApprovedSafetyTolerance());
-        assertNull(new BflApiServiceImpl.BflApiException(422, "", null)
+        assertNull(new BflApiException(422, "", null)
                 .getMaximumApprovedSafetyTolerance());
     }
 

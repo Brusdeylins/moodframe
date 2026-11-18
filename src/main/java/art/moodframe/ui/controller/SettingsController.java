@@ -1329,19 +1329,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
             BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
             if (apiService == null)
                 throw new RuntimeException("BFL API service not available");
-            apiService.setApiKey(apiKey);
 
-            /*  The test runs against the selected region, the saved one comes back afterwards  */
-            String currentRegion = config.getApiRegion();
-            boolean otherRegion = selectedRegion != null && !selectedRegion.equals(currentRegion);
-            if (otherRegion)
-                config.setApiRegion(selectedRegion);
-            try {
-                return apiService.testConnection().get();
-            } finally {
-                if (otherRegion)
-                    config.setApiRegion(currentRegion);
-            }
+            /*  The typed key is tested against the selected region; key and region are saved with "Save"  */
+            return apiService.testConnection(apiKey, selectedRegion).get();
         }, (success) -> {
             String testedRegion = regionComboBox.getValue();
             apiKeyValidated = success;
@@ -1358,14 +1348,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 connectionTested(art.moodframe.model.ApiProvider.BFL, true);
             } else {
                 showConnectionStatus("error", I18nManager.getText("settings.test.api.connection.failed", testedRegion));
-                restoreSavedKey("bfl");
                 logger.warn("API key validation failed for region: {}", testedRegion);
             }
         }, (exception) -> {
             showConnectionStatus("error", bflTestError(exception));
             apiKeyValidated = false;
             validatedApiKey = null;
-            restoreSavedKey("bfl");
             logger.warn("API connection test failed: {}", exception != null ? exception.getMessage() : "Unknown error");
         });
     }
@@ -1486,8 +1474,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     .getService(art.moodframe.service.provider.GeminiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("Gemini API service not available");
-            apiService.setApiKey(apiKey);
-            return apiService.testConnection().get();
+
+            /*  The typed key is only tested, it is saved with "Save"  */
+            return apiService.testConnection(apiKey, null).get();
         }, (success) -> {
             if (success) {
                 geminiApiKeyValidated = true;
@@ -1510,7 +1499,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             logger.warn("Gemini API connection test could not decide", exception);
             geminiApiKeyValidated = false;
             validatedGeminiApiKey = null;
-            restoreSavedKey("gemini");
             showGeminiConnectionStatus("error", I18nManager.getText("settings.test.undecided",
                     ApiProviderValidator.reasonOf(exception)));
         });
@@ -1525,8 +1513,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
         if (validator == null)
             return;
 
+        /*  The key the dialog validated, which may not be saved yet  */
         showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.check.testing"));
-        validator.checkGeminiModel().whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+        validator.checkGeminiModel(validatedGeminiApiKey).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
                 javafx.application.Platform.runLater(() -> {
             /*  A decided failure goes before an undecided one, as it is what the validator just stored  */
             ApiProviderValidator.Outcome failed = check == null ? null
@@ -1552,7 +1541,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void geminiTestFailed(String messageKey) {
         geminiApiKeyValidated = false;
         validatedGeminiApiKey = null;
-        restoreSavedKey("gemini");
         showGeminiConnectionStatus("error", I18nManager.getText(messageKey));
         geminiProviderEnabledCheckBox.setDisable(true);
         geminiProviderEnabledCheckBox.setSelected(false);
@@ -1611,16 +1599,17 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 : openaiBaseUrlField.getText().trim().replaceAll("/+$", "");
 
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.testing.status"));
+        java.util.concurrent.atomic.AtomicReference<art.moodframe.service.provider.OpenAiApiService.Account> tested =
+                new java.util.concurrent.atomic.AtomicReference<>();
         runConnectionTest(testOpenaiConnectionButton, I18nManager.getText("settings.openai.test"), () -> {
             art.moodframe.service.provider.OpenAiApiService apiService = ServiceFactory.getInstance()
                     .getService(art.moodframe.service.provider.OpenAiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("OpenAI API service not available");
 
-            /*  The token and the URL are only set in the service, they are saved with "Save"  */
-            apiService.setApiKey(apiKey);
-            apiService.setBaseUrl(baseUrl);
-            return apiService.testConnection().get();
+            /*  The token and the URL are only tested, they are saved with "Save"  */
+            tested.set(apiService.testAccount(apiKey, baseUrl).get());
+            return tested.get().works();
         }, (success) -> {
             if (!success) {
                 openaiTestFailed("settings.openai.test.failed");
@@ -1631,19 +1620,21 @@ public class SettingsController implements Initializable, I18nChangeListener {
             validatedOpenaiApiKey = apiKey;
             validatedOpenaiBaseUrl = baseUrl;
 
-            /*  The service may have added "/v1"; the field shows it, so "Save" keeps it  */
-            art.moodframe.service.provider.OpenAiApiService testedService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.provider.OpenAiApiService.class);
-            if (testedService != null && !baseUrl.equals(testedService.getBaseUrl())) {
-                validatedOpenaiBaseUrl = testedService.getBaseUrl();
+            /*  The test may have added "/v1"; the field shows it, so "Save" keeps it  */
+            art.moodframe.service.provider.OpenAiApiService.Account account = tested.get();
+            if (!baseUrl.equals(account.baseUrl())) {
+                validatedOpenaiBaseUrl = account.baseUrl();
                 openaiBaseUrlField.setText(validatedOpenaiBaseUrl);
             }
-            java.util.List<String> available = config.getOpenAiAvailableModels();
+
+            /*  The models of the API are shown on the next opening, the selection is saved with "Save"  */
+            java.util.List<String> available = account.models();
+            config.setOpenAiAvailableModels(available);
             showOpenaiConnectionStatus("success", available.isEmpty()
                     ? I18nManager.getText("settings.openai.test.success.nomodels")
                     : java.text.MessageFormat.format(I18nManager.getText("settings.openai.test.success"),
                             available.size()));
-            showOpenaiModels(available, config.getOpenAiModels());
+            showOpenaiModels(available, account.selected());
 
             openaiProviderEnabledCheckBox.setDisable(false);
             if (!config.isOpenAiProviderEnabled()) {
@@ -1660,7 +1651,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             openaiApiKeyValidated = false;
             validatedOpenaiApiKey = null;
             validatedOpenaiBaseUrl = null;
-            restoreSavedKey("openai");
             showOpenaiConnectionStatus("error", I18nManager.getText("settings.test.undecided",
                     ApiProviderValidator.reasonOf(exception)));
         });
@@ -1671,41 +1661,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
         openaiApiKeyValidated = false;
         validatedOpenaiApiKey = null;
         validatedOpenaiBaseUrl = null;
-        restoreSavedKey("openai");
         showOpenaiConnectionStatus("error", I18nManager.getText(messageKey));
         openaiProviderEnabledCheckBox.setDisable(true);
         openaiProviderEnabledCheckBox.setSelected(false);
         connectionTested(art.moodframe.model.ApiProvider.OPENAI, false);
         config.setOpenAiProviderEnabled(false);
-    }
-
-    /**
-     * Puts the saved token (and URL) back into the live service after a failed test, as a test sets the typed
-     * values in the service that generation and the brainstorm use.
-     *
-     * @param provider {@code bfl}, {@code gemini} or {@code openai}
-     */
-    private void restoreSavedKey(String provider) {
-        ServiceFactory factory = ServiceFactory.getInstance();
-        switch (provider) {
-            case "bfl" -> {
-                BflApiService service = factory.getService(BflApiService.class);
-                if (service != null)
-                    service.setApiKey(config.getApiKey());
-            }
-            case "gemini" -> {
-                art.moodframe.service.provider.GeminiApiService service = factory.getService(art.moodframe.service.provider.GeminiApiService.class);
-                if (service != null)
-                    service.setApiKey(config.getGeminiApiKey());
-            }
-            default -> {
-                art.moodframe.service.provider.OpenAiApiService service = factory.getService(art.moodframe.service.provider.OpenAiApiService.class);
-                if (service != null) {
-                    service.setApiKey(config.getOpenAiApiKey());
-                    service.setBaseUrl(config.getOpenAiBaseUrl());
-                }
-            }
-        }
     }
 
     /**
@@ -1739,7 +1699,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         openaiChatModelBox.setDisable(true);
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.chat.testing", chosen));
-        validator.checkOpenAiModel(chosen).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+        /*  With the token and URL the dialog validated, which may not be saved yet  */
+        validator.checkOpenAiModel(chosen, validatedOpenaiApiKey, validatedOpenaiBaseUrl).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
                 javafx.application.Platform.runLater(() -> {
             openaiChatModelBox.setDisable(false);
             OpenaiModelStatus status = openaiModelStatus(chosen, check, error);

@@ -42,19 +42,35 @@ public interface ImageProvider {
     String getApiKey();
 
     /**
-     * Sets the key the client sends, e.g. to test a key that is not saved yet.
-     *
-     * @param apiKey the key
-     */
-    void setApiKey(String apiKey);
-
-    /**
      * Tests the connection and the key with a lightweight request.
      *
      * @return a future with true if the key works, false on a definite refusal (HTTP 400, 401, 403 or 404); it fails
      *         on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
     CompletableFuture<Boolean> testConnection();
+
+    /**
+     * Gets a client like this one that sends another key, e.g. to test a key that is not saved yet. This client keeps
+     * its own key and endpoint, so generation and brainstorm are not affected.
+     *
+     * @param apiKey   the key
+     * @param endpoint where the copy sends to: the region of BFL ({@code Global}, {@code EU}, {@code US}), the base
+     *                 URL of OpenAI; null for the configured one; Gemini has a single endpoint and ignores it
+     * @return the copy
+     */
+    ImageProvider withCredentials(String apiKey, String endpoint);
+
+    /**
+     * Tests a key that is not saved yet, without changing this client: see {@link #withCredentials(String, String)}
+     * and {@link #testConnection()}.
+     *
+     * @param apiKey   the key to test
+     * @param endpoint the region of BFL or the base URL of OpenAI, null for the configured one
+     * @return a future with true if the key works, false on a definite refusal; it fails on a transient failure
+     */
+    default CompletableFuture<Boolean> testConnection(String apiKey, String endpoint) {
+        return withCredentials(apiKey, endpoint).testConnection();
+    }
 
     /**
      * Submits one generation request. A provider that {@link #answersWithImage() answers with the image} completes

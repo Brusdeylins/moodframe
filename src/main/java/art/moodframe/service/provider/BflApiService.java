@@ -56,6 +56,9 @@ public interface BflApiService extends ImageProvider {
      * BFL answers a submission with a job, {@code BflGenerationFlow} polls it until the image is ready.
      */
     @Override
+    BflApiService withCredentials(String apiKey, String endpoint);
+
+    @Override
     default boolean answersWithImage() {
         return false;
     }
@@ -132,6 +135,16 @@ public interface BflApiService extends ImageProvider {
      * @throws IllegalStateException    if no API key is configured
      */
     CompletableFuture<GenerationJobResult> getJobStatus(String jobId);
+
+    /**
+     * Gets the status of a job from the polling URL BFL answered the submission with; the URL leads to the region
+     * that runs the job, the job id alone may answer HTTP 404.
+     *
+     * @param pollingUrl the polling URL of the submission
+     * @return a CompletableFuture containing the current job status and results
+     * @since 2.1.3
+     */
+    CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl);
 
     /**
      * Cancels a pending or running generation job.
