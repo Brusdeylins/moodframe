@@ -139,48 +139,14 @@ public class BflGenerationFlow {
             // Note: grounding_search is NOT a parameter - FLUX.2 [max] has built-in grounding
             // that activates automatically based on prompt content
 
-            // Copy input image for image-to-image generation (FLUX.2 up to 8 images, FLUX 3 up to 10)
+            // Copy the input images for image-to-image generation (FLUX.2 up to 8 images, FLUX 3 up to 10)
             if (request.hasInputImage()) {
-                imageRequest.setInputImage(request.getInputImage());
-                // Copy additional FLUX.2 multi-image inputs (input_image_2 through input_image_8)
-                if (request.getInputImage2() != null && !request.getInputImage2().isEmpty()) {
-                    imageRequest.setInputImage2(request.getInputImage2());
-                }
-                if (request.getInputImage3() != null && !request.getInputImage3().isEmpty()) {
-                    imageRequest.setInputImage3(request.getInputImage3());
-                }
-                if (request.getInputImage4() != null && !request.getInputImage4().isEmpty()) {
-                    imageRequest.setInputImage4(request.getInputImage4());
-                }
-                if (request.getInputImage5() != null && !request.getInputImage5().isEmpty()) {
-                    imageRequest.setInputImage5(request.getInputImage5());
-                }
-                if (request.getInputImage6() != null && !request.getInputImage6().isEmpty()) {
-                    imageRequest.setInputImage6(request.getInputImage6());
-                }
-                if (request.getInputImage7() != null && !request.getInputImage7().isEmpty()) {
-                    imageRequest.setInputImage7(request.getInputImage7());
-                }
-                if (request.getInputImage8() != null && !request.getInputImage8().isEmpty()) {
-                    imageRequest.setInputImage8(request.getInputImage8());
-                }
-                if (request.getInputImage9() != null && !request.getInputImage9().isEmpty()) {
-                    imageRequest.setInputImage9(request.getInputImage9());
-                }
-                if (request.getInputImage10() != null && !request.getInputImage10().isEmpty()) {
-                    imageRequest.setInputImage10(request.getInputImage10());
-                }
-                int imageCount = request.getInputImageCount();
+                imageRequest.setInputImages(request.getInputImages());
                 StringBuilder imgSizes = new StringBuilder();
-                if (request.getInputImage() != null) imgSizes.append("img1=").append(request.getInputImage().length()).append(" ");
-                if (request.getInputImage2() != null) imgSizes.append("img2=").append(request.getInputImage2().length()).append(" ");
-                if (request.getInputImage3() != null) imgSizes.append("img3=").append(request.getInputImage3().length()).append(" ");
-                if (request.getInputImage4() != null) imgSizes.append("img4=").append(request.getInputImage4().length()).append(" ");
-                if (request.getInputImage5() != null) imgSizes.append("img5=").append(request.getInputImage5().length()).append(" ");
-                if (request.getInputImage6() != null) imgSizes.append("img6=").append(request.getInputImage6().length()).append(" ");
-                if (request.getInputImage7() != null) imgSizes.append("img7=").append(request.getInputImage7().length()).append(" ");
-                if (request.getInputImage8() != null) imgSizes.append("img8=").append(request.getInputImage8().length());
-                logger.info("Copied {} input images to imageRequest ({})", imageCount, imgSizes.toString().trim());
+                List<String> images = request.getInputImages();
+                for (int i = 0; i < images.size(); i++)
+                    imgSizes.append("img").append(i + 1).append('=').append(images.get(i).length()).append(' ');
+                logger.info("Copied {} input images to imageRequest ({})", images.size(), imgSizes.toString().trim());
             }
 
             // Handle seed generation for multiple images: user seed with index offset, else a random seed

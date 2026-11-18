@@ -698,14 +698,9 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     }
 
     private static List<byte[]> inputImages(ImageGenerationRequest request) {
-        String[] images = {request.getInputImage(), request.getInputImage2(), request.getInputImage3(),
-            request.getInputImage4(), request.getInputImage5(), request.getInputImage6(), request.getInputImage7(),
-            request.getInputImage8(), request.getInputImage9(), request.getInputImage10(), request.getInputImage11(),
-            request.getInputImage12(), request.getInputImage13(), request.getInputImage14()};
         List<byte[]> result = new ArrayList<>();
-        for (String image : images)
-            if (image != null && !image.isEmpty())
-                result.add(Base64.getDecoder().decode(image));
+        for (String image : request.getInputImages())
+            result.add(Base64.getDecoder().decode(image));
         return result;
     }
 
