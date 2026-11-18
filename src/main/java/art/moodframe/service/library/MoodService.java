@@ -88,11 +88,11 @@ public class MoodService implements BlockUsage {
     }
 
     private Mood findById(String id) {
-        return access.call(() -> repository.findById(id), null, "Failed to load moods");
+        return access.call(() -> repository.findById(id).orElse(null), null, "Failed to load moods");
     }
 
     private Mood findByName(String name) {
-        return access.call(() -> repository.findByName(name), null, "Failed to load moods");
+        return access.call(() -> repository.findByName(name).orElse(null), null, "Failed to load moods");
     }
 
     private boolean save(Mood mood) {

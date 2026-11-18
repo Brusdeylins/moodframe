@@ -118,7 +118,7 @@ class MoodServiceTest {
 
         TestLibraryServices.moods(blocks, colors);
 
-        Mood renamed = repository.findById(clash.getId());
+        Mood renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Lifestyle Product (1)", renamed.getName());
         assertEquals(Map.of(Mood.Field.CAMERA, "std:camera:classic-portrait"), renamed.getReferences());
         assertEquals("std:mood:lifestyle-product", moods.find("std:mood:lifestyle-product").getId());

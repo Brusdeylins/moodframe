@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,15 +106,16 @@ public class PromptBlockService {
     }
 
     private PromptBlock findById(String id) {
-        return access.call(() -> repository.findById(id), null, "Failed to load prompt blocks");
+        return access.call(() -> repository.findById(id).orElse(null), null, "Failed to load prompt blocks");
     }
 
     private PromptBlock findByName(PromptBlock.Type type, String name) {
-        return access.call(() -> repository.findByName(type, name), null, "Failed to load prompt blocks");
+        return access.call(() -> repository.findByName(type, name).orElse(null), null,
+                "Failed to load prompt blocks");
     }
 
     private PromptBlock findDeletedById(String id) {
-        return access.call(() -> repository.findDeletedById(id), null, "Failed to load prompt blocks");
+        return access.call(() -> repository.findInTrash(id).orElse(null), null, "Failed to load prompt blocks");
     }
 
     private boolean save(PromptBlock block) {
@@ -126,9 +126,12 @@ public class PromptBlockService {
         return access.call(() -> repository.update(block), false, "Failed to update prompt block: " + block.getName());
     }
 
-    private boolean setDeletedAt(String id, LocalDateTime deletedAt) {
-        return access.call(() -> repository.setDeletedAt(id, deletedAt), false,
-                "Failed to change the trash state of prompt block: " + id);
+    private boolean moveToTrash(String id) {
+        return access.call(() -> repository.moveToTrash(id), false, "Failed to move prompt block to the trash: " + id);
+    }
+
+    private boolean takeFromTrash(String id) {
+        return access.call(() -> repository.restore(id), false, "Failed to restore prompt block: " + id);
     }
 
     private boolean delete(String id) {
@@ -533,7 +536,7 @@ public class PromptBlockService {
      */
     public PromptBlock findInTrash(String id) {
         return id == null || id.startsWith(PromptBlock.STANDARD_PREFIX) ? null
-                : access.call(() -> repository.findInTrash(id), null, "Failed to load prompt blocks");
+                : findDeletedById(id);
     }
 
     /**
@@ -652,7 +655,7 @@ public class PromptBlockService {
      */
     public synchronized boolean deleteCustom(String id) {
         PromptBlock block = id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) ? findById(id) : null;
-        return block != null && changed(block.getType(), setDeletedAt(id, LocalDateTime.now()), id);
+        return block != null && changed(block.getType(), moveToTrash(id), id);
     }
 
     /**
@@ -681,7 +684,7 @@ public class PromptBlockService {
             block.setName(name);
             update(block);
         }
-        return changed(block.getType(), setDeletedAt(id, null), id);
+        return changed(block.getType(), takeFromTrash(id), id);
     }
 
     /**

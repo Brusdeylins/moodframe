@@ -247,7 +247,7 @@ class PromptBlockServiceTest {
 
         TestLibraryServices.blocks();
 
-        PromptBlock renamed = repository.findById(clash.getId());
+        PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Fog (1)", renamed.getName());
         assertEquals("my own fog", renamed.getText());
         assertEquals("std:atmosphere:fog",
@@ -299,7 +299,7 @@ class PromptBlockServiceTest {
 
         TestLibraryServices.blocks();
 
-        PromptBlock renamed = repository.findById(clash.getId());
+        PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Infographic Flat (1)", renamed.getName());
         assertEquals("my own flat look", renamed.getText());
         assertEquals("std:style:infographic-flat",

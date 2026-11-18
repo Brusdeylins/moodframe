@@ -67,11 +67,11 @@ public class FrameService {
     }
 
     private Frame findById(String id) {
-        return access.call(() -> repository.findById(id), null, "Failed to load frames");
+        return access.call(() -> repository.findById(id).orElse(null), null, "Failed to load frames");
     }
 
     private Frame findByName(String name) {
-        return access.call(() -> repository.findByName(name), null, "Failed to load frames");
+        return access.call(() -> repository.findByName(name).orElse(null), null, "Failed to load frames");
     }
 
     private boolean save(Frame frame) {

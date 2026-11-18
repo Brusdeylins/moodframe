@@ -11,13 +11,15 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repository for the prompt building blocks of the user in SQLite (table {@code prompt_blocks}).
  *
  * <p>The standard blocks come from code and are never stored. All queries skip the blocks
- * in the trash ({@code deleted_at} set), except those for the trash itself.</p>
+ * in the trash ({@code deleted_at} set), except those for the trash itself. A finder of one block answers with an
+ * {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
@@ -109,18 +111,34 @@ public class PromptBlockRepository {
     }
 
     /**
-     * Moves a stored block to the trash or takes it out again.
+     * Moves a block to the trash.
      *
      * @param id the block id
-     * @param deletedAt when it was moved to the trash, null to take it out
-     * @return true if the block was changed
+     * @return true if it was in use and is in the trash now
      * @throws SQLException if the database fails
      */
-    public boolean setDeletedAt(String id, LocalDateTime deletedAt) throws SQLException {
+    public boolean moveToTrash(String id) throws SQLException {
         try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("UPDATE prompt_blocks SET deleted_at = ? WHERE id = ?")) {
-            stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
+             PreparedStatement stmt = conn.prepareStatement(
+                     "UPDATE prompt_blocks SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")) {
+            stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
             stmt.setString(2, id);
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Takes a block out of the trash, back into use.
+     *
+     * @param id the block id
+     * @return true if it was in the trash and is in use now
+     * @throws SQLException if the database fails
+     */
+    public boolean restore(String id) throws SQLException {
+        try (Connection conn = database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "UPDATE prompt_blocks SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL")) {
+            stmt.setString(1, id);
             return stmt.executeUpdate() > 0;
         }
     }
@@ -147,18 +165,6 @@ public class PromptBlockRepository {
     }
 
     /**
-     * Finds a block in the trash by its id.
-     *
-     * @param id the block id
-     * @return the block, null if there is none in the trash
-     * @throws SQLException if the database fails
-     */
-    public PromptBlock findDeletedById(String id) throws SQLException {
-        List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id);
-        return blocks.isEmpty() ? null : blocks.get(0);
-    }
-
-    /**
      * Removes all stored blocks of a type.
      *
      * @param type the block type
@@ -177,24 +183,22 @@ public class PromptBlockRepository {
      * Finds a stored block by its id.
      *
      * @param id the block id
-     * @return the block, null if there is none
+     * @return the block, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public PromptBlock findById(String id) throws SQLException {
-        List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NULL", id);
-        return blocks.isEmpty() ? null : blocks.get(0);
+    public Optional<PromptBlock> findById(String id) throws SQLException {
+        return first(query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NULL", id));
     }
 
     /**
      * Finds a stored block in the trash by its id.
      *
      * @param id the block id
-     * @return the block, null if it is not in the trash
+     * @return the block, empty if it is not in the trash
      * @throws SQLException if the database fails
      */
-    public PromptBlock findInTrash(String id) throws SQLException {
-        List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id);
-        return blocks.isEmpty() ? null : blocks.get(0);
+    public Optional<PromptBlock> findInTrash(String id) throws SQLException {
+        return first(query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id));
     }
 
     /**
@@ -202,13 +206,12 @@ public class PromptBlockRepository {
      *
      * @param type the block type
      * @param name the block name
-     * @return the block, null if there is none
+     * @return the block, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public PromptBlock findByName(PromptBlock.Type type, String name) throws SQLException {
-        List<PromptBlock> blocks = query(
-                "SELECT * FROM prompt_blocks WHERE type = ? AND name = ? AND deleted_at IS NULL", type.name(), name);
-        return blocks.isEmpty() ? null : blocks.get(0);
+    public Optional<PromptBlock> findByName(PromptBlock.Type type, String name) throws SQLException {
+        return first(query(
+                "SELECT * FROM prompt_blocks WHERE type = ? AND name = ? AND deleted_at IS NULL", type.name(), name));
     }
 
     /**
@@ -221,6 +224,10 @@ public class PromptBlockRepository {
     public List<PromptBlock> findAll(PromptBlock.Type type) throws SQLException {
         return query("SELECT * FROM prompt_blocks WHERE type = ? AND deleted_at IS NULL ORDER BY sort_order, name",
                 type.name());
+    }
+
+    private static Optional<PromptBlock> first(List<PromptBlock> blocks) {
+        return blocks.isEmpty() ? Optional.empty() : Optional.of(blocks.get(0));
     }
 
     private List<PromptBlock> query(String sql, String... values) throws SQLException {
