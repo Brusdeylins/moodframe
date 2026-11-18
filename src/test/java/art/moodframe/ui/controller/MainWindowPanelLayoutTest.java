@@ -8,6 +8,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.StylePresetItem;
+import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -148,6 +149,7 @@ class MainWindowPanelLayoutTest {
         register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
         register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
         register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
+        register(ChatLibrary.class, new ChatLibrary(null, events));
     }
 
     @AfterAll
@@ -437,14 +439,7 @@ class MainWindowPanelLayoutTest {
 
     /*  a chat as if chosen in the list, without which the fields of the panel are off  */
     private static void selectAChat() throws Exception {
-        onFxThread(() -> {
-            Field chat = MainWindowController.class.getDeclaredField("currentChat");
-            chat.setAccessible(true);
-            chat.set(controller, new Chat("chat"));
-            Method update = MainWindowController.class.getDeclaredMethod("updateUIState");
-            update.setAccessible(true);
-            update.invoke(controller);
-        });
+        onFxThread(() -> controller.chooseChat(new Chat("chat")));
     }
 
     /*  whether a node shows, with all its parents  */

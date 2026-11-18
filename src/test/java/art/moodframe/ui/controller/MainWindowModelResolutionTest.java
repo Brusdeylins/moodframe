@@ -8,6 +8,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -88,6 +89,7 @@ class MainWindowModelResolutionTest {
         register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
         register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
         register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
+        register(ChatLibrary.class, new ChatLibrary(null, events));
     }
 
     @AfterAll

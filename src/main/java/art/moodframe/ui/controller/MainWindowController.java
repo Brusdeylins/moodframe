@@ -143,27 +143,7 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private SplitPane mainSplitPane;
     @FXML
-    private Button newChatButton;
-    @FXML
-    private Button trashButton;
-    @FXML
-    private ListView<Chat> chatListView;
-    @FXML
-    private HBox sidebarHeader;
-    @FXML
-    private Label sidebarTitleLabel;
-    @FXML
-    private Tooltip sidebarModeTooltip;
-    @FXML
-    private RadioMenuItem byChatMenuItem;
-    @FXML
-    private RadioMenuItem byMoodMenuItem;
-    @FXML
-    private RadioMenuItem byFrameMenuItem;
-    @FXML
-    private ListView<MoodGroup> moodGroupListView;
-    @FXML
-    private ListView<FrameGroup> frameGroupListView;
+    private LibrarySidebarController librarySidebarController;
 
     // Chat Area Controls
     @FXML
@@ -410,10 +390,6 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Tooltip settingsTooltip;
     @FXML
-    private Tooltip newChatTooltip;
-    @FXML
-    private Tooltip trashTooltip;
-    @FXML
     private Tooltip sendTooltip;
     @FXML
     private Tooltip promptUpsamplingTooltip;
@@ -441,18 +417,11 @@ public class MainWindowController implements I18nChangeListener {
     @FXML
     private Label chatTotalCostLabel;
 
-    // Chat Management: the list of the chats belongs to the library of the chats
-    private ObservableList<Chat> chatList;
-    private FilteredList<Chat> filteredChatList;
-    private Chat currentChat;
 
     /*  The chat keeps its end in view while the images of a new entry arrive: from sending until the user scrolls
         away from the end  */
     private boolean wasScrolledToBottom = false;
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
-
-    /*  A guard while the chats get a new order: the list keeps its selection without opening the chat again  */
-    private boolean reorderingChats;
 
     // Services
     private art.moodframe.service.generation.RequestResponseManager requestResponseManager;
@@ -498,11 +467,6 @@ public class MainWindowController implements I18nChangeListener {
     private boolean frameChanged;
     private boolean updatingFrame;
 
-    /*  The left sidebar by mood or by frame: the group whose entries are shown (null while a chat is shown, which
-        keeps taking the new prompts as the last active one) and a guard while the list is filled again  */
-    private EntryGroup shownGroup;
-    private boolean updatingGroups;
-
     /*  A worker for the blocking work of the window (queries of the groups, copies into the Downloads folder),
         off the FX thread and off the common pool; its thread ends when idle  */
     private final java.util.concurrent.ExecutorService worker = new java.util.concurrent.ThreadPoolExecutor(0, 1, 30,
@@ -512,9 +476,6 @@ public class MainWindowController implements I18nChangeListener {
                 return thread;
             });
 
-    /*  The groups are queried on the worker, one query for a burst of library changes  */
-    private final CoalescedLoad groupsLoad = new CoalescedLoad("the groups of the entries", worker,
-            Platform::runLater, this::prepareGroupsLoad);
 
     /**
      * Initializes the controller after FXML loading.
@@ -547,10 +508,41 @@ public class MainWindowController implements I18nChangeListener {
             appVersionLabel.setText("v" + art.moodframe.util.VersionManager.getVersion());
         }
 
-        setupChatSystem();
+        chatHistory = art.moodframe.config.ServiceFactory.getInstance().getService(ChatHistoryService.class);
+        chatLibrary = art.moodframe.config.ServiceFactory.getInstance().getService(ChatLibrary.class);
+        setupChatEntriesListView();
+        setupImagesView();
+        librarySidebarController.init(chatLibrary, chatHistory, config, worker, statusBarController,
+                new LibrarySidebarController.Listener() {
+                    @Override
+                    public void groupChosen(EntryGroup group) {
+                        if (group instanceof MoodGroup mood && mood.kind() == MoodGroup.Kind.MOOD && moodService != null) {
+                            Mood chosen = moodService.find(mood.moodId());
+                            if (chosen != null)
+                                chooseMood(chosen);
+                        }
+                        else if (group instanceof FrameGroup frame && frame.kind() == FrameGroup.Kind.FRAME
+                                && frameService != null) {
+                            Frame chosen = frameService.find(frame.frameId());
+                            if (chosen != null)
+                                chooseFrame(chosen);
+                        }
+                    }
+
+                    @Override
+                    public void showSelection() {
+                        updateChatView(currentChat());
+                        updateUIState();
+                    }
+
+                    @Override
+                    public void showHeader() {
+                        updateChatHeader();
+                    }
+                });
         setupUI();
         setupPanelGroups();
-        setupSidebarMode();
+        librarySidebarController.setupSidebarMode();
         setupCornerCloud();
         setupImagePreviewOverlay();
         setupEventHandlers();
@@ -679,7 +671,7 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
 
-        String hint = brainstormHint(config, currentChat != null && !currentChat.isDeleted());
+        String hint = brainstormHint(config, currentChat() != null && !currentChat().isDeleted());
         brainstormButton.setDisable(!"brainstorm.tooltip".equals(hint));
         brainstormButton.setTooltip(new Tooltip(I18nManager.getText(hint)));
     }
@@ -1074,7 +1066,6 @@ public class MainWindowController implements I18nChangeListener {
             out on the edge of the cards and of the first column of images, the view switch ending on their right edge,
             the prompt text behind the 1 px border  */
         appHeader.setPadding(withLeft(appHeader.getPadding(), 10.0 + BoxInset.LEFT + 1.0));
-        sidebarHeader.setPadding(withLeft(sidebarHeader.getPadding(), BoxInset.LEFT));
         chatHeader.setPadding(new javafx.geometry.Insets(chatHeader.getPadding().getTop(), BoxInset.RIGHT,
                 chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
         promptTextArea.setPadding(new javafx.geometry.Insets(2.0, 2.0, 2.0, BoxInset.LEFT - 1.0 - BoxInset.TEXT));
@@ -1363,44 +1354,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Initializes the chat repository and the library of the chats from the service factory.
-     */
-    private void initializeChatRepository() {
-        try {
-            chatHistory = art.moodframe.config.ServiceFactory.getInstance().getService(ChatHistoryService.class);
-            if (chatHistory == null) {
-                logger.warn("ChatRepository not available - chat persistence disabled");
-            } else {
-                logger.debug("ChatRepository initialized successfully");
-            }
-            chatLibrary = art.moodframe.config.ServiceFactory.getInstance().getService(ChatLibrary.class);
-
-        } catch (Exception e) {
-            logger.error("Failed to initialize ChatRepository", e);
-        }
-
-        /*  Without the service, the chats are kept in memory only  */
-        if (chatLibrary == null)
-            chatLibrary = new ChatLibrary(chatHistory, new LibraryEvents());
-    }
-
-    /**
-     * Loads the chats from the database once at the start; what a restart left behind is repaired there.
-     * Later changes (what leaves the trash, what other callers change) update the list instead of reloading it, so
-     * running requests keep their chat objects.
-     */
-    private void loadRealChatData() {
-        chatLibrary.load();
-
-        // Force UI refresh after loading to ensure correct status display
-        Platform.runLater(() -> {
-            if (currentChat != null) {
-                updateChatView(currentChat);
-            }
-        });
-    }
-
-    /**
      * Shows a change of the library in the lists and the open chat, whoever made it, and a download of another caller
      * in the status bar. A burst of changes, for example an import, reloads a list once per change.
      *
@@ -1417,7 +1370,10 @@ public class MainWindowController implements I18nChangeListener {
                     refreshMoods();
                 }
                 case FAVORITE -> reorderFavorites();
-                case CHAT -> showChatChange(id);
+                case CHAT -> {
+                    librarySidebarController.showChatChange(id);
+                    updateUIState();
+                }
                 case ENTRY -> showEntryChange(id);
                 case DOWNLOAD -> setStatus(java.text.MessageFormat.format(
                         I18nManager.getText("download.image.success"), id));
@@ -1425,37 +1381,6 @@ public class MainWindowController implements I18nChangeListener {
         } catch (Exception e) {
             logger.error("Failed to show the change of {} {}", kind, id, e);
         }
-    }
-
-    /**
-     * Shows a change of a chat: one that left the trash or went there, a new name, a chat gone for good. Only what is
-     * not shown yet changes, as the changes made here are shown already.
-     */
-    private void showChatChange(String chatId) {
-        Chat chat = chatLibrary.find(chatId);
-
-        /*  The open chat is gone for good; an open group stays, it held no entry of a chat in the trash  */
-        if (chat == null && currentChat != null && currentChat.getId().equals(chatId)) {
-            chatListView.getSelectionModel().clearSelection();
-            currentChat = null;
-            if (shownGroup == null) {
-                chatEntriesListView.setItems(null);
-                welcomeContainer.setVisible(true);
-            }
-            updateChatTotalCost(null);
-        }
-
-        /*  A chat that left the trash or went there; the open one shows its images from their place now  */
-        if (chat != null && filteredChatList.contains(chat) != shouldShowChat(chat)) {
-            filteredChatList.setPredicate(this::shouldShowChat);
-            if (currentChat == chat || shownGroup != null)
-                updateChatView(currentChat);
-        }
-        else if (chat != null && chat == currentChat)
-            updateChatHeader();
-        chatListView.refresh();
-        refreshGroups();
-        updateUIState();
     }
 
     /**
@@ -1467,12 +1392,12 @@ public class MainWindowController implements I18nChangeListener {
         if (entry == null) {
             removeEntryCardFromUI(entryId);
             updateChatHeader();
-            updateChatTotalCost(currentChat);
-            refreshGroups();
+            updateChatTotalCost(currentChat());
+            librarySidebarController.refreshGroups();
             return;
         }
-        boolean inChat = currentChat != null && currentChat.getId().equals(entry.getChatId());
-        boolean belongs = shownGroup != null ? shownGroup.holds(entry) : inChat;
+        boolean inChat = currentChat() != null && currentChat().getId().equals(entry.getChatId());
+        boolean belongs = shownGroup() != null ? shownGroup().holds(entry) : inChat;
         ObservableList<ChatEntry> items = chatEntriesListView.getItems();
         int index = items != null ? items.indexOf(entry) : -1;
 
@@ -1483,14 +1408,14 @@ public class MainWindowController implements I18nChangeListener {
             java.util.Comparator<ChatEntry> order = java.util.Comparator.comparingInt(ChatEntry::getSortOrder)
                     .thenComparing(ChatEntry::getCreatedAt);
             items.add((int) items.stream().filter((other) -> order.compare(other, entry) <= 0).count(), entry);
-            if (shownGroup == null)
-                lastChatEntriesCount = currentChat.getEntries().size();
+            if (shownGroup() == null)
+                lastChatEntriesCount = currentChat().getEntries().size();
         }
         else if (belongs)
             addNewChatEntryToUI(entry);
-        if (shownGroup == null && inChat)
+        if (shownGroup() == null && inChat)
             updateChatHeader();
-        refreshGroups();
+        librarySidebarController.refreshGroups();
     }
 
     /** Tells whether an entry or one of its images came back from the trash. */
@@ -1511,8 +1436,8 @@ public class MainWindowController implements I18nChangeListener {
         javafx.application.Platform.runLater(() -> {
             try {
                 // Only update if this is the currently displayed chat and entry exists (an open group shows all chats)
-                java.util.List<ChatEntry> shown = shownGroup != null ? chatEntriesListView.getItems()
-                        : currentChat != null ? currentChat.getEntries() : null;
+                java.util.List<ChatEntry> shown = shownGroup() != null ? chatEntriesListView.getItems()
+                        : currentChat() != null ? currentChat().getEntries() : null;
                 if (shown != null && shown.contains(chatEntry)) {
                     // Find and update only the specific ChatEntryCard instead of reloading entire
                     // chat
@@ -1525,7 +1450,7 @@ public class MainWindowController implements I18nChangeListener {
                 /*  A finished entry changes the image counts of the groups  */
                 if (chatEntry.getStatus() != ChatEntry.Status.PENDING
                         && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
-                    refreshGroups();
+                    librarySidebarController.refreshGroups();
             } catch (Exception e) {
                 logger.error("Error updating UI for ChatEntry", e);
             }
@@ -1539,8 +1464,8 @@ public class MainWindowController implements I18nChangeListener {
         javafx.application.Platform.runLater(() -> {
             try {
                 // Only update if this image belongs to the currently displayed chat (an open group shows all chats)
-                java.util.List<ChatEntry> shown = shownGroup != null ? chatEntriesListView.getItems()
-                        : currentChat != null ? currentChat.getEntries() : null;
+                java.util.List<ChatEntry> shown = shownGroup() != null ? chatEntriesListView.getItems()
+                        : currentChat() != null ? currentChat().getEntries() : null;
                 if (shown != null) {
                     // Find the ChatEntry that contains this image
                     art.moodframe.model.ChatEntry parentEntry = shown.stream()
@@ -1581,8 +1506,8 @@ public class MainWindowController implements I18nChangeListener {
             scrollToBottom("entry updated");
 
         // Update total cost after entry update
-        if (currentChat != null) {
-            updateChatTotalCost(currentChat);
+        if (currentChat() != null) {
+            updateChatTotalCost(currentChat());
         }
     }
 
@@ -1595,9 +1520,9 @@ public class MainWindowController implements I18nChangeListener {
     private void addNewChatEntryToUI(art.moodframe.model.ChatEntry chatEntry) {
         try {
             /*  An open group shows the entry if it belongs to it, the chat takes it in any case  */
-            if (shownGroup != null) {
-                refreshGroups();
-                if (shownGroup.holds(chatEntry)) {
+            if (shownGroup() != null) {
+                librarySidebarController.refreshGroups();
+                if (shownGroup().holds(chatEntry)) {
                     chatEntriesListView.getItems().add(chatEntry);
                     wasScrolledToBottom = true;
                     scrollToBottom("new entry added");
@@ -1606,7 +1531,7 @@ public class MainWindowController implements I18nChangeListener {
             }
 
             // Only add if this is the current chat
-            if (currentChat != null && currentChat.equals(getCurrentChatFromEntry(chatEntry))) {
+            if (currentChat() != null && currentChat().equals(getCurrentChatFromEntry(chatEntry))) {
                 if (chatEntriesListView.getItems() == null) {
                     chatEntriesListView.setItems(javafx.collections.FXCollections.observableArrayList());
                 }
@@ -1689,7 +1614,7 @@ public class MainWindowController implements I18nChangeListener {
      * Helper method to get the chat that contains a given entry.
      */
     private art.moodframe.model.Chat getCurrentChatFromEntry(art.moodframe.model.ChatEntry entry) {
-        return chatList.stream()
+        return chatLibrary.getChats().stream()
                 .filter(chat -> chat.getId().equals(entry.getChatId()))
                 .findFirst()
                 .orElse(null);
@@ -2270,7 +2195,7 @@ public class MainWindowController implements I18nChangeListener {
         Mood chosen = chosenMood();
         reloadMoods(chosen != null ? chosen.getId() : "");
         updateMoodState();
-        refreshGroups();
+        librarySidebarController.refreshGroups();
     }
 
     /** Applies a chosen mood. */
@@ -2865,7 +2790,7 @@ public class MainWindowController implements I18nChangeListener {
         Frame chosen = chosenFrame();
         reloadFrames(chosen != null ? chosen.getId() : "");
         updateFrameState();
-        refreshGroups();
+        librarySidebarController.refreshGroups();
     }
 
     /** Applies a chosen frame. */
@@ -3463,46 +3388,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Sets up the chat system with mock data and event handlers.
-     */
-    private void setupChatSystem() {
-        // Initialize repository and chat list
-        initializeChatRepository();
-        chatList = chatLibrary.getChats();
-
-        // Create filtered list to hide trashed chats
-        filteredChatList = new FilteredList<>(chatList, this::shouldShowChat);
-
-        // Setup chat list view with filtered list
-        chatListView.setItems(filteredChatList);
-        ListReorder<Chat> reorder = new ListReorder<>(chatListView, this::moveChat);
-        chatListView.setCellFactory(listView -> {
-            ChatListCell cell = new ChatListCell();
-
-            // Set up chat action callbacks
-            cell.setOnDeleteRequested(this::onChatDeleteRequested);
-            cell.setOnChatRenamed(this::onChatRenamed);
-            cell.setTrashColumn(trashButton);
-            reorder.attach(cell, cell.getGrip());
-
-            return cell;
-        });
-
-        // Setup chat selection handling
-        chatListView.getSelectionModel().selectedItemProperty().addListener((obs, oldChat, newChat) -> {
-            if (!reorderingChats)
-                onChatSelected(newChat);
-        });
-
-        // Setup virtualized ListView for ChatEntries (replaces VBox for performance)
-        setupChatEntriesListView();
-        setupImagesView();
-
-        // Load real chat data
-        loadRealChatData();
-    }
-
-    /**
      * Sets up the virtualized ListView for ChatEntry display.
      * This replaces the previous VBox-based approach for better performance with large chats.
      */
@@ -3582,7 +3467,7 @@ public class MainWindowController implements I18nChangeListener {
                 } else {
                     // Create new ChatEntryCard for this entry
                     // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
-                    boolean isChatDeleted = shownGroup == null && currentChat != null && currentChat.isDeleted();
+                    boolean isChatDeleted = shownGroup() == null && currentChat() != null && currentChat().isDeleted();
                     java.util.function.Supplier<Boolean> fluxModelSupplier = () ->
                         modelComboBox != null &&
                         modelComboBox.getValue() != null &&
@@ -3632,9 +3517,12 @@ public class MainWindowController implements I18nChangeListener {
                     currentCard.setOnImageMood((imageEntry) -> useImageMood(imageEntry));
 
                     /*  The entries of a group name their chat and lead to it  */
-                    Chat origin = shownGroup != null ? getCurrentChatFromEntry(entry) : null;
+                    Chat origin = shownGroup() != null ? getCurrentChatFromEntry(entry) : null;
                     if (origin != null)
-                        currentCard.showOrigin(origin.getName(), () -> openOriginChat(entry));
+                        currentCard.showOrigin(origin.getName(), () -> {
+                            if (librarySidebarController.openChatOf(entry))
+                                Platform.runLater(() -> chatEntriesListView.scrollTo(entry));
+                        });
 
                     setGraphic(currentCard);
                     setText(null);
@@ -3752,7 +3640,7 @@ public class MainWindowController implements I18nChangeListener {
 
     /** The file of an image of the shown entries, in the trash for a chat there. */
     private String shownImagePath(GeneratedImage image) {
-        return getActualImagePath(image, shownGroup == null && currentChat != null && currentChat.isDeleted());
+        return getActualImagePath(image, shownGroup() == null && currentChat() != null && currentChat().isDeleted());
     }
 
     /**
@@ -3780,46 +3668,13 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Determines if a chat should be shown: trashed chats are only listed in the central trash.
-     * 
-     * @param chat the chat to check
-     * @return true if the chat should be visible
-     */
-    private boolean shouldShowChat(Chat chat) {
-        return !chat.isDeleted();
-    }
-
-    /**
-     * Handles chat selection changes.
-     * 
-     * @param chat the newly selected chat, or null if none selected
-     */
-    private void onChatSelected(Chat chat) {
-        // Don't reload if it's the same chat
-        if (currentChat == chat) {
-            return;
-        }
-
-        currentChat = chat;
-
-        if (chat != null) {
-            updateChatView(chat);
-        } else {
-            updateChatView(null);
-        }
-
-        // Update UI state when chat selection changes
-        updateUIState();
-    }
-
-    /**
      * Updates the chat view area with the selected chat's content.
      * 
      * @param chat the chat to display, or null to show welcome message
      */
     private void updateChatView(Chat chat) {
         /*  An open group stays in front, the chat only takes the new prompts  */
-        if (shownGroup != null) {
+        if (shownGroup() != null) {
             showGroup();
             return;
         }
@@ -3841,7 +3696,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Check if we should auto-scroll to bottom
         boolean shouldAutoScroll = false;
-        if (chat != null && chat == currentChat) {
+        if (chat != null && chat == currentChat()) {
             int currentEntriesCount = chat.getEntries().size();
             boolean hasNewEntries = currentEntriesCount > lastChatEntriesCount;
             shouldAutoScroll = hasNewEntries;
@@ -3938,15 +3793,15 @@ public class MainWindowController implements I18nChangeListener {
      * entire chat. With virtualized ListView, we just update the title label and cost.
      */
     private void updateChatHeader() {
-        if (shownGroup != null)
+        if (shownGroup() != null)
             updateGroupHeader();
-        else if (currentChat != null) {
+        else if (currentChat() != null) {
             // Update title label if present
             if (chatTitleLabel != null) {
-                chatTitleLabel.setText(currentChat.getName());
+                chatTitleLabel.setText(currentChat().getName());
             }
             // Update cost
-            updateChatTotalCost(currentChat);
+            updateChatTotalCost(currentChat());
         }
     }
 
@@ -3954,8 +3809,8 @@ public class MainWindowController implements I18nChangeListener {
      * Updates the title label in the chat header.
      */
     private void updateChatHeaderTitle(Label titleLabel) {
-        if (currentChat != null && titleLabel != null) {
-            titleLabel.setText(currentChat.getName());
+        if (currentChat() != null && titleLabel != null) {
+            titleLabel.setText(currentChat().getName());
         }
     }
 
@@ -3964,17 +3819,17 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void updateChatHeaderInfo(VBox headerVBox) {
         // Create updated info text
-        int messageCount = currentChat.getEntries().size();
+        int messageCount = currentChat().getEntries().size();
         String messagesText = messageCount == 1 ? I18nManager.getText("chat.messages.singular")
                 : I18nManager.getText("chat.messages.plural");
 
         String infoText = String.format("%s: %s • %d %s",
                 I18nManager.getText("chat.created"),
-                currentChat.getCreatedAt().toLocalDate(),
+                currentChat().getCreatedAt().toLocalDate(),
                 messageCount,
                 messagesText);
 
-        String costText = costText(currentChat);
+        String costText = costText(currentChat());
         if (!costText.isEmpty())
             infoText += " • " + costText;
 
@@ -3997,7 +3852,7 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void updateChatTotalCost(Chat chat) {
         /*  An open group names the chat of the new prompts there instead  */
-        if (shownGroup != null)
+        if (shownGroup() != null)
             updateGroupHeader();
         else if (chatTotalCostLabel != null && chat != null)
             chatTotalCostLabel.setText(costText(chat));
@@ -4070,211 +3925,20 @@ public class MainWindowController implements I18nChangeListener {
     // Chat action handlers
 
     /**
-     * Handles chat delete requests (move to trash).
-     * 
-     * @param chat the chat to delete
-     */
-    private void onChatDeleteRequested(Chat chat) {
-        // Move to trash without confirmation (user can restore from trash)
-
-        // CRITICAL: The library moves the files to the trash; a new chat without any entry is stored in the database
-        // only with its first message, so there is nothing to move to the trash: it is just removed from the list,
-        // as are all chats without entries, so they do not reappear later
-        try {
-            if (chatLibrary.moveToTrash(chat)) {
-                if (!chat.getEntries().isEmpty()) {
-                    // Refresh filter to hide the trashed chat
-                    filteredChatList.setPredicate(this::shouldShowChat);
-                }
-
-                // If this was the current chat, reload it to show images from trash
-                if (currentChat == chat) {
-                    // Force reload of chat content to update image paths
-                    updateChatView(chat);
-                }
-
-                // Update UI state as input area should be disabled for deleted chats
-                updateUIState();
-
-                setStatus(I18nManager.getText("status.chat.moved.trash"));
-            } else {
-                logger.error("Failed to soft delete chat: {}", chat.getName());
-                statusBarController.error(I18nManager.getText("status.error.chat.deletion"));
-            }
-        } catch (Exception e) {
-            logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
-            statusBarController.error(I18nManager.getText("status.error.chat.deletion"));
-        }
-    }
-
-    /**
-     * Moves a chat to a gap between the shown chats (0 above the first one) and stores the order of all chats. The
-     * list sorts itself anew, keeping the selected chat without opening it again.
-     *
-     * @param chat the chat to move
-     * @param gap  the gap it goes to
-     */
-    private void moveChat(Chat chat, int gap) {
-        if (chatHistory == null)
-            return;
-        Chat before = gap < filteredChatList.size() ? filteredChatList.get(gap) : null;
-        reorderingChats = true;
-        try {
-            chatLibrary.moveChat(chat, before);
-        } catch (Exception e) {
-            logger.error("Failed to store the order of the chats", e);
-        }
-        reorderingChats = false;
-    }
-
-    /**
-     * Handles chat rename requests (save to database).
-     * 
-     * @param chat the chat that was renamed
-     */
-    private void onChatRenamed(Chat chat) {
-        // Save the renamed chat to database
-        try {
-            chatLibrary.renameChat(chat, chat.getName());
-
-            // Update the chat header if this is the currently selected chat
-            // Use ID comparison instead of object reference comparison for reliability
-            if (currentChat != null && currentChat.getId().equals(chat.getId())) {
-                // Update the current chat reference to ensure synchronization
-                currentChat = chat;
-
-                // Update the chat title label directly (top header)
-                if (chatTitleLabel != null) {
-                    chatTitleLabel.setText(chat.getName());
-                } else {
-                    logger.warn("chatTitleLabel is null, cannot update header title");
-                }
-
-                // Update the chat header inside the scrollable area
-                updateChatHeader();
-
-                updateChatTotalCost(chat);
-            }
-
-            setStatus(java.text.MessageFormat.format(
-                    I18nManager.getText("status.chat.renamed"), chat.getName()));
-        } catch (Exception e) {
-            logger.error("Failed to save chat rename to database: {}", chat.getName(), e);
-            statusBarController.error(java.text.MessageFormat.format(
-                    I18nManager.getText("status.error.chat.rename"), e.getMessage()));
-        }
-    }
-
-    /**
-     * Sets up the menu of the left sidebar that switches between the chats and the moods or frames images were
-     * generated with; the choice is remembered. Opening a mood or frame shows its entries from all chats on the right.
-     */
-    private void setupSidebarMode() {
-        ToggleGroup modes = new ToggleGroup();
-        byChatMenuItem.setToggleGroup(modes);
-        byMoodMenuItem.setToggleGroup(modes);
-        byFrameMenuItem.setToggleGroup(modes);
-        byChatMenuItem.setUserData("chat");
-        byMoodMenuItem.setUserData("mood");
-        byFrameMenuItem.setUserData("frame");
-
-        /*  One of the entries stays selected  */
-        modes.selectedToggleProperty().addListener((obs, oldToggle, newToggle) -> {
-            if (newToggle == null)
-                oldToggle.setSelected(true);
-            else
-                showSidebarMode(newToggle);
-        });
-
-        moodGroupListView.setCellFactory((listView) -> new MoodGroupListCell());
-        moodGroupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldGroup, newGroup) -> {
-            if (!updatingGroups && newGroup != null)
-                openMoodGroup(newGroup);
-        });
-        frameGroupListView.setCellFactory((listView) -> new FrameGroupListCell());
-        frameGroupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldGroup, newGroup) -> {
-            if (!updatingGroups && newGroup != null)
-                openFrameGroup(newGroup);
-        });
-
-        String mode = config != null ? config.ui().getSidebarMode() : "chat";
-        modes.getToggles().stream().filter((toggle) -> mode.equals(toggle.getUserData())).findFirst()
-                .ifPresent((toggle) -> toggle.setSelected(true));
-    }
-
-    /** Lists the chats, the moods or the frames in the left sidebar and remembers the choice; an open group closes. */
-    private void showSidebarMode(Toggle mode) {
-        ListView<?> shownList = mode == byMoodMenuItem ? moodGroupListView
-                : mode == byFrameMenuItem ? frameGroupListView : chatListView;
-        if (shownList.isVisible())
-            return;
-        for (ListView<?> list : List.of(chatListView, moodGroupListView, frameGroupListView)) {
-            list.setVisible(list == shownList);
-            list.setManaged(list == shownList);
-        }
-        updateSidebarTitle();
-        if (config != null)
-            config.ui().setSidebarMode((String) mode.getUserData());
-
-        /*  The chat shows again, the other list holds the open group no more  */
-        if (shownGroup != null) {
-            shownGroup = null;
-            moodGroupListView.getSelectionModel().clearSelection();
-            frameGroupListView.getSelectionModel().clearSelection();
-            updateChatView(currentChat);
-            updateUIState();
-        }
-        refreshGroups();
-    }
-
-    /** Names the current view of the left sidebar in its header. */
-    private void updateSidebarTitle() {
-        sidebarTitleLabel.setText(I18nManager.getText(moodGroupListView.isVisible() ? "sidebar.moods"
-                : frameGroupListView.isVisible() ? "sidebar.frames" : "sidebar.chats"));
-    }
-
-    /**
-     * Opens a group of the list by mood: a mood in use goes into the fields that are not locked, and the entries of the
-     * group from all chats are shown. The last active chat keeps taking the new prompts.
-     */
-    private void openMoodGroup(MoodGroup group) {
-        Mood mood = group.kind() == MoodGroup.Kind.MOOD && moodService != null ? moodService.find(group.moodId()) : null;
-        if (mood != null)
-            chooseMood(mood);
-        shownGroup = group;
-        updateChatView(currentChat);
-        updateUIState();
-    }
-
-    /**
-     * Opens a group of the list by frame: a frame in use is chosen, and the entries of the group from all chats are
-     * shown. The last active chat keeps taking the new prompts.
-     */
-    private void openFrameGroup(FrameGroup group) {
-        Frame frame = group.kind() == FrameGroup.Kind.FRAME && frameService != null
-                ? frameService.find(group.frameId()) : null;
-        if (frame != null)
-            chooseFrame(frame);
-        shownGroup = group;
-        updateChatView(currentChat);
-        updateUIState();
-    }
-
-    /**
      * Shows the entries of the open group, the oldest first as in a chat. They are the entries of the loaded chats, so
      * running requests keep updating them.
      */
     private void showGroup() {
         java.util.Map<String, ChatEntry> loaded = new java.util.HashMap<>();
-        chatList.stream().filter(this::shouldShowChat)
+        chatLibrary.getChats().stream().filter((chat) -> !chat.isDeleted())
                 .forEach((chat) -> chat.getEntries().forEach((entry) -> loaded.put(entry.getId(), entry)));
         ObservableList<ChatEntry> entries = FXCollections.observableArrayList();
         try {
             if (chatHistory != null)
-                chatHistory.findChatEntryIds(shownGroup).stream().map(loaded::get)
+                chatHistory.findChatEntryIds(shownGroup()).stream().map(loaded::get)
                         .filter(java.util.Objects::nonNull).forEach(entries::add);
         } catch (Exception e) {
-            logger.error("Failed to load the entries of the group {}", shownGroup, e);
+            logger.error("Failed to load the entries of the group {}", shownGroup(), e);
         }
 
         /*  Back in a chat, the view scrolls to its latest entry  */
@@ -4289,70 +3953,13 @@ public class MainWindowController implements I18nChangeListener {
 
     /** Shows the name of the open group above its entries and the chat that takes the new prompts. */
     private void updateGroupHeader() {
-        chatTitleLabel.setText(switch (shownGroup) {
+        chatTitleLabel.setText(switch (shownGroup()) {
             case MoodGroup group -> MoodGroupListCell.nameOf(group);
             case FrameGroup group -> FrameGroupListCell.nameOf(group);
         });
-        chatTotalCostLabel.setText(currentChat != null && !currentChat.isDeleted()
-                ? I18nManager.getText("sidebar.group.target", currentChat.getName())
+        chatTotalCostLabel.setText(currentChat() != null && !currentChat().isDeleted()
+                ? I18nManager.getText("sidebar.group.target", currentChat().getName())
                 : I18nManager.getText("sidebar.group.target.none"));
-    }
-
-    /**
-     * Lists the moods or the frames again while the sidebar shows them, keeping the open group selected without opening
-     * it again; the open group takes over its new name, for example once it was renamed or deleted.
-     */
-    private void refreshGroups() {
-        groupsLoad.request();
-    }
-
-    /** Prepares the query of the groups the sidebar shows, null while it shows the chats. */
-    private java.util.concurrent.Callable<Runnable> prepareGroupsLoad() {
-        ChatHistoryService history = chatHistory;
-        if (history == null)
-            return null;
-        if (moodGroupListView.isVisible())
-            return loadGroups(moodGroupListView, history::findMoodGroups);
-        if (frameGroupListView.isVisible())
-            return loadGroups(frameGroupListView, history::findFrameGroups);
-        return null;
-    }
-
-    /*  Queries the groups on the worker and shows them on the FX thread, unless the sidebar shows another list now  */
-    private <T extends EntryGroup> java.util.concurrent.Callable<Runnable> loadGroups(ListView<T> listView,
-            java.util.concurrent.Callable<List<T>> query) {
-        return () -> {
-            List<T> groups = query.call();
-            return () -> {
-                if (!listView.isVisible())
-                    return;
-                refreshGroups(listView, groups);
-                if (shownGroup != null)
-                    updateGroupHeader();
-            };
-        };
-    }
-
-    /** Fills a list of groups, keeping the open one selected without opening it again. */
-    private <T extends EntryGroup> void refreshGroups(ListView<T> listView, List<T> groups) {
-        updatingGroups = true;
-        listView.getItems().setAll(groups);
-        groups.stream().filter((group) -> group.sameAs(shownGroup)).findFirst().ifPresent((group) -> {
-            shownGroup = group;
-            listView.getSelectionModel().select(group);
-        });
-        updatingGroups = false;
-    }
-
-    /** Opens the chat an entry of the open group was generated in, with the entry in view. */
-    private void openOriginChat(ChatEntry entry) {
-        Chat chat = getCurrentChatFromEntry(entry);
-        if (chat == null)
-            return;
-        byChatMenuItem.setSelected(true);
-        chatListView.getSelectionModel().select(chat);
-        chatListView.scrollTo(chat);
-        Platform.runLater(() -> chatEntriesListView.scrollTo(entry));
     }
 
     /**
@@ -4442,7 +4049,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Check if the currently selected model's provider has a valid API key
         boolean hasApiKeyForSelectedModel = hasApiKeyForCurrentProvider();
-        boolean hasChatSelected = currentChat != null && !currentChat.isDeleted();
+        boolean hasChatSelected = currentChat() != null && !currentChat().isDeleted();
 
         boolean hasModelSelected = modelComboBox != null && modelComboBox.getValue() != null;
 
@@ -4547,7 +4154,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // New chat button only requires API key for any provider (not just selected one)
         boolean hasAnyApiKey = hasApiKeyForAnyProvider();
-        newChatButton.setDisable(!hasAnyApiKey);
+        librarySidebarController.setNewChatEnabled(hasAnyApiKey);
 
         // Input area requires both API key and active chat selection
         promptTextArea.setDisable(!enableInput);
@@ -4678,6 +4285,25 @@ public class MainWindowController implements I18nChangeListener {
         statusBarController.checkApiKeys();
         updateUIState();
         updateBrainstormButton();
+    }
+
+    /**
+     * Opens a chat as if chosen in the sidebar, for the tests of the window.
+     *
+     * @param chat the chat
+     */
+    void chooseChat(Chat chat) {
+        librarySidebarController.chooseChat(chat);
+    }
+
+    /** The chat that takes the new prompts, chosen in the sidebar. */
+    private Chat currentChat() {
+        return librarySidebarController.currentChat();
+    }
+
+    /** The group of the sidebar whose entries are shown, null while the chat is shown. */
+    private EntryGroup shownGroup() {
+        return librarySidebarController.shownGroup();
     }
 
     /** Shows a status message in the status bar, unless an error is protected there. */
@@ -4929,26 +4555,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Handles the new chat button click event.
-     */
-    @FXML
-    private void onNewChatClicked() {
-        setStatus(I18nManager.getText("status.creating.chat"));
-
-        /*  The new chat shows in the list of chats  */
-        byChatMenuItem.setSelected(true);
-
-        // Create new chat at the beginning of the list, stored with its first message
-        Chat newChat = chatLibrary.newChat("New Chat " + (chatList.size() + 1));
-
-        // Select the new chat
-        chatListView.getSelectionModel().select(0);
-
-        logger.debug("Created new chat: {}", newChat.getName());
-        setStatus(I18nManager.getText("status.chat.created"));
-    }
-
-    /**
      * Handles the send button click event: hands the order of the main window to the generation service and shows
      * the result or the failure.
      */
@@ -4969,7 +4575,7 @@ public class MainWindowController implements I18nChangeListener {
                 art.moodframe.model.GenerationModel.getDefault().name());
         art.moodframe.service.generation.GenerationService.Submission submission;
         try {
-            submission = generationService.submit(new art.moodframe.service.generation.GenerationOrder(currentChat,
+            submission = generationService.submit(new art.moodframe.service.generation.GenerationOrder(currentChat(),
                     userPrompt, selectedBlocks(), chosenMood(), isMoodChanged(),
                     new art.moodframe.service.generation.GenerationOrder.Target(chosenFrame(), frameChanged,
                             aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue()),
@@ -5001,7 +4607,7 @@ public class MainWindowController implements I18nChangeListener {
         submission.submitted().whenComplete((Void done, Throwable throwable) -> Platform.runLater(() -> {
             if (throwable != null) {
                 setStatus(I18nManager.getText("status.request.failed"));
-                updateChatView(currentChat);
+                updateChatView(currentChat());
                 return;
             }
             String statusKey = "status.request.submitted." + providerName.toLowerCase();
@@ -5287,19 +4893,6 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Handles the trash button click event: opens the central trash.
-     */
-    @FXML
-    private void onTrashClicked() {
-        try {
-            art.moodframe.ui.dialog.TrashWindow.open(mainBorderPane.getScene().getWindow(),
-                    art.moodframe.service.trash.TrashGroup.Kind.CHATS, null);
-        } catch (Exception e) {
-            logger.error("Failed to open trash window", e);
-        }
-    }
-
-    /**
      * Sets up the cost display by adding it programmatically to the UI.
      */
     private void setupCostDisplay() {
@@ -5440,7 +5033,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Extract image paths from chat entry, checking both active and trash locations
         java.util.List<String> imagePaths = chatEntry.getImages().stream()
-                .map(image -> getActualImagePath(image, currentChat != null && currentChat.isDeleted()))
+                .map(image -> getActualImagePath(image, currentChat() != null && currentChat().isDeleted()))
                 .filter(path -> path != null && !path.isEmpty())
                 .filter(path -> new java.io.File(path).exists()) // Only include existing files
                 .collect(java.util.stream.Collectors.toList());
@@ -5485,7 +5078,7 @@ public class MainWindowController implements I18nChangeListener {
      * Opens the first image of that chat entry in the preview.
      */
     private void navigateToPreviousChatWithImages() {
-        if (currentChat == null && shownGroup == null) {
+        if (currentChat() == null && shownGroup() == null) {
             return;
         }
 
@@ -5497,8 +5090,8 @@ public class MainWindowController implements I18nChangeListener {
 
         // Work directly with chat entries from the current chat, or with those of an open group
         // The issue is not with deleted chat entries, but with the index calculation
-        java.util.List<ChatEntry> chatEntries = shownGroup != null ? chatEntriesListView.getItems()
-                : currentChat.getEntries();
+        java.util.List<ChatEntry> chatEntries = shownGroup() != null ? chatEntriesListView.getItems()
+                : currentChat().getEntries();
 
         int currentIndex = -1;
 
@@ -5534,7 +5127,7 @@ public class MainWindowController implements I18nChangeListener {
      * Opens the first image of that chat entry in the preview.
      */
     private void navigateToNextChatWithImages() {
-        if (currentChat == null && shownGroup == null) {
+        if (currentChat() == null && shownGroup() == null) {
             return;
         }
 
@@ -5545,8 +5138,8 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         // Work directly with chat entries from the current chat, or with those of an open group
-        java.util.List<ChatEntry> chatEntries = shownGroup != null ? chatEntriesListView.getItems()
-                : currentChat.getEntries();
+        java.util.List<ChatEntry> chatEntries = shownGroup() != null ? chatEntriesListView.getItems()
+                : currentChat().getEntries();
         int currentIndex = -1;
 
         // Find current entry index in the chat entries list
@@ -5600,7 +5193,7 @@ public class MainWindowController implements I18nChangeListener {
             }
 
             // Check if file path exists and file is actually there (including trash)
-            String actualPath = getActualImagePath(image, currentChat != null && currentChat.isDeleted());
+            String actualPath = getActualImagePath(image, currentChat() != null && currentChat().isDeleted());
             if (actualPath != null && !actualPath.isEmpty()) {
                 java.io.File file = new java.io.File(actualPath);
                 if (file.exists()) {
@@ -5631,7 +5224,7 @@ public class MainWindowController implements I18nChangeListener {
 
             // Check if image is valid (cached status and file exists)
             if (image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED) {
-                String actualPath = getActualImagePath(image, currentChat != null && currentChat.isDeleted());
+                String actualPath = getActualImagePath(image, currentChat() != null && currentChat().isDeleted());
                 if (actualPath != null && !actualPath.isEmpty()) {
                     java.io.File file = new java.io.File(actualPath);
                     if (file.exists()) {
@@ -5679,7 +5272,7 @@ public class MainWindowController implements I18nChangeListener {
      * @return true if there's a previous chat entry with images
      */
     private boolean hasPreviousChatWithImages() {
-        if ((currentChat == null && shownGroup == null) || chatEntriesListView == null
+        if ((currentChat() == null && shownGroup() == null) || chatEntriesListView == null
                 || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
             return false;
         }
@@ -5703,7 +5296,7 @@ public class MainWindowController implements I18nChangeListener {
      * @return true if there's a next chat entry with images
      */
     private boolean hasNextChatWithImages() {
-        if ((currentChat == null && shownGroup == null) || chatEntriesListView == null
+        if ((currentChat() == null && shownGroup() == null) || chatEntriesListView == null
                 || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
             return false;
         }
@@ -5902,17 +5495,17 @@ public class MainWindowController implements I18nChangeListener {
             updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
 
             // Update chat metadata if a chat is selected
-            if (currentChat != null) {
+            if (currentChat() != null) {
                 // Update both the info line in chat content AND the header cost label
-                updateChatMetadata(currentChat); // Info line with "Created: ... • ... messages • Total: ..."
-                updateChatTotalCost(currentChat); // Header cost label
+                updateChatMetadata(currentChat()); // Info line with "Created: ... • ... messages • Total: ..."
+                updateChatTotalCost(currentChat()); // Header cost label
             }
 
             // Update dynamic labels if they exist
             updateDynamicLabels();
 
             /*  An open group keeps its name in the header  */
-            if (shownGroup != null)
+            if (shownGroup() != null)
                 updateGroupHeader();
 
         } catch (Exception e) {
@@ -6255,7 +5848,7 @@ public class MainWindowController implements I18nChangeListener {
             return;
 
         boolean hasApiKey = statusBarController.hasValidKeys();
-        boolean hasChatSelected = currentChat != null && !currentChat.isDeleted();
+        boolean hasChatSelected = currentChat() != null && !currentChat().isDeleted();
 
         if (!hasApiKey) {
             // Determine which provider is selected to show appropriate message
@@ -6461,7 +6054,7 @@ public class MainWindowController implements I18nChangeListener {
             // Check if no chat is currently selected (either English or German text)
             String currentText = chatTitleLabel.getText();
             if ("Select a chat".equals(currentText) || "Chat auswählen".equals(currentText) ||
-                    currentChat == null || currentChat.isDeleted()) {
+                    currentChat() == null || currentChat().isDeleted()) {
                 chatTitleLabel.setText(I18nManager.getText("chat.select"));
             }
         }
@@ -6480,21 +6073,7 @@ public class MainWindowController implements I18nChangeListener {
         if (update != null)
             showUpdateHint(update);
 
-        if (newChatTooltip != null) {
-            newChatTooltip.setText(I18nManager.getText("chat.new.tooltip"));
-        }
-
-        if (trashTooltip != null) {
-            trashTooltip.setText(I18nManager.getText("chat.trash.tooltip"));
-        }
-
-        if (sidebarModeTooltip != null) {
-            sidebarModeTooltip.setText(I18nManager.getText("sidebar.mode.tooltip"));
-            byChatMenuItem.setText(I18nManager.getText("sidebar.by.chat"));
-            byMoodMenuItem.setText(I18nManager.getText("sidebar.by.mood"));
-            byFrameMenuItem.setText(I18nManager.getText("sidebar.by.frame"));
-            updateSidebarTitle();
-        }
+        librarySidebarController.updateTexts();
 
         if (sendTooltip != null) {
             sendTooltip.setText(I18nManager.getText("input.send.tooltip"));
