@@ -2,6 +2,7 @@ package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.util.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
@@ -188,24 +189,13 @@ public class SplashScreen {
             Hyperlink link = new Hyperlink(text);
             link.setStyle(style + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
             link.setFocusTraversable(false);
-            link.setOnAction((event) -> openInBrowser(url));
+            link.setOnAction((event) -> SystemOpen.browse(url));
             return link;
         }
         else {
             Label label = new Label(text);
             label.setStyle(style);
             return label;
-        }
-    }
-
-    private static void openInBrowser(String url) {
-        try {
-            if (java.awt.Desktop.isDesktopSupported()
-                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE))
-                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
-        }
-        catch (Exception e) {
-            logger.warn("Could not open {}: {}", url, e.getMessage());
         }
     }
 
