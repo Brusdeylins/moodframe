@@ -8,6 +8,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Frame;
+import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.Mood;
@@ -256,6 +257,23 @@ class GenerationServiceTest {
         assertEquals(GenerationModel.FLUX3_IMAGE_1K.getPricePerImage(), requests.get(0).getBaseCostPerImage(), 1e-9);
         assertEquals(1, requests.get(1).getImageCount());
         assertEquals(5, requests.get(1).getVideoDuration());
+    }
+
+    @Test
+    void previewAndEntryCountGoogleSearchLikeTheStoredImages() throws Exception {
+        GenerationOrder.Parameters search = new GenerationOrder.Parameters(null, 2, null, false, null, true, null,
+                null, null);
+        GenerationOrder order = new GenerationOrder(chat, "a harbor", null, null, false, WIDE_2K, "NANO_BANANA2_1K",
+                2, search, null, List.of(), ChatEntry.Source.UI);
+        double perImage = GenerationModel.NANO_BANANA2_1K.getPricePerImage() + GenerationCost.SEARCH_PER_IMAGE;
+
+        GenerationService.Preview preview = service.preview(order);
+        assertEquals(perImage, preview.costPerImage(), 1e-9);
+        assertEquals(2 * perImage, preview.cost(), 1e-9);
+        assertEquals(2 * perImage, service.submit(order).entry().getCost(), 1e-9);
+
+        /*  OpenAI has no known price  */
+        assertEquals(0.0, service.preview(order("gpt-image-1", WIDE_2K)).cost(), 1e-9);
     }
 
     @Test

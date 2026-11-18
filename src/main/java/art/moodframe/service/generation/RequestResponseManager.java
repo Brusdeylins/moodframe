@@ -4,6 +4,7 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
@@ -585,14 +586,10 @@ public class RequestResponseManager implements RequestResponseService {
         generatedImage.setSeed(0); // Gemini doesn't use seeds - clear any placeholder value
 
         double baseCost = request.getBaseCostPerImage() != null ? request.getBaseCostPerImage() : 0.0;
-        double searchCost = Boolean.TRUE.equals(request.getEnableGoogleSearch()) ? 0.03 : 0.0;
-        double reasoningCost = 0.0;
-
         Integer thinkingTokens = jobInfo.getThinkingTokens();
-        if (thinkingTokens != null && thinkingTokens > 0) {
-            // Reasoning cost: (tokens / 1,000,000) * $12 per 1M tokens
-            reasoningCost = (thinkingTokens / 1_000_000.0) * 12.0;
-        }
+        double searchCost = GenerationCost.search(GenerationModel.fromApiModelId(request.getModel()),
+                request.getEnableGoogleSearch());
+        double reasoningCost = GenerationCost.reasoning(thinkingTokens);
 
         generatedImage.setBaseCost(baseCost);
         generatedImage.setSearchCost(searchCost);

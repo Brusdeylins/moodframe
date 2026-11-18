@@ -111,7 +111,8 @@ public class GenerationService {
      * @param maxPromptLength the prompt limit of the model in characters
      * @param aspectRatio the aspect ratio the model makes of the target, null without target (then a square)
      * @param resolution the resolution the model makes, null for a model with a fixed size
-     * @param costPerImage the estimated cost of one image (video: of the video) in USD, 0 if unknown
+     * @param costPerImage the estimated cost of one image (video: of the video) in USD with Google Search, 0 if
+     *                     unknown, see {@link GenerationCost#quote}
      * @param cost the estimated cost of all images in USD, 0 if unknown
      */
     public record Preview(String prompt, int maxPromptLength, String aspectRatio, String resolution,
@@ -205,10 +206,14 @@ public class GenerationService {
         List<String> free = ModelFamilies.freeResolutions(item);
         String resolution = free != null ? ModelFamilies.nearest(target.resolution(), free)
                 : ModelFamilies.resolutionOf(item);
-        double costPerImage = GenerationCost.estimate(GenerationModel.fromId(order.modelId()),
-                order.parameters().videoSeconds());
-        return new Preview(prompt, maxLength, aspectRatio, resolution, costPerImage,
-                costPerImage * order.imageCount());
+        GenerationCost.Quote quote = quote(GenerationModel.fromId(order.modelId()), order);
+        return new Preview(prompt, maxLength, aspectRatio, resolution, quote.perImage(), quote.total());
+    }
+
+    /*  the estimated price of an order, as the preview and the first cost of its entry show it  */
+    private static GenerationCost.Quote quote(GenerationModel model, GenerationOrder order) {
+        return GenerationCost.quote(model, order.parameters().videoSeconds(), order.parameters().googleSearch(),
+                order.imageCount());
     }
 
     /**
@@ -266,7 +271,7 @@ public class GenerationService {
         GenerationOrder.Parameters parameters = order.parameters();
         String aspectRatio = target.aspectRatio() != null
                 ? AspectRatios.nearestForItem(target.aspectRatio(), item) : null;
-        double totalCost = GenerationCost.estimate(model, parameters.videoSeconds()) * order.imageCount();
+        double totalCost = quote(model, order).total();
 
         /*  The entry keeps the prompt of the user (for the copy button), the English display name of the model and
             the item of an OpenAI model; the request gets the prompt with the building blocks  */
