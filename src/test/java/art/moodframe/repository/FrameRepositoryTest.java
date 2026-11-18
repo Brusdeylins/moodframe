@@ -142,12 +142,14 @@ class FrameRepositoryTest {
 
             /*  The tables of the chat entries, which V024 extends, of the chats, which V025 numbers, of the
                 brainstorm sessions, which V026 numbers, of the entries whose favorites V027 drops with them, and
-                the costs of the entries and images, which V029 fills  */
-            stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY, model TEXT, status TEXT, cost REAL, "
-                    + "deleted_at TIMESTAMP, deleted_cost REAL)");
+                the costs of the entries and images, which V029 fills and V030 books again  */
+            stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY, chat_id TEXT, model TEXT, status TEXT, "
+                    + "cost REAL, deleted_at TIMESTAMP, deleted_cost REAL)");
             stmt.execute("CREATE TABLE generated_images (id TEXT PRIMARY KEY, chat_entry_id TEXT, model TEXT, "
-                    + "width INTEGER, height INTEGER, generation_job_id TEXT, failure_reason TEXT, base_cost REAL)");
-            stmt.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, updated_at TIMESTAMP, sort_order INTEGER)");
+                    + "width INTEGER, height INTEGER, generation_job_id TEXT, failure_reason TEXT, base_cost REAL, "
+                    + "search_cost REAL, reasoning_cost REAL, deleted_at TIMESTAMP, deleted_cost REAL)");
+            stmt.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, updated_at TIMESTAMP, sort_order INTEGER, "
+                    + "deleted_cost REAL)");
             stmt.execute("CREATE TABLE brainstorm_sessions (id TEXT PRIMARY KEY, updated_at TIMESTAMP)");
             stmt.execute("CREATE TABLE moods (id TEXT PRIMARY KEY)");
             stmt.execute("CREATE TABLE prompt_blocks (id TEXT PRIMARY KEY, type TEXT)");
