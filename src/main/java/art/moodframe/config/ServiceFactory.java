@@ -123,6 +123,20 @@ public class ServiceFactory {
     }
     
     /**
+     * Retrieves a service only if it exists already, without asking its provider to create it.
+     *
+     * <p>For the shutdown, which stops what was started and creates nothing.</p>
+     *
+     * @param <T> the service type
+     * @param serviceClass the class object representing the service type
+     * @return the service instance, or null if it was not created
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T getCreatedService(Class<T> serviceClass) {
+        return (T) services.get(serviceClass);
+    }
+
+    /**
      * Clears all registered services and providers.
      * 
      * <p><strong>Warning:</strong> This method is intended for testing purposes only.

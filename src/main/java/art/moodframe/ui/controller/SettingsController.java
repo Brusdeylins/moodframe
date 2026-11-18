@@ -2147,80 +2147,40 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onTestProxyConnection() {
 
-        // Disable test button during test
-        testProxyConnectionButton.setDisable(true);
-        testProxyConnectionButton.setText(I18nManager.getText("settings.test.testing"));
-
         // Show testing status
         showProxyConnectionStatus("testing", I18nManager.getText("settings.test.proxy.testing.status"));
 
         // Test proxy connection using BFL API service
-        javafx.concurrent.Task<Boolean> testTask = new javafx.concurrent.Task<Boolean>() {
-            @Override
-            protected Boolean call() throws Exception {
-                try {
-                    // Get BFL API service from ServiceFactory
-                    BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
-                    if (apiService == null) {
-                        throw new RuntimeException("BFL API service not available");
-                    }
-
-                    // Test the proxy connection
-                    Boolean result = apiService.testConnectionWithProxy().get();
-                    return result;
-
-                } catch (Exception e) {
-                    logger.warn("Proxy connection test failed: {}", e.getMessage());
-                    throw e;
-                }
-            }
-        };
-
-        testTask.setOnSucceeded(e -> {
-            boolean success = testTask.getValue();
-            if (success) {
+        runConnectionTest(testProxyConnectionButton, I18nManager.getText("settings.proxy.test"), () -> {
+            BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
+            if (apiService == null)
+                throw new RuntimeException("BFL API service not available");
+            return apiService.testConnectionWithProxy().get();
+        }, (success) -> {
+            if (success)
                 showProxyConnectionStatus("success", I18nManager.getText("settings.test.proxy.success"));
-            } else {
+            else
                 showProxyConnectionStatus("error", I18nManager.getText("settings.test.proxy.failed"));
-            }
-
-            testProxyConnectionButton.setDisable(false);
-            testProxyConnectionButton.setText(I18nManager.getText("settings.proxy.test"));
-        });
-
-        testTask.setOnFailed(e -> {
-            Throwable exception = testTask.getException();
+        }, (exception) -> {
             String errorMessage = "Proxy connection test failed";
-
-            if (exception != null) {
-                String exceptionMessage = exception.getMessage();
-                if (exceptionMessage != null) {
-                    if (exceptionMessage.contains("timeout")) {
-                        errorMessage = "Connection timeout - Check proxy host and port";
-                    } else if (exceptionMessage.contains("refused") || exceptionMessage.contains("ConnectException")) {
-                        errorMessage = "Connection refused - Check proxy host and port";
-                    } else if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")) {
-                        errorMessage = "SSL/Certificate error - Check ZScaler certificates";
-                    } else if (exceptionMessage.contains("Unauthorized") || exceptionMessage.contains("407")) {
-                        errorMessage = "Proxy authentication failed - Check username and password";
-                    } else {
-                        errorMessage = "Proxy test failed: " + exceptionMessage;
-                    }
+            String exceptionMessage = exception != null ? exception.getMessage() : null;
+            if (exceptionMessage != null) {
+                if (exceptionMessage.contains("timeout")) {
+                    errorMessage = "Connection timeout - Check proxy host and port";
+                } else if (exceptionMessage.contains("refused") || exceptionMessage.contains("ConnectException")) {
+                    errorMessage = "Connection refused - Check proxy host and port";
+                } else if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")) {
+                    errorMessage = "SSL/Certificate error - Check ZScaler certificates";
+                } else if (exceptionMessage.contains("Unauthorized") || exceptionMessage.contains("407")) {
+                    errorMessage = "Proxy authentication failed - Check username and password";
+                } else {
+                    errorMessage = "Proxy test failed: " + exceptionMessage;
                 }
             }
-
             showProxyConnectionStatus("error", errorMessage);
-
-            testProxyConnectionButton.setDisable(false);
-            testProxyConnectionButton.setText(I18nManager.getText("settings.proxy.test"));
-
             logger.warn("Proxy connection test failed: {}",
                     exception != null ? exception.getMessage() : "Unknown error");
         });
-
-        Thread testThread = new Thread(testTask);
-        testThread.setDaemon(true);
-        testThread.start();
     }
 
     /**
@@ -2284,86 +2244,48 @@ public class SettingsController implements Initializable, I18nChangeListener {
             return;
         }
 
-        // Disable test button during test
-        testCertificateButton.setDisable(true);
-        testCertificateButton.setText(I18nManager.getText("settings.test.testing"));
-
         // Show testing status
         showCertificateConnectionStatus("testing", I18nManager.getText("settings.test.certificate.testing.status"));
 
         // Test certificate connection using BFL API service
-        javafx.concurrent.Task<Boolean> testTask = new javafx.concurrent.Task<Boolean>() {
-            @Override
-            protected Boolean call() throws Exception {
-                try {
-                    // Get BFL API service from ServiceFactory
-                    BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
-                    if (apiService == null) {
-                        throw new RuntimeException("BFL API service not available");
-                    }
+        runConnectionTest(testCertificateButton, I18nManager.getText("settings.certificates.test"), () -> {
+            BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
+            if (apiService == null)
+                throw new RuntimeException("BFL API service not available");
 
-                    // Rebuild the HTTP clients to use updated certificates
-                    HttpClients.settingsChanged();
+            // Rebuild the HTTP clients to use updated certificates
+            HttpClients.settingsChanged();
 
-                    // Test SSL connectivity (no API key needed)
-                    Boolean result = apiService.testSslConnection().get();
-                    return result;
-
-                } catch (Exception e) {
-                    logger.warn("Certificate connection test failed: {}", e.getMessage());
-                    throw e;
-                }
-            }
-        };
-
-        testTask.setOnSucceeded(e -> {
-            boolean success = testTask.getValue();
-            if (success) {
+            // Test SSL connectivity (no API key needed)
+            return apiService.testSslConnection().get();
+        }, (success) -> {
+            if (success)
                 showCertificateConnectionStatus("success",
                         I18nManager.getText("settings.test.certificate.success"));
-            } else {
+            else
                 showCertificateConnectionStatus("error",
                         "Certificate connection failed - Check certificate validity and format");
-            }
-
-            testCertificateButton.setDisable(false);
-            testCertificateButton.setText(I18nManager.getText("settings.certificates.test"));
-        });
-
-        testTask.setOnFailed(e -> {
-            Throwable exception = testTask.getException();
+        }, (exception) -> {
             String errorMessage = "Certificate connection test failed";
-
-            if (exception != null) {
-                String exceptionMessage = exception.getMessage();
-                if (exceptionMessage != null) {
-                    if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")
-                            || exceptionMessage.contains("TLS")) {
-                        errorMessage = "SSL/Certificate error - Check certificate format and validity";
-                    } else if (exceptionMessage.contains("trust") || exceptionMessage.contains("PKIX")) {
-                        errorMessage = "Certificate trust error - Certificate may not be properly installed";
-                    } else if (exceptionMessage.contains("expired") || exceptionMessage.contains("validity")) {
-                        errorMessage = "Certificate expired or not yet valid";
-                    } else if (exceptionMessage.contains("format") || exceptionMessage.contains("parsing")) {
-                        errorMessage = "Certificate format error - Check file format (.crt, .cer, .pem)";
-                    } else {
-                        errorMessage = "Certificate test failed: " + exceptionMessage;
-                    }
+            String exceptionMessage = exception != null ? exception.getMessage() : null;
+            if (exceptionMessage != null) {
+                if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")
+                        || exceptionMessage.contains("TLS")) {
+                    errorMessage = "SSL/Certificate error - Check certificate format and validity";
+                } else if (exceptionMessage.contains("trust") || exceptionMessage.contains("PKIX")) {
+                    errorMessage = "Certificate trust error - Certificate may not be properly installed";
+                } else if (exceptionMessage.contains("expired") || exceptionMessage.contains("validity")) {
+                    errorMessage = "Certificate expired or not yet valid";
+                } else if (exceptionMessage.contains("format") || exceptionMessage.contains("parsing")) {
+                    errorMessage = "Certificate format error - Check file format (.crt, .cer, .pem)";
+                } else {
+                    errorMessage = "Certificate test failed: " + exceptionMessage;
                 }
             }
-
             showCertificateConnectionStatus("error", errorMessage);
-
-            testCertificateButton.setDisable(false);
-            testCertificateButton.setText(I18nManager.getText("settings.certificates.test"));
-
             logger.warn("Certificate connection test failed: {}",
                     exception != null ? exception.getMessage() : "Unknown error");
         });
-
-        Thread testThread = new Thread(testTask);
-        testThread.setDaemon(true);
-        testThread.start();
     }
 
     /**

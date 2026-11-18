@@ -1,0 +1,93 @@
+package art.moodframe.config;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * Values dragged with the mouse are written once after a quiet time, and at the latest on shutdown. The configuration
+ * lives in the home of the tests (build/test-home).
+ */
+class ApplicationConfigDelayedSaveTest {
+
+    /*  a configuration that counts its saves after it was read  */
+    private static final class CountingConfig extends ApplicationConfig {
+        final AtomicInteger saves = new AtomicInteger();
+
+        @Override
+        public synchronized void saveConfiguration() {
+            super.saveConfiguration();
+            if (saves != null)
+                saves.incrementAndGet();
+        }
+    }
+
+    /*  every value a drag changes pixel by pixel  */
+    private static void drag(ApplicationConfig config) {
+        for (int i = 0; i < 50; i++) {
+            config.setSplitterPosition(0.2 + i / 1000.0);
+            config.setWindowBounds(10 + i, 20, 1200 + i, 800, false);
+            config.setImageTileSize(180 + i);
+            config.setChatInputHeight(100 + i);
+        }
+    }
+
+    /*  waits until the count is reached or a few quiet times passed  */
+    private static void awaitSaves(CountingConfig config, int count) throws InterruptedException {
+        long end = System.currentTimeMillis() + ApplicationConfig.SAVE_DELAY_MILLIS * 10;
+        while (config.saves.get() < count && System.currentTimeMillis() < end)
+            Thread.sleep(20);
+    }
+
+    @Test
+    void writesADragOnceAfterTheQuietTime() throws Exception {
+        CountingConfig config = new CountingConfig();
+
+        drag(config);
+        assertEquals(0, config.saves.get());
+        awaitSaves(config, 1);
+        Thread.sleep(ApplicationConfig.SAVE_DELAY_MILLIS * 2);
+        assertEquals(1, config.saves.get());
+
+        /*  what is stored stays the same, only the moment of writing changes  */
+        ApplicationConfig stored = new ApplicationConfig();
+        assertEquals(0.249, stored.getSplitterPosition());
+        assertEquals(59.0, stored.getWindowX());
+        assertEquals(1249, stored.getWindowWidth());
+        assertEquals(229.0, stored.getImageTileSize());
+        assertEquals(149.0, stored.getChatInputHeight());
+    }
+
+    @Test
+    void writesAWaitingSaveAtOnceOnShutdown() throws Exception {
+        CountingConfig config = new CountingConfig();
+
+        drag(config);
+        config.setSplitterPosition(0.3);
+        config.flushConfiguration();
+        assertEquals(1, config.saves.get());
+        assertEquals(0.3, new ApplicationConfig().getSplitterPosition());
+
+        /*  the delayed save is gone, nothing is written twice  */
+        Thread.sleep(ApplicationConfig.SAVE_DELAY_MILLIS * 2);
+        assertEquals(1, config.saves.get());
+    }
+
+    @Test
+    void shutdownWritesNothingWithoutAWaitingSave() {
+        CountingConfig config = new CountingConfig();
+
+        config.flushConfiguration();
+        assertEquals(0, config.saves.get());
+    }
+
+    @Test
+    void otherSettingsAreWrittenAtOnce() {
+        CountingConfig config = new CountingConfig();
+
+        config.setOpenPanelGroup("frame");
+        assertEquals(1, config.saves.get());
+    }
+}

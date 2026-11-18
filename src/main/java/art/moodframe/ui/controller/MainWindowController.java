@@ -516,6 +516,19 @@ public class MainWindowController implements I18nChangeListener {
     private EntryGroup shownGroup;
     private boolean updatingGroups;
 
+    /*  A worker for the blocking work of the window (queries of the groups, copies into the Downloads folder),
+        off the FX thread and off the common pool; its thread ends when idle  */
+    private final java.util.concurrent.ExecutorService worker = new java.util.concurrent.ThreadPoolExecutor(0, 1, 30,
+            java.util.concurrent.TimeUnit.SECONDS, new java.util.concurrent.LinkedBlockingQueue<>(), (runnable) -> {
+                Thread thread = new Thread(runnable, "MainWindowWorker");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    /*  The groups are queried on the worker, one query for a burst of library changes  */
+    private final CoalescedLoad groupsLoad = new CoalescedLoad("the groups of the entries", worker,
+            Platform::runLater, this::prepareGroupsLoad);
+
     /**
      * Initializes the controller after FXML loading.
      * 
@@ -4309,19 +4322,34 @@ public class MainWindowController implements I18nChangeListener {
      * it again; the open group takes over its new name, for example once it was renamed or deleted.
      */
     private void refreshGroups() {
-        if (chatHistory == null)
-            return;
-        try {
-            if (moodGroupListView.isVisible())
-                refreshGroups(moodGroupListView, chatHistory.findMoodGroups());
-            else if (frameGroupListView.isVisible())
-                refreshGroups(frameGroupListView, chatHistory.findFrameGroups());
-        } catch (Exception e) {
-            logger.error("Failed to load the groups of the entries", e);
-            return;
-        }
-        if (shownGroup != null)
-            updateGroupHeader();
+        groupsLoad.request();
+    }
+
+    /** Prepares the query of the groups the sidebar shows, null while it shows the chats. */
+    private java.util.concurrent.Callable<Runnable> prepareGroupsLoad() {
+        ChatHistoryService history = chatHistory;
+        if (history == null)
+            return null;
+        if (moodGroupListView.isVisible())
+            return loadGroups(moodGroupListView, history::findMoodGroups);
+        if (frameGroupListView.isVisible())
+            return loadGroups(frameGroupListView, history::findFrameGroups);
+        return null;
+    }
+
+    /*  Queries the groups on the worker and shows them on the FX thread, unless the sidebar shows another list now  */
+    private <T extends EntryGroup> java.util.concurrent.Callable<Runnable> loadGroups(ListView<T> listView,
+            java.util.concurrent.Callable<List<T>> query) {
+        return () -> {
+            List<T> groups = query.call();
+            return () -> {
+                if (!listView.isVisible())
+                    return;
+                refreshGroups(listView, groups);
+                if (shownGroup != null)
+                    updateGroupHeader();
+            };
+        };
     }
 
     /** Fills a list of groups, keeping the open one selected without opening it again. */
@@ -5309,15 +5337,15 @@ public class MainWindowController implements I18nChangeListener {
         }
 
         try {
-            // Load image to get dimensions
-            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(imageFile);
-            if (image == null) {
+            // Read the dimensions from the header of the file, without decoding the image on the FX thread
+            art.moodframe.util.ImageSize size = art.moodframe.util.ImageSize.read(imageFile.toPath());
+            if (size == null) {
                 logger.warn("Could not read image dimensions from: {}", imageFile.getName());
                 return;
             }
 
-            int width = image.getWidth();
-            int height = image.getHeight();
+            int width = size.width();
+            int height = size.height();
             double imageRatio = (double) width / height;
 
             // Use the aspect ratios of the combo box, the targets of all models
@@ -5916,15 +5944,21 @@ public class MainWindowController implements I18nChangeListener {
             }
         }
 
-        try {
-            String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath), chatName, createdAt);
-            Platform.runLater(() -> setStatus(
-                    java.text.MessageFormat.format(I18nManager.getText("download.image.success"), filename)));
-        } catch (Exception e) {
-            logger.error("Failed to download image to Downloads folder", e);
-            showErrorMessage(java.text.MessageFormat.format(
-                    I18nManager.getText("download.image.error"), e.getMessage()));
-        }
+        /*  The copy runs on the worker, the status follows on the FX thread  */
+        String copyChatName = chatName;
+        java.time.LocalDateTime copyCreatedAt = createdAt;
+        worker.execute(() -> {
+            try {
+                String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath), copyChatName,
+                        copyCreatedAt);
+                Platform.runLater(() -> setStatus(
+                        java.text.MessageFormat.format(I18nManager.getText("download.image.success"), filename)));
+            } catch (Exception e) {
+                logger.error("Failed to download image to Downloads folder", e);
+                showErrorMessage(java.text.MessageFormat.format(
+                        I18nManager.getText("download.image.error"), e.getMessage()));
+            }
+        });
     }
 
     /**

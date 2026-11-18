@@ -1027,48 +1027,55 @@ public class ChatEntryCard extends ManagedComponent {
         }
 
         // Load thumbnail async - the cache will handle whether file exists
-        CompletableFuture.runAsync(() -> {
-            try {
-                // First try loading thumbnail directly via cache (handles file.exists internally)
-                if (thumbnailPath != null) {
-                    javafx.scene.image.Image image = thumbnailManager.getCachedImage(thumbnailPath);
-                    if (image != null) {
+        CompletableFuture.supplyAsync(() -> thumbnailPath != null
+                        ? thumbnailManager.getCachedImage(thumbnailPath) : null)
+                .whenComplete((image, error) -> {
+                    if (image != null)
                         Platform.runLater(() -> setImageWithHandlers(imageView, image, imageIndex));
+                    else if (error != null)
+                        showOriginalImage(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
+                                localPath, error);
+                    else
+                        generateThumbnail(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
+                                localPath, thumbnailManager);
+                });
+    }
+
+    /*  Creates a missing thumbnail and shows it; the stages follow the creation, no thread waits for it  */
+    private void generateThumbnail(GeneratedImage generatedImage, ImageView imageView, VBox loadingOverlay,
+            ProgressIndicator progressIndicator, int imageIndex, String localPath, ThumbnailManager thumbnailManager) {
+        thumbnailManager.getThumbnail(localPath)
+                .thenApplyAsync((thumbnailFile) -> thumbnailFile != null && thumbnailFile.exists()
+                        ? thumbnailManager.getCachedImage(thumbnailFile.getAbsolutePath()) : null)
+                .whenComplete((image, error) -> {
+                    if (image == null) {
+                        showOriginalImage(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
+                                localPath, error);
                         return;
                     }
-                }
-
-                // Thumbnail doesn't exist - generate it
-                CompletableFuture<File> thumbnailFuture = thumbnailManager.getThumbnail(localPath);
-                File thumbnailFile = thumbnailFuture.join(); // Wait for generation
-
-                if (thumbnailFile != null && thumbnailFile.exists()) {
-                    javafx.scene.image.Image image = thumbnailManager.getCachedImage(thumbnailFile.getAbsolutePath());
                     Platform.runLater(() -> {
                         loadingOverlay.setVisible(false);
                         progressIndicator.setVisible(false);
-                        if (image != null) {
-                            setImageWithHandlers(imageView, image, imageIndex);
-                        } else {
-                            loadOriginalImage(generatedImage, imageView, imageIndex);
-                        }
+                        setImageWithHandlers(imageView, image, imageIndex);
                     });
-                } else {
-                    Platform.runLater(() -> {
-                        loadingOverlay.setVisible(false);
-                        progressIndicator.setVisible(false);
-                        loadOriginalImage(generatedImage, imageView, imageIndex);
-                    });
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to load thumbnail for: {}", localPath, e);
-                Platform.runLater(() -> {
-                    loadingOverlay.setVisible(false);
-                    progressIndicator.setVisible(false);
-                    loadOriginalImage(generatedImage, imageView, imageIndex);
                 });
-            }
+    }
+
+    /*  Shows the original image in place of a thumbnail that could not be loaded or created  */
+    private void showOriginalImage(GeneratedImage generatedImage, ImageView imageView, VBox loadingOverlay,
+            ProgressIndicator progressIndicator, int imageIndex, String localPath, Throwable error) {
+        if (error != null)
+            logger.warn("Failed to load thumbnail for: {}", localPath, error);
+        Platform.runLater(() -> {
+            loadingOverlay.setVisible(false);
+            progressIndicator.setVisible(false);
+            loadOriginalImage(generatedImage, imageView, imageIndex);
         });
+    }
+
+    /*  The ThumbnailManager of the application, looked up each time (a map lookup), so a replaced one is found  */
+    private static ThumbnailManager getThumbnailManager() {
+        return ServiceFactory.getInstance().getService(ThumbnailManager.class);
     }
 
     /**
@@ -1078,16 +1085,6 @@ public class ChatEntryCard extends ManagedComponent {
      * @param imageView  the image view component
      * @param imageIndex the image index for click handling
      */
-    // Cached reference to ThumbnailManager - avoid ServiceFactory lookup on every call
-    private static ThumbnailManager cachedThumbnailManager;
-
-    private static ThumbnailManager getThumbnailManager() {
-        if (cachedThumbnailManager == null) {
-            cachedThumbnailManager = ServiceFactory.getInstance().getService(ThumbnailManager.class);
-        }
-        return cachedThumbnailManager;
-    }
-
     private void loadImageFromPath(String imagePath, ImageView imageView, int imageIndex) {
         try {
             ThumbnailManager thumbnailManager = getThumbnailManager();
