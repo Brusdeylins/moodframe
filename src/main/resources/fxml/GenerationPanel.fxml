@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Path?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Generation: model, the fields of the model, count and the attachment -->
+<VBox fx:id="generationGroupPane" xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="art.moodframe.ui.controller.GenerationPanelController"
+      styleClass="panel-group, panel-group-gen">
+    <Path styleClass="panel-group-line" managed="false" />
+
+    <HBox styleClass="panel-group-header" alignment="CENTER_LEFT" spacing="2.0" prefHeight="36.0">
+        <Button styleClass="icon-button, panel-group-arrow">
+            <graphic>
+                <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
+            </graphic>
+        </Button>
+        <Label fx:id="generationTitleLabel" text="Generation" styleClass="title-4" />
+    </HBox>
+
+    <!-- Always shown: count (for a video the duration) and model, then the attached images -->
+    <VBox styleClass="panel-group-summary">
+        <Label fx:id="generationSummaryModel" styleClass="text-small, text-muted" />
+        <Label fx:id="generationSummaryAttachments" styleClass="text-small, text-muted" />
+    </VBox>
+
+    <!-- Folded: the model, its fields, count (for a video the duration) and the attachment -->
+    <VBox styleClass="panel-group-details" spacing="15.0">
+
+        <!-- Model; the hidden field holds the selected variant (family and resolution), the model
+             logic works on it -->
+        <VBox spacing="5.0">
+            <Label fx:id="modelLabel" text="Model" styleClass="text-bold" />
+            <ChoiceBox fx:id="modelFamilyChoiceBox" maxWidth="Infinity" minWidth="0" />
+            <ChoiceBox fx:id="modelComboBox" maxWidth="Infinity" visible="false" managed="false" />
+        </VBox>
+
+        <!-- Gemini Advanced Features: Google Search grounding, the first field of the model -->
+        <VBox fx:id="geminiAdvancedFeaturesContainer"
+              visible="false" managed="false"
+              spacing="0" />
+
+        <!-- Gemini 3 Pro Thinking Level, explained in the tooltip of label and field -->
+        <VBox fx:id="geminiThinkingLevelContainer" spacing="5.0"
+              visible="false" managed="false">
+            <fx:define>
+                <Tooltip fx:id="geminiThinkingLevelTooltip" text="Low: Fast generation | High: Better reasoning" />
+            </fx:define>
+            <Label fx:id="geminiThinkingLevelLabel" text="Reasoning Quality:"
+                   styleClass="text-bold" tooltip="$geminiThinkingLevelTooltip" />
+            <ChoiceBox fx:id="geminiThinkingLevelChoiceBox" maxWidth="Infinity" minWidth="0"
+                       tooltip="$geminiThinkingLevelTooltip" />
+        </VBox>
+
+        <!-- BFL-Specific Parameters Container -->
+        <VBox fx:id="bflParametersContainer" spacing="15.0">
+
+            <!-- FLUX.2 [max] Grounding Search Info, explained in its tooltip; first, like
+                 Google Search grounding -->
+            <VBox fx:id="flux2GroundingSearchContainer" spacing="5.0"
+                  visible="false" managed="false">
+                <Label text="Web Search" styleClass="text-bold">
+                    <tooltip>
+                        <Tooltip text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt." />
+                    </tooltip>
+                </Label>
+            </VBox>
+
+            <!-- BFL Prompt Upsampling, explained in its tooltip -->
+            <CheckBox fx:id="bflPromptUpsamplingCheckBox" text="Prompt Enhancement"
+                      styleClass="text-bold">
+                <tooltip>
+                    <Tooltip fx:id="bflPromptUpsamplingTooltip" text="Enhances prompts for better image quality" />
+                </tooltip>
+            </CheckBox>
+
+            <!-- Safety Tolerance (FLUX.1 - hidden when FLUX.2 selected) -->
+            <VBox fx:id="flux1SafetyContainer" spacing="5.0">
+                <Label fx:id="safetyToleranceLabel" text="Safety: Strict" styleClass="text-bold" />
+                <Slider fx:id="safetyToleranceSlider"
+                        min="0" max="6" value="2"
+                        showTickLabels="true" showTickMarks="true"
+                        majorTickUnit="1.0" snapToTicks="true" />
+            </VBox>
+
+            <!-- FLUX.2 Specific Parameters Container: safety, guidance and steps, before the
+                 seed -->
+            <VBox fx:id="flux2ParametersContainer" spacing="15.0"
+                  visible="false" managed="false">
+
+                <!-- FLUX.2 Safety Tolerance (0-5 scale) - same position as FLUX.1 safety -->
+                <VBox fx:id="flux2SafetyContainer" spacing="5.0"
+                      visible="false" managed="false">
+                    <Label fx:id="flux2SafetyLabel" text="Safety Tolerance:" styleClass="text-bold" />
+                    <Slider fx:id="flux2SafetySlider"
+                            min="0" max="5" value="2"
+                            showTickLabels="true" showTickMarks="true"
+                            majorTickUnit="1" minorTickCount="0" snapToTicks="true" />
+                    <Label fx:id="flux2SafetyValueLabel" text="Default (2)"
+                           styleClass="text-small" />
+                </VBox>
+
+                <!-- FLUX.2 [flex] Guidance, explained in the tooltip of label and slider -->
+                <VBox fx:id="flux2GuidanceContainer" spacing="5.0"
+                      visible="false" managed="false">
+                    <fx:define>
+                        <Tooltip fx:id="flux2GuidanceTooltip" text="Controls prompt adherence (higher = stricter)" />
+                    </fx:define>
+                    <Label fx:id="flux2GuidanceLabel" text="Guidance: 5.0" styleClass="text-bold" tooltip="$flux2GuidanceTooltip" />
+                    <Slider fx:id="flux2GuidanceSlider" tooltip="$flux2GuidanceTooltip"
+                            min="1.5" max="10.0" value="5.0"
+                            showTickLabels="true" showTickMarks="true"
+                            majorTickUnit="1.0" minorTickCount="1" />
+                </VBox>
+
+                <!-- FLUX.2 [flex] Steps, explained in the tooltip of label and slider -->
+                <VBox fx:id="flux2StepsContainer" spacing="5.0"
+                      visible="false" managed="false">
+                    <fx:define>
+                        <Tooltip fx:id="flux2StepsTooltip" text="Inference steps (higher = more detail)" />
+                    </fx:define>
+                    <Label fx:id="flux2StepsLabel" text="Steps: 50" styleClass="text-bold" tooltip="$flux2StepsTooltip" />
+                    <Slider fx:id="flux2StepsSlider" tooltip="$flux2StepsTooltip"
+                            min="1" max="50" value="50"
+                            showTickLabels="true" showTickMarks="true"
+                            majorTickUnit="10" minorTickCount="4" snapToTicks="true" />
+                </VBox>
+
+            </VBox>
+
+            <!-- Seed -->
+            <VBox spacing="5.0">
+                <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
+                <HBox spacing="5.0" alignment="CENTER_LEFT">
+                    <TextField fx:id="seedTextField"
+                              promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+
+                    <!-- Clear Seed Button -->
+                    <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
+                            onAction="#onClearSeedClicked">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                        </graphic>
+                        <tooltip>
+                            <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
+                        </tooltip>
+                    </Button>
+                </HBox>
+            </VBox>
+
+        </VBox>
+
+        <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its
+             duration instead -->
+        <VBox fx:id="imageCountContainer" spacing="5.0">
+            <Label fx:id="imageCountLabel" text="Images: 1" styleClass="text-bold" />
+            <Slider fx:id="imageCountSlider"
+                    min="1" max="4" value="1"
+                    showTickLabels="true" showTickMarks="true"
+                    majorTickUnit="1.0" snapToTicks="true" />
+        </VBox>
+
+        <!-- Video Parameters Container: the duration in place of the count -->
+        <VBox fx:id="videoParametersContainer" spacing="15.0"
+              visible="false" managed="false">
+
+            <!-- Video Duration, explained in the tooltip of label and field -->
+            <VBox fx:id="videoDurationContainer" spacing="5.0">
+                <fx:define>
+                    <Tooltip fx:id="videoDurationTooltip" text="Video length (1080p/4K require 8s)" />
+                </fx:define>
+                <Label text="Duration" styleClass="text-bold" tooltip="$videoDurationTooltip" />
+                <ChoiceBox fx:id="videoDurationChoiceBox" maxWidth="Infinity" minWidth="0" tooltip="$videoDurationTooltip" />
+            </VBox>
+
+            <!-- Audio Toggle, explained in its tooltip -->
+            <VBox fx:id="videoAudioContainer" spacing="5.0" visible="false" managed="false">
+                <CheckBox fx:id="videoAudioCheckBox" text="Generate Audio">
+                    <tooltip>
+                        <Tooltip text="Audio doubles generation cost" />
+                    </tooltip>
+                </CheckBox>
+            </VBox>
+
+            <!-- Negative Prompt -->
+            <VBox fx:id="videoNegativePromptContainer" spacing="5.0" visible="false" managed="false">
+                <Label text="Negative Prompt" styleClass="text-bold" />
+                <TextArea fx:id="videoNegativePromptTextArea"
+                          promptText="Describe what to avoid..."
+                          prefHeight="60" wrapText="true" />
+            </VBox>
+
+        </VBox>
+
+        <!-- Multi-Image Attachment Section -->
+        <!-- Container for MultiImageAttachmentPanel (added programmatically) -->
+        <VBox fx:id="multiImageAttachmentContainer" spacing="5.0" />
+
+        <!-- Legacy Single Image Attachment Section (hidden when multi-image is active) -->
+        <VBox fx:id="imageAttachmentSection" spacing="5.0"
+              visible="false" managed="false">
+
+            <Label fx:id="imageAttachmentLabel" text="Image Attachment" styleClass="text-bold" />
+
+            <!-- Image Preview Area -->
+            <StackPane fx:id="imagePreviewContainer"
+                       prefHeight="150.0" maxHeight="150.0" minHeight="150.0"
+                       style="-fx-background-color: -color-bg-inset; -fx-background-radius: 4px; -fx-border-color: -color-border-muted; -fx-border-width: 1px; -fx-border-style: dashed; -fx-border-radius: 4px;">
+
+                <!-- No Image Placeholder -->
+                <VBox fx:id="noImagePlaceholder" alignment="CENTER" spacing="5.0">
+                    <FontIcon iconLiteral="mdi2i-image-plus" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
+                    <Label fx:id="noImageLabel" text="No image attached" styleClass="text-muted, text-small" />
+                </VBox>
+
+                <!-- Image Preview (initially hidden) -->
+                <ImageView fx:id="attachmentPreviewImage"
+                          fitWidth="150.0" fitHeight="150.0"
+                          preserveRatio="true" smooth="true"
+                          visible="false" managed="false" />
+
+            </StackPane>
+
+            <!-- Attachment Controls -->
+            <HBox spacing="5.0" alignment="CENTER_LEFT">
+
+                <!-- Upload Button -->
+                <Button fx:id="uploadImageButton" styleClass="button-outlined"
+                        text="Attach Image" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                        onAction="#onAttachImageClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2u-upload" iconSize="14" styleClass="ikonli-font-icon" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip fx:id="uploadImageTooltip" text="Upload an image for editing (PNG, JPEG, WebP)" />
+                    </tooltip>
+                </Button>
+
+                <!-- Remove Button -->
+                <Button fx:id="removeImageButton" styleClass="icon-button, text-danger-hover"
+                        disable="true" onAction="#onRemoveImageClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip fx:id="removeImageTooltip" text="Remove attached image" />
+                    </tooltip>
+                </Button>
+
+            </HBox>
+
+            <!-- Attachment Info -->
+            <Label fx:id="attachmentInfoLabel" text=""
+                   styleClass="text-small, text-muted"
+                   visible="false" managed="false" />
+
+        </VBox>
+
+    </VBox>
+</VBox>

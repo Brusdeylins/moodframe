@@ -103,6 +103,41 @@ takes the registered library services, so an import reaches the main window; `Th
 The plan is to move step by step to constructor injection with `MoodframeApplication` as the composition root, so
 that dependencies become visible in signatures and the locator can shrink to the startup code.
 
+The main window already works this way: its coordinator looks up the services once and hands them to its parts (see
+"The main window").
+
+## The main window
+
+`MainWindow.fxml` holds the header (version, update hint, info, settings) and includes its parts with `fx:include`;
+each part has an FXML file and a controller of its own in `ui.controller`:
+
+| Part                  | Controller                  | Shows                                                         |
+|-----------------------|-----------------------------|---------------------------------------------------------------|
+| `LibrarySidebar.fxml` | `LibrarySidebarController`  | the chats, or the moods or frames as groups of entries; holds |
+|                       |                             | the selection (current chat, open group)                      |
+| `ChatView.fxml`       | `ChatViewController`        | chat header, entries as chat or images, full view, download   |
+|                       |                             | and delete; includes `InputBar.fxml` (`InputBarController`)   |
+| `MoodFramePanel.fxml` | `MoodFramePanelController`  | the groups Mood and Frame of the right panel                  |
+| `GenerationPanel.fxml`| `GenerationPanelController` | model, provider fields, count, attachments, price             |
+| `StatusBar.fxml`      | `StatusBarController`       | status message, memory, API key status                        |
+
+`MainWindowController` is the coordinator. It looks up the services in `ServiceFactory` once and hands them to the
+parts with an `init` method (the `FXMLLoader` creates the controllers, their `initialize()` sets up only their own
+nodes); a part never asks the locator. The window has one worker thread for its blocking work (queries of the groups,
+downloads, deletes), which the sidebar and the chat view get as an `Executor`. A part reports back through a listener
+interface of its own (`LibrarySidebarController.Listener`, `ChatViewController.Actions`,
+`GenerationPanelController.Listener`, `MoodFramePanelController.Listener`, `InputBarController.Listener`) and shows
+messages through `StatusSink`, where an error is told by the caller, not read from its text. The coordinator carries
+out what spans parts: sending, the brainstorm, reusing and editing an entry, the changes of the library, the trash and
+the running generations. On a change of the language it calls `updateTexts()` of every part, which relabels itself.
+`PanelGroups` folds the three groups of the right panel, `CornerCloud` draws the cloud behind the window.
+
+`MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog) can show the same
+fields: it takes its services as `MoodFramePanelController.Services`, follows the chosen model with `followModel`,
+tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`, `chooseFrame`,
+`setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
+`Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on.
+
 ## Settings dialog
 
 `SettingsDialog.fxml` holds only the list of sections and includes one FXML per section from `fxml/settings`

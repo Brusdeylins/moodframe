@@ -380,7 +380,7 @@ class GenerateTools {
                     + " reference images");
 
         ImageAttachmentService attachments = new ImageAttachmentService();
-        attachments.setMaxFileSize(GenerationModel.getMaxFileSize(model.getProvider()));
+        long maxFileSize = GenerationModel.getMaxFileSize(model.getProvider());
         List<String> encoded = new ArrayList<>();
         for (JsonNode image : images) {
             if (!image.isTextual())
@@ -391,7 +391,7 @@ class GenerateTools {
                 continue;
             }
             try {
-                encoded.add(attachments.attachImage(file.toFile()).getBase64Data());
+                encoded.add(attachments.attachImage(file.toFile(), maxFileSize).getBase64Data());
             }
             catch (IllegalArgumentException e) {
                 throw new McpTools.ToolException("The reference image '" + image.asText() + "': " + e.getMessage());

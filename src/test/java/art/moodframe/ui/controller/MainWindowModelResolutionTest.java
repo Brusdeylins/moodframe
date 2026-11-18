@@ -8,6 +8,8 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -15,13 +17,11 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.ChatEntryCard;
-import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,7 +30,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -88,6 +87,8 @@ class MainWindowModelResolutionTest {
         register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
         register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
         register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
+        register(ChatLibrary.class, new ChatLibrary(null, events));
+        register(ImageAttachmentService.class, new ImageAttachmentService());
     }
 
     @AfterAll
@@ -137,8 +138,7 @@ class MainWindowModelResolutionTest {
 
     @AfterEach
     void dispose() throws Exception {
-        onFxThread(() -> ((MultiImageAttachmentPanel) ((VBox) field("multiImageAttachmentContainer"))
-                .getChildren().get(0)).dispose());
+        onFxThread(() -> controller.generationPanel().dispose());
         I18nManager.removeChangeListener(controller);
     }
 
@@ -165,63 +165,59 @@ class MainWindowModelResolutionTest {
         assertTrue(later.await(10, TimeUnit.SECONDS));
     }
 
-    /*  a field of the window, which a lookup does not reach in the panel before it is shown  */
-    private static Object field(String id) throws Exception {
-        Field field = MainWindowController.class.getDeclaredField(id);
-        field.setAccessible(true);
-        return field.get(controller);
+    /*  the fields of the window, which a lookup does not reach in the panel before it is shown  */
+    private static ChoiceBox<String> resolution() {
+        return controller.moodFramePanel().resolutionChoice();
     }
 
-    @SuppressWarnings("unchecked")
-    private static ChoiceBox<String> choice(String id) throws Exception {
-        return (ChoiceBox<String>) field(id);
+    private static ChoiceBox<String> family() {
+        return controller.generationPanel().modelFamilyChoice();
     }
 
-    private static Label hint() throws Exception {
-        return (Label) field("resolutionHintLabel");
+    private static ChoiceBox<String> model() {
+        return controller.generationPanel().modelChoice();
+    }
+
+    private static Label hint() {
+        return controller.moodFramePanel().resolutionHint();
     }
 
     private static void reuse(ChatEntry entry) throws Exception {
-        onFxThread(() -> {
-            Method reuse = MainWindowController.class.getDeclaredMethod("reuseEntry", ChatEntry.class,
-                    ChatEntryCard.Reuse.class);
-            reuse.setAccessible(true);
-            reuse.invoke(controller, entry, ChatEntryCard.Reuse.ALL);
-        });
+        onFxThread(() -> controller.reuseEntry(entry, ChatEntryCard.Reuse.ALL));
     }
 
     @Test
     void theFamilyMakesTheTargetOfTheFrame() throws Exception {
         onFxThread(() -> {
-            choice("resolutionChoiceBox").setValue("4K");
-            choice("modelFamilyChoiceBox").setValue("Nano Banana Pro");
+            resolution().setValue("4K");
+            family().setValue("Nano Banana Pro");
         });
-        assertEquals(NANO_BANANA_PRO_4K, choice("modelComboBox").getValue());
+        assertEquals(NANO_BANANA_PRO_4K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
 
         String lite = GenerationModel.NANO_BANANA2_LITE.getFamilyName();
-        onFxThread(() -> choice("modelFamilyChoiceBox").setValue(lite));
+        onFxThread(() -> family().setValue(lite));
         assertTrue(hint().isVisible(), "a family that cannot make the target says so");
         assertEquals(lite + " → 1K", hint().getText());
     }
 
     @Test
     void aReusedEntryTakesTheModelForTheTargetItWasMadeFor() throws Exception {
-        onFxThread(() -> choice("resolutionChoiceBox").setValue("4K"));
+        onFxThread(() -> resolution().setValue("4K"));
 
         /*  made for 4K with the 2K variant, as before this fix: the target stays, the model follows it  */
         reuse(new ChatEntry.Builder().chatId("chat").userPrompt("a lighthouse")
                 .model(GenerationModel.GEMINI_PRO_2K.getDisplayName())
                 .frame(new EntryFrame(null, null, "16:9", "4K")).build());
-        assertEquals("4K", choice("resolutionChoiceBox").getValue());
-        assertEquals(NANO_BANANA_PRO_4K, choice("modelComboBox").getValue());
+        assertEquals("4K", resolution().getValue());
+        assertEquals(NANO_BANANA_PRO_4K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
 
         /*  from before the frames were copied: the target becomes the resolution of its model  */
         reuse(new ChatEntry.Builder().chatId("chat").userPrompt("a lighthouse")
                 .model(GenerationModel.GEMINI_PRO_2K.getDisplayName()).size("16:9").build());
-        assertEquals("2K", choice("resolutionChoiceBox").getValue());
-        assertEquals(NANO_BANANA_PRO_2K, choice("modelComboBox").getValue());
+        assertEquals("2K", resolution().getValue());
+        assertEquals(NANO_BANANA_PRO_2K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
     }
 }

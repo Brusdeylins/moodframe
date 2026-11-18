@@ -32,8 +32,8 @@ public class ImageAttachmentService {
     
     private static final Logger logger = LoggerFactory.getLogger(ImageAttachmentService.class);
     
-    // Provider-dependent file size limit (default: 10MB for BFL)
-    private long maxFileSize = 10L * 1024 * 1024;
+    /** The file size limit without another one given: 10 MB, that of BFL. */
+    public static final long DEFAULT_MAX_FILE_SIZE = 10L * 1024 * 1024;
 
     /*  FLUX 3 rejects reference images above 16 megapixels (HTTP 400), larger ones are scaled down  */
     static final long MAX_PIXELS = 16_000_000L;
@@ -42,24 +42,28 @@ public class ImageAttachmentService {
     private static final String[] SUPPORTED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"};
     
     /**
-     * Sets the maximum file size for image attachments (provider-dependent).
+     * Creates an AttachedImage from a file within the default size limit, see {@link #createAttachment(File, long)}.
      *
-     * @param maxFileSize max file size in bytes
-     */
-    public void setMaxFileSize(long maxFileSize) {
-        this.maxFileSize = maxFileSize;
-    }
-
-    /**
-     * Creates an AttachedImage from a file with full validation and metadata extraction.
-     * This method performs synchronous operations and should be called from a background thread.
-     * 
      * @param file the image file to attach
      * @return the AttachedImage instance with metadata
      * @throws IOException if file processing fails
      * @throws IllegalArgumentException if file is invalid
      */
     public AttachedImage createAttachment(File file) throws IOException, IllegalArgumentException {
+        return createAttachment(file, DEFAULT_MAX_FILE_SIZE);
+    }
+
+    /**
+     * Creates an AttachedImage from a file with full validation and metadata extraction.
+     * This method performs synchronous operations and should be called from a background thread.
+     *
+     * @param file        the image file to attach
+     * @param maxFileSize the file size limit of the provider in bytes; a larger image is attached as a JPEG copy
+     * @return the AttachedImage instance with metadata
+     * @throws IOException if file processing fails
+     * @throws IllegalArgumentException if file is invalid
+     */
+    public AttachedImage createAttachment(File file, long maxFileSize) throws IOException, IllegalArgumentException {
         if (file == null || !file.exists()) {
             throw new IllegalArgumentException("File does not exist");
         }
@@ -78,7 +82,7 @@ public class ImageAttachmentService {
 
         /*  Too large (e.g. a 4K PNG) or too many pixels: attach a JPEG copy within the limits  */
         if (file.length() > maxFileSize || pixelsOf(file) > MAX_PIXELS)
-            file = shrinkToLimit(file);
+            file = shrinkToLimit(file, maxFileSize);
 
         // Create initial AttachedImage
         AttachedImage attachment = new AttachedImage(file);
@@ -126,12 +130,13 @@ public class ImageAttachmentService {
      * Writes a JPEG copy of an image that exceeds the size or pixel limit, scaled to at most 16 megapixels and
      * further down only if the JPEG is still too large.
      *
-     * @param file the image file
+     * @param file        the image file
+     * @param maxFileSize the file size limit in bytes
      * @return a temporary JPEG file within the size limit
      * @throws IOException if the image cannot be read or written
      * @since 1.9.3
      */
-    File shrinkToLimit(File file) throws IOException {
+    File shrinkToLimit(File file, long maxFileSize) throws IOException {
         BufferedImage source = ImageIO.read(file);
         if (source == null)
             throw new IllegalArgumentException("Cannot read image file - invalid or corrupted");
@@ -208,13 +213,14 @@ public class ImageAttachmentService {
      * Creates an AttachedImage asynchronously with Base64 encoding.
      * This method returns a CompletableFuture for non-blocking operation.
      * 
-     * @param file the image file to process
+     * @param file        the image file to process
+     * @param maxFileSize the file size limit of the provider in bytes
      * @return CompletableFuture that resolves to the processed AttachedImage
      */
-    public CompletableFuture<AttachedImage> createAttachmentAsync(File file) {
+    public CompletableFuture<AttachedImage> createAttachmentAsync(File file, long maxFileSize) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                AttachedImage attachment = createAttachment(file);
+                AttachedImage attachment = createAttachment(file, maxFileSize);
                 encodeToBase64(attachment);
                 return attachment;
             } catch (Exception e) {
@@ -248,12 +254,13 @@ public class ImageAttachmentService {
      * Convenience method for attaching an image file (for drag and drop).
      * Combines createAttachment and encodeToBase64 in one synchronous call.
      * 
-     * @param file the image file to attach
+     * @param file        the image file to attach
+     * @param maxFileSize the file size limit of the provider in bytes
      * @return the processed AttachedImage with Base64 data
      * @throws IOException if processing fails
      */
-    public AttachedImage attachImage(File file) throws IOException {
-        AttachedImage attachment = createAttachment(file);
+    public AttachedImage attachImage(File file, long maxFileSize) throws IOException {
+        AttachedImage attachment = createAttachment(file, maxFileSize);
         encodeToBase64(attachment);
         return attachment;
     }

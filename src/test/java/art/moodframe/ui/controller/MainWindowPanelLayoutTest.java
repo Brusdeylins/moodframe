@@ -8,6 +8,8 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.StylePresetItem;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -148,6 +150,8 @@ class MainWindowPanelLayoutTest {
         register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
         register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
         register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
+        register(ChatLibrary.class, new ChatLibrary(null, events));
+        register(ImageAttachmentService.class, new ImageAttachmentService());
     }
 
     @AfterAll
@@ -437,14 +441,7 @@ class MainWindowPanelLayoutTest {
 
     /*  a chat as if chosen in the list, without which the fields of the panel are off  */
     private static void selectAChat() throws Exception {
-        onFxThread(() -> {
-            Field chat = MainWindowController.class.getDeclaredField("currentChat");
-            chat.setAccessible(true);
-            chat.set(controller, new Chat("chat"));
-            Method update = MainWindowController.class.getDeclaredMethod("updateUIState");
-            update.setAccessible(true);
-            update.invoke(controller);
-        });
+        onFxThread(() -> controller.chooseChat(new Chat("chat")));
     }
 
     /*  whether a node shows, with all its parents  */
@@ -752,11 +749,7 @@ class MainWindowPanelLayoutTest {
 
     /*  the edit pencil of an image, as the cards, the grid and the large preview call it  */
     private static void edit(File image) throws Exception {
-        onFxThread(() -> {
-            Method edit = MainWindowController.class.getDeclaredMethod("editImageFromPath", String.class);
-            edit.setAccessible(true);
-            edit.invoke(controller, image.getPath());
-        });
+        onFxThread(() -> controller.editImage(image.getPath()));
     }
 
     /*  waits until the attachment holds the given number of images and the window is laid out  */
