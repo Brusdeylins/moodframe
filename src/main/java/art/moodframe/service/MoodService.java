@@ -1,5 +1,7 @@
 package art.moodframe.service;
 
+import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
@@ -68,7 +70,20 @@ public class MoodService implements BlockUsage {
      * @param events where the writes are reported
      */
     public MoodService(PromptBlockService blocks, ColorStyleService colors, LibraryEvents events) {
-        this.repository = new MoodRepository();
+        this(DatabaseConfig.getDatabase(), blocks, colors, events);
+    }
+
+    /**
+     * Creates the service on the given database.
+     *
+     * @param database the database of the moods of the user
+     * @param blocks   the building blocks the moods refer to
+     * @param colors   the palettes the moods refer to
+     * @param events   where the writes are reported
+     */
+    public MoodService(DatabaseManager database, PromptBlockService blocks, ColorStyleService colors,
+            LibraryEvents events) {
+        this.repository = new MoodRepository(database);
         this.blocks = blocks;
         this.colors = colors;
         this.events = events;

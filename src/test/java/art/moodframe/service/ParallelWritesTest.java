@@ -79,7 +79,8 @@ class ParallelWritesTest {
 
     @Test
     void theConnectionsWaitForLocksAndTheDatabaseRunsInWalMode() throws Exception {
-        try (Connection connection = DatabaseConfig.getConnection(); Statement stmt = connection.createStatement()) {
+        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+             Statement stmt = connection.createStatement()) {
             try (ResultSet rs = stmt.executeQuery("PRAGMA busy_timeout")) {
                 assertEquals(5000, rs.getInt(1));
             }

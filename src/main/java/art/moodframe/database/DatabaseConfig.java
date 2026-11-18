@@ -5,94 +5,42 @@ import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.sql.Connection;
-import java.sql.SQLException;
 
 /**
- * Database configuration and initialization for SQLite.
- * 
- * <p>
- * This class handles SQLite database setup, schema creation, and connection
- * management.
- * It creates a comprehensive database schema for storing chat sessions,
- * messages, generated
- * images, and configuration data.
- * </p>
- * 
- * <p>
- * <strong>Database Schema:</strong>
- * </p>
- * <ul>
- * <li>{@code chats} - Chat session metadata</li>
- * <li>{@code chat_entries} - Individual messages and prompts</li>
- * <li>{@code generated_images} - Generated image metadata and file paths</li>
- * <li>{@code configuration} - Application configuration key-value pairs</li>
- * <li>{@code api_requests} - API request/response logging for monitoring</li>
- * </ul>
- * 
- * <p>
- * <strong>Features:</strong>
- * </p>
- * <ul>
- * <li>Automatic schema creation and migration</li>
- * <li>Foreign key constraint enforcement</li>
- * <li>Optimized indexes for query performance</li>
- * <li>Connection pooling through JDBC</li>
- * </ul>
- * 
- * <p>
- * <strong>External References:</strong>
- * </p>
- * <ul>
- * <li><a href="https://www.sqlite.org/docs.html">SQLite Documentation</a></li>
- * <li><a href="https://github.com/xerial/sqlite-jdbc">SQLite JDBC
- * Driver</a></li>
- * </ul>
- * 
+ * Opens the database of the application at startup and makes it known in the {@link ServiceFactory}.
+ *
+ * <p>The application hands the {@link DatabaseManager} to the services it creates; the convenience constructors of
+ * the services (tests, tools) take the registered one from {@link #getDatabase()}.</p>
+ *
  * @since 1.0.0
  */
-public class DatabaseConfig {
+public final class DatabaseConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConfig.class);
-    private static String databaseUrl;
+
+    private DatabaseConfig() {
+    }
 
     /**
-     * Initializes the database connection and schema.
-     * 
-     * <p>
-     * This method performs the following operations:
-     * </p>
-     * <ol>
-     * <li>Creates the database directory if it doesn't exist</li>
-     * <li>Establishes the SQLite connection URL</li>
-     * <li>Initializes the database schema with all required tables</li>
-     * <li>Sets up indexes for optimal query performance</li>
-     * </ol>
-     * 
+     * Opens the database, brings its schema up to date and registers it as the database of the application.
+     *
      * @param databasePath the absolute path to the SQLite database file
+     * @return the database
      * @throws RuntimeException if database initialization fails
-     * @see <a href="https://www.sqlite.org/pragma.html#pragma_foreign_keys">SQLite
-     *      Foreign Keys</a>
      * @since 1.0.0
      */
-    public static void initialize(String databasePath) {
+    public static DatabaseManager initialize(String databasePath) {
         try {
-            // Ensure the directory exists
-            Path dbPath = Paths.get(databasePath);
-            Files.createDirectories(dbPath.getParent());
-
-            databaseUrl = "jdbc:sqlite:" + databasePath;
-
-            // Initialisiere Schema
-            initializeSchema(databaseUrl);
+            DatabaseManager database = new DatabaseManager(Path.of(databasePath));
+            database.initialize();
+            ServiceFactory.getInstance().registerService(DatabaseManager.class, database);
 
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null && config.getLoggingEnabled()) {
                 logger.info("Database initialized: {}", databasePath);
             }
+            return database;
 
         } catch (Exception e) {
             logger.error("Database initialization failed", e);
@@ -101,90 +49,17 @@ public class DatabaseConfig {
     }
 
     /**
-     * Uses DatabaseManager to initialize schema via migrations.
-     * 
-     * @param url the JDBC URL for the SQLite database
-     * @throws RuntimeException if schema creation fails
-     * @see art.moodframe.database.DatabaseManager
-     * @since 1.0.0
-     * @deprecated Use {@link art.moodframe.database.DatabaseManager} directly for
-     *             proper migration handling
-     */
-    @Deprecated
-    private static void initializeSchema(String url) {
-        try {
-            // Extract database path from JDBC URL
-            String dbPath = url.replace("jdbc:sqlite:", "");
-            Path databasePath = Paths.get(dbPath);
-
-            // Use DatabaseManager for proper migration handling
-            art.moodframe.database.DatabaseManager dbManager = new art.moodframe.database.DatabaseManager(databasePath);
-            dbManager.initialize();
-
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Database schema initialized via migrations");
-            }
-
-        } catch (Exception e) {
-            logger.error("Failed to initialize database schema", e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Creates and returns a new database connection, which waits for the locks of other connections (see
-     * {@link DatabaseManager#getConnection()}).
-     * 
-     * <p>
-     * <strong>Important:</strong> The caller is responsible for closing the
-     * returned
-     * connection to prevent resource leaks. Consider using try-with-resources:
-     * </p>
-     * 
-     * <pre>{@code
-     * try (Connection conn = DatabaseConfig.getConnection()) {
-     *     // Use the connection
-     * }
-     * }</pre>
-     * 
-     * @return a new SQLite database connection
-     * @throws SQLException          if the connection cannot be established
+     * Returns the database of the application.
+     *
+     * @return the database opened by {@link #initialize(String)}
      * @throws IllegalStateException if the database has not been initialized
-     * @see <a href=
-     *      "https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/Connection.html">JDBC
-     *      Connection API</a>
-     * @since 1.0.0
+     * @since 2.1.3
      */
-    public static Connection getConnection() throws SQLException {
-        if (databaseUrl == null) {
+    public static DatabaseManager getDatabase() {
+        DatabaseManager database = ServiceFactory.getInstance().getService(DatabaseManager.class);
+        if (database == null) {
             throw new IllegalStateException("Database not initialized. Call initialize() first.");
         }
-        return DatabaseManager.open(databaseUrl);
-    }
-
-    /**
-     * Returns the JDBC URL for the SQLite database.
-     * 
-     * @return the database URL, or null if not initialized
-     * @since 1.0.0
-     */
-    public static String getDatabaseUrl() {
-        return databaseUrl;
-    }
-
-    /**
-     * Closes the database configuration.
-     * 
-     * <p>
-     * <strong>Warning:</strong> This method is intended for testing purposes only.
-     * It resets the database configuration, which may cause application failures
-     * if called in production code.
-     * </p>
-     * 
-     * @since 1.0.0
-     */
-    public static void close() {
-        databaseUrl = null;
+        return database;
     }
 }

@@ -35,7 +35,7 @@ class FrameRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final FrameRepository repository = new FrameRepository();
+    private final FrameRepository repository = new FrameRepository(DatabaseConfig.getDatabase());
 
     @BeforeAll
     static void createDatabase() {
@@ -110,7 +110,7 @@ class FrameRepositoryTest {
 
     @Test
     void aFreshDatabaseHasNoModelColumnsButATargetResolution() throws Exception {
-        try (Connection conn = DatabaseConfig.getConnection()) {
+        try (Connection conn = DatabaseConfig.getDatabase().getConnection()) {
             assertEquals(COLUMNS, columns(conn));
         }
     }

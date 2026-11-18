@@ -1,7 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import org.slf4j.Logger;
@@ -30,14 +30,23 @@ import java.util.UUID;
  * <p>The finders skip color styles in the trash ({@code deleted_at} set); the name checks do not,
  * as such a name stays taken (unique column) until the style is deleted for good.</p>
  *
+ * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
+ *
  * @since 1.3.0
  */
 public class ColorStyleRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(ColorStyleRepository.class);
+    private final DatabaseManager database;
     private final ApplicationConfig config;
 
-    public ColorStyleRepository() {
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the color styles
+     */
+    public ColorStyleRepository(DatabaseManager database) {
+        this.database = database;
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
 
@@ -46,14 +55,15 @@ public class ColorStyleRepository {
      *
      * @param colorStyle the color style to save
      * @return true if save was successful, false otherwise
+     * @throws SQLException if the database fails
      */
-    public boolean save(ColorStyle colorStyle) {
+    public boolean save(ColorStyle colorStyle) throws SQLException {
         String sql = """
             INSERT INTO color_styles (id, name, color1, color2, color3, color4, color5, is_default, sort_order)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             String id = colorStyle.getId();
@@ -80,10 +90,6 @@ public class ColorStyleRepository {
             }
 
             return success;
-
-        } catch (SQLException e) {
-            logger.error("Failed to save color style: " + colorStyle.getName(), e);
-            return false;
         }
     }
 
@@ -92,8 +98,9 @@ public class ColorStyleRepository {
      *
      * @param colorStyle the color style to update
      * @return true if update was successful, false otherwise
+     * @throws SQLException if the database fails
      */
-    public boolean update(ColorStyle colorStyle) {
+    public boolean update(ColorStyle colorStyle) throws SQLException {
         String sql = """
             UPDATE color_styles
             SET name = ?, color1 = ?, color2 = ?, color3 = ?, color4 = ?, color5 = ?,
@@ -101,7 +108,7 @@ public class ColorStyleRepository {
             WHERE id = ?
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, colorStyle.getName());
@@ -122,10 +129,6 @@ public class ColorStyleRepository {
             }
 
             return success;
-
-        } catch (SQLException e) {
-            logger.error("Failed to update color style: " + colorStyle.getName(), e);
-            return false;
         }
     }
 
@@ -134,11 +137,12 @@ public class ColorStyleRepository {
      *
      * @param id the ID of the color style to delete
      * @return true if deletion was successful, false otherwise
+     * @throws SQLException if the database fails
      */
-    public boolean delete(String id) {
+    public boolean delete(String id) throws SQLException {
         String sql = "DELETE FROM color_styles WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, id);
@@ -151,10 +155,6 @@ public class ColorStyleRepository {
             }
 
             return success;
-
-        } catch (SQLException e) {
-            logger.error("Failed to delete color style with ID: " + id, e);
-            return false;
         }
     }
 
@@ -163,11 +163,12 @@ public class ColorStyleRepository {
      *
      * @param id the ID of the color style
      * @return the color style if found, null otherwise
+     * @throws SQLException if the database fails
      */
-    public ColorStyle findById(String id) {
+    public ColorStyle findById(String id) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NULL";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, id);
@@ -177,9 +178,6 @@ public class ColorStyleRepository {
                     return mapResultSetToColorStyle(rs);
                 }
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to find color style by ID: " + id, e);
         }
 
         return null;
@@ -190,19 +188,18 @@ public class ColorStyleRepository {
      *
      * @param id the ID of the color style
      * @return the color style, null if it is not in the trash
+     * @throws SQLException if the database fails
      */
-    public ColorStyle findInTrash(String id) {
+    public ColorStyle findInTrash(String id) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NOT NULL";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next())
                     return mapResultSetToColorStyle(rs);
             }
-        } catch (SQLException e) {
-            logger.error("Failed to find color style in the trash: " + id, e);
         }
         return null;
     }
@@ -212,11 +209,12 @@ public class ColorStyleRepository {
      *
      * @param name the name of the color style
      * @return the color style if found, null otherwise
+     * @throws SQLException if the database fails
      */
-    public ColorStyle findByName(String name) {
+    public ColorStyle findByName(String name) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE name = ? AND deleted_at IS NULL";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, name);
@@ -226,9 +224,6 @@ public class ColorStyleRepository {
                     return mapResultSetToColorStyle(rs);
                 }
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to find color style by name: " + name, e);
         }
 
         return null;
@@ -238,21 +233,19 @@ public class ColorStyleRepository {
      * Retrieves all color styles from the database.
      *
      * @return list of all color styles, ordered by sort_order and name
+     * @throws SQLException if the database fails
      */
-    public List<ColorStyle> findAll() {
+    public List<ColorStyle> findAll() throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE deleted_at IS NULL ORDER BY sort_order, name";
         List<ColorStyle> styles = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
                 styles.add(mapResultSetToColorStyle(rs));
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to retrieve all color styles", e);
         }
 
         return styles;
@@ -262,21 +255,19 @@ public class ColorStyleRepository {
      * Retrieves all custom (non-default) color styles.
      *
      * @return list of custom color styles
+     * @throws SQLException if the database fails
      */
-    public List<ColorStyle> findAllCustom() {
+    public List<ColorStyle> findAllCustom() throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE is_default = false AND deleted_at IS NULL ORDER BY sort_order, name";
         List<ColorStyle> styles = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
                 styles.add(mapResultSetToColorStyle(rs));
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to retrieve custom color styles", e);
         }
 
         return styles;
@@ -287,26 +278,20 @@ public class ColorStyleRepository {
      *
      * @param name the name to check
      * @return true if a color style with this name exists
+     * @throws SQLException if the database fails
      */
-    public boolean existsByName(String name) {
+    public boolean existsByName(String name) throws SQLException {
         String sql = "SELECT COUNT(*) FROM color_styles WHERE name = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, name);
 
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
+                return rs.next() && rs.getInt(1) > 0;
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to check if color style exists: " + name, e);
         }
-
-        return false;
     }
 
     /**
@@ -314,26 +299,20 @@ public class ColorStyleRepository {
      *
      * @param name the name to check
      * @return true if a custom color style with this name exists
+     * @throws SQLException if the database fails
      */
-    public boolean existsCustomByName(String name) {
+    public boolean existsCustomByName(String name) throws SQLException {
         String sql = "SELECT COUNT(*) FROM color_styles WHERE name = ? AND is_default = false";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, name);
 
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
+                return rs.next() && rs.getInt(1) > 0;
             }
-
-        } catch (SQLException e) {
-            logger.error("Failed to check if custom color style exists: " + name, e);
         }
-
-        return false;
     }
 
     /**
@@ -342,18 +321,16 @@ public class ColorStyleRepository {
      * @param id the ID of the color style
      * @param deletedAt when it was moved to the trash, null to take it out
      * @return true if the color style was changed
+     * @throws SQLException if the database fails
      */
-    public boolean setDeletedAt(String id, java.time.LocalDateTime deletedAt) {
+    public boolean setDeletedAt(String id, java.time.LocalDateTime deletedAt) throws SQLException {
         String sql = "UPDATE color_styles SET deleted_at = ? WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
             stmt.setString(2, id);
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to change the trash state of color style with ID: " + id, e);
-            return false;
         }
     }
 
@@ -362,19 +339,17 @@ public class ColorStyleRepository {
      *
      * @param id the ID to check
      * @return true if the ID is taken
+     * @throws SQLException if the database fails
      */
-    public boolean existsById(String id) {
+    public boolean existsById(String id) throws SQLException {
         String sql = "SELECT COUNT(*) FROM color_styles WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 return rs.next() && rs.getInt(1) > 0;
             }
-        } catch (SQLException e) {
-            logger.error("Failed to check if color style ID exists: " + id, e);
-            return false;
         }
     }
 
@@ -382,18 +357,17 @@ public class ColorStyleRepository {
      * Retrieves the color styles in the trash, the latest deletion first.
      *
      * @return list of the color styles in the trash
+     * @throws SQLException if the database fails
      */
-    public List<ColorStyle> findDeleted() {
+    public List<ColorStyle> findDeleted() throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC";
         List<ColorStyle> styles = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next())
                 styles.add(mapResultSetToColorStyle(rs));
-        } catch (SQLException e) {
-            logger.error("Failed to retrieve the color styles in the trash", e);
         }
 
         return styles;
@@ -403,11 +377,12 @@ public class ColorStyleRepository {
      * Deletes all custom (non-default) color styles.
      *
      * @return number of deleted styles
+     * @throws SQLException if the database fails
      */
-    public int deleteAllCustom() {
+    public int deleteAllCustom() throws SQLException {
         String sql = "DELETE FROM color_styles WHERE is_default = false";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             int rowsAffected = stmt.executeUpdate();
@@ -416,10 +391,6 @@ public class ColorStyleRepository {
                 logger.info("Deleted {} custom color styles", rowsAffected);
             }
             return rowsAffected;
-
-        } catch (SQLException e) {
-            logger.error("Failed to delete all custom color styles", e);
-            return 0;
         }
     }
 

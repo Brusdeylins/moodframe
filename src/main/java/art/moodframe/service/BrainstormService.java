@@ -88,8 +88,8 @@ public class BrainstormService {
      */
     public static BrainstormService create(art.moodframe.config.ApplicationConfig config) {
         art.moodframe.config.ServiceFactory services = art.moodframe.config.ServiceFactory.getInstance();
-        return new BrainstormService(new BrainstormRepository(), services.getService(GeminiApiService.class),
-                services.getService(OpenAiApiService.class), config);
+        return new BrainstormService(new BrainstormRepository(art.moodframe.database.DatabaseConfig.getDatabase()),
+                services.getService(GeminiApiService.class), services.getService(OpenAiApiService.class), config);
     }
 
     /**

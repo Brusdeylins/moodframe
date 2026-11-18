@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Mood;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +27,17 @@ public class MoodRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(MoodRepository.class);
 
+    private final DatabaseManager database;
+
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the moods
+     */
+    public MoodRepository(DatabaseManager database) {
+        this.database = database;
+    }
+
     /**
      * Stores a new mood; a mood without id gets a random one.
      *
@@ -41,7 +52,7 @@ public class MoodRepository {
         if (mood.getId() == null || mood.getId().isEmpty())
             mood.setId(UUID.randomUUID().toString());
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, mood.getId());
             stmt.setString(2, mood.getName());
@@ -70,7 +81,7 @@ public class MoodRepository {
             WHERE id = ?
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, mood.getName());
             int index = 2;
@@ -102,7 +113,7 @@ public class MoodRepository {
      * @return true if it was in use and is in the trash now
      */
     public boolean moveToTrash(String id) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "UPDATE moods SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")) {
             stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
@@ -189,7 +200,7 @@ public class MoodRepository {
     }
 
     private int execute(String sql, String value) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, value);
             return stmt.executeUpdate();
@@ -202,7 +213,7 @@ public class MoodRepository {
     private List<Mood> query(String sql, String... values) {
         List<Mood> moods = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < values.length; i++)
                 stmt.setString(i + 1, values[i]);

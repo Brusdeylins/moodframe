@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +27,17 @@ public class PromptBlockRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(PromptBlockRepository.class);
 
+    private final DatabaseManager database;
+
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the building blocks
+     */
+    public PromptBlockRepository(DatabaseManager database) {
+        this.database = database;
+    }
+
     /**
      * Stores a new block; a block without id gets a random one.
      *
@@ -41,7 +52,7 @@ public class PromptBlockRepository {
         if (block.getId() == null || block.getId().isEmpty())
             block.setId(UUID.randomUUID().toString());
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, block.getId());
             stmt.setString(2, block.getType().name());
@@ -72,7 +83,7 @@ public class PromptBlockRepository {
             WHERE id = ?
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, block.getName());
             stmt.setString(2, block.getText());
@@ -95,7 +106,7 @@ public class PromptBlockRepository {
      * @return true if it was removed
      */
     public boolean delete(String id) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE id = ?")) {
             stmt.setString(1, id);
             return stmt.executeUpdate() > 0;
@@ -113,7 +124,7 @@ public class PromptBlockRepository {
      * @return true if the block was changed
      */
     public boolean setDeletedAt(String id, LocalDateTime deletedAt) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("UPDATE prompt_blocks SET deleted_at = ? WHERE id = ?")) {
             stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
             stmt.setString(2, id);
@@ -161,7 +172,7 @@ public class PromptBlockRepository {
      * @return the number of removed blocks
      */
     public int deleteAll(PromptBlock.Type type) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE type = ?")) {
             stmt.setString(1, type.name());
             return stmt.executeUpdate();
@@ -220,7 +231,7 @@ public class PromptBlockRepository {
     private List<PromptBlock> query(String sql, String... values) {
         List<PromptBlock> blocks = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < values.length; i++)
                 stmt.setString(i + 1, values[i]);

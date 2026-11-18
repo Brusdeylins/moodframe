@@ -22,7 +22,7 @@ class BrainstormRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final BrainstormRepository repository = new BrainstormRepository();
+    private final BrainstormRepository repository = new BrainstormRepository(DatabaseConfig.getDatabase());
 
     @BeforeAll
     static void createDatabase() {
@@ -76,7 +76,8 @@ class BrainstormRepositoryTest {
 
         String sql = new String(getClass().getResourceAsStream("/db/migration/V015__Shift_brainstorm_steps.sql")
                 .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        try (java.sql.Connection conn = DatabaseConfig.getConnection(); java.sql.Statement stmt = conn.createStatement()) {
+        try (java.sql.Connection conn = DatabaseConfig.getDatabase().getConnection();
+                java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
 

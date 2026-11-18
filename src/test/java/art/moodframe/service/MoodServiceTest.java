@@ -106,7 +106,7 @@ class MoodServiceTest {
 
     @Test
     void renamesAMoodOfTheUserThatIsNamedLikeAStandardMoodAndKeepsItsBlocks() {
-        MoodRepository repository = new MoodRepository();
+        MoodRepository repository = new MoodRepository(DatabaseConfig.getDatabase());
         Mood clash = new Mood(null, "Lifestyle Product");
         clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
         assertTrue(repository.save(clash));
@@ -419,7 +419,7 @@ class MoodServiceTest {
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = DatabaseConfig.getDatabase().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }
