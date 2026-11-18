@@ -60,16 +60,19 @@ class ChatTools {
 
     private final ChatLibrary chats;
     private final LibraryEvents events;
+    private final Path downloads;
 
     /**
      * Creates the tools.
      *
-     * @param chats  the chats of the main window
-     * @param events where a download is reported for the status bar
+     * @param chats     the chats of the main window
+     * @param events    where a download is reported for the status bar
+     * @param downloads the Downloads folder of the user, {@code LibraryPaths.downloads()}
      */
-    ChatTools(ChatLibrary chats, LibraryEvents events) {
+    ChatTools(ChatLibrary chats, LibraryEvents events, Path downloads) {
         this.chats = chats;
         this.events = events;
+        this.downloads = downloads;
     }
 
     /**
@@ -219,7 +222,7 @@ class ChatTools {
         String directory = McpTools.optionalText(arguments, "directory");
 
         /*  ~/Downloads is created if missing, as by the download button; a given folder must exist  */
-        Path folder = Path.of(System.getProperty("user.home"), "Downloads");
+        Path folder = downloads;
         if (directory != null) {
             try {
                 folder = Path.of(directory);

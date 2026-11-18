@@ -49,9 +49,9 @@ class PromptBlockServiceTest {
 
     @Test
     void givesTheStandardBlocksFixedIdsThatStayStableOverTwoStarts() {
-        List<String> first = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE).stream()
+        List<String> first = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.STYLE).stream()
                 .map(PromptBlock::getId).toList();
-        List<String> second = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE).stream()
+        List<String> second = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.STYLE).stream()
                 .map(PromptBlock::getId).toList();
 
         assertEquals(first, second);
@@ -60,15 +60,17 @@ class PromptBlockServiceTest {
         assertTrue(first.contains("std:style:black-and-white-film"));
         assertEquals(first.size(), first.stream().distinct().count());
 
-        List<String> palettes = new ColorStyleService().getDefaultStyles().stream().map(ColorStyle::getId).toList();
-        assertEquals(palettes, new ColorStyleService().getDefaultStyles().stream().map(ColorStyle::getId).toList());
+        List<String> palettes = TestLibraryServices.palettes().getDefaultStyles().stream().map(ColorStyle::getId)
+                .toList();
+        assertEquals(palettes, TestLibraryServices.palettes().getDefaultStyles().stream().map(ColorStyle::getId)
+                .toList());
         assertTrue(palettes.contains("std:color:ocean-breeze"));
     }
 
     @Test
     void writesTheStandardStylesWithoutQualityPhrasesNegationsOrNames() {
         Pattern negation = Pattern.compile("\\bno\\s", Pattern.CASE_INSENSITIVE);
-        List<PromptBlock> styles = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE);
+        List<PromptBlock> styles = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.STYLE);
 
         assertEquals(39, styles.size());
         for (PromptBlock style : styles) {
@@ -84,7 +86,7 @@ class PromptBlockServiceTest {
 
     @Test
     void offersElevenStandardCamerasFromSettingsOnly() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
         List<PromptBlock> cameras = service.getDefaults(PromptBlock.Type.CAMERA);
 
         assertEquals(List.of("Street 35mm", "Classic Portrait", "Epic Wide Low Angle", "Telephoto Compression",
@@ -121,7 +123,7 @@ class PromptBlockServiceTest {
         Pattern palette = Pattern.compile("#|\\b(hex|palette|colou?rs?|red|orange|yellow|green|blue|purple|violet|"
                 + "pink|magenta|cyan|teal|turquoise|amber|gold|golden)\\b");
         Pattern temperature = Pattern.compile("\\b(warm|cool)\\b");
-        List<PromptBlock> lights = new PromptBlockService().getDefaults(PromptBlock.Type.LIGHT);
+        List<PromptBlock> lights = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.LIGHT);
 
         assertEquals(17, lights.size());
         assertEquals("std:light:golden-hour", lights.get(1).getId());
@@ -140,7 +142,7 @@ class PromptBlockServiceTest {
 
     @Test
     void composesAStandardLightAsTheLightingLine() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
         PromptBlock goldenHour = service.find(PromptBlock.Type.LIGHT, "std:light:golden-hour");
         String prompt = new PromptComposer(2000).compose("a lighthouse on a cliff", new PromptComposer.Selection(
                 service.find(PromptBlock.Type.STYLE, "Photography"), null, goldenHour, null, null));
@@ -155,7 +157,7 @@ class PromptBlockServiceTest {
 
     @Test
     void groupsTheStylesAndMarksOnlyThePhotoGroupAsPhotographic() {
-        List<PromptBlock> styles = new PromptBlockService().getDefaults(PromptBlock.Type.STYLE);
+        List<PromptBlock> styles = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.STYLE);
 
         assertEquals(12, styles.stream().filter((PromptBlock s) -> PromptBlock.GROUP_PHOTO.equals(s.getGroup())).count());
         assertEquals(13, styles.stream().filter((PromptBlock s) -> PromptBlock.GROUP_ART.equals(s.getGroup())).count());
@@ -166,13 +168,13 @@ class PromptBlockServiceTest {
 
     @Test
     void givesTheStandardAtmospheresFixedIdsInTheListedOrder() {
-        List<PromptBlock> atmospheres = new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE);
+        List<PromptBlock> atmospheres = TestLibraryServices.blocks().getDefaults(PromptBlock.Type.ATMOSPHERE);
         List<String> ids = atmospheres.stream().map(PromptBlock::getId).toList();
 
         assertEquals(List.of("Melancholic", "Euphoric", "Longing", "Menacing", "Calm", "Playful", "Epic", "Intimate",
                 "Nostalgic", "Clean and Factual", "Dreamlike", "Raw", "Mysterious", "Glamorous", "Futuristic",
                 "Open Business", "Fog", "Rain"), atmospheres.stream().map(PromptBlock::getName).toList());
-        assertEquals(ids, new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE).stream()
+        assertEquals(ids, TestLibraryServices.blocks().getDefaults(PromptBlock.Type.ATMOSPHERE).stream()
                 .map(PromptBlock::getId).toList());
         assertTrue(ids.contains("std:atmosphere:clean-and-factual"));
         assertTrue(ids.contains("std:atmosphere:open-business"));
@@ -194,7 +196,7 @@ class PromptBlockServiceTest {
         Pattern colors = Pattern.compile("\\b(colou?rs?|red|orange|yellow|green|blue|purple|violet|pink|brown|black|"
                 + "white|gr[ae]y|gold\\w*|silver|teal|pastel)\\b");
 
-        for (PromptBlock atmosphere : new PromptBlockService().getDefaults(PromptBlock.Type.ATMOSPHERE)) {
+        for (PromptBlock atmosphere : TestLibraryServices.blocks().getDefaults(PromptBlock.Type.ATMOSPHERE)) {
             String text = atmosphere.getText().toLowerCase(Locale.ROOT);
 
             /*  "Open Business" keeps the persons of the former style "Business Photography"  */
@@ -212,8 +214,8 @@ class PromptBlockServiceTest {
                 + "friendly and approachable expressions, wearing business casual attire, diverse ethnicities and body "
                 + "types, authentic business situation in a modern and dynamic setting, clean composition, soft natural "
                 + "lighting, open, future-oriented, modern atmosphere").split(", "));
-        List<String> openBusiness = List.of(new PromptBlockService().find(PromptBlock.Type.ATMOSPHERE, "Open Business")
-                .getText().split(", "));
+        List<String> openBusiness = List.of(TestLibraryServices.blocks()
+                .find(PromptBlock.Type.ATMOSPHERE, "Open Business").getText().split(", "));
 
         assertTrue(former.containsAll(openBusiness), "no new or smoothed wording");
         List<String> rest = new ArrayList<>(former);
@@ -224,7 +226,7 @@ class PromptBlockServiceTest {
 
     @Test
     void composesEveryStandardAtmosphereAsOneLabeledLineBehindTheSubject() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
         PromptComposer composer = new PromptComposer(2000);
         PromptBlock photo = service.find(PromptBlock.Type.STYLE, "Photography");
 
@@ -243,17 +245,18 @@ class PromptBlockServiceTest {
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
 
-        new PromptBlockService();
+        TestLibraryServices.blocks();
 
         PromptBlock renamed = repository.findById(clash.getId());
         assertEquals("Fog (1)", renamed.getName());
         assertEquals("my own fog", renamed.getText());
-        assertEquals("std:atmosphere:fog", new PromptBlockService().find(PromptBlock.Type.ATMOSPHERE, "Fog").getId());
+        assertEquals("std:atmosphere:fog",
+                TestLibraryServices.blocks().find(PromptBlock.Type.ATMOSPHERE, "Fog").getId());
     }
 
     @Test
     void resolvesAFormerInfographicStyleToTheOneItWentInto() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
 
         assertEquals("Infographic Flat", service.find(PromptBlock.Type.STYLE, "Infographic Modern").getName());
         assertEquals("Infographic Minimal", service.find(PromptBlock.Type.STYLE, "Infographic Minimalist").getName());
@@ -267,7 +270,7 @@ class PromptBlockServiceTest {
 
     @Test
     void keepsBlocksOfTheUserNextToTheStandardOnes() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
         PromptBlock custom = new PromptBlock(null, PromptBlock.Type.STYLE, "My Linocut", "linocut print", null, true);
 
         assertTrue(service.addCustom(custom));
@@ -294,18 +297,18 @@ class PromptBlockServiceTest {
                 true);
         repository.save(clash);
 
-        new PromptBlockService();
+        TestLibraryServices.blocks();
 
         PromptBlock renamed = repository.findById(clash.getId());
         assertEquals("Infographic Flat (1)", renamed.getName());
         assertEquals("my own flat look", renamed.getText());
         assertEquals("std:style:infographic-flat",
-                new PromptBlockService().find(PromptBlock.Type.STYLE, "Infographic Flat").getId());
+                TestLibraryServices.blocks().find(PromptBlock.Type.STYLE, "Infographic Flat").getId());
     }
 
     @Test
     void renamesTwoPalettesAndAddsThreeNewOnes() {
-        ColorStyleService service = new ColorStyleService();
+        ColorStyleService service = TestLibraryServices.palettes();
         List<String> names = service.getDefaultStyles().stream().map(ColorStyle::getName).toList();
 
         assertEquals(20, names.size());
@@ -323,7 +326,7 @@ class PromptBlockServiceTest {
 
     @Test
     void aTakenNameGetsTheNextFreeCounter() {
-        PromptBlockService service = new PromptBlockService();
+        PromptBlockService service = TestLibraryServices.blocks();
         assertEquals("My Own Look", service.freeName(PromptBlock.Type.STYLE, "My Own Look"));
         assertEquals("Analog Film (1)", service.freeName(PromptBlock.Type.STYLE, "Analog Film"));
         assertTrue(service.addCustom(new PromptBlock(null, PromptBlock.Type.STYLE, "Analog Film (1)", "x", null, true)));
@@ -337,7 +340,7 @@ class PromptBlockServiceTest {
         own.setSortOrder(150);
         assertTrue(new art.moodframe.repository.ColorStyleRepository(DatabaseConfig.getDatabase()).save(own));
 
-        ColorStyleService service = new ColorStyleService();
+        ColorStyleService service = TestLibraryServices.palettes();
         assertTrue(service.isDefaultStyle("Silver Screen"));
         ColorStyle renamed = service.getStyleByName("Silver Screen (1)");
         assertNotNull(renamed);

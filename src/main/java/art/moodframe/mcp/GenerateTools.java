@@ -341,9 +341,9 @@ class GenerateTools {
             guidance = value.asDouble();
         }
         else if (model.isFlux2Flex())
-            guidance = config.getFlux2FlexGuidance();
+            guidance = config.generation().getFlux2FlexGuidance();
         Integer steps = params.hasNonNull("steps") ? Integer.valueOf(McpTools.number(params, "steps", 1, 50, 0))
-                : model.isFlux2Flex() ? Integer.valueOf(config.getFlux2FlexSteps()) : null;
+                : model.isFlux2Flex() ? Integer.valueOf(config.generation().getFlux2FlexSteps()) : null;
         String thinkingLevel = params.hasNonNull("thinkingLevel")
                 ? McpTools.choice(params, "thinkingLevel", List.of("minimal", "high"), null) : null;
         Boolean googleSearch = params.hasNonNull("googleSearch") ? McpTools.flag(params, "googleSearch", false)
@@ -355,7 +355,7 @@ class GenerateTools {
                 throw new McpTools.ToolException("The parameter 'videoSeconds' must be one of "
                         + model.getVideoDurationChoices());
         }
-        int tolerance = safety != null ? safety : config.getFlux2SafetyTolerance();
+        int tolerance = safety != null ? safety : config.generation().getFlux2SafetyTolerance();
         return new GenerationOrder.Parameters(seed, tolerance, safety, McpTools.flag(params, "promptUpsampling",
                 false), thinkingLevel, googleSearch, guidance, steps, videoSeconds);
     }

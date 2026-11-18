@@ -1,6 +1,8 @@
 package art.moodframe.ui.controller;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.ChatEntry;
@@ -32,7 +34,6 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,10 +41,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 
 /**
  * The model of the main window follows the target resolution of the frame, on a throwaway {@code user.home} with the
@@ -83,14 +80,14 @@ class MainWindowModelResolutionTest {
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
         DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
+        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        ColorStyleService colors = new ColorStyleService(TestLibraryServices.database(), events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
-        register(MoodService.class, new MoodService(blocks, colors, events));
-        register(FrameService.class, new FrameService(events));
-        register(FavoriteService.class, new FavoriteService(events));
+        register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
+        register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
+        register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
     }
 
     @AfterAll
@@ -125,16 +122,8 @@ class MainWindowModelResolutionTest {
     @BeforeEach
     void load() throws Exception {
 
-        /*  a configuration without file and with the keys of BFL and Gemini, so that every model can be chosen  */
-        ApplicationConfig config = mock(ApplicationConfig.class, CALLS_REAL_METHODS);
-        Field properties = ApplicationConfig.class.getDeclaredField("properties");
-        properties.setAccessible(true);
-        properties.set(config, new Properties());
-        doNothing().when(config).saveConfiguration();
-        doReturn(true).when(config).hasApiKey();
-        doReturn(true).when(config).hasGeminiApiKey();
-        doReturn(true).when(config).isBflProviderEnabled();
-        doReturn(true).when(config).isGeminiProviderEnabled();
+        /*  a fresh configuration with the keys of BFL and Gemini, so that every model can be chosen  */
+        ApplicationConfig config = ConfigMocks.withBflAndGemini();
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
 
         I18nManager.setLocale(Locale.ENGLISH);

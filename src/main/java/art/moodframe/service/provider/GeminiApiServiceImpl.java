@@ -1,6 +1,7 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
@@ -149,7 +150,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
     @Override
     public String getApiKey() {
-        return fixedKey != null ? fixedKey : config.getGeminiApiKey();
+        return fixedKey != null ? fixedKey : config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI);
     }
 
     @Override

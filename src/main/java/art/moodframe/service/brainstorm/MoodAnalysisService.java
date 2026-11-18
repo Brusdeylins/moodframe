@@ -1,5 +1,6 @@
 package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.ColorStyle;
@@ -111,7 +112,7 @@ public class MoodAnalysisService {
 
     /** Whether Gemini may answer: a key, the provider enabled, and not OpenAI as the only provider in use. */
     private boolean geminiUsable() {
-        return geminiService != null && config.hasGeminiApiKey() && config.isGeminiProviderEnabled()
+        return geminiService != null && config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI)
                 && !ProviderPolicy.isOpenAiOnly(config);
     }
 
@@ -122,7 +123,7 @@ public class MoodAnalysisService {
     private ChatModel chatModel() {
         boolean geminiUsable = geminiUsable();
         ChatModel model = ChatModel.choose(geminiService, openAiService, config,
-                "openai".equals(config.getBrainstormEngine()), geminiUsable);
+                "openai".equals(config.accounts().getBrainstormEngine()), geminiUsable);
         return model.watchesVideos() && !geminiUsable ? null : model;
     }
 

@@ -1,6 +1,7 @@
 package art.moodframe.service.generation;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.GeneratedImage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,7 +48,7 @@ class ImageFileStoreTest {
     }
 
     private static ApplicationConfig config(Path dir) {
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.getImagesPath()).thenReturn(dir.toString());
         return config;
     }
@@ -82,7 +83,7 @@ class ImageFileStoreTest {
 
     @Test
     void writesABase64JpegAsPngWithItsDimensions(@TempDir Path dir) throws Exception {
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.getImagesPath()).thenReturn(dir.toString());
 
         ImageFileStore.StoredImage stored = new ImageFileStore(config, null).writeBase64(base64("jpg"), image());
@@ -142,7 +143,7 @@ class ImageFileStoreTest {
 
     @Test
     void doesNotQuoteTheSignatureOfARejectedUrl(@TempDir Path dir) {
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.getImagesPath()).thenReturn(dir.toString());
         GeneratedImage image = image();
         image.setImageUrl("https://delivery.example/result image.png?sp=r&sig=SECRETSIG");

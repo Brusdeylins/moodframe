@@ -1,11 +1,14 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ProviderAccounts;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.invocation.InvocationOnMock;
 
 import java.io.UncheckedIOException;
 import java.net.SocketTimeoutException;
@@ -16,8 +19,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -39,6 +41,7 @@ class ApiProviderValidatorTest {
 
     private final Map<String, Boolean> flags = new HashMap<>();
     private ApplicationConfig config;
+    private ProviderAccounts accounts;
     private BflApiService bfl;
     private GeminiApiService gemini;
     private OpenAiApiService openAi;
@@ -46,40 +49,32 @@ class ApiProviderValidatorTest {
 
     @BeforeEach
     void setUp() {
-        config = mock(ApplicationConfig.class);
-        flag("bfl.validated", ApplicationConfig::isBflProviderValidated, ApplicationConfig::setBflProviderValidated);
-        flag("bfl.enabled", ApplicationConfig::isBflProviderEnabled, ApplicationConfig::setBflProviderEnabled);
-        flag("gemini.validated", ApplicationConfig::isGeminiProviderValidated, ApplicationConfig::setGeminiProviderValidated);
-        flag("gemini.enabled", ApplicationConfig::isGeminiProviderEnabled, ApplicationConfig::setGeminiProviderEnabled);
-        flag("gemini.chat_ok", ApplicationConfig::isGeminiChatOk, ApplicationConfig::setGeminiChatOk);
-        flag("gemini.web_search", ApplicationConfig::isGeminiWebSearch, ApplicationConfig::setGeminiWebSearch);
-        flag("openai.validated", ApplicationConfig::isOpenAiProviderValidated, ApplicationConfig::setOpenAiProviderValidated);
-        flag("openai.enabled", ApplicationConfig::isOpenAiProviderEnabled, ApplicationConfig::setOpenAiProviderEnabled);
-        flag("openai.chat_ok", ApplicationConfig::isOpenAiChatOk, ApplicationConfig::setOpenAiChatOk);
-        flag("openai.web_search", ApplicationConfig::isOpenAiWebSearch, ApplicationConfig::setOpenAiWebSearch);
-        doCallRealMethod().when(config).isOpenAiChatAvailable();
-        doCallRealMethod().when(config).isOpenAiBrainstormAvailable();
-        doCallRealMethod().when(config).isGeminiBrainstormAvailable();
-        doCallRealMethod().when(config).hasApiKey(any(ApiProvider.class));
-        doCallRealMethod().when(config).isProviderValidated(any());
-        doCallRealMethod().when(config).setProviderValidated(any(), anyBoolean());
-        doCallRealMethod().when(config).isProviderEnabled(any());
-        doCallRealMethod().when(config).setProviderEnabled(any(), anyBoolean());
-        doCallRealMethod().when(config).hasProviderEnabledPreference(any());
+        config = ConfigMocks.config();
+        accounts = config.accounts();
+        when(accounts.isValidated(any())).thenAnswer((invocation) -> flag(invocation.getArgument(0), "validated"));
+        doAnswer((invocation) -> setFlag(invocation, "validated")).when(accounts).setValidated(any(), anyBoolean());
+        when(accounts.isEnabled(any())).thenAnswer((invocation) -> flag(invocation.getArgument(0), "enabled"));
+        doAnswer((invocation) -> setFlag(invocation, "enabled")).when(accounts).setEnabled(any(), anyBoolean());
+        when(accounts.isChatOk(any())).thenAnswer((invocation) -> flag(invocation.getArgument(0), "chat_ok"));
+        doAnswer((invocation) -> setFlag(invocation, "chat_ok")).when(accounts).setChatOk(any(), anyBoolean());
+        when(accounts.isWebSearch(any())).thenAnswer((invocation) -> flag(invocation.getArgument(0), "web_search"));
+        doAnswer((invocation) -> setFlag(invocation, "web_search")).when(accounts).setWebSearch(any(), anyBoolean());
+        doCallRealMethod().when(accounts).isOpenAiChatAvailable();
+        doCallRealMethod().when(accounts).isBrainstormAvailable(any());
 
         /*  Every account configured and enabled by the user, the brainstorm talks to Gemini  */
         flags.put("bfl.enabled", true);
         flags.put("gemini.enabled", true);
         flags.put("openai.enabled", true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.hasOpenAiApiKey()).thenReturn(true);
-        when(config.hasBflProviderEnabledPreference()).thenReturn(true);
-        when(config.hasGeminiProviderEnabledPreference()).thenReturn(true);
-        when(config.hasOpenAiProviderEnabledPreference()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("gpt-x");
+        when(accounts.hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(accounts.hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(accounts.hasApiKey(ApiProvider.OPENAI)).thenReturn(true);
+        when(accounts.hasEnabledPreference(ApiProvider.BFL)).thenReturn(true);
+        when(accounts.hasEnabledPreference(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(accounts.hasEnabledPreference(ApiProvider.OPENAI)).thenReturn(true);
+        when(accounts.getOpenAiChatModel()).thenReturn("gpt-x");
         when(config.getDefaultModel()).thenReturn("flux2-pro");
-        when(config.getBrainstormEngine()).thenReturn("gemini");
+        when(accounts.getBrainstormEngine()).thenReturn("gemini");
 
         bfl = mock(BflApiService.class);
         gemini = mock(GeminiApiService.class);
@@ -94,19 +89,29 @@ class ApiProviderValidatorTest {
         validator = new ApiProviderValidator(config, MockProviders.registry(bfl, gemini, openAi));
     }
 
-    /*  a flag of the configuration, kept in the map like in the file  */
-    private void flag(String key, Function<ApplicationConfig, Boolean> getter,
-            BiConsumer<ApplicationConfig, Boolean> setter) {
-        when(getter.apply(config)).thenAnswer((invocation) -> flags.getOrDefault(key, false));
-        setter.accept(doAnswer((invocation) -> flags.put(key, invocation.getArgument(0))).when(config), anyBoolean());
+    /*  the flags of the configuration, kept in the map like in the file: "openai.web_search" and so on  */
+    private static String key(ApiProvider provider, String name) {
+        return switch (provider) {
+            case BFL -> "bfl";
+            case GOOGLE_GEMINI -> "gemini";
+            case OPENAI -> "openai";
+        } + "." + name;
+    }
+
+    private boolean flag(ApiProvider provider, String name) {
+        return flags.getOrDefault(key(provider, name), false);
+    }
+
+    private Object setFlag(InvocationOnMock invocation, String name) {
+        return flags.put(key(invocation.getArgument(0), name), invocation.getArgument(1));
     }
 
     @Test
     void accountsWithConnectionLanguageModelAndWebSearchCanBrainstorm() {
         validator.validateAllProviders().join();
 
-        assertTrue(config.isOpenAiBrainstormAvailable());
-        assertTrue(config.isGeminiBrainstormAvailable());
+        assertTrue(accounts.isBrainstormAvailable(ApiProvider.OPENAI));
+        assertTrue(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH));
     }
 
@@ -116,12 +121,12 @@ class ApiProviderValidatorTest {
 
         validator.validateAllProviders().join();
 
-        assertFalse(config.isOpenAiBrainstormAvailable());
-        assertTrue(config.isOpenAiChatOk());
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.OPENAI));
+        assertTrue(accounts.isChatOk(ApiProvider.OPENAI));
         assertEquals("OpenAI error 404", validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH));
-        assertTrue(config.isOpenAiProviderEnabled());
-        verify(config, never()).setOpenAiProviderEnabled(anyBoolean());
-        verify(config, never()).setOpenAiChatModel(anyString());
+        assertTrue(accounts.isEnabled(ApiProvider.OPENAI));
+        verify(accounts, never()).setEnabled(eq(ApiProvider.OPENAI), anyBoolean());
+        verify(accounts, never()).setOpenAiChatModel(anyString());
     }
 
     @Test
@@ -130,12 +135,12 @@ class ApiProviderValidatorTest {
 
         validator.validateAllProviders().join();
 
-        assertFalse(config.isGeminiBrainstormAvailable());
-        assertTrue(config.isGeminiChatOk());
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI));
+        assertTrue(accounts.isChatOk(ApiProvider.GOOGLE_GEMINI));
         assertEquals("The model did not search the web.",
                 validator.getReason(ApiProvider.GOOGLE_GEMINI, ApiProviderValidator.Check.WEB_SEARCH));
-        assertTrue(config.isGeminiProviderEnabled());
-        verify(config, never()).setGeminiProviderEnabled(anyBoolean());
+        assertTrue(accounts.isEnabled(ApiProvider.GOOGLE_GEMINI));
+        verify(accounts, never()).setEnabled(eq(ApiProvider.GOOGLE_GEMINI), anyBoolean());
     }
 
     @Test
@@ -144,7 +149,7 @@ class ApiProviderValidatorTest {
 
         verify(bfl).testConnection();
         verifyNoMoreInteractions(bfl);
-        assertTrue(config.isBflProviderValidated());
+        assertTrue(accounts.isValidated(ApiProvider.BFL));
     }
 
     @Test
@@ -157,9 +162,10 @@ class ApiProviderValidatorTest {
 
         verify(gemini, never()).checkChatModel();
         verify(gemini, never()).checkWebSearch();
-        assertTrue(config.isGeminiChatOk(), "no connection decides nothing about the language model");
-        assertTrue(config.isGeminiWebSearch(), "no connection decides nothing about the search");
-        assertFalse(config.isGeminiBrainstormAvailable(), "without connection no brainstorm");
+        assertTrue(accounts.isChatOk(ApiProvider.GOOGLE_GEMINI),
+                "no connection decides nothing about the language model");
+        assertTrue(accounts.isWebSearch(ApiProvider.GOOGLE_GEMINI), "no connection decides nothing about the search");
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI), "without connection no brainstorm");
     }
 
     @Test
@@ -177,8 +183,8 @@ class ApiProviderValidatorTest {
         verify(gemini, never()).checkWebSearch();
         verify(openAi, never()).checkChatModel(anyString());
         verify(openAi, never()).checkWebSearch(anyString());
-        assertTrue(config.isGeminiWebSearch(), "a disabled provider keeps its last result");
-        assertTrue(config.isOpenAiWebSearch(), "a disabled provider keeps its last result");
+        assertTrue(accounts.isWebSearch(ApiProvider.GOOGLE_GEMINI), "a disabled provider keeps its last result");
+        assertTrue(accounts.isWebSearch(ApiProvider.OPENAI), "a disabled provider keeps its last result");
     }
 
     @Test
@@ -191,8 +197,8 @@ class ApiProviderValidatorTest {
 
         verify(openAi, never()).checkChatModel(anyString());
         verify(openAi, never()).checkWebSearch(anyString());
-        assertFalse(config.isOpenAiChatOk(), "a result of an earlier model does not stay");
-        assertFalse(config.isOpenAiWebSearch(), "a result of an earlier model does not stay");
+        assertFalse(accounts.isChatOk(ApiProvider.OPENAI), "a result of an earlier model does not stay");
+        assertFalse(accounts.isWebSearch(ApiProvider.OPENAI), "a result of an earlier model does not stay");
     }
 
     @Test
@@ -206,8 +212,8 @@ class ApiProviderValidatorTest {
 
             validator.validateAllProviders().join();
 
-            assertTrue(config.isOpenAiWebSearch(), failure.getMessage());
-            assertTrue(config.isOpenAiBrainstormAvailable(), failure.getMessage());
+            assertTrue(accounts.isWebSearch(ApiProvider.OPENAI), failure.getMessage());
+            assertTrue(accounts.isBrainstormAvailable(ApiProvider.OPENAI), failure.getMessage());
             assertEquals(I18nManager.getText("status.api.check.kept", failure.getMessage()),
                     validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH));
         }
@@ -221,8 +227,8 @@ class ApiProviderValidatorTest {
 
             validator.validateAllProviders().join();
 
-            assertFalse(config.isOpenAiWebSearch(), problem);
-            assertFalse(config.isOpenAiBrainstormAvailable(), problem);
+            assertFalse(accounts.isWebSearch(ApiProvider.OPENAI), problem);
+            assertFalse(accounts.isBrainstormAvailable(ApiProvider.OPENAI), problem);
         }
     }
 
@@ -236,9 +242,9 @@ class ApiProviderValidatorTest {
 
         validator.validateAllProviders().join();
 
-        assertTrue(config.isGeminiChatOk(), "the language model keeps its last result as well");
-        assertFalse(config.isGeminiWebSearch());
-        assertFalse(config.isGeminiBrainstormAvailable(), "the brainstorm stays off");
+        assertTrue(accounts.isChatOk(ApiProvider.GOOGLE_GEMINI), "the language model keeps its last result as well");
+        assertFalse(accounts.isWebSearch(ApiProvider.GOOGLE_GEMINI));
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI), "the brainstorm stays off");
     }
 
     @Test
@@ -253,8 +259,8 @@ class ApiProviderValidatorTest {
         search.complete(null);
 
         assertTrue(check.join().search().works());
-        assertTrue(config.isOpenAiChatOk());
-        assertTrue(config.isOpenAiWebSearch());
+        assertTrue(accounts.isChatOk(ApiProvider.OPENAI));
+        assertTrue(accounts.isWebSearch(ApiProvider.OPENAI));
     }
 
     @Test
@@ -267,7 +273,7 @@ class ApiProviderValidatorTest {
         ApiProviderValidator.ModelCheck check = validator.checkOpenAiModel("gpt-y").join();
 
         assertFalse(check.search().works());
-        assertTrue(config.isOpenAiWebSearch(), "the flags belong to the chosen model gpt-x");
+        assertTrue(accounts.isWebSearch(ApiProvider.OPENAI), "the flags belong to the chosen model gpt-x");
     }
 
     @Test
@@ -295,10 +301,10 @@ class ApiProviderValidatorTest {
 
             validator.validateAllProviders().join();
 
-            assertTrue(config.isOpenAiProviderValidated(), failure.getMessage());
-            assertTrue(config.isOpenAiBrainstormAvailable(), failure.getMessage());
-            assertTrue(config.isGeminiProviderValidated(), failure.getMessage());
-            assertTrue(config.isGeminiBrainstormAvailable(), failure.getMessage());
+            assertTrue(accounts.isValidated(ApiProvider.OPENAI), failure.getMessage());
+            assertTrue(accounts.isBrainstormAvailable(ApiProvider.OPENAI), failure.getMessage());
+            assertTrue(accounts.isValidated(ApiProvider.GOOGLE_GEMINI), failure.getMessage());
+            assertTrue(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI), failure.getMessage());
             assertEquals(I18nManager.getText("status.api.check.kept", failure.getMessage()),
                     validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.CONNECTION));
         }
@@ -318,20 +324,20 @@ class ApiProviderValidatorTest {
 
         /*  The check ends while gpt-x is still the saved model, so it stores nothing itself  */
         validator.checkOpenAiModel("gpt-y").join();
-        assertFalse(config.isOpenAiWebSearch());
+        assertFalse(accounts.isWebSearch(ApiProvider.OPENAI));
 
         /*  "Save" then takes the finished check of gpt-y from the validator  */
         when(config.getOpenAiChatModel()).thenReturn("gpt-y");
         validator.storeOpenAiModelCheck("gpt-y");
 
-        assertTrue(config.isOpenAiChatOk());
-        assertTrue(config.isOpenAiWebSearch());
+        assertTrue(accounts.isChatOk(ApiProvider.OPENAI));
+        assertTrue(accounts.isWebSearch(ApiProvider.OPENAI));
     }
 
     @Test
     void withOpenAiAsTheOnlyProviderGoogleAndBflAreNotChecked() {
         when(config.getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
-        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(accounts.getBrainstormEngine()).thenReturn("openai");
         List.of("validated", "chat_ok", "web_search").forEach((flag) -> flags.put("openai." + flag, true));
 
         validator.validateAllProviders().join();
@@ -345,27 +351,27 @@ class ApiProviderValidatorTest {
     @Test
     void anOpenAiWithoutWebSearchLeavesTheBrainstormToGemini() {
         when(config.getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
-        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(accounts.getBrainstormEngine()).thenReturn("openai");
         List.of("validated", "chat_ok", "web_search").forEach((flag) -> flags.put("openai." + flag, true));
         when(openAi.checkWebSearch("gpt-x")).thenReturn(CompletableFuture.completedFuture("OpenAI error 404"));
 
         validator.validateAllProviders().join();
 
         verify(gemini).checkWebSearch();
-        assertTrue(config.isGeminiBrainstormAvailable(), "Gemini is checked and offered instead");
+        assertTrue(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI), "Gemini is checked and offered instead");
     }
 
     @Test
     void theFreshOpenAiCheckDecidesIfGoogleIsContacted() {
         when(config.getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
-        when(config.getBrainstormEngine()).thenReturn("openai");
+        when(accounts.getBrainstormEngine()).thenReturn("openai");
 
         /*  The first start after the update: no stored web search yet, the check of this start finds it  */
         flags.put("openai.validated", true);
 
         validator.validateAllProviders().join();
 
-        assertTrue(config.isOpenAiBrainstormAvailable());
+        assertTrue(accounts.isBrainstormAvailable(ApiProvider.OPENAI));
         verify(gemini, never()).testConnection();
         verify(bfl, never()).testConnection();
     }
@@ -383,7 +389,7 @@ class ApiProviderValidatorTest {
         when(config.getOpenAiChatModel()).thenReturn("gpt-y");
         validator.storeOpenAiModelCheck("gpt-y");
 
-        assertTrue(config.isOpenAiWebSearch());
+        assertTrue(accounts.isWebSearch(ApiProvider.OPENAI));
     }
 
     @Test
@@ -396,7 +402,7 @@ class ApiProviderValidatorTest {
         /*  A successful test in the settings  */
         validator.connectionTested(ApiProvider.OPENAI, true);
 
-        assertTrue(config.isOpenAiProviderValidated());
+        assertTrue(accounts.isValidated(ApiProvider.OPENAI));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.CONNECTION));
     }
 
@@ -411,16 +417,17 @@ class ApiProviderValidatorTest {
 
         validator.validateAllProviders().join();
 
-        assertFalse(config.isOpenAiProviderValidated());
-        assertFalse(config.isOpenAiBrainstormAvailable());
-        assertFalse(config.isGeminiProviderValidated());
-        assertFalse(config.isGeminiBrainstormAvailable());
+        assertFalse(accounts.isValidated(ApiProvider.OPENAI));
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.OPENAI));
+        assertFalse(accounts.isValidated(ApiProvider.GOOGLE_GEMINI));
+        assertFalse(accounts.isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI));
     }
 
     @Test
     void aLateModelCheckTellsTheListenersAfterStoringItsFlags() {
         List<String> seen = new CopyOnWriteArrayList<>();
-        validator.addCompletionListener(() -> seen.add(config.isOpenAiWebSearch() + "/" + config.isGeminiWebSearch()));
+        validator.addCompletionListener(() -> seen.add(accounts.isWebSearch(ApiProvider.OPENAI) + "/"
+                + accounts.isWebSearch(ApiProvider.GOOGLE_GEMINI)));
 
         validator.checkOpenAiModel("gpt-x").join();
         validator.checkGeminiModel().join();
@@ -440,7 +447,7 @@ class ApiProviderValidatorTest {
         when(config.getOpenAiChatModel()).thenReturn("gpt-y");
         validator.storeOpenAiModelCheck("gpt-y");
 
-        assertTrue(config.isOpenAiBrainstormAvailable());
+        assertTrue(accounts.isBrainstormAvailable(ApiProvider.OPENAI));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH),
                 "the reason of the former model does not stay");
     }
@@ -454,8 +461,8 @@ class ApiProviderValidatorTest {
         when(config.getOpenAiChatModel()).thenReturn("");
         validator.storeOpenAiModelCheck("");
 
-        assertFalse(config.isOpenAiChatOk());
-        assertFalse(config.isOpenAiWebSearch());
+        assertFalse(accounts.isChatOk(ApiProvider.OPENAI));
+        assertFalse(accounts.isWebSearch(ApiProvider.OPENAI));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.LANGUAGE_MODEL));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH));
     }

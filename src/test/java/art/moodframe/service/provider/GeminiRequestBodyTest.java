@@ -12,7 +12,6 @@ import java.lang.reflect.Method;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** Checks the Gemini image request body per model, based on parameters confirmed with live requests. */
 class GeminiRequestBodyTest {
@@ -22,8 +21,7 @@ class GeminiRequestBodyTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
+        ApplicationConfig config = art.moodframe.config.ConfigMocks.withEmptyTexts();
         service = new GeminiApiServiceImpl(config);
         build = GeminiImageClient.class.getDeclaredMethod("buildRequestBody", ImageGenerationRequest.class);
         build.setAccessible(true);

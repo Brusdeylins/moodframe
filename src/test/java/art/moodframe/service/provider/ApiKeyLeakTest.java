@@ -1,5 +1,6 @@
 package art.moodframe.service.provider;
 
+import art.moodframe.model.ApiProvider;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -24,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -66,8 +66,7 @@ class ApiKeyLeakTest {
         appLogger.setLevel(Level.TRACE);
         appLogger.setAdditive(false);
 
-        config = mock(ApplicationConfig.class, (invocation) ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
+        config = art.moodframe.config.ConfigMocks.withEmptyTexts();
     }
 
     @AfterEach
@@ -99,7 +98,7 @@ class ApiKeyLeakTest {
 
     @Test
     void geminiSendsTheKeyAsHeaderOnly() throws Exception {
-        when(config.getGeminiApiKey()).thenReturn(KEY);
+        when(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(KEY);
         GeminiApiServiceImpl service = new GeminiApiServiceImpl(config) {
             @Override
             String getApiBaseUrl() {
@@ -119,7 +118,7 @@ class ApiKeyLeakTest {
 
     @Test
     void bflSendsTheKeyAsHeaderOnly() throws Exception {
-        when(config.getApiKey()).thenReturn(KEY);
+        when(config.accounts().getApiKey(ApiProvider.BFL)).thenReturn(KEY);
         when(config.getApiTimeoutSeconds()).thenReturn(30);
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         BflApiServiceImpl service = new BflApiServiceImpl() {
@@ -139,7 +138,7 @@ class ApiKeyLeakTest {
 
     @Test
     void openAiSendsTheKeyAsHeaderOnly() throws Exception {
-        when(config.getOpenAiApiKey()).thenReturn(KEY);
+        when(config.accounts().getApiKey(ApiProvider.OPENAI)).thenReturn(KEY);
         when(config.getOpenAiBaseUrl()).thenReturn(baseUrl + "/v1");
         OpenAiApiServiceImpl service = new OpenAiApiServiceImpl(config);
 

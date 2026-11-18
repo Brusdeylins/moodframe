@@ -11,8 +11,8 @@ the persistence and the main decisions. The `package-info.java` of each package 
  ui (controller, dialog, cell, component, dnd)      mcp
             \                                      /
              +--------------> service <-----------+
-                                 |
-                             repository
+                                 |          \
+                             repository     net
                                  |
                               database
  ---------------------------------------------------------
@@ -24,17 +24,27 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
+| `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
+|              | folder (`CertificateStore`), the pool of the blocking network work (`IoExecutor`)       |
 | `repository` | data access with plain JDBC, one repository per aggregate                              |
 | `database`   | SQLite connections, WAL mode, schema migrations                                         |
 | `model`      | domain data classes, records and enums                                                  |
 | `util`       | general helpers: i18n, themes, images, videos, opening files and web pages             |
-| `config`     | settings (`ApplicationConfig`), key encryption, the service locator (`ServiceFactory`) |
+| `config`     | folders of the library (`LibraryPaths`), settings (`ApplicationConfig` and its          |
+|              | sections), key encryption, the service locator (`ServiceFactory`)                       |
 
 Allowed dependency directions:
 
 - `ui` → `service` → `repository` → `database`; each layer may also use `model`, `util` and `config`.
+- `ui` → `net` and `service` → `net`: the provider clients and the downloads build their HTTP clients with
+  `net.HttpClients` and run on `net.IoExecutor`; the settings dialog manages the certificates with
+  `net.CertificateStore` and tells `HttpClients` that the proxy changed. `net` uses only `config` and `util`.
 - `mcp` → `service`, never `ui`. Whatever the UI can do to the library, the MCP tools do through the same services.
-- `model` depends on nothing of the application. `util` depends only on `config` (settings such as the theme).
+- `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
+  `mcp.McpService` and shows its command line. No view uses the tools of the server.
+- `model` should depend on nothing of the application. Known exception: `GenerationModel` asks
+  `util.I18nManager` for localized display names; this is to move into the UI.
+  `util` depends only on `config` (settings such as the theme).
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 
@@ -83,12 +93,35 @@ and its images, which carry such properties, only through `service.generation.Fx
 
 `config.ServiceFactory` is a singleton **service locator**, not a DI container. `MoodframeApplication` registers
 the instances and lazy providers at startup; classes fetch what they need with
-`ServiceFactory.getInstance().getService(Foo.class)`, often in their constructor. Some classes already take their
-dependencies as constructor parameters (e.g. the provider clients take `ApplicationConfig`), which is how tests pass
-mocks.
+`ServiceFactory.getInstance().getService(Foo.class)`, often in their constructor. Many classes already take their
+dependencies as constructor parameters, which is how tests pass mocks: the provider clients take
+`ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,
+`FrameService`, `FavoriteService`) take the `DatabaseManager` and the one `LibraryEvents`; `ConfigurationExporter`
+takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
+`FileManagerService` and the MCP `ChatTools` take their folders from `LibraryPaths`.
 
 The plan is to move step by step to constructor injection with `MoodframeApplication` as the composition root, so
 that dependencies become visible in signatures and the locator can shrink to the startup code.
+
+## Folders and settings
+
+- **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with
+  `config.properties`, `secret.key`, `db/`, `images/`, `thumbnails/`, `trash/`, `logs/`, `certificates/`, and the
+  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to
+  `ApplicationConfig`; `ApplicationConfig.paths()` returns it with the images folder of the setting `path.images`
+  (whose default is `~/.moodframe/images`), and that instance is registered for the services. Tests use the paths of
+  a temporary home. Only `logback.xml` still reads `user.home` itself, because logging starts before any code.
+- **Settings**: `ApplicationConfig` sits on one `ConfigStore` (the properties file, the immediate and the delayed
+  writing, the secrets) and groups the settings in sections: `ui()` (`UiState`: theme, language, window, dividers,
+  selections), `generation()` (`GenerationDefaults`: model, frame, building blocks, model parameters),
+  `accounts()` (`ProviderAccounts`: key, validation, activation, chat checks keyed by `ApiProvider`, the BFL and
+  OpenAI extras, the brainstorm engine), `proxy()` (`ProxySettings`) and `mcp()` (`McpSettings`). The property keys
+  are those of all former versions, so an existing file loads unchanged. `ApplicationConfig` itself keeps the
+  folders, detailed logging, the update hint, raw properties, the reset and a few shortcuts for the provider
+  clients and the generation.
+- **Secrets**: the API keys, the MCP token and the proxy password are the constants of `config.Secret`; each comes
+  from an environment variable, a system property or, encrypted, from the file. A reset of the settings keeps all
+  of them.
 
 ## Persistence
 
@@ -109,9 +142,10 @@ that dependencies become visible in signatures and the locator can shrink to the
   ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
   (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
-- **Files**: images and videos live under `~/.moodframe/images`, thumbnails under `~/.moodframe/thumbnails`; the
-  database stores their paths.
-- **Settings** are a properties file `~/.moodframe/config.properties`, not part of the database.
+- **Files**: images and videos live in the images folder of `LibraryPaths` (by default `~/.moodframe/images`),
+  thumbnails under `~/.moodframe/thumbnails`; the database stores their paths.
+- **Settings** are a properties file `~/.moodframe/config.properties`, not part of the database (see "Folders and
+  settings").
 
 ## Decisions
 
@@ -135,8 +169,9 @@ and Jackson 3.
 ### D3: API keys encrypted with a random key per installation
 
 API keys are stored AES-256-GCM encrypted (`config.EncryptionUtil`) with a random 256-bit key generated at the first
-start in `~/.moodframe/secret.key`, readable only by the user. A copied `config.properties` alone reveals no key,
-and no key is derived from constants in the code. `util.Secrets` keeps keys and tokens out of logs and messages.
+use in `~/.moodframe/secret.key` (`LibraryPaths.secretKey()`), readable only by the user. A copied
+`config.properties` alone reveals no key, and no key is derived from constants in the code. `util.Secrets` keeps
+keys and tokens out of logs and messages.
 
 ### D4: Provider clients behind interfaces, everything else concrete
 
@@ -152,7 +187,8 @@ are `ProviderException`s with a message from the i18n resources (`ApiHttpExcepti
 MCP clients get in English.
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
-provider is a client, its entry in the registry, its models and its account settings in `ApplicationConfig`.
+provider is a client, its entry in the registry, its models, its constant in `ApiProvider` (whose prefix names its
+account settings in `ProviderAccounts`) and its key in `config.Secret`.
 
 ### D5: Detailed logging as a log level
 

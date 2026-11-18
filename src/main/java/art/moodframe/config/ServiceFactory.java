@@ -17,14 +17,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><strong>Usage Example:</strong></p>
  * <pre>{@code
  * // Register a service
- * ServiceFactory.getInstance().registerService(ApiService.class, new BflApiService());
- * 
+ * ServiceFactory.getInstance().registerService(ApplicationConfig.class, new ApplicationConfig(paths));
+ *
  * // Register a lazy provider
- * ServiceFactory.getInstance().registerProvider(DatabaseService.class, 
- *     () -> new DatabaseService(config.getDatabasePath()));
- * 
+ * ServiceFactory.getInstance().registerProvider(FrameService.class,
+ *     () -> new FrameService(database, events));
+ *
  * // Retrieve a service
- * ApiService apiService = ServiceFactory.getInstance().getService(ApiService.class);
+ * FrameService frames = ServiceFactory.getInstance().getService(FrameService.class);
  * }</pre>
  * 
  * @see <a href="https://en.wikipedia.org/wiki/Dependency_injection">Dependency Injection Pattern</a>

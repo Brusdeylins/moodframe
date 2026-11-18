@@ -18,6 +18,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.config.DetailedLogging;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.Secrets;
 import art.moodframe.util.ThemeManager;
 
@@ -47,6 +48,9 @@ public class MoodframeApplication extends Application {
 
     private static final Logger logger = LoggerFactory.getLogger(MoodframeApplication.class);
 
+    /*  The folders of the library, the only reading of user.home; the configuration may move the images folder  */
+    private final LibraryPaths homePaths = LibraryPaths.fromUserHome();
+
     @Override
     public void start(Stage primaryStage) {
 
@@ -64,7 +68,7 @@ public class MoodframeApplication extends Application {
         SplashScreen splash = new SplashScreen(() -> {
             // This callback runs after splash screen closes
             initializeAndShowMainWindow(primaryStage);
-        });
+        }, homePaths);
 
         splash.show();
     }
@@ -121,8 +125,10 @@ public class MoodframeApplication extends Application {
 
         try {
             // Initialize configuration
-            ApplicationConfig config = new ApplicationConfig();
+            ApplicationConfig config = new ApplicationConfig(homePaths);
             ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+            LibraryPaths paths = config.paths();
+            ServiceFactory.getInstance().registerService(LibraryPaths.class, paths);
             DetailedLogging.apply(config.getLoggingEnabled());
 
             /*  Earlier versions wrote the Gemini key into the log files  */
@@ -132,7 +138,7 @@ public class MoodframeApplication extends Application {
             new art.moodframe.net.CorporateProxyConfig(config);
 
             // Initialize I18n with user's preferred language
-            String userLanguage = config.getUiLanguage();
+            String userLanguage = config.ui().getUiLanguage();
             java.util.Locale appLocale = "de".equals(userLanguage) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
             art.moodframe.util.I18nManager.setLocale(appLocale);
 
@@ -173,6 +179,18 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.library.FavoriteService.class,
                     () -> new art.moodframe.service.library.FavoriteService(database, events));
 
+            /*  Backup of the settings and the library; an import reaches the main window through the events  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.ConfigurationExporter.class,
+                    () -> {
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return new art.moodframe.service.ConfigurationExporter(
+                                services.getService(art.moodframe.service.library.PromptBlockService.class),
+                                services.getService(art.moodframe.service.library.ColorStyleService.class),
+                                services.getService(art.moodframe.service.library.MoodService.class),
+                                services.getService(art.moodframe.service.library.FrameService.class));
+                    });
+
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.BlockUsage.class,
@@ -181,7 +199,7 @@ public class MoodframeApplication extends Application {
             // Initialize TrashManager for trash file operations (60 days retention)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.trash.TrashManager.class,
-                    () -> new art.moodframe.service.trash.TrashManager(60));
+                    () -> new art.moodframe.service.trash.TrashManager(paths, 60));
 
             /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
             java.util.concurrent.ExecutorService io = art.moodframe.net.IoExecutor.get();
@@ -218,7 +236,7 @@ public class MoodframeApplication extends Application {
                     () -> new art.moodframe.service.chat.ChatFileService(
                             ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashManager.class),
                             ServiceFactory.getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class),
-                            new art.moodframe.service.chat.FileManagerService()));
+                            new art.moodframe.service.chat.FileManagerService(paths.images())));
 
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
@@ -375,7 +393,7 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.chat.ThumbnailManager.class,
                     () -> {
                         try {
-                            return new art.moodframe.service.chat.ThumbnailManager();
+                            return new art.moodframe.service.chat.ThumbnailManager(paths);
                         } catch (Exception e) {
                             logger.error("Failed to create ThumbnailManager", e);
                             return null;
@@ -540,10 +558,10 @@ public class MoodframeApplication extends Application {
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        String configuredTheme = config.getUiTheme();
+        String configuredTheme = config.ui().getUiTheme();
 
         // Check if user has explicitly set a theme preference
-        boolean hasUserPreference = config.hasUserSetTheme();
+        boolean hasUserPreference = config.ui().hasUserSetTheme();
 
         String themeToApply;
         if (!hasUserPreference) {
@@ -552,7 +570,7 @@ public class MoodframeApplication extends Application {
 
             // If system theme differs from config, update the config
             if (!themeToApply.equals(configuredTheme)) {
-                config.setUiTheme(themeToApply);
+                config.ui().setUiTheme(themeToApply);
             }
         } else {
             // User has set a preference, use it
@@ -622,11 +640,11 @@ public class MoodframeApplication extends Application {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null) {
-                double x = config.getWindowX();
-                double y = config.getWindowY();
-                int width = config.getWindowWidth();
-                int height = config.getWindowHeight();
-                boolean maximized = config.getWindowMaximized();
+                double x = config.ui().getWindowX();
+                double y = config.ui().getWindowY();
+                int width = config.ui().getWindowWidth();
+                int height = config.ui().getWindowHeight();
+                boolean maximized = config.ui().getWindowMaximized();
 
                 stage.setWidth(width);
                 stage.setHeight(height);
@@ -655,7 +673,7 @@ public class MoodframeApplication extends Application {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null && stage.isShowing()) {
-                config.setWindowBounds(
+                config.ui().setWindowBounds(
                         stage.getX(),
                         stage.getY(),
                         stage.getWidth(),

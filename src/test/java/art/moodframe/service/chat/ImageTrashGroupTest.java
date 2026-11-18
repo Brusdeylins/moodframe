@@ -1,5 +1,6 @@
 package art.moodframe.service.chat;
 
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
@@ -50,18 +51,11 @@ class ImageTrashGroupTest {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
 
-        /*  The trash manager takes its directories from the home directory once, when it is created  */
-        String home = System.getProperty("user.home");
-        System.setProperty("user.home", tempDir.toString());
-        try {
-            trashManager = new TrashManager(60);
-        }
-        finally {
-            System.setProperty("user.home", home);
-        }
+        /*  The trash and the images of a library in a temporary home  */
+        LibraryPaths paths = LibraryPaths.under(tempDir);
+        trashManager = new TrashManager(paths, 60);
 
-        ChatFileService chatFiles = new ChatFileService(trashManager, null,
-                new FileManagerService(tempDir.resolve(".moodframe").resolve("images")));
+        ChatFileService chatFiles = new ChatFileService(trashManager, null, new FileManagerService(paths.images()));
         repository = new ChatRepository(databaseManager, chatFiles);
         history = new ChatHistoryService(repository, trashManager, chatFiles);
         group = new ImageTrashGroup(repository, chatFiles, trashManager, null);

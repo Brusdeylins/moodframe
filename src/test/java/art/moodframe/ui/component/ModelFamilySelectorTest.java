@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
 import javafx.application.Platform;
@@ -15,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +54,7 @@ class ModelFamilySelectorTest {
         ChoiceBox<String> variants = new ChoiceBox<>();
         ChoiceBox<String> families = new ChoiceBox<>();
         ChoiceBox<String> target = new ChoiceBox<>();
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.getProperty(anyString())).thenReturn("1K");
         when(config.getProperty(anyString(), anyString())).thenReturn("1K");
 

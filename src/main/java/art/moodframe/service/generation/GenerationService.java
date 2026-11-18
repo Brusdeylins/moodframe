@@ -195,9 +195,9 @@ public class GenerationService {
      * @return the items, see {@link ModelFamilies#availableItems(boolean, boolean, List)}
      */
     public static List<String> availableItems(ApplicationConfig config) {
-        return ModelFamilies.availableItems(config.isBflProviderEnabled() && config.hasApiKey(),
-                config.isGeminiProviderEnabled() && config.hasGeminiApiKey(),
-                config.isOpenAiProviderEnabled() && config.hasOpenAiApiKey() ? config.getOpenAiModels() : List.of());
+        return ModelFamilies.availableItems(config.accounts().isUsable(ApiProvider.BFL),
+                config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI),
+                config.accounts().isUsable(ApiProvider.OPENAI) ? config.getOpenAiModels() : List.of());
     }
 
     /**
@@ -286,7 +286,7 @@ public class GenerationService {
         String item = GenerationModel.itemOf(modelId);
 
         ApiProvider provider = model.getProvider();
-        if (!config.hasApiKey(provider)) {
+        if (!config.accounts().hasApiKey(provider)) {
             logger.warn("Send request blocked - no {} API key configured", provider.getDisplayName());
             throw new GenerationException(Failure.MISSING_KEY, "No API key for " + provider.getDisplayName());
         }

@@ -1,6 +1,8 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ApiProvider;
@@ -65,8 +67,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -113,11 +113,11 @@ class McpEditToolsTest {
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
         ChatRepository repository = new ChatRepository(new DatabaseManager(database));
         chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
-        blocks = new PromptBlockService(events);
-        colors = new ColorStyleService(events);
-        moods = new MoodService(blocks, colors, events);
-        frames = new FrameService(events);
-        favorites = new FavoriteService(events);
+        blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        colors = new ColorStyleService(TestLibraryServices.database(), events);
+        moods = new MoodService(TestLibraryServices.database(), blocks, colors, events);
+        frames = new FrameService(TestLibraryServices.database(), events);
+        favorites = new FavoriteService(TestLibraryServices.database(), events);
         TrashCenter trash = new TrashCenter();
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, ChatFiles.NONE, null, null));
@@ -127,14 +127,14 @@ class McpEditToolsTest {
         trash.addListener(chats);
 
         /*  Only BFL is enabled with a key; no language model for the analysis of images  */
-        ApplicationConfig config = mock(ApplicationConfig.class);
-        when(config.isBflProviderEnabled()).thenReturn(true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
-        when(config.getOpenAiModels()).thenReturn(List.of());
-        when(config.getFlux2SafetyTolerance()).thenReturn(2);
-        when(config.getFlux2FlexGuidance()).thenReturn(5.0);
-        when(config.getFlux2FlexSteps()).thenReturn(50);
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
+        when(config.accounts().isEnabled(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().getOpenAiModels()).thenReturn(List.of());
+        when(config.generation().getFlux2SafetyTolerance()).thenReturn(2);
+        when(config.generation().getFlux2FlexGuidance()).thenReturn(5.0);
+        when(config.generation().getFlux2FlexSteps()).thenReturn(50);
 
         provider = new Provider(repository);
         GenerationService generation = new GenerationService(config, chats, moods, provider,

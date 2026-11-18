@@ -71,7 +71,7 @@ interface ChatModel {
      */
     static ChatModel choose(GeminiApiService gemini, OpenAiApiService openAi, ApplicationConfig config,
             boolean openAiChosen, boolean geminiUsable) {
-        if (openAi != null && config != null && config.isOpenAiChatAvailable() && (openAiChosen || !geminiUsable))
+        if (openAi != null && config != null && config.accounts().isOpenAiChatAvailable() && (openAiChosen || !geminiUsable))
             return openAi(openAi, config.getOpenAiChatModel());
         return gemini(gemini);
     }

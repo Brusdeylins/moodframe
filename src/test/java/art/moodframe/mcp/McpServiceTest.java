@@ -1,6 +1,7 @@
 package art.moodframe.mcp;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
  */
 class McpServiceTest {
 
-    private final ApplicationConfig config = mock(ApplicationConfig.class);
+    private final ApplicationConfig config = ConfigMocks.config();
     private final McpService service = new McpService(config, new McpTools());
 
     @AfterEach
@@ -50,9 +50,9 @@ class McpServiceTest {
     @Test
     void reportsAPortInUseAndStartsOnceItIsFree() throws Exception {
         int port = freePort();
-        when(config.isMcpEnabled()).thenReturn(true);
-        when(config.getMcpPort()).thenReturn(port);
-        when(config.getMcpToken()).thenReturn("token-1");
+        when(config.mcp().isMcpEnabled()).thenReturn(true);
+        when(config.mcp().getMcpPort()).thenReturn(port);
+        when(config.mcp().getMcpToken()).thenReturn("token-1");
 
         try (ServerSocket other = new ServerSocket(port, 50, InetAddress.getByName("127.0.0.1"))) {
             assertEquals(new McpService.Status(McpService.State.PORT_IN_USE, port), service.applyAsync().get());
@@ -64,33 +64,33 @@ class McpServiceTest {
     @Test
     void startsAnewOnANewTokenOrPortAndStopsWhenDisabled() throws Exception {
         int port = freePort();
-        when(config.isMcpEnabled()).thenReturn(true);
-        when(config.getMcpPort()).thenReturn(port);
-        when(config.getMcpToken()).thenReturn("token-1");
+        when(config.mcp().isMcpEnabled()).thenReturn(true);
+        when(config.mcp().getMcpPort()).thenReturn(port);
+        when(config.mcp().getMcpToken()).thenReturn("token-1");
         assertEquals(McpService.State.RUNNING, service.apply().state());
 
         /*  The same port at once, with the new token only  */
-        when(config.getMcpToken()).thenReturn("token-2");
+        when(config.mcp().getMcpToken()).thenReturn("token-2");
         assertEquals(McpService.State.RUNNING, service.apply().state());
         assertEquals(401, ping(port, "token-1"));
         assertEquals(200, ping(port, "token-2"));
 
         int otherPort = freePort();
-        when(config.getMcpPort()).thenReturn(otherPort);
+        when(config.mcp().getMcpPort()).thenReturn(otherPort);
         assertEquals(new McpService.Status(McpService.State.RUNNING, otherPort), service.apply());
         assertEquals(200, ping(otherPort, "token-2"));
 
-        when(config.isMcpEnabled()).thenReturn(false);
+        when(config.mcp().isMcpEnabled()).thenReturn(false);
         assertEquals(McpService.State.OFF, service.apply().state());
         assertThrows(IOException.class, () -> ping(otherPort, "token-2"), "nobody listens anymore");
     }
 
     @Test
     void createsATokenOnTheFirstStart() throws Exception {
-        when(config.isMcpEnabled()).thenReturn(true);
-        when(config.getMcpPort()).thenReturn(freePort());
+        when(config.mcp().isMcpEnabled()).thenReturn(true);
+        when(config.mcp().getMcpPort()).thenReturn(freePort());
         assertEquals(McpService.State.RUNNING, service.apply().state());
-        verify(config).setMcpToken(anyString());
+        verify(config.mcp()).setMcpToken(anyString());
         assertNotEquals(McpService.newToken(), McpService.newToken());
         assertEquals(43, McpService.newToken().length(), "32 random bytes");
     }

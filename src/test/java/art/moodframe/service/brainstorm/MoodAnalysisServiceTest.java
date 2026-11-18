@@ -1,6 +1,8 @@
 package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.CameraSettings;
@@ -86,9 +88,9 @@ class MoodAnalysisServiceTest {
     void setUp() {
         gemini = mock(GeminiApiService.class);
         openAi = mock(OpenAiApiService.class);
-        config = mock(ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("gemini");
-        when(config.getOpenAiChatModel()).thenReturn("gpt-test");
+        config = ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("gemini");
+        when(config.accounts().getOpenAiChatModel()).thenReturn("gpt-test");
         service = new MoodAnalysisService(gemini, openAi, config);
     }
 
@@ -182,8 +184,8 @@ class MoodAnalysisServiceTest {
 
     @Test
     void geminiGetsTheImageAsInlineData() {
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(gemini.chatTurn(anyString(), any(JSONArray.class), eq(false), eq(false)))
                 .thenReturn(answer("{\"light\": {\"name\": \"Golden Hour\", \"is_new\": false}}"));
 
@@ -202,12 +204,12 @@ class MoodAnalysisServiceTest {
 
     @Test
     void openAiAnswersWhenItIsTheOnlyProvider() {
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.generation().getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
         when(openAi.chatTurn(eq("gpt-test"), anyString(), any(JSONArray.class), eq(false), eq(false), eq(false)))
                 .thenReturn(answer("{\"style\": {\"name\": \"Watercolor\", \"is_new\": false}}"));
 
@@ -220,8 +222,8 @@ class MoodAnalysisServiceTest {
 
     @Test
     void aFailedRequestStillGivesTheColors() {
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(gemini.chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean()))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("HTTP 500")));
 

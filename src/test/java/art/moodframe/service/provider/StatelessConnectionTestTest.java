@@ -1,7 +1,10 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
+import art.moodframe.config.ProviderAccounts;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.model.ApiProvider;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,13 +50,13 @@ class StatelessConnectionTestTest {
         });
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
-        config = mock(ApplicationConfig.class, (invocation) ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
-        when(config.getGeminiApiKey()).thenReturn("saved");
-        when(config.getOpenAiApiKey()).thenReturn("saved");
-        when(config.getOpenAiBaseUrl()).thenReturn("https://saved.example/v1");
-        when(config.getApiKey()).thenReturn("saved");
-        when(config.getApiRegion()).thenReturn("Global");
+        config = ConfigMocks.withEmptyTexts();
+        ProviderAccounts accounts = config.accounts();
+        when(accounts.getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn("saved");
+        when(accounts.getApiKey(ApiProvider.OPENAI)).thenReturn("saved");
+        when(accounts.getOpenAiBaseUrl()).thenReturn("https://saved.example/v1");
+        when(accounts.getApiKey(ApiProvider.BFL)).thenReturn("saved");
+        when(accounts.getApiRegion()).thenReturn("Global");
     }
 
     @AfterEach
@@ -76,7 +78,7 @@ class StatelessConnectionTestTest {
         assertEquals("saved", gemini.getApiKey());
 
         /*  A key saved later is sent at once, without a test setting it  */
-        when(config.getGeminiApiKey()).thenReturn("new");
+        when(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn("new");
         assertEquals("new", gemini.getApiKey());
     }
 
@@ -93,9 +95,9 @@ class StatelessConnectionTestTest {
 
         assertEquals("saved", openAi.getApiKey());
         assertEquals("https://saved.example/v1", openAi.getBaseUrl());
-        verify(config, never()).setOpenAiAvailableModels(anyList());
-        verify(config, never()).setOpenAiModels(anyList());
-        verify(config, never()).setOpenAiBaseUrl(any());
+        verify(config.accounts(), never()).setOpenAiAvailableModels(anyList());
+        verify(config.accounts(), never()).setOpenAiModels(anyList());
+        verify(config.accounts(), never()).setOpenAiBaseUrl(any());
     }
 
     @Test
@@ -112,7 +114,7 @@ class StatelessConnectionTestTest {
             assertEquals("saved", bfl.getApiKey());
             assertEquals("https://api.bfl.ai", bfl.getApiBaseUrl());
             assertFalse(typed == bfl);
-            verify(config, never()).setApiRegion(any());
+            verify(config.accounts(), never()).setApiRegion(any());
             verify(config, never()).setProperty(any(), any());
         }
         finally {

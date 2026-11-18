@@ -1,5 +1,6 @@
 package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
@@ -240,12 +241,12 @@ class BrainstormServiceTest {
 
     @Test
     void talksOnlyToOpenAiWhenItIsChosen() {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("m");
-        when(config.isGeminiBrainstormAvailable()).thenReturn(true);
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("m");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(text(VALID_REPLY)));
@@ -259,10 +260,10 @@ class BrainstormServiceTest {
 
     @Test
     void withoutAUsableGeminiASessionStaysWithOpenAi() {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("m");
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("m");
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
@@ -277,11 +278,11 @@ class BrainstormServiceTest {
 
     @Test
     void openAiResearchesWithItsOwnWebSearch() {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("m");
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("m");
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(call("research", new JSONObject().put("query", "nautilus"))))
@@ -300,12 +301,12 @@ class BrainstormServiceTest {
 
     @Test
     void eachSessionTalksToItsOwnLanguageModel() throws Exception {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("m");
-        when(config.isGeminiBrainstormAvailable()).thenReturn(true);
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("m");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         BrainstormService service = new BrainstormService(repository, gemini, openAi, config);
         answers(text(VALID_REPLY));
@@ -444,11 +445,11 @@ class BrainstormServiceTest {
 
     @Test
     void openAiWatchesNoVideo() {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.getBrainstormEngine()).thenReturn("openai");
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.isOpenAiChatAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("m");
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("m");
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), any(JSONArray.class), eq(true), eq(false), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));

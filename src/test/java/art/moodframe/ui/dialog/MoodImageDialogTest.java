@@ -1,6 +1,6 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.brainstorm.BrainstormContext;
@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** Builds the dialog on the JavaFX thread without showing it and adopts what it found in an image. */
 class MoodImageDialogTest {
@@ -82,7 +81,7 @@ class MoodImageDialogTest {
                 List.of(new PromptBlock("std:style:pixel-art", PromptBlock.Type.STYLE, "Pixel Art", "retro pixel art",
                         PromptBlock.GROUP_ART, false)),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "", List.of(), locked);
-        MoodAnalysisService service = new MoodAnalysisService(null, null, mock(ApplicationConfig.class));
+        MoodAnalysisService service = new MoodAnalysisService(null, null, ConfigMocks.config());
         AtomicReference<MoodImageDialog.Result> adopted = new AtomicReference<>();
         MoodImageDialog dialog = onFx(() -> new MoodImageDialog(null, service, context, imageFile, adopted::set));
 

@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FavoriteRepository;
@@ -52,22 +51,6 @@ public class FavoriteService {
     private final Map<Kind, Set<String>> favorites = new EnumMap<>(Kind.class);
     private final LibraryEvents events;
     private final RepositoryAccess access = new RepositoryAccess(logger);
-
-    /**
-     * Creates the service, which reports its changes to nobody.
-     */
-    public FavoriteService() {
-        this(new LibraryEvents());
-    }
-
-    /**
-     * Creates the service.
-     *
-     * @param events where a switched favorite is reported
-     */
-    public FavoriteService(LibraryEvents events) {
-        this(DatabaseConfig.getDatabase(), events);
-    }
 
     /**
      * Creates the service on the given database.

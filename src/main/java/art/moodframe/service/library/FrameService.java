@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Frame;
 import art.moodframe.model.ModelFamilies;
@@ -38,22 +37,6 @@ public class FrameService {
     private final List<Frame> defaultFrames;
     private final LibraryEvents events;
     private final RepositoryAccess access = new RepositoryAccess(logger);
-
-    /**
-     * Creates the service, which reports its writes to nobody.
-     */
-    public FrameService() {
-        this(new LibraryEvents());
-    }
-
-    /**
-     * Creates the service.
-     *
-     * @param events where the writes are reported
-     */
-    public FrameService(LibraryEvents events) {
-        this(DatabaseConfig.getDatabase(), events);
-    }
 
     /**
      * Creates the service on the given database.

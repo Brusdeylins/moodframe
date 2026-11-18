@@ -98,7 +98,7 @@ class ParallelWritesTest {
 
     @Test
     void storesEveryMoodWhileOthersReadAndTakesAContestedNameOnce() throws Exception {
-        MoodService moods = new MoodService(new PromptBlockService(), new ColorStyleService());
+        MoodService moods = TestLibraryServices.moods(TestLibraryServices.blocks(), TestLibraryServices.palettes());
         int before = moods.getCustom().size();
 
         List<Boolean> added = inParallel(() -> {
@@ -118,7 +118,7 @@ class ParallelWritesTest {
 
     @Test
     void storesEveryFavorite() throws Exception {
-        FavoriteService favorites = new FavoriteService();
+        FavoriteService favorites = TestLibraryServices.favorites();
         List<String> ids = inParallel(() -> {
             List<String> stored = new ArrayList<>();
             for (int i = 0; i < WRITES; i++) {
@@ -131,7 +131,7 @@ class ParallelWritesTest {
         assertEquals(THREADS * WRITES, ids.size());
 
         /*  the favorites read anew from the database  */
-        FavoriteService restarted = new FavoriteService();
+        FavoriteService restarted = TestLibraryServices.favorites();
         assertTrue(ids.stream().allMatch((String id) -> restarted.isFavorite(FavoriteService.Kind.MOOD, id)),
                 "no favorite is lost");
     }

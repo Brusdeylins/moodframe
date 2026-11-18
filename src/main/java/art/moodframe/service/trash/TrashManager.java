@@ -1,5 +1,6 @@
 package art.moodframe.service.trash;
 
+import art.moodframe.config.LibraryPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,7 +14,6 @@ import java.nio.file.*;
 public class TrashManager {
     private static final Logger logger = LoggerFactory.getLogger(TrashManager.class);
     
-    private final Path baseDirectory;
     private final Path trashDirectory;
     private final Path trashImagesDirectory;
     private final Path trashThumbnailsDirectory;
@@ -23,33 +23,22 @@ public class TrashManager {
     private final int trashRetentionDays;
     
     /**
-     * Creates a new TrashManager with default settings.
-     * 
-     * <p>Uses a default retention period of 60 days for items in trash
-     * before automatic deletion.</p>
-     */
-    public TrashManager() {
-        this(60); // Default 60 days retention
-    }
-    
-    /**
      * Creates a new TrashManager with specified retention period.
      * 
      * <p>Initializes the trash directory structure and creates necessary
      * directories if they don't exist. Files in trash older than the
      * retention period will be automatically deleted.</p>
      * 
+     * @param paths the folders of the library: images, thumbnails and the trash
      * @param trashRetentionDays number of days to keep items in trash (must be positive)
      * @throws RuntimeException if directories cannot be created
      */
-    public TrashManager(int trashRetentionDays) {
-        String userHome = System.getProperty("user.home");
-        this.baseDirectory = Paths.get(userHome, ".moodframe");
-        this.trashDirectory = baseDirectory.resolve("trash");
+    public TrashManager(LibraryPaths paths, int trashRetentionDays) {
+        this.trashDirectory = paths.trash();
         this.trashImagesDirectory = trashDirectory.resolve("images");
         this.trashThumbnailsDirectory = trashDirectory.resolve("thumbnails");
-        this.activeImagesDirectory = baseDirectory.resolve("images");
-        this.activeThumbnailsDirectory = baseDirectory.resolve("thumbnails");
+        this.activeImagesDirectory = paths.images();
+        this.activeThumbnailsDirectory = paths.thumbnails();
         this.trashRetentionDays = trashRetentionDays;
         
         // Ensure directories exist

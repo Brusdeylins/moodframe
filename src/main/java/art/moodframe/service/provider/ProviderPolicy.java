@@ -1,5 +1,6 @@
 package art.moodframe.service.provider;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.GenerationModel;
 
@@ -23,6 +24,7 @@ public final class ProviderPolicy {
      */
     public static boolean isOpenAiOnly(ApplicationConfig config) {
         return GenerationModel.openAiModelId(config.getDefaultModel()) != null
-                && "openai".equals(config.getBrainstormEngine()) && config.isOpenAiBrainstormAvailable();
+                && "openai".equals(config.accounts().getBrainstormEngine())
+                && config.accounts().isBrainstormAvailable(ApiProvider.OPENAI);
     }
 }

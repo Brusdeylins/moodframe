@@ -118,7 +118,7 @@ public class BflApiServiceImpl implements BflApiService {
     public String getApiKey() {
         if (fixedKey != null)
             return fixedKey;
-        return config != null ? config.getApiKey() : null;
+        return config != null ? config.accounts().getApiKey(ApiProvider.BFL) : null;
     }
     
     @Override

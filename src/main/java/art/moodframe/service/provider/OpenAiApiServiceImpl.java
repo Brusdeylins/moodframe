@@ -796,7 +796,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
 
     @Override
     public String getApiKey() {
-        return detached ? fixedKey : config.getOpenAiApiKey();
+        return detached ? fixedKey : config.accounts().getApiKey(ApiProvider.OPENAI);
     }
 
     @Override

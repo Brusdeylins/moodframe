@@ -705,9 +705,11 @@ public class MainWindowController implements I18nChangeListener {
      * @return the i18n key of the hint, {@code brainstorm.tooltip} if the button is enabled
      */
     static String brainstormHint(art.moodframe.config.ApplicationConfig config, boolean hasChatSelected) {
-        if (config == null || !config.hasGeminiApiKey() && !config.hasOpenAiApiKey())
+        if (config == null || !config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)
+                && !config.accounts().hasApiKey(ApiProvider.OPENAI))
             return "brainstorm.tooltip.no.key";
-        if (!config.isGeminiBrainstormAvailable() && !config.isOpenAiBrainstormAvailable())
+        if (!config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)
+                && !config.accounts().isBrainstormAvailable(ApiProvider.OPENAI))
             return "brainstorm.tooltip.no.search";
         return hasChatSelected ? "brainstorm.tooltip" : "brainstorm.tooltip.no.chat";
     }
@@ -1051,7 +1053,7 @@ public class MainWindowController implements I18nChangeListener {
     private void restoreChatInputHeight(art.moodframe.config.ApplicationConfig config) {
         /*  The items of the SplitPane get their styles after its first layout, the default height needs them  */
         chatInputSplitPane.applyCss();
-        double savedHeight = config != null ? config.getChatInputHeight() : 0;
+        double savedHeight = config != null ? config.ui().getChatInputHeight() : 0;
         resizeChatInputArea(savedHeight > 0 ? savedHeight : chatInputArea.prefHeight(chatInputArea.getWidth()));
     }
 
@@ -1102,7 +1104,7 @@ public class MainWindowController implements I18nChangeListener {
                     .getService(art.moodframe.config.ApplicationConfig.class);
 
             if (config != null) {
-                final double savedPosition = config.getSplitterPosition();
+                final double savedPosition = config.ui().getSplitterPosition();
                 // Set up scene listener for reliable restoration after window is shown
                 mainSplitPane.sceneProperty().addListener((obs, oldScene, newScene) -> {
                     if (newScene != null) {
@@ -1128,7 +1130,7 @@ public class MainWindowController implements I18nChangeListener {
                 // Save position when user changes it
                 mainSplitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
                     try {
-                        config.setSplitterPosition(newPos.doubleValue());
+                        config.ui().setSplitterPosition(newPos.doubleValue());
                     } catch (Exception ex) {
                         logger.warn("Failed to save splitter position", ex);
                     }
@@ -1160,7 +1162,7 @@ public class MainWindowController implements I18nChangeListener {
                         node = node.getParent();
                     if (node != null) {
                         chatInputSplitPane.layout();
-                        config.setChatInputHeight(chatInputArea.getHeight());
+                        config.ui().setChatInputHeight(chatInputArea.getHeight());
                     }
                 });
             }
@@ -1230,14 +1232,14 @@ public class MainWindowController implements I18nChangeListener {
         // Configure video Duration ChoiceBox (the items follow the selected video model)
         if (videoDurationChoiceBox != null) {
             videoDurationChoiceBox.getItems().addAll("3s", "4s", "5s", "6s", "7s", "8s", "9s", "10s");
-            String defaultDuration = (config != null) ? config.getDefaultVideoDuration() : "8s";
+            String defaultDuration = (config != null) ? config.generation().getDefaultVideoDuration() : "8s";
             videoDurationChoiceBox.setValue(defaultDuration);
             videoDurationChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> updateCostDisplay());
         }
 
         // Configure the video audio CheckBox
         if (videoAudioCheckBox != null) {
-            boolean audioEnabled = (config != null) && config.isVideoAudioEnabled();
+            boolean audioEnabled = (config != null) && config.generation().isVideoAudioEnabled();
             videoAudioCheckBox.setSelected(audioEnabled);
             videoAudioCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> updateCostDisplay());
         }
@@ -2198,15 +2200,15 @@ public class MainWindowController implements I18nChangeListener {
             lock.selectedProperty().addListener((obs, oldVal, newVal) -> {
                 ((FontIcon) lock.getGraphic()).setIconLiteral(newVal ? "mdi2l-lock" : "mdi2l-lock-open-variant-outline");
                 if (config != null)
-                    config.setBlockLocked(field, newVal);
+                    config.ui().setBlockLocked(field, newVal);
             });
-            lock.setSelected(config != null && config.isBlockLocked(field));
+            lock.setSelected(config != null && config.ui().isBlockLocked(field));
         });
 
-        moodApplyCheckBox.setSelected(config != null && config.isMoodAppliedToReference());
+        moodApplyCheckBox.setSelected(config != null && config.ui().isMoodAppliedToReference());
         moodApplyCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             if (config != null)
-                config.setMoodAppliedToReference(newVal);
+                config.ui().setMoodAppliedToReference(newVal);
         });
     }
 
@@ -2233,14 +2235,14 @@ public class MainWindowController implements I18nChangeListener {
                     updateMoodState();
             });
 
-        Mood legacyMood = moodService.findForLegacyStyle(config != null ? config.getDefaultStyle() : null);
-        reloadMoods(config != null ? config.getSelectedMood() : "");
+        Mood legacyMood = moodService.findForLegacyStyle(config != null ? config.generation().getDefaultStyle() : null);
+        reloadMoods(config != null ? config.ui().getSelectedMood() : "");
         if (legacyMood != null) {
             chooseMood(legacyMood);
 
             /*  The former look style is taken over once, also while the style field is locked  */
             art.moodframe.model.StylePresetItem style = stylePresetsComboBox.getValue();
-            config.setDefaultStyle(style != null ? style.getName() : "None");
+            config.generation().setDefaultStyle(style != null ? style.getName() : "None");
         }
         else
             updateMoodState();
@@ -2578,7 +2580,7 @@ public class MainWindowController implements I18nChangeListener {
         Mood mood = chosenMood();
         boolean changed = isMoodChanged();
         if (config != null)
-            config.setSelectedMood(mood != null ? mood.getId() : "", changed);
+            config.ui().setSelectedMood(mood != null ? mood.getId() : "", changed);
 
         boolean incomplete = mood != null && isMoodIncomplete(mood);
         moodIncompleteButton.setVisible(incomplete);
@@ -2741,7 +2743,7 @@ public class MainWindowController implements I18nChangeListener {
                 String open = pane.lookup(".panel-group-details").isVisible() ? "" : group;
                 showPanelGroup(open);
                 if (config != null)
-                    config.setOpenPanelGroup(open);
+                    config.ui().setOpenPanelGroup(open);
             };
             ((Button) pane.lookup(".panel-group-arrow")).setOnAction((event) -> toggle.run());
             titles.get(group).setOnMouseClicked((event) -> toggle.run());
@@ -2759,7 +2761,7 @@ public class MainWindowController implements I18nChangeListener {
                 e.g. when the scroll bar shows  */
             pane.setMinWidth(0);
         });
-        showPanelGroup(config != null ? config.getOpenPanelGroup() : "mood");
+        showPanelGroup(config != null ? config.ui().getOpenPanelGroup() : "mood");
 
         /*  The scroll bar narrows the viewport: the right padding of the panel then shrinks to the gap to it  */
         javafx.scene.layout.Region panel = (javafx.scene.layout.Region) panelScrollPane.getContent();
@@ -2844,7 +2846,7 @@ public class MainWindowController implements I18nChangeListener {
                 updateFrameState();
         });
 
-        reloadFrames(config != null ? config.getSelectedFrame() : "");
+        reloadFrames(config != null ? config.ui().getSelectedFrame() : "");
         updateFrameState();
     }
 
@@ -2920,8 +2922,8 @@ public class MainWindowController implements I18nChangeListener {
         frameChanged = frame != null && (!frame.getAspectRatio().equals(aspectRatioComboBox.getValue())
                 || frame.getResolution() != null && !frame.getResolution().equals(resolutionChoiceBox.getValue()));
         String id = frame != null ? frame.getId() : "";
-        if (config != null && !id.equals(config.getSelectedFrame()))
-            config.setSelectedFrame(id);
+        if (config != null && !id.equals(config.ui().getSelectedFrame()))
+            config.ui().setSelectedFrame(id);
         saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
         saveFrameButton.pseudoClassStateChanged(UNSAVED, frameChanged && !isFrameSaveLocked());
         saveFrameAsButton.pseudoClassStateChanged(UNSAVED, frameChanged && isFrameSaveLocked());
@@ -3017,7 +3019,7 @@ public class MainWindowController implements I18nChangeListener {
                 geminiAdvancedFeaturesSection.getSearchGroundingCheckBox().selectedProperty()
                         .addListener((obs, oldVal, newVal) -> {
                             if (newVal != null) {
-                                config.setDefaultGoogleSearchEnabled(newVal);
+                                config.generation().setDefaultGoogleSearchEnabled(newVal);
                             }
                         });
 
@@ -3046,9 +3048,9 @@ public class MainWindowController implements I18nChangeListener {
             }
 
             // Load saved values from config
-            double savedGuidance = config.getFlux2FlexGuidance();
-            int savedSteps = config.getFlux2FlexSteps();
-            boolean savedGroundingSearch = config.getFlux2GroundingSearchEnabled();
+            double savedGuidance = config.generation().getFlux2FlexGuidance();
+            int savedSteps = config.generation().getFlux2FlexSteps();
+            boolean savedGroundingSearch = config.generation().getFlux2GroundingSearchEnabled();
 
             // Setup Guidance slider
             if (flux2GuidanceSlider != null && flux2GuidanceLabel != null) {
@@ -3059,7 +3061,7 @@ public class MainWindowController implements I18nChangeListener {
                 flux2GuidanceSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
                     double value = newVal.doubleValue();
                     updateFlux2GuidanceLabel(value);
-                    config.setFlux2FlexGuidance(value);
+                    config.generation().setFlux2FlexGuidance(value);
                     updateCostDisplay(); // Cost may depend on parameters
                 });
             }
@@ -3073,14 +3075,14 @@ public class MainWindowController implements I18nChangeListener {
                 flux2StepsSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
                     int value = newVal.intValue();
                     updateFlux2StepsLabel(value);
-                    config.setFlux2FlexSteps(value);
+                    config.generation().setFlux2FlexSteps(value);
                     updateCostDisplay();
                 });
             }
 
             // Setup FLUX.2 Safety Tolerance slider (0-5 scale)
             if (flux2SafetySlider != null && flux2SafetyValueLabel != null) {
-                int savedFlux2Safety = config.getFlux2SafetyTolerance();
+                int savedFlux2Safety = config.generation().getFlux2SafetyTolerance();
                 flux2SafetySlider.setValue(savedFlux2Safety);
                 updateFlux2SafetyLabel(savedFlux2Safety);
 
@@ -3092,7 +3094,7 @@ public class MainWindowController implements I18nChangeListener {
                         flux2SafetySlider.setValue(value);
                     }
                     updateFlux2SafetyLabel(value);
-                    config.setFlux2SafetyTolerance(value);
+                    config.generation().setFlux2SafetyTolerance(value);
                 });
 
                 // Set i18n labels
@@ -3156,7 +3158,7 @@ public class MainWindowController implements I18nChangeListener {
 
             if (config != null) {
                 // Load model selection (now using display name for unique identification)
-                String savedModelDisplay = config.getDefaultModel();
+                String savedModelDisplay = config.generation().getDefaultModel();
                 // Check if saved model display name is valid
                 art.moodframe.model.GenerationModel savedModel = art.moodframe.model.GenerationModel.fromDisplayName(savedModelDisplay);
                 if (savedModel == null) {
@@ -3186,29 +3188,30 @@ public class MainWindowController implements I18nChangeListener {
                 }
 
                 // Load the target resolution; before there was one, the one closest to the resolution of the model
-                String savedResolution = config.getDefaultResolution();
+                String savedResolution = config.generation().getDefaultResolution();
                 resolutionChoiceBox.setValue(savedResolution != null ? savedResolution
                         : art.moodframe.model.ModelFamilies.nearest(art.moodframe.model.ModelFamilies.resolutionOf(
                                 modelComboBox.getValue()), art.moodframe.model.ModelFamilies.RESOLUTIONS));
 
                 // Load aspect ratio selection
-                String savedAspectRatio = config.getDefaultAspectRatio();
+                String savedAspectRatio = config.generation().getDefaultAspectRatio();
                 aspectRatioComboBox.setValue(savedAspectRatio);
 
                 // Load safety tolerance value
-                int savedSafetyTolerance = config.getDefaultSafetyTolerance();
+                int savedSafetyTolerance = config.generation().getDefaultSafetyTolerance();
                 safetyToleranceSlider.setValue(savedSafetyTolerance);
 
                 // Load image count selection
-                int savedImageCount = config.getDefaultImageCount();
+                int savedImageCount = config.generation().getDefaultImageCount();
                 imageCountSlider.setValue(savedImageCount);
 
                 // Load style selection; a merged former style resolves to the one it went into
                 art.moodframe.service.library.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
                         .getService(art.moodframe.service.library.PromptBlockService.class);
                 art.moodframe.model.PromptBlock savedBlock = styleService != null
-                        ? styleService.find(art.moodframe.model.PromptBlock.Type.STYLE, config.getDefaultStyle()) : null;
-                String savedStyle = savedBlock != null ? savedBlock.getName() : config.getDefaultStyle();
+                        ? styleService.find(art.moodframe.model.PromptBlock.Type.STYLE,
+                                config.generation().getDefaultStyle()) : null;
+                String savedStyle = savedBlock != null ? savedBlock.getName() : config.generation().getDefaultStyle();
                 if (savedStyle != null && stylePresetsComboBox != null) {
                     // Find StylePresetItem by name, else keep "None"
                     stylePresetsComboBox.getItems().stream()
@@ -3222,8 +3225,9 @@ public class MainWindowController implements I18nChangeListener {
                     art.moodframe.service.library.ColorStyleService colorService = art.moodframe.config.ServiceFactory.getInstance()
                             .getService(art.moodframe.service.library.ColorStyleService.class);
                     art.moodframe.model.ColorStyle savedPalette = colorService != null
-                            ? colorService.getStyleByName(config.getDefaultColorStyle()) : null;
-                    String savedColorStyle = savedPalette != null ? savedPalette.getName() : config.getDefaultColorStyle();
+                            ? colorService.getStyleByName(config.generation().getDefaultColorStyle()) : null;
+                    String savedColorStyle = savedPalette != null ? savedPalette.getName()
+                            : config.generation().getDefaultColorStyle();
                     if (savedColorStyle != null) {
                         for (art.moodframe.model.ColorStyleItem item : colorStyleComboBox.getItems()) {
                             if (savedColorStyle.equals(item.getName())) {
@@ -3236,7 +3240,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Load light selection
                 if (lightComboBox != null) {
-                    String savedLight = config.getDefaultLight();
+                    String savedLight = config.generation().getDefaultLight();
                     lightComboBox.getItems().stream()
                             .filter((item) -> item.getName().equals(savedLight))
                             .findFirst()
@@ -3245,7 +3249,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Load camera selection
                 if (cameraComboBox != null) {
-                    String savedCamera = config.getDefaultCamera();
+                    String savedCamera = config.generation().getDefaultCamera();
                     cameraComboBox.getItems().stream()
                             .filter((item) -> item.getName().equals(savedCamera))
                             .findFirst()
@@ -3254,7 +3258,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Load atmosphere selection
                 if (atmosphereComboBox != null) {
-                    String savedAtmosphere = config.getDefaultAtmosphere();
+                    String savedAtmosphere = config.generation().getDefaultAtmosphere();
                     atmosphereComboBox.getItems().stream()
                             .filter((item) -> item.getName().equals(savedAtmosphere))
                             .findFirst()
@@ -3263,7 +3267,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Load BFL Prompt Upsampling setting
                 if (bflPromptUpsamplingCheckBox != null) {
-                    boolean savedBflUpsampling = config.getDefaultBflPromptUpsampling();
+                    boolean savedBflUpsampling = config.generation().getDefaultBflPromptUpsampling();
                     bflPromptUpsamplingCheckBox.setSelected(savedBflUpsampling);
                 }
 
@@ -3271,12 +3275,13 @@ public class MainWindowController implements I18nChangeListener {
                 if (geminiThinkingLevelChoiceBox != null) {
                     // Only "minimal" and "high" exist; a saved "low" from earlier versions becomes "minimal"
                     geminiThinkingLevelChoiceBox.setValue(
-                            "high".equalsIgnoreCase(config.getDefaultGeminiThinkingLevel()) ? "High" : "Minimal");
+                            "high".equalsIgnoreCase(config.generation().getDefaultGeminiThinkingLevel())
+                                    ? "High" : "Minimal");
                 }
 
                 // Load Gemini Advanced Features settings (Phase 2)
                 if (geminiAdvancedFeaturesSection != null) {
-                    boolean savedGoogleSearch = config.getDefaultGoogleSearchEnabled();
+                    boolean savedGoogleSearch = config.generation().getDefaultGoogleSearchEnabled();
                     geminiAdvancedFeaturesSection.setSearchGroundingEnabled(savedGoogleSearch);
                 }
 
@@ -3288,7 +3293,7 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Re-apply saved aspect ratio AFTER visibility update
                 // (updateParameterVisibility may have reset it to default)
-                String savedAspectRatioFinal = config.getDefaultAspectRatio();
+                String savedAspectRatioFinal = config.generation().getDefaultAspectRatio();
                 if (savedAspectRatioFinal != null && aspectRatioComboBox.getItems().contains(savedAspectRatioFinal)) {
                     aspectRatioComboBox.setValue(savedAspectRatioFinal);
                     logger.debug("Restored saved aspect ratio: {}", savedAspectRatioFinal);
@@ -3333,8 +3338,9 @@ public class MainWindowController implements I18nChangeListener {
                         if (model != null) {
                             art.moodframe.model.GenerationModel previousModel = currentSelectedModel;
                             currentSelectedModel = model;
-                            config.setDefaultModel(art.moodframe.model.GenerationModel.openAiModelId(newVal) != null
-                                    ? newVal : model.getDisplayName());
+                            config.generation().setDefaultModel(
+                                    art.moodframe.model.GenerationModel.openAiModelId(newVal) != null
+                                            ? newVal : model.getDisplayName());
 
                             // Provider switch: Google → BFL → clear attachments
                             if (previousModel != null && multiImagePanel != null
@@ -3382,7 +3388,7 @@ public class MainWindowController implements I18nChangeListener {
                 // Save aspect ratio selection changes
                 aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                     if (newVal != null) {
-                        config.setDefaultAspectRatio(newVal);
+                        config.generation().setDefaultAspectRatio(newVal);
                     }
                     updateCostDisplay();
                 });
@@ -3390,14 +3396,14 @@ public class MainWindowController implements I18nChangeListener {
                 // Save target resolution changes
                 resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                     if (newVal != null) {
-                        config.setDefaultResolution(newVal);
+                        config.generation().setDefaultResolution(newVal);
                     }
                 });
 
                 // Save safety tolerance value changes
                 safetyToleranceSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
                     if (newVal != null) {
-                        config.setDefaultSafetyTolerance(newVal.intValue());
+                        config.generation().setDefaultSafetyTolerance(newVal.intValue());
                     }
                     updateCostDisplay();
                 });
@@ -3405,7 +3411,7 @@ public class MainWindowController implements I18nChangeListener {
                 // Save image count selection changes
                 imageCountSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
                     if (newVal != null) {
-                        config.setDefaultImageCount((int) newVal.doubleValue());
+                        config.generation().setDefaultImageCount((int) newVal.doubleValue());
                     }
                     updateCostDisplay();
                 });
@@ -3413,7 +3419,7 @@ public class MainWindowController implements I18nChangeListener {
                 // Save style selection changes; an action of the list is no selection
                 stylePresetsComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                     if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.STYLE).isEntry(newVal)) {
-                        config.setDefaultStyle(newVal.getName());
+                        config.generation().setDefaultStyle(newVal.getName());
                     }
                 });
 
@@ -3421,7 +3427,7 @@ public class MainWindowController implements I18nChangeListener {
                 if (colorStyleComboBox != null) {
                     colorStyleComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null && colorChoice.isEntry(newVal)) {
-                            config.setDefaultColorStyle(newVal.getName());
+                            config.generation().setDefaultColorStyle(newVal.getName());
                         }
                     });
                 }
@@ -3430,14 +3436,14 @@ public class MainWindowController implements I18nChangeListener {
                 if (lightComboBox != null)
                     lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.LIGHT).isEntry(newVal))
-                            config.setDefaultLight(newVal.getName());
+                            config.generation().setDefaultLight(newVal.getName());
                     });
 
                 // Save camera selection changes
                 if (cameraComboBox != null)
                     cameraComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null && blockChoices.get(art.moodframe.model.PromptBlock.Type.CAMERA).isEntry(newVal))
-                            config.setDefaultCamera(newVal.getName());
+                            config.generation().setDefaultCamera(newVal.getName());
                     });
 
                 // Save atmosphere selection changes
@@ -3445,14 +3451,14 @@ public class MainWindowController implements I18nChangeListener {
                     atmosphereComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null
                                 && blockChoices.get(art.moodframe.model.PromptBlock.Type.ATMOSPHERE).isEntry(newVal))
-                            config.setDefaultAtmosphere(newVal.getName());
+                            config.generation().setDefaultAtmosphere(newVal.getName());
                     });
 
                 // Save BFL Prompt Upsampling changes
                 if (bflPromptUpsamplingCheckBox != null) {
                     bflPromptUpsamplingCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null) {
-                            config.setDefaultBflPromptUpsampling(newVal);
+                            config.generation().setDefaultBflPromptUpsampling(newVal);
                         }
                     });
                 }
@@ -3461,7 +3467,7 @@ public class MainWindowController implements I18nChangeListener {
                 if (geminiThinkingLevelChoiceBox != null) {
                     geminiThinkingLevelChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
                         if (newVal != null) {
-                            config.setDefaultGeminiThinkingLevel(newVal.toLowerCase());
+                            config.generation().setDefaultGeminiThinkingLevel(newVal.toLowerCase());
                         }
                     });
                 }
@@ -3700,16 +3706,16 @@ public class MainWindowController implements I18nChangeListener {
         DoubleProperty outputScale = new SimpleDoubleProperty(Screen.getPrimary().getOutputScaleX());
         imageSizeSlider.setMin(MIN_IMAGE_SIZE);
         imageSizeSlider.maxProperty().bind(ImageGrid.largestChoice(outputScale));
-        imageSizeSlider.setValue(config != null ? config.getImageTileSize() : 180.0);
+        imageSizeSlider.setValue(config != null ? config.ui().getImageTileSize() : 180.0);
         imageGrid.tileSizeProperty().bind(imageSizeSlider.valueProperty());
         imageGrid.maxTileSizeProperty().bind(ImageGrid.sharpSize(outputScale));
         imageSizeSlider.valueProperty().addListener((obs, oldSize, size) -> {
             if (!imageSizeSlider.isValueChanging() && config != null)
-                config.setImageTileSize(size.doubleValue());
+                config.ui().setImageTileSize(size.doubleValue());
         });
         imageSizeSlider.valueChangingProperty().addListener((obs, wasChanging, changing) -> {
             if (!changing && config != null)
-                config.setImageTileSize(imageSizeSlider.getValue());
+                config.ui().setImageTileSize(imageSizeSlider.getValue());
         });
         chatAreaStackPane.sceneProperty().addListener((obs, oldScene, scene) -> {
             if (scene == null)
@@ -3725,14 +3731,14 @@ public class MainWindowController implements I18nChangeListener {
         ToggleGroup views = new ToggleGroup();
         chatViewButton.setToggleGroup(views);
         imagesViewButton.setToggleGroup(views);
-        imagesViewButton.setSelected(config != null && "images".equals(config.getChatView()));
+        imagesViewButton.setSelected(config != null && "images".equals(config.ui().getChatView()));
         views.selectedToggleProperty().addListener((obs, oldView, view) -> {
             if (view == null) {
                 oldView.setSelected(true);
                 return;
             }
             if (config != null)
-                config.setChatView(view == imagesViewButton ? "images" : "chat");
+                config.ui().setChatView(view == imagesViewButton ? "images" : "chat");
             showEntries(chatEntriesListView.isVisible() || imageGrid.isVisible());
         });
     }
@@ -4210,7 +4216,7 @@ public class MainWindowController implements I18nChangeListener {
                 openFrameGroup(newGroup);
         });
 
-        String mode = config != null ? config.getSidebarMode() : "chat";
+        String mode = config != null ? config.ui().getSidebarMode() : "chat";
         modes.getToggles().stream().filter((toggle) -> mode.equals(toggle.getUserData())).findFirst()
                 .ifPresent((toggle) -> toggle.setSelected(true));
     }
@@ -4227,7 +4233,7 @@ public class MainWindowController implements I18nChangeListener {
         }
         updateSidebarTitle();
         if (config != null)
-            config.setSidebarMode((String) mode.getUserData());
+            config.ui().setSidebarMode((String) mode.getUserData());
 
         /*  The chat shows again, the other list holds the open group no more  */
         if (shownGroup != null) {
@@ -4486,7 +4492,7 @@ public class MainWindowController implements I18nChangeListener {
             String selectedModel = modelComboBox.getValue();
             if (selectedModel == null || selectedModel.trim().isEmpty()) {
                 // No model selected - require at least one valid key
-                return config.hasApiKey() || config.hasGeminiApiKey() || config.hasOpenAiApiKey();
+                return config.accounts().hasAnyApiKey();
             }
 
             // Determine provider based on selected model using GenerationModel enum
@@ -4494,14 +4500,14 @@ public class MainWindowController implements I18nChangeListener {
             if (generationModel != null) {
                 // Use accurate provider detection (handles NB2, Gemini, OpenAI etc.)
                 return switch (generationModel.getProvider()) {
-                    case GOOGLE_GEMINI -> config.hasGeminiApiKey();
-                    case OPENAI -> config.hasOpenAiApiKey();
-                    default -> config.hasApiKey();
+                    case GOOGLE_GEMINI -> config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI);
+                    case OPENAI -> config.accounts().hasApiKey(ApiProvider.OPENAI);
+                    default -> config.accounts().hasApiKey(ApiProvider.BFL);
                 };
             } else if (selectedModel.toLowerCase().contains("gemini")) {
-                return config.hasGeminiApiKey();
+                return config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI);
             } else {
-                return config.hasApiKey();
+                return config.accounts().hasApiKey(ApiProvider.BFL);
             }
         } catch (Exception e) {
             logger.error("Error checking API key for current provider", e);
@@ -4517,10 +4523,10 @@ public class MainWindowController implements I18nChangeListener {
     private java.util.List<String> openAiModelItems() {
         art.moodframe.config.ApplicationConfig openAiConfig = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.config.ApplicationConfig.class);
-        if (openAiConfig == null || !openAiConfig.isOpenAiProviderEnabled() || !openAiConfig.hasOpenAiApiKey()) {
+        if (openAiConfig == null || !openAiConfig.accounts().isUsable(ApiProvider.OPENAI)) {
             return java.util.List.of();
         }
-        return openAiConfig.getOpenAiModels().stream()
+        return openAiConfig.accounts().getOpenAiModels().stream()
                 .map(id -> art.moodframe.model.GenerationModel.OPENAI_PREFIX + id).toList();
     }
 
@@ -4539,7 +4545,7 @@ public class MainWindowController implements I18nChangeListener {
                 return false;
             }
 
-            return config.hasApiKey() || config.hasGeminiApiKey() || config.hasOpenAiApiKey();
+            return config.accounts().hasAnyApiKey();
         } catch (Exception e) {
             logger.error("Error checking API keys", e);
             return false;
@@ -4695,10 +4701,10 @@ public class MainWindowController implements I18nChangeListener {
 
             if (config != null) {
                 // Check if ALL enabled providers have valid keys
-                boolean bflEnabled = config.isBflProviderEnabled();
-                boolean geminiEnabled = config.isGeminiProviderEnabled();
-                boolean bflHasKey = config.hasApiKey(); // BFL API key
-                boolean geminiHasKey = config.hasGeminiApiKey(); // Gemini API key
+                boolean bflEnabled = config.accounts().isEnabled(ApiProvider.BFL);
+                boolean geminiEnabled = config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI);
+                boolean bflHasKey = config.accounts().hasApiKey(ApiProvider.BFL); // BFL API key
+                boolean geminiHasKey = config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI); // Gemini API key
 
                 // API keys are only "valid" if all enabled providers have keys
                 boolean hasValidKey = true;
@@ -4791,17 +4797,19 @@ public class MainWindowController implements I18nChangeListener {
      */
     static String accountChecks(art.moodframe.config.ApplicationConfig config, ApiProviderValidator validator) {
         java.util.List<String> lines = new java.util.ArrayList<>();
-        if (config.hasApiKey())
-            lines.add(accountCheck(account("BFL", config.isBflProviderEnabled()), ApiProvider.BFL,
-                    config.isBflProviderValidated(), null, false, false, validator));
-        if (config.hasGeminiApiKey())
-            lines.add(accountCheck(account("Google", config.isGeminiProviderEnabled()), ApiProvider.GOOGLE_GEMINI,
-                    config.isGeminiProviderValidated(), I18nManager.getText("status.api.check.model"),
-                    config.isGeminiChatOk(), config.isGeminiWebSearch(), validator));
-        if (config.hasOpenAiApiKey())
-            lines.add(accountCheck(account("OpenAI", config.isOpenAiProviderEnabled()), ApiProvider.OPENAI,
-                    config.isOpenAiProviderValidated(), config.getOpenAiChatModel(), config.isOpenAiChatOk(),
-                    config.isOpenAiWebSearch(), validator));
+        art.moodframe.config.ProviderAccounts accounts = config.accounts();
+        ApiProvider gemini = ApiProvider.GOOGLE_GEMINI;
+        ApiProvider openAi = ApiProvider.OPENAI;
+        if (accounts.hasApiKey(ApiProvider.BFL))
+            lines.add(accountCheck(account("BFL", accounts.isEnabled(ApiProvider.BFL)), ApiProvider.BFL,
+                    accounts.isValidated(ApiProvider.BFL), null, false, false, validator));
+        if (accounts.hasApiKey(gemini))
+            lines.add(accountCheck(account("Google", accounts.isEnabled(gemini)), gemini, accounts.isValidated(gemini),
+                    I18nManager.getText("status.api.check.model"), accounts.isChatOk(gemini),
+                    accounts.isWebSearch(gemini), validator));
+        if (accounts.hasApiKey(openAi))
+            lines.add(accountCheck(account("OpenAI", accounts.isEnabled(openAi)), openAi, accounts.isValidated(openAi),
+                    accounts.getOpenAiChatModel(), accounts.isChatOk(openAi), accounts.isWebSearch(openAi), validator));
         return String.join("\n", lines);
     }
 
@@ -4846,7 +4854,7 @@ public class MainWindowController implements I18nChangeListener {
             art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
                     .getService(art.moodframe.config.ApplicationConfig.class);
 
-            if (config != null && config.hasApiKey()) {
+            if (config != null && config.accounts().hasApiKey(ApiProvider.BFL)) {
                 setStatus(I18nManager.getText("status.ready"));
             } else {
                 setStatus(I18nManager.getText("status.ready"));
@@ -4945,7 +4953,7 @@ public class MainWindowController implements I18nChangeListener {
         panels.addAll(mainBorderPane.lookupAll(".glass"));
 
         /*  switched off: no cloud, and fields with their normal, opaque theme colors  */
-        boolean enabled = config == null || config.isBackgroundImageEnabled();
+        boolean enabled = config == null || config.ui().isBackgroundImageEnabled();
         cornerCloud.setVisible(enabled);
         if (!enabled) {
             for (Node panel : panels)
@@ -5943,7 +5951,7 @@ public class MainWindowController implements I18nChangeListener {
         worker.execute(() -> {
             try {
                 String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath), copyChatName,
-                        copyCreatedAt);
+                        copyCreatedAt, config.paths().downloads().toFile());
                 Platform.runLater(() -> setStatus(
                         java.text.MessageFormat.format(I18nManager.getText("download.image.success"), filename)));
             } catch (Exception e) {
@@ -5981,7 +5989,7 @@ public class MainWindowController implements I18nChangeListener {
                 /*  as a click on the title of Generation: unfold it, fold the other groups and remember it  */
                 showPanelGroup("generation");
                 if (config != null)
-                    config.setOpenPanelGroup("generation");
+                    config.ui().setOpenPanelGroup("generation");
             }
 
             // Clear prompt text to prepare for editing instructions
@@ -6159,9 +6167,9 @@ public class MainWindowController implements I18nChangeListener {
                     boolean isEnabled = false;
 
                     if (provider == art.moodframe.model.ApiProvider.BFL && config != null) {
-                        isEnabled = config.isBflProviderEnabled() && config.hasApiKey();
+                        isEnabled = config.accounts().isUsable(ApiProvider.BFL);
                     } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && config != null) {
-                        isEnabled = config.isGeminiProviderEnabled() && config.hasGeminiApiKey();
+                        isEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
                     }
 
                     if (isEnabled) {
@@ -6172,8 +6180,8 @@ public class MainWindowController implements I18nChangeListener {
         } else {
             // Add models from enabled providers only
             if (config != null) {
-                boolean bflEnabled = config.isBflProviderEnabled() && config.hasApiKey();
-                boolean geminiEnabled = config.isGeminiProviderEnabled() && config.hasGeminiApiKey();
+                boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
+                boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
 
                 for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
                     art.moodframe.model.ApiProvider provider = model.getProvider();
@@ -6323,8 +6331,9 @@ public class MainWindowController implements I18nChangeListener {
         modelComboBox.getItems().clear();
 
         logger.info("Provider status - BFL: enabled={}, hasKey={} | Gemini: enabled={}, hasKey={}",
-                    config.isBflProviderEnabled(), config.hasApiKey(),
-                    config.isGeminiProviderEnabled(), config.hasGeminiApiKey());
+                    config.accounts().isEnabled(ApiProvider.BFL), config.accounts().hasApiKey(ApiProvider.BFL),
+                    config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI),
+                    config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
 
         // Add models from enabled providers with valid API keys
         modelComboBox.getItems().addAll(art.moodframe.service.generation.GenerationService.availableItems(config));
@@ -6377,8 +6386,8 @@ public class MainWindowController implements I18nChangeListener {
         String currentSelection = modelComboBox.getValue();
 
         // Get provider status
-        boolean bflEnabled = config.isBflProviderEnabled() && config.hasApiKey();
-        boolean geminiEnabled = config.isGeminiProviderEnabled() && config.hasGeminiApiKey();
+        boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
+        boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
 
         // Clear and rebuild with filtered models
         modelComboBox.getItems().clear();

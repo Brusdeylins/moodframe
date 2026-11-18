@@ -1,6 +1,8 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import org.junit.jupiter.api.Test;
@@ -11,7 +13,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Each provider knows the prompt limit, the parameters and the download headers of its models. */
@@ -59,8 +60,8 @@ class ProviderPreparationTest {
 
     @Test
     void onlyAFileOfTheGeminiApiGetsTheKey() {
-        ApplicationConfig config = mock(ApplicationConfig.class);
-        when(config.getGeminiApiKey()).thenReturn("key");
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn("key");
         GeminiApiServiceImpl gemini = new GeminiApiServiceImpl(config);
 
         assertEquals(Map.of("x-goog-api-key", "key"),

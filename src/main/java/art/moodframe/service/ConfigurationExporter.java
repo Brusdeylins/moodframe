@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
@@ -105,27 +104,27 @@ public class ConfigurationExporter {
     private final ColorStyleService colorStyleService;
     private final MoodService moodService;
     private final FrameService frameService;
-    private final ApplicationConfig config;
-    
+
     /**
-     * Creates a new configuration exporter.
+     * Creates a new configuration exporter on the services of the application, so an import reaches the main window
+     * through their library events.
+     *
+     * @param promptBlockService the building blocks
+     * @param colorStyleService  the palettes
+     * @param moodService        the moods
+     * @param frameService       the frames
      */
-    public ConfigurationExporter() {
+    public ConfigurationExporter(PromptBlockService promptBlockService, ColorStyleService colorStyleService,
+            MoodService moodService, FrameService frameService) {
         this.objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-        /*  The services of the application report an import to the main window; without them, own ones  */
-        ServiceFactory services = ServiceFactory.getInstance();
-        this.promptBlockService = Objects.requireNonNullElseGet(services.getService(PromptBlockService.class),
-                PromptBlockService::new);
-        this.colorStyleService = Objects.requireNonNullElseGet(services.getService(ColorStyleService.class),
-                ColorStyleService::new);
-        this.moodService = Objects.requireNonNullElseGet(services.getService(MoodService.class),
-                () -> new MoodService(promptBlockService, colorStyleService));
-        this.frameService = Objects.requireNonNullElseGet(services.getService(FrameService.class), FrameService::new);
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        this.promptBlockService = promptBlockService;
+        this.colorStyleService = colorStyleService;
+        this.moodService = moodService;
+        this.frameService = frameService;
     }
     
     /**
@@ -170,32 +169,32 @@ public class ConfigurationExporter {
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.API_SETTINGS)) {
             Map<String, Object> apiSettings = new HashMap<>();
             // Note: apiBaseUrl removed - it's now calculated from apiRegion automatically
-            apiSettings.put("apiTimeoutSeconds", config.getApiTimeoutSeconds());
-            apiSettings.put("apiRegion", config.getApiRegion());
-            apiSettings.put("defaultSafetyTolerance", config.getDefaultSafetyTolerance());
-            apiSettings.put("defaultModel", config.getDefaultModel());
-            apiSettings.put("defaultAspectRatio", config.getDefaultAspectRatio());
-            apiSettings.put("defaultImageCount", config.getDefaultImageCount());
-            apiSettings.put("defaultStyle", config.getDefaultStyle());
-            apiSettings.put("defaultPromptUpsampling", config.getDefaultBflPromptUpsampling());
+            apiSettings.put("apiTimeoutSeconds", config.accounts().getApiTimeoutSeconds());
+            apiSettings.put("apiRegion", config.accounts().getApiRegion());
+            apiSettings.put("defaultSafetyTolerance", config.generation().getDefaultSafetyTolerance());
+            apiSettings.put("defaultModel", config.generation().getDefaultModel());
+            apiSettings.put("defaultAspectRatio", config.generation().getDefaultAspectRatio());
+            apiSettings.put("defaultImageCount", config.generation().getDefaultImageCount());
+            apiSettings.put("defaultStyle", config.generation().getDefaultStyle());
+            apiSettings.put("defaultPromptUpsampling", config.generation().getDefaultBflPromptUpsampling());
             // Note: API key is intentionally excluded for security reasons
             configData.put("apiSettings", apiSettings);
         }
         
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.UI_PREFERENCES)) {
             Map<String, Object> uiPreferences = new HashMap<>();
-            uiPreferences.put("uiTheme", config.getUiTheme());
-            uiPreferences.put("uiLanguage", config.getUiLanguage());
-            uiPreferences.put("splitterPosition", config.getSplitterPosition());
+            uiPreferences.put("uiTheme", config.ui().getUiTheme());
+            uiPreferences.put("uiLanguage", config.ui().getUiLanguage());
+            uiPreferences.put("splitterPosition", config.ui().getSplitterPosition());
             configData.put("uiPreferences", uiPreferences);
         }
         
         if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.PROXY_SETTINGS)) {
             Map<String, Object> proxySettings = new HashMap<>();
-            proxySettings.put("proxyEnabled", config.isProxyEnabled());
-            proxySettings.put("proxyHost", config.getProxyHost());
-            proxySettings.put("proxyPort", config.getProxyPort());
-            proxySettings.put("proxyUsername", config.getProxyUsername());
+            proxySettings.put("proxyEnabled", config.proxy().isProxyEnabled());
+            proxySettings.put("proxyHost", config.proxy().getProxyHost());
+            proxySettings.put("proxyPort", config.proxy().getProxyPort());
+            proxySettings.put("proxyUsername", config.proxy().getProxyUsername());
             // Note: Proxy password is intentionally excluded for security reasons
             configData.put("proxySettings", proxySettings);
         }
@@ -292,58 +291,58 @@ public class ConfigurationExporter {
             if (apiSettings != null) {
                 if (apiSettings.containsKey("apiTimeoutSeconds")) {
                     Integer newValue = (Integer) apiSettings.get("apiTimeoutSeconds");
-                    if (!Objects.equals(newValue, targetConfig.getApiTimeoutSeconds())) {
+                    if (!Objects.equals(newValue, targetConfig.accounts().getApiTimeoutSeconds())) {
                         changes.put("API Timeout", newValue + " seconds");
                         targetConfig.setProperty("api.timeout_seconds", newValue.toString());
                     }
                 }
                 if (apiSettings.containsKey("apiRegion")) {
                     String newValue = (String) apiSettings.get("apiRegion");
-                    if (!Objects.equals(newValue, targetConfig.getApiRegion())) {
+                    if (!Objects.equals(newValue, targetConfig.accounts().getApiRegion())) {
                         changes.put("API Region", newValue + " (endpoint will be: " + getEndpointForRegion(newValue) + ")");
-                        targetConfig.setApiRegion(newValue);
+                        targetConfig.accounts().setApiRegion(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultSafetyTolerance")) {
                     Integer newValue = (Integer) apiSettings.get("defaultSafetyTolerance");
-                    if (!newValue.equals(targetConfig.getDefaultSafetyTolerance())) {
+                    if (!newValue.equals(targetConfig.generation().getDefaultSafetyTolerance())) {
                         changes.put("Default Safety Tolerance", newValue);
-                        targetConfig.setDefaultSafetyTolerance(newValue);
+                        targetConfig.generation().setDefaultSafetyTolerance(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultModel")) {
                     String newValue = (String) apiSettings.get("defaultModel");
-                    if (!Objects.equals(newValue, targetConfig.getDefaultModel())) {
+                    if (!Objects.equals(newValue, targetConfig.generation().getDefaultModel())) {
                         changes.put("Default Model", newValue);
-                        targetConfig.setDefaultModel(newValue);
+                        targetConfig.generation().setDefaultModel(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultAspectRatio")) {
                     String newValue = (String) apiSettings.get("defaultAspectRatio");
-                    if (!Objects.equals(newValue, targetConfig.getDefaultAspectRatio())) {
+                    if (!Objects.equals(newValue, targetConfig.generation().getDefaultAspectRatio())) {
                         changes.put("Default Aspect Ratio", newValue);
-                        targetConfig.setDefaultAspectRatio(newValue);
+                        targetConfig.generation().setDefaultAspectRatio(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultImageCount")) {
                     Integer newValue = (Integer) apiSettings.get("defaultImageCount");
-                    if (!newValue.equals(targetConfig.getDefaultImageCount())) {
+                    if (!newValue.equals(targetConfig.generation().getDefaultImageCount())) {
                         changes.put("Default Image Count", newValue);
-                        targetConfig.setDefaultImageCount(newValue);
+                        targetConfig.generation().setDefaultImageCount(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultStyle")) {
                     String newValue = (String) apiSettings.get("defaultStyle");
-                    if (!Objects.equals(newValue, targetConfig.getDefaultStyle())) {
+                    if (!Objects.equals(newValue, targetConfig.generation().getDefaultStyle())) {
                         changes.put("Default Style", newValue);
-                        targetConfig.setDefaultStyle(newValue);
+                        targetConfig.generation().setDefaultStyle(newValue);
                     }
                 }
                 if (apiSettings.containsKey("defaultPromptUpsampling")) {
                     Boolean newValue = (Boolean) apiSettings.get("defaultPromptUpsampling");
-                    if (!newValue.equals(targetConfig.getDefaultBflPromptUpsampling())) {
+                    if (!newValue.equals(targetConfig.generation().getDefaultBflPromptUpsampling())) {
                         changes.put("Default Prompt Upsampling", newValue ? "Yes" : "No");
-                        targetConfig.setDefaultBflPromptUpsampling(newValue);
+                        targetConfig.generation().setDefaultBflPromptUpsampling(newValue);
                     }
                 }
             }
@@ -354,23 +353,23 @@ public class ConfigurationExporter {
             if (uiPreferences != null) {
                 if (uiPreferences.containsKey("uiTheme")) {
                     String newValue = (String) uiPreferences.get("uiTheme");
-                    if (!Objects.equals(newValue, targetConfig.getUiTheme())) {
+                    if (!Objects.equals(newValue, targetConfig.ui().getUiTheme())) {
                         changes.put("UI Theme", newValue);
-                        targetConfig.setUiTheme(newValue);
+                        targetConfig.ui().setUiTheme(newValue);
                     }
                 }
                 if (uiPreferences.containsKey("uiLanguage")) {
                     String newValue = (String) uiPreferences.get("uiLanguage");
-                    if (!Objects.equals(newValue, targetConfig.getUiLanguage())) {
+                    if (!Objects.equals(newValue, targetConfig.ui().getUiLanguage())) {
                         changes.put("UI Language", newValue);
-                        targetConfig.setUiLanguage(newValue);
+                        targetConfig.ui().setUiLanguage(newValue);
                     }
                 }
                 if (uiPreferences.containsKey("splitterPosition")) {
                     Double newValue = (Double) uiPreferences.get("splitterPosition");
-                    if (!newValue.equals(targetConfig.getSplitterPosition())) {
+                    if (!newValue.equals(targetConfig.ui().getSplitterPosition())) {
                         changes.put("Splitter Position", String.format("%.1f%%", newValue * 100));
-                        targetConfig.setSplitterPosition(newValue);
+                        targetConfig.ui().setSplitterPosition(newValue);
                     }
                 }
             }
@@ -381,30 +380,30 @@ public class ConfigurationExporter {
             if (proxySettings != null) {
                 if (proxySettings.containsKey("proxyEnabled")) {
                     Boolean newValue = (Boolean) proxySettings.get("proxyEnabled");
-                    if (!newValue.equals(targetConfig.isProxyEnabled())) {
+                    if (!newValue.equals(targetConfig.proxy().isProxyEnabled())) {
                         changes.put("Proxy Enabled", newValue ? "Yes" : "No");
-                        targetConfig.setProxyEnabled(newValue);
+                        targetConfig.proxy().setProxyEnabled(newValue);
                     }
                 }
                 if (proxySettings.containsKey("proxyHost")) {
                     String newValue = (String) proxySettings.get("proxyHost");
-                    if (!Objects.equals(newValue, targetConfig.getProxyHost())) {
+                    if (!Objects.equals(newValue, targetConfig.proxy().getProxyHost())) {
                         changes.put("Proxy Host", newValue);
-                        targetConfig.setProxyHost(newValue);
+                        targetConfig.proxy().setProxyHost(newValue);
                     }
                 }
                 if (proxySettings.containsKey("proxyPort")) {
                     Integer newValue = (Integer) proxySettings.get("proxyPort");
-                    if (!newValue.equals(targetConfig.getProxyPort())) {
+                    if (!newValue.equals(targetConfig.proxy().getProxyPort())) {
                         changes.put("Proxy Port", newValue);
-                        targetConfig.setProxyPort(newValue);
+                        targetConfig.proxy().setProxyPort(newValue);
                     }
                 }
                 if (proxySettings.containsKey("proxyUsername")) {
                     String newValue = (String) proxySettings.get("proxyUsername");
-                    if (!Objects.equals(newValue, targetConfig.getProxyUsername())) {
+                    if (!Objects.equals(newValue, targetConfig.proxy().getProxyUsername())) {
                         changes.put("Proxy Username", newValue);
-                        targetConfig.setProxyUsername(newValue);
+                        targetConfig.proxy().setProxyUsername(newValue);
                     }
                 }
             }

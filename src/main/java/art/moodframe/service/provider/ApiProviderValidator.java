@@ -152,9 +152,11 @@ public class ApiProviderValidator {
             return only;
         });
         CompletableFuture<Boolean> bflValidation = openAiOnly.thenCompose((only) -> only
-                ? CompletableFuture.completedFuture(config.isBflProviderValidated()) : validateBflProvider());
+                ? CompletableFuture.completedFuture(config.accounts().isValidated(ApiProvider.BFL))
+                : validateBflProvider());
         CompletableFuture<Boolean> geminiValidation = openAiOnly.thenCompose((only) -> only
-                ? CompletableFuture.completedFuture(config.isGeminiProviderValidated()) : validateGeminiProvider());
+                ? CompletableFuture.completedFuture(config.accounts().isValidated(ApiProvider.GOOGLE_GEMINI))
+                : validateGeminiProvider());
 
         return CompletableFuture.allOf(bflValidation, geminiValidation, openAiValidation)
                 .whenComplete((v, error) -> completionListeners.forEach(Runnable::run))
@@ -199,17 +201,18 @@ public class ApiProviderValidator {
      */
     public CompletableFuture<Boolean> validateGeminiProvider() {
         return validateConnection(ApiProvider.GOOGLE_GEMINI,
-                () -> clearModelChecks(ApiProvider.GOOGLE_GEMINI, config::setGeminiChatOk, config::setGeminiWebSearch),
+                () -> clearModelChecks(ApiProvider.GOOGLE_GEMINI),
                 (isValid) -> {
-                    if (isValid && !config.isGeminiProviderEnabled() && !config.isBflProviderEnabled()) {
+                    if (isValid && !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)
+                            && !config.accounts().isEnabled(ApiProvider.BFL)) {
                         /*  No provider usable (e.g. after migration to a new machine): enable Gemini  */
-                        config.setGeminiProviderEnabled(true);
+                        config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, true);
                         logger.info("Gemini API validation successful - no provider enabled, Gemini auto-enabled");
                     }
 
                     /*  Without a connection, language model and search stay as last decided: no brainstorm anyway;
                         a disabled provider keeps them too, so no paid check runs for an account switched off  */
-                    if (!isValid || !config.isGeminiProviderEnabled())
+                    if (!isValid || !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI))
                         return CompletableFuture.completedFuture(isValid);
                     return checkGeminiModel().thenApply((check) -> true);
                 });
@@ -239,8 +242,7 @@ public class ApiProviderValidator {
         return gemini.checkChatModel().handle(Outcome::of)
                 .thenCombine(gemini.checkWebSearch().handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
-                    storeModelCheck(ApiProvider.GOOGLE_GEMINI, check, config::setGeminiChatOk,
-                            config::setGeminiWebSearch);
+                    storeModelCheck(ApiProvider.GOOGLE_GEMINI, check);
                     completionListeners.forEach(Runnable::run);
                     return check;
                 });
@@ -254,17 +256,17 @@ public class ApiProviderValidator {
      */
     public CompletableFuture<Boolean> validateOpenAiProvider() {
         return validateConnection(ApiProvider.OPENAI,
-                () -> clearModelChecks(ApiProvider.OPENAI, config::setOpenAiChatOk, config::setOpenAiWebSearch),
+                () -> clearModelChecks(ApiProvider.OPENAI),
                 (isValid) -> {
                     /*  Without a connection, or for a disabled provider, the last decided results stay  */
                     String model = config.getOpenAiChatModel();
-                    if (!isValid || !config.isOpenAiProviderEnabled())
+                    if (!isValid || !config.accounts().isEnabled(ApiProvider.OPENAI))
                         return CompletableFuture.completedFuture(isValid);
                     if (!model.isBlank())
                         return checkOpenAiModel(model).thenApply((check) -> true);
 
                     /*  No chosen model: no brainstorm  */
-                    clearModelChecks(ApiProvider.OPENAI, config::setOpenAiChatOk, config::setOpenAiWebSearch);
+                    clearModelChecks(ApiProvider.OPENAI);
                     return CompletableFuture.completedFuture(true);
                 });
     }
@@ -281,9 +283,9 @@ public class ApiProviderValidator {
     private CompletableFuture<Boolean> validateConnection(ApiProvider provider, Runnable noKey,
             Function<Boolean, CompletableFuture<Boolean>> then) {
         String name = provider.getDisplayName();
-        if (!config.hasApiKey(provider)) {
+        if (!config.accounts().hasApiKey(provider)) {
             logger.info("{} API key not configured, skipping validation", name);
-            config.setProviderValidated(provider, false);
+            config.accounts().setValidated(provider, false);
             setReason(provider, Check.CONNECTION, null);
             noKey.run();
             // Don't change enabled status - respect user preference
@@ -291,7 +293,7 @@ public class ApiProviderValidator {
         }
 
         logger.info("Validating {} API key...", name);
-        final boolean hasUserPreference = config.hasProviderEnabledPreference(provider);
+        final boolean hasUserPreference = config.accounts().hasEnabledPreference(provider);
 
         return providers.get(provider).testConnection()
                 .thenApply(isValid -> {
@@ -299,14 +301,14 @@ public class ApiProviderValidator {
 
                     if (isValid && !hasUserPreference) {
                         // Only auto-enable on first successful validation (no user preference exists)
-                        config.setProviderEnabled(provider, true);
+                        config.accounts().setEnabled(provider, true);
                         logger.info("{} API validation successful - provider auto-enabled (first time setup)", name);
                     } else if (isValid) {
                         logger.info("{} API validation successful - provider status: {} (user preference)", name,
-                                config.isProviderEnabled(provider) ? "enabled" : "disabled");
+                                config.accounts().isEnabled(provider) ? "enabled" : "disabled");
                     } else {
                         logger.warn("{} API validation failed - provider status: {}", name,
-                                config.isProviderEnabled(provider) ? "enabled (invalid key)" : "disabled");
+                                config.accounts().isEnabled(provider) ? "enabled (invalid key)" : "disabled");
                     }
 
                     return isValid;
@@ -347,8 +349,7 @@ public class ApiProviderValidator {
                     synchronized (this) {
                         lastOpenAiChecks.put(model, check);
                         if (model.equals(config.getOpenAiChatModel())) {
-                            storeModelCheck(ApiProvider.OPENAI, check, config::setOpenAiChatOk,
-                                    config::setOpenAiWebSearch);
+                            storeModelCheck(ApiProvider.OPENAI, check);
                             completionListeners.forEach(Runnable::run);
                         }
                     }
@@ -365,10 +366,10 @@ public class ApiProviderValidator {
      * @since 2.1.2
      */
     public synchronized void storeOpenAiModelCheck(String model) {
-        clearModelChecks(ApiProvider.OPENAI, config::setOpenAiChatOk, config::setOpenAiWebSearch);
+        clearModelChecks(ApiProvider.OPENAI);
         ModelCheck check = lastOpenAiChecks.get(model);
         if (!model.isBlank() && check != null)
-            storeModelCheck(ApiProvider.OPENAI, check, config::setOpenAiChatOk, config::setOpenAiWebSearch);
+            storeModelCheck(ApiProvider.OPENAI, check);
         completionListeners.forEach(Runnable::run);
     }
 
@@ -386,7 +387,7 @@ public class ApiProviderValidator {
     }
 
     private void storeConnection(ApiProvider provider, boolean works) {
-        config.setProviderValidated(provider, works);
+        config.accounts().setValidated(provider, works);
         if (works)
             reasons.remove(new Key(provider, Check.CONNECTION));
         else
@@ -401,10 +402,9 @@ public class ApiProviderValidator {
     }
 
     /*  stores the decided flags of a model check with their reasons; an undecided check keeps its flag  */
-    private void storeModelCheck(ApiProvider provider, ModelCheck check, Consumer<Boolean> chatFlag,
-            Consumer<Boolean> searchFlag) {
-        storeOutcome(provider, Check.LANGUAGE_MODEL, check.chat(), chatFlag);
-        storeOutcome(provider, Check.WEB_SEARCH, check.search(), searchFlag);
+    private void storeModelCheck(ApiProvider provider, ModelCheck check) {
+        storeOutcome(provider, Check.LANGUAGE_MODEL, check.chat(), (ok) -> config.accounts().setChatOk(provider, ok));
+        storeOutcome(provider, Check.WEB_SEARCH, check.search(), (ok) -> config.accounts().setWebSearch(provider, ok));
         logger.info("{} brainstorm check: language model {}, web search {}", provider, check.chat(), check.search());
     }
 
@@ -418,9 +418,9 @@ public class ApiProviderValidator {
     }
 
     /*  without an account or a chosen language model there is nothing to check: no brainstorm, no reasons  */
-    private void clearModelChecks(ApiProvider provider, Consumer<Boolean> chatFlag, Consumer<Boolean> searchFlag) {
-        chatFlag.accept(false);
-        searchFlag.accept(false);
+    private void clearModelChecks(ApiProvider provider) {
+        config.accounts().setChatOk(provider, false);
+        config.accounts().setWebSearch(provider, false);
         setReason(provider, Check.LANGUAGE_MODEL, null);
         setReason(provider, Check.WEB_SEARCH, null);
     }
@@ -482,7 +482,7 @@ public class ApiProviderValidator {
      * @return true if the provider is currently validated, false otherwise
      */
     public boolean isProviderValidated(ApiProvider provider) {
-        return config.isProviderValidated(provider);
+        return config.accounts().isValidated(provider);
     }
 
     /**
@@ -492,6 +492,6 @@ public class ApiProviderValidator {
      * @return true if the provider is currently enabled, false otherwise
      */
     public boolean isProviderEnabled(ApiProvider provider) {
-        return config.isProviderEnabled(provider);
+        return config.accounts().isEnabled(provider);
     }
 }

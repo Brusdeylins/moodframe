@@ -1,6 +1,7 @@
 package art.moodframe.service.generation;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.Chat;
@@ -60,7 +61,7 @@ class GenerationServiceTest {
 
     private static final GenerationOrder.Target WIDE_2K = new GenerationOrder.Target(null, false, "16:9", "2K");
 
-    private final ApplicationConfig config = mock(ApplicationConfig.class);
+    private final ApplicationConfig config = ConfigMocks.config();
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
@@ -82,13 +83,12 @@ class GenerationServiceTest {
 
     @BeforeEach
     void enableEveryProvider() {
-        when(config.isBflProviderEnabled()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
-        when(config.isOpenAiProviderEnabled()).thenReturn(true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.hasOpenAiApiKey()).thenReturn(true);
-        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
+        when(config.accounts().isEnabled(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.OPENAI)).thenReturn(true);
         when(config.getOpenAiModels()).thenReturn(List.of("gpt-image-1", "qwen-image-2.1"));
         when(config.getFlux2SafetyTolerance()).thenReturn(2);
         when(requests.submitImageGeneration(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -183,16 +183,16 @@ class GenerationServiceTest {
 
     @Test
     void refusesEveryProviderWithoutItsKey() {
-        when(config.hasApiKey()).thenReturn(false);
-        when(config.hasGeminiApiKey()).thenReturn(false);
-        when(config.hasOpenAiApiKey()).thenReturn(false);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(false);
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(false);
+        when(config.accounts().hasApiKey(ApiProvider.OPENAI)).thenReturn(false);
         for (String modelId : List.of("FLUX2_PRO", "FLUX3_IMAGE_1K", "NANO_BANANA2_1K", "OMNI_720P", "gpt-image-1"))
             assertEquals(GenerationService.Failure.MISSING_KEY,
                     failure(() -> service.submit(order(modelId, WIDE_2K))), modelId);
         verify(requests, never()).submitImageGeneration(any(), any(), any());
 
         /*  A key opens its own provider only  */
-        when(config.hasGeminiApiKey()).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         assertDoesNotThrow(() -> service.submit(order("NANO_BANANA2_1K", WIDE_2K)));
         assertEquals(GenerationService.Failure.MISSING_KEY, failure(() -> service.submit(order("FLUX2_PRO", WIDE_2K))));
     }
