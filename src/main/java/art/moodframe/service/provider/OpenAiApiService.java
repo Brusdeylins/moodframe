@@ -3,6 +3,8 @@ package art.moodframe.service.provider;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
@@ -45,6 +47,27 @@ public interface OpenAiApiService extends ImageProvider {
 
     @Override
     OpenAiApiService withCredentials(String apiKey, String endpoint);
+
+    /** The prompt limit of the model: 1,000 to 32,000 characters. */
+    @Override
+    default int maxPromptLength(String apiModelId) {
+        return GenerationModel.openAiMaxPromptLength(apiModelId);
+    }
+
+    /**
+     * Sets the size of a model of an OpenAI-compatible gateway, the free size closest to the target resolution, and
+     * the reference images, which go to {@code /images/edits}.
+     */
+    @Override
+    default void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options) {
+        if (model != GenerationModel.OPENAI_IMAGE)
+            return;
+        List<String> freeResolutions = ModelFamilies.freeResolutions(options.item());
+        if (freeResolutions != null)
+            request.setImageSize(ModelFamilies.nearest(options.targetResolution(), freeResolutions));
+        if (!options.referenceImages().isEmpty())
+            request.setInputImages(options.referenceImages());
+    }
 
     /**
      * What a test of a token and a base URL found.

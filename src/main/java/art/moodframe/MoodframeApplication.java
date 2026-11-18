@@ -331,7 +331,8 @@ public class MoodframeApplication extends Application {
                         return requests != null ? new art.moodframe.service.generation.GenerationService(config,
                                 services.getService(art.moodframe.service.chat.ChatLibrary.class),
                                 services.getService(art.moodframe.service.library.MoodService.class),
-                                requests) : null;
+                                requests, services.getService(art.moodframe.service.provider.ProviderRegistry.class))
+                                : null;
                     });
 
             /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled. Without the

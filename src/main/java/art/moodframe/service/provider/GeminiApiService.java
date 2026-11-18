@@ -3,10 +3,12 @@ package art.moodframe.service.provider;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -23,8 +25,55 @@ public interface GeminiApiService extends ImageProvider {
         return ApiProvider.GOOGLE_GEMINI;
     }
 
+    /** The prompt limit of Gemini: 65,536 tokens, about 250,000 characters. */
+    int MAX_PROMPT_LENGTH = 250_000;
+
     @Override
     GeminiApiService withCredentials(String apiKey, String endpoint);
+
+    @Override
+    default int maxPromptLength(String apiModelId) {
+        return MAX_PROMPT_LENGTH;
+    }
+
+    /**
+     * Sets the image size of the variant, Google Search grounding, the thinking level (only Nano Banana 2 and Lite
+     * take one, Nano Banana Pro always thinks) and up to 14 reference images; for an Omni video its resolution, the
+     * length (8 seconds without choice), audio and a single video.
+     */
+    @Override
+    default void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options) {
+        request.setImageSize(imageSize(model));
+        if (options.googleSearch() != null)
+            request.setEnableGoogleSearch(options.googleSearch());
+        request.setThinkingMode(model.supportsThinkingLevel() && options.thinkingLevel() != null
+                ? options.thinkingLevel().toLowerCase() : null);
+        List<String> referenceImages = options.referenceImages();
+        if (model.supportsMultiImage() && !referenceImages.isEmpty())
+            request.setInputImages(referenceImages);
+
+        if (model.isVideoModel()) {
+            request.setVideoResolution(model.getVideoResolution());
+            request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds() : 8);
+            request.setGenerateAudio(true);
+            request.setImageCount(1);
+        }
+    }
+
+    /**
+     * Gets the imageSize parameter of the Gemini API for a variant: 512, 1K, 2K or 4K; Lite is capped at 1K.
+     *
+     * @param model the model
+     * @return the image size
+     */
+    static String imageSize(GenerationModel model) {
+        return switch (model) {
+            case GEMINI_PRO_2K, NANO_BANANA2_2K -> "2K";
+            case GEMINI_PRO_4K, NANO_BANANA2_4K -> "4K";
+            case NANO_BANANA2_512 -> "512";
+            default -> "1K";
+        };
+    }
 
     /**
      * Analyzes a YouTube video using Google Gemini's video understanding capabilities.

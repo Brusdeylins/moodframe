@@ -433,16 +433,11 @@ public class RequestResponseManager implements RequestResponseService {
 
                 logger.info("Downloading video from: {} to: {}", videoUrl, videoPath);
 
-                // Download video file. The Google file URL answers HTTP 403 without the API key, which is
-                // sent as a header so that it does not show up in the URL or the log.
+                // Download video file, with the headers the provider needs for its files (e.g. its key)
                 HttpRequest.Builder downloadBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(videoUrl))
                         .timeout(Duration.ofSeconds(120)); // Longer timeout for video download
-                String geminiKey = config.getGeminiApiKey();
-                if (videoUrl.startsWith("https://generativelanguage.googleapis.com/")
-                        && geminiKey != null && !geminiKey.isBlank()) {
-                    downloadBuilder.header("x-goog-api-key", geminiKey);
-                }
+                providers.forModel(request.getModel()).downloadHeaders(videoUrl).forEach(downloadBuilder::header);
                 HttpRequest downloadRequest = downloadBuilder.GET().build();
 
                 HttpResponse<InputStream> downloadResponse = downloadClient.get().send(

@@ -20,6 +20,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.util.I18nManager;
+import art.moodframe.service.provider.MockProviders;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,8 @@ class GenerationServiceTest {
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
-    private final GenerationService service = new GenerationService(config, chats, null, requests);
+    private final GenerationService service = new GenerationService(config, chats, null, requests,
+            MockProviders.preparing());
     private final Chat chat = new Chat.Builder().id("chat-1").name("Test").build();
 
     @BeforeAll
@@ -305,7 +307,8 @@ class GenerationServiceTest {
         Mood mood = new Mood("mood-1", "Calm");
         EntryMood copy = new EntryMood("mood-1", "Calm", Map.of());
         when(moods.snapshot(eq(mood), eq(true), any())).thenReturn(copy);
-        GenerationService withMoods = new GenerationService(config, chats, moods, requests);
+        GenerationService withMoods = new GenerationService(config, chats, moods, requests,
+                MockProviders.preparing());
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,

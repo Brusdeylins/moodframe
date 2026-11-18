@@ -117,12 +117,14 @@ public class MoodAnalysisService {
     }
 
     /**
-     * The OpenAI language model if the analysis talks to OpenAI (the brainstorm does, or Gemini is not usable),
-     * else null for Gemini; as in the brainstorm.
+     * The language model of the analysis: OpenAI if the brainstorm talks to it or Gemini is not usable, as in the
+     * brainstorm, else Gemini; null if neither is usable.
      */
-    private String openAiModel() {
-        return openAiService != null && config.isOpenAiChatAvailable()
-                && ("openai".equals(config.getBrainstormEngine()) || !geminiUsable()) ? config.getOpenAiChatModel() : null;
+    private ChatModel chatModel() {
+        boolean geminiUsable = geminiUsable();
+        ChatModel model = ChatModel.choose(geminiService, openAiService, config,
+                "openai".equals(config.getBrainstormEngine()), geminiUsable);
+        return model.watchesVideos() && !geminiUsable ? null : model;
     }
 
     /**
@@ -131,7 +133,7 @@ public class MoodAnalysisService {
      * @return true if Gemini or an OpenAI language model can answer
      */
     public boolean hasLanguageModel() {
-        return openAiModel() != null || geminiUsable();
+        return chatModel() != null;
     }
 
     /**
@@ -162,11 +164,7 @@ public class MoodAnalysisService {
 
     /** Sends the image to the language model of the brainstorm, without tools, and returns its JSON text. */
     private String ask(String systemPrompt, JSONArray contents) {
-        String openAiModel = openAiModel();
-        BrainstormTurn turn = (openAiModel != null
-                ? openAiService.chatTurn(openAiModel, systemPrompt, contents, false, false, false)
-                : geminiService.chatTurn(systemPrompt, contents, false, false)).join();
-        return turn.text();
+        return chatModel().chatTurn(systemPrompt, contents, false, false).join().text();
     }
 
     /**

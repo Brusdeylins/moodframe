@@ -2,8 +2,10 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -70,6 +72,35 @@ public interface ImageProvider {
      */
     default CompletableFuture<Boolean> testConnection(String apiKey, String endpoint) {
         return withCredentials(apiKey, endpoint).testConnection();
+    }
+
+    /**
+     * Gets the prompt limit of a model in characters.
+     *
+     * @param apiModelId the API model id (may be null)
+     * @return the limit
+     */
+    int maxPromptLength(String apiModelId);
+
+    /**
+     * Sets what the model of this provider takes on a request whose prompt, size and general parameters are set:
+     * resolution tier, reference images, Google Search, thinking level, FLUX settings, video parameters.
+     *
+     * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
+     * @param model   the model
+     * @param options what the order asks for
+     */
+    void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options);
+
+    /**
+     * Gets the headers a download of a file of this provider needs, e.g. the key for a file of the provider's API.
+     * The key goes as a header, so it does not show up in the URL or the log.
+     *
+     * @param url the URL of the file
+     * @return the headers, empty if none
+     */
+    default Map<String, String> downloadHeaders(String url) {
+        return Map.of();
     }
 
     /**

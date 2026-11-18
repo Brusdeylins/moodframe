@@ -1,8 +1,11 @@
 package art.moodframe.service.provider;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobResult;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 
 /**
  * Service interface for interacting with the BlackForest Labs (BFL) API.
@@ -55,8 +58,45 @@ public interface BflApiService extends ImageProvider {
     /**
      * BFL answers a submission with a job, {@code BflGenerationFlow} polls it until the image is ready.
      */
+    /** The prompt limit of FLUX: 512 tokens, about 2,000 characters. */
+    int MAX_PROMPT_LENGTH = 2000;
+
     @Override
     BflApiService withCredentials(String apiKey, String endpoint);
+
+    @Override
+    default int maxPromptLength(String apiModelId) {
+        return MAX_PROMPT_LENGTH;
+    }
+
+    /**
+     * Sets the safety tolerance of FLUX.2 and FLUX 3, the resolution tier of FLUX 3, guidance and steps of FLUX.2
+     * [flex] and the reference images (FLUX 3 up to 10, FLUX.2 up to 8); FLUX.2 [max] grounds on its own by the
+     * prompt.
+     */
+    @Override
+    default void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options) {
+        List<String> referenceImages = options.referenceImages();
+        if (model.isFlux2Model() || model.isFlux3Model())
+            request.setSafetyTolerance(options.fluxSafetyTolerance());
+
+        if (model.isFlux3Model()) {
+            request.setImageSize(model.getFlux3Resolution());
+            if (!referenceImages.isEmpty())
+                request.setInputImages(referenceImages);
+        }
+
+        if (model.isFlux2Model()) {
+            if (model.isFlux2Flex()) {
+                if (options.guidance() != null)
+                    request.setGuidance(options.guidance());
+                if (options.steps() != null)
+                    request.setSteps(options.steps());
+            }
+            if (model.supportsMultiImage() && !referenceImages.isEmpty())
+                request.setInputImages(referenceImages);
+        }
+    }
 
     @Override
     default boolean answersWithImage() {

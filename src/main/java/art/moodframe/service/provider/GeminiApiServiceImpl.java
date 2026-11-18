@@ -10,6 +10,7 @@ import art.moodframe.net.IoExecutor;
 import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -80,6 +81,16 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     @Override
     public GeminiApiService withCredentials(String apiKey, String endpoint) {
         return new GeminiApiServiceImpl(config, httpClient, io, baseUrl, apiKey);
+    }
+
+    /**
+     * The files of the Gemini API (an Omni video) answer HTTP 403 without the key.
+     */
+    @Override
+    public Map<String, String> downloadHeaders(String url) {
+        String key = getApiKey();
+        return url != null && url.startsWith("https://generativelanguage.googleapis.com/") && key != null
+                && !key.isBlank() ? Map.of("x-goog-api-key", key) : Map.of();
     }
 
     @Override
