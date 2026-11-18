@@ -20,7 +20,6 @@ import java.security.MessageDigest;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The MCP server of MoodFrame: Streamable HTTP on {@code http://127.0.0.1:<port>/mcp}, stateless, JSON-RPC 2.0 by
@@ -77,12 +76,10 @@ public class McpServer {
      */
     public synchronized void start() throws IOException {
         HttpServer created = HttpServer.create(new InetSocketAddress(InetAddress.getByAddress(LOOPBACK), port), 0);
-        AtomicInteger count = new AtomicInteger();
-        ExecutorService threads = Executors.newFixedThreadPool(4, (Runnable runnable) -> {
-            Thread thread = new Thread(runnable, "mcp-server-" + count.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        });
+        /*  A virtual thread per request: generate and cancel_generation wait for the generation, and any number of
+            them must not keep list_chats or a cancel from their answer, as a fixed pool did  */
+        ExecutorService threads = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("mcp-server-", 1)
+                .factory());
         created.createContext("/", this::handle);
         created.setExecutor(threads);
         created.start();

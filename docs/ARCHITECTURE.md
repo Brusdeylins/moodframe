@@ -126,8 +126,10 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   a burst of events gives one query.
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
-- **MCP server**: its tools run on the threads of the `jdk.httpserver`, never on the JavaFX thread, and read and
-  change the chats without waiting for it (only `cancel_generation` waits for the change of the generation).
+- **MCP server**: each request runs on a virtual thread of its own (`mcp-server-N`), never on the JavaFX thread, and
+  reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
+  generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
+  thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
 - **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
   the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
   held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files.
