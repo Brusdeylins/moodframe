@@ -3,7 +3,7 @@ package art.moodframe.ui.component;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.ModelFamilies;
-import art.moodframe.service.MoodService;
+import art.moodframe.service.library.MoodService;
 import art.moodframe.util.I18nManager;
 
 import java.util.ArrayList;

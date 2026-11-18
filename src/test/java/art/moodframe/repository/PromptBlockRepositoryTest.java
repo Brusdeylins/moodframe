@@ -4,7 +4,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.service.PromptBlockService;
+import art.moodframe.service.library.PromptBlockService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

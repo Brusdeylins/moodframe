@@ -12,7 +12,7 @@ import javafx.scene.paint.Color;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
-import art.moodframe.service.ColorStyleService;
+import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nChangeListener;

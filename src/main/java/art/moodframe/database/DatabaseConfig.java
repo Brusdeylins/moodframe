@@ -1,6 +1,5 @@
 package art.moodframe.database;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +35,7 @@ public final class DatabaseConfig {
             database.initialize();
             ServiceFactory.getInstance().registerService(DatabaseManager.class, database);
 
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Database initialized: {}", databasePath);
-            }
+            logger.debug("Database initialized: {}", databasePath);
             return database;
 
         } catch (Exception e) {

@@ -1288,14 +1288,10 @@ public class ApplicationConfig {
     public void setProxyHost(String proxyHost) {
         if (proxyHost == null || proxyHost.trim().isEmpty()) {
             properties.remove("proxy.host");
-            if (getLoggingEnabled()) {
-                logger.info("Proxy host removed from configuration");
-            }
+            logger.debug("Proxy host removed from configuration");
         } else {
             properties.setProperty("proxy.host", proxyHost.trim());
-            if (getLoggingEnabled()) {
-                logger.info("Proxy host updated in configuration");
-            }
+            logger.debug("Proxy host updated in configuration");
         }
         saveConfiguration();
     }

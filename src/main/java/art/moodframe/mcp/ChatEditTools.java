@@ -3,8 +3,8 @@ package art.moodframe.mcp;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.GenerationService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.generation.GenerationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 

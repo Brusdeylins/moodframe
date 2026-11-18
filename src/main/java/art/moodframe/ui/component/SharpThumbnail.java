@@ -1,6 +1,6 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.service.ThumbnailManager;
+import art.moodframe.service.chat.ThumbnailManager;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.WeakInvalidationListener;

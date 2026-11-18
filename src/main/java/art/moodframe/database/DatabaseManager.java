@@ -1,7 +1,5 @@
 package art.moodframe.database;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +30,6 @@ public class DatabaseManager {
 
     private final Path databasePath;
     private final String connectionUrl;
-    private final ApplicationConfig config;
 
     /**
      * Creates the database manager of a database file.
@@ -42,10 +39,7 @@ public class DatabaseManager {
     public DatabaseManager(Path databasePath) {
         this.databasePath = databasePath;
         this.connectionUrl = "jdbc:sqlite:" + databasePath.toAbsolutePath();
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Database manager initialized with path: {}", databasePath);
-        }
+        logger.debug("Database manager initialized with path: {}", databasePath);
     }
 
     /**
@@ -55,9 +49,7 @@ public class DatabaseManager {
      * @throws SQLException if database operations fail
      */
     public void initialize() throws SQLException {
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Initializing database...");
-        }
+        logger.debug("Initializing database...");
 
         try {
             // Create database directory if it doesn't exist
@@ -67,8 +59,8 @@ public class DatabaseManager {
             Class.forName("org.sqlite.JDBC");
 
             boolean isNewDatabase = !Files.exists(databasePath);
-            if (isNewDatabase && config != null && config.getLoggingEnabled()) {
-                logger.info("Creating new database at: {}", databasePath);
+            if (isNewDatabase) {
+                logger.debug("Creating new database at: {}", databasePath);
             }
 
             /*  In WAL mode, readers and a writer do not wait for each other; the mode stays with the file  */
@@ -80,9 +72,7 @@ public class DatabaseManager {
                 MigrationRunner.run(connection);
             }
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Database initialization completed successfully");
-            }
+            logger.debug("Database initialization completed successfully");
 
         } catch (ClassNotFoundException e) {
             throw new SQLException("SQLite JDBC driver not found", e);

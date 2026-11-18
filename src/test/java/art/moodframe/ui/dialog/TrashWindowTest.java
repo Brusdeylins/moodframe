@@ -1,10 +1,10 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.service.MemoryTrashGroup;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashCleanupService;
-import art.moodframe.service.TrashEntry;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.trash.MemoryTrashGroup;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanupService;
+import art.moodframe.service.trash.TrashEntry;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.ListView;

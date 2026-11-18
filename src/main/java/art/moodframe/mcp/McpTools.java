@@ -1,16 +1,16 @@
 package art.moodframe.mcp;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.GenerationService;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodAnalysisService;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.service.TrashCenter;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.trash.TrashCenter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

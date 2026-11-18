@@ -8,10 +8,9 @@ import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
-import art.moodframe.service.ThumbnailManager;
-import art.moodframe.service.ImageSizeCheck;
+import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.ui.dnd.ImageDragExporter;
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Subscription;
@@ -176,12 +175,8 @@ public class ChatEntryCard extends ManagedComponent {
         this.chatEntry = chatEntry;
         this.isChatDeleted = isChatDeleted;
 
-        // Only log if logging is enabled in config
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("ChatEntryCard created - Entry: {}, isChatDeleted: {}",
-                    chatEntry.getId(), isChatDeleted);
-        }
+        logger.debug("ChatEntryCard created - Entry: {}, isChatDeleted: {}",
+                chatEntry.getId(), isChatDeleted);
 
         // Register for I18n change notifications (managed automatically)
         registerI18nListener(this);
@@ -942,17 +937,17 @@ public class ChatEntryCard extends ManagedComponent {
 
         if (useTrashPath) {
             // Get TrashManager to compute trash path
-            art.moodframe.service.TrashManager trashManager = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.TrashManager.class);
+            art.moodframe.service.trash.TrashManager trashManager = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.trash.TrashManager.class);
 
             if (trashManager != null) {
                 String pathToCheck = originalPath;
 
                 // If we need thumbnail path, convert to thumbnail first
                 if (isThumbnail) {
-                    art.moodframe.service.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory
+                    art.moodframe.service.chat.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory
                             .getInstance()
-                            .getService(art.moodframe.service.ThumbnailManager.class);
+                            .getService(art.moodframe.service.chat.ThumbnailManager.class);
                     if (thumbnailManager != null) {
                         pathToCheck = thumbnailManager.getThumbnailPath(originalPath);
                     }
@@ -967,8 +962,8 @@ public class ChatEntryCard extends ManagedComponent {
 
         // For active images, return thumbnail path if requested
         if (isThumbnail && !useTrashPath) {
-            art.moodframe.service.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ThumbnailManager.class);
+            art.moodframe.service.chat.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory
+                    .getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class);
             if (thumbnailManager != null) {
                 return thumbnailManager.getThumbnailPath(originalPath);
             }
@@ -1572,7 +1567,8 @@ public class ChatEntryCard extends ManagedComponent {
 
     /** Whether the entry carries building blocks or a former look style (1.x), which lives on as a standard mood. */
     private boolean hasMood() {
-        return chatEntry.getMood() != null || art.moodframe.service.MoodService.isLegacyLook(chatEntry.getStyle());
+        return chatEntry.getMood() != null
+                || art.moodframe.service.library.MoodService.isLegacyLook(chatEntry.getStyle());
     }
 
     /**

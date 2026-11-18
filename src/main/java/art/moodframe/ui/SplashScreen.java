@@ -1,7 +1,6 @@
 package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
@@ -265,10 +264,7 @@ public class SplashScreen {
             pause.setOnFinished(event -> close());
             pause.play();
 
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Splash screen displayed for {} ms", DISPLAY_DURATION_MS);
-            }
+            logger.debug("Splash screen displayed for {} ms", DISPLAY_DURATION_MS);
 
         } catch (Exception e) {
             logger.error("Failed to show splash screen", e);
@@ -283,10 +279,7 @@ public class SplashScreen {
     private void close() {
         try {
             splashStage.close();
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Splash screen closed");
-            }
+            logger.debug("Splash screen closed");
         } catch (Exception e) {
             logger.error("Error closing splash screen", e);
         } finally {

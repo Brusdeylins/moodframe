@@ -1,7 +1,5 @@
 package art.moodframe.repository;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatCost;
@@ -42,7 +40,6 @@ public class ChatRepository {
 
     private final DatabaseManager databaseManager;
     private final ChatFiles chatFiles;
-    private final ApplicationConfig config;
 
     /**
      * Creates a new chat repository.
@@ -62,7 +59,6 @@ public class ChatRepository {
     public ChatRepository(DatabaseManager databaseManager, ChatFiles chatFiles) {
         this.databaseManager = databaseManager;
         this.chatFiles = chatFiles;
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
 
     // ========== Chat Operations ==========
@@ -254,9 +250,7 @@ public class ChatRepository {
                 // Move files to trash
                 moveFilesToTrash(chatId);
                 
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Soft deleted chat: {} (moved to trash)", chatId);
-                }
+                logger.debug("Soft deleted chat: {} (moved to trash)", chatId);
                 return true;
             }
             return false;
@@ -284,9 +278,7 @@ public class ChatRepository {
                 // Restore files from trash
                 restoreFilesFromTrash(chatId);
                 
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Restored chat: {} (files restored from trash)", chatId);
-                }
+                logger.debug("Restored chat: {} (files restored from trash)", chatId);
                 return true;
             }
             return false;
@@ -325,9 +317,7 @@ public class ChatRepository {
      * @throws SQLException if database operation fails
      */
     public boolean deleteChatPermanently(String chatId) throws SQLException {
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Starting permanent deletion of chat: {}", chatId);
-        }
+        logger.debug("Starting permanent deletion of chat: {}", chatId);
 
         boolean filesDeletionSuccessful = true;
 
@@ -351,9 +341,7 @@ public class ChatRepository {
             int deletedRows = stmt.executeUpdate();
 
             if (deletedRows > 0) {
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Permanently deleted chat from database: {}", chatId);
-                }
+                logger.debug("Permanently deleted chat from database: {}", chatId);
                 databaseDeletionSuccessful = true;
                 
                 // Log warning if some files couldn't be deleted but database deletion succeeded

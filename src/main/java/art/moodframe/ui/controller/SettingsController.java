@@ -20,8 +20,8 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
-import art.moodframe.service.ApiProviderValidator;
-import art.moodframe.service.BflApiService;
+import art.moodframe.service.provider.ApiProviderValidator;
+import art.moodframe.service.provider.BflApiService;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -1482,8 +1482,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.testing.status"));
         runConnectionTest(testGeminiConnectionButton, I18nManager.getText("settings.gemini.test"), () -> {
-            art.moodframe.service.GeminiApiService apiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.GeminiApiService.class);
+            art.moodframe.service.provider.GeminiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.GeminiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("Gemini API service not available");
             apiService.setApiKey(apiKey);
@@ -1612,8 +1612,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.testing.status"));
         runConnectionTest(testOpenaiConnectionButton, I18nManager.getText("settings.openai.test"), () -> {
-            art.moodframe.service.OpenAiApiService apiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            art.moodframe.service.provider.OpenAiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.OpenAiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("OpenAI API service not available");
 
@@ -1632,8 +1632,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
             validatedOpenaiBaseUrl = baseUrl;
 
             /*  The service may have added "/v1"; the field shows it, so "Save" keeps it  */
-            art.moodframe.service.OpenAiApiService testedService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            art.moodframe.service.provider.OpenAiApiService testedService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.OpenAiApiService.class);
             if (testedService != null && !baseUrl.equals(testedService.getBaseUrl())) {
                 validatedOpenaiBaseUrl = testedService.getBaseUrl();
                 openaiBaseUrlField.setText(validatedOpenaiBaseUrl);
@@ -1694,12 +1694,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     service.setApiKey(config.getApiKey());
             }
             case "gemini" -> {
-                art.moodframe.service.GeminiApiService service = factory.getService(art.moodframe.service.GeminiApiService.class);
+                art.moodframe.service.provider.GeminiApiService service = factory.getService(art.moodframe.service.provider.GeminiApiService.class);
                 if (service != null)
                     service.setApiKey(config.getGeminiApiKey());
             }
             default -> {
-                art.moodframe.service.OpenAiApiService service = factory.getService(art.moodframe.service.OpenAiApiService.class);
+                art.moodframe.service.provider.OpenAiApiService service = factory.getService(art.moodframe.service.provider.OpenAiApiService.class);
                 if (service != null) {
                     service.setApiKey(config.getOpenAiApiKey());
                     service.setBaseUrl(config.getOpenAiBaseUrl());
@@ -2316,8 +2316,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     config.resetToDefaults();
 
                     // Delete all custom styles
-                    art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                            .getService(art.moodframe.service.PromptBlockService.class);
+                    art.moodframe.service.library.PromptBlockService styleService = ServiceFactory.getInstance()
+                            .getService(art.moodframe.service.library.PromptBlockService.class);
                     if (styleService != null) {
                         styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
                     }
@@ -2429,18 +2429,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         logger.warn("Attempted to save unvalidated API key");
                     } else {
                         config.setApiKey(currentApiKey.trim());
-                        if (config != null && config.getLoggingEnabled()) {
-                            logger.info("Validated API key saved to configuration");
-                        }
+                        logger.debug("Validated API key saved to configuration");
                     }
                 } else if (config.hasApiKey() && "configuration".equals(config.getApiKeySource())) {
                     // User cleared the API key field - remove from config
                     config.setApiKey("");
                     apiKeyValidated = false;
                     validatedApiKey = null;
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("API key removed from configuration");
-                    }
+                    logger.debug("API key removed from configuration");
                 }
             }
 
@@ -2454,18 +2450,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         logger.warn("Attempted to save unvalidated Gemini API key");
                     } else {
                         config.setGeminiApiKey(currentGeminiApiKey.trim());
-                        if (config != null && config.getLoggingEnabled()) {
-                            logger.info("Validated Gemini API key saved to configuration");
-                        }
+                        logger.debug("Validated Gemini API key saved to configuration");
                     }
                 } else if (config.hasGeminiApiKey() && "configuration".equals(config.getGeminiApiKeySource())) {
                     // User cleared the Gemini API key field - remove from config
                     config.setGeminiApiKey("");
                     geminiApiKeyValidated = false;
                     validatedGeminiApiKey = null;
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("Gemini API key removed from configuration");
-                    }
+                    logger.debug("Gemini API key removed from configuration");
                 }
             }
 
@@ -2583,15 +2575,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
                 // Note: Certificate path is auto-detected, no saving needed
 
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Proxy settings saved to configuration");
-                }
+                logger.debug("Proxy settings saved to configuration");
 
                 // Rebuild the HTTP clients of all services with the new proxy configuration
                 HttpClients.settingsChanged();
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("HTTP client proxy configuration refreshed");
-                }
+                logger.debug("HTTP client proxy configuration refreshed");
 
             } else {
                 logger.warn("Proxy settings are not editable due to policy configuration");
@@ -2670,9 +2658,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void handleLanguageChange(String languageCode) {
         try {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("User selected language: {}", languageCode);
-            }
+            logger.debug("User selected language: {}", languageCode);
 
             // Update I18nManager locale immediately for live preview
             java.util.Locale newLocale = "de".equals(languageCode) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
@@ -2682,9 +2668,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             // Save to configuration for persistence
             config.setUiLanguage(languageCode);
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Language changed to: {} ({})", languageCode, newLocale.getDisplayName());
-            }
+            logger.debug("Language changed to: {} ({})", languageCode, newLocale.getDisplayName());
 
         } catch (Exception e) {
             logger.error("Failed to change language to: {}", languageCode, e);

@@ -1,6 +1,6 @@
 package art.moodframe.ui.cell;
 
-import art.moodframe.service.TrashEntry;
+import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
