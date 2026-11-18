@@ -125,14 +125,15 @@ class FavoriteServiceTest {
     void answersADatabaseErrorWithNoFavoriteAndKeepsTheState() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        assertTrue(new FavoriteService(database, new LibraryEvents()).toggle(FavoriteService.Kind.MOOD, "own-mood"));
+        assertTrue(new FavoriteService(new FavoriteRepository(database), new LibraryEvents())
+                .toggle(FavoriteService.Kind.MOOD, "own-mood"));
 
         try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE favorites");
         }
 
         assertThrows(SQLException.class, () -> new FavoriteRepository(database).findIds("MOOD"));
-        FavoriteService restarted = new FavoriteService(database, new LibraryEvents());
+        FavoriteService restarted = new FavoriteService(new FavoriteRepository(database), new LibraryEvents());
         assertFalse(restarted.isFavorite(FavoriteService.Kind.MOOD, "own-mood"));
         assertFalse(restarted.toggle(FavoriteService.Kind.STYLE, "own-style"), "the former state");
     }

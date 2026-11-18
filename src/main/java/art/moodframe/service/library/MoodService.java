@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Mood;
@@ -54,22 +53,31 @@ public class MoodService implements BlockUsage {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates the service on the given database.
+     * Creates the service on the given repository; it reads and writes nothing until it is used.
      *
-     * @param database the database of the moods of the user
-     * @param blocks   the building blocks the moods refer to
-     * @param colors   the palettes the moods refer to
-     * @param events   where the writes are reported
+     * @param repository the moods of the user
+     * @param blocks     the building blocks the moods refer to
+     * @param colors     the palettes the moods refer to
+     * @param events     where the writes are reported
      */
-    public MoodService(DatabaseManager database, PromptBlockService blocks, ColorStyleService colors,
+    public MoodService(MoodRepository repository, PromptBlockService blocks, ColorStyleService colors,
             LibraryEvents events) {
-        this.repository = new MoodRepository(database);
+        this.repository = repository;
         this.blocks = blocks;
         this.colors = colors;
         this.events = events;
         this.defaultMoods = defaultMoods();
+    }
+
+    /**
+     * Starts the service once at the program start, before the library is used: a mood of the user named like a
+     * standard mood, which a new version may have added, gets the next free name (see {@link #freeName}). Not in
+     * the constructor, so creating the service writes nothing.
+     */
+    public void start() {
         renameCustomMoodsNamedLikeDefaults();
     }
+
 
     /*  reports a successful write  */
     private boolean changed(boolean success, String id) {

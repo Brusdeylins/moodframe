@@ -116,7 +116,10 @@ class MoodServiceTest {
         clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
         assertTrue(repository.save(clash));
 
-        TestLibraryServices.moods(blocks, colors);
+        MoodService created = TestLibraryServices.moods(blocks, colors);
+        assertEquals("Lifestyle Product", repository.findById(clash.getId()).orElseThrow().getName(),
+                "creating the service writes nothing");
+        created.start();
 
         Mood renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Lifestyle Product (1)", renamed.getName());
@@ -443,7 +446,7 @@ class MoodServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        MoodService service = new MoodService(database, blocks, colors, new LibraryEvents());
+        MoodService service = new MoodService(new MoodRepository(database), blocks, colors, new LibraryEvents());
         Mood own = new Mood(null, "Own Mood");
         assertTrue(service.add(own));
 

@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.repository.ColorStyleRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -96,18 +95,27 @@ public class ColorStyleService {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates a new ColorStyleService on the given database.
+     * Creates a new ColorStyleService on the given repository; it reads and writes nothing until it is used.
      *
-     * @param database the database of the custom color styles
-     * @param events   where the writes are reported
+     * @param repository the custom color styles
+     * @param events     where the writes are reported
      */
-    public ColorStyleService(DatabaseManager database, LibraryEvents events) {
-        this.repository = new ColorStyleRepository(database);
+    public ColorStyleService(ColorStyleRepository repository, LibraryEvents events) {
+        this.repository = repository;
         this.objectMapper = new ObjectMapper();
         this.events = events;
         this.defaultStyles = initializeDefaultStyles();
+    }
+
+    /**
+     * Starts the service once at the program start, before the library is used: a palette of the user named like a
+     * standard palette, which a new version may have added, gets the next free name (see {@link #freeName}). Not in
+     * the constructor, so creating the service writes nothing.
+     */
+    public void start() {
         renameCustomPalettesNamedLikeDefaults();
     }
+
 
     /*  reports a successful write  */
     private boolean changed(boolean success, String id) {

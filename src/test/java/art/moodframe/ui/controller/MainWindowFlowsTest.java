@@ -18,6 +18,11 @@ import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ColorStyleRepository;
+import art.moodframe.repository.FavoriteRepository;
+import art.moodframe.repository.FrameRepository;
+import art.moodframe.repository.MoodRepository;
+import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.chat.ChatFileService;
@@ -288,16 +293,16 @@ class MainWindowFlowsTest {
         DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
 
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = new PromptBlockService(database, events);
-        ColorStyleService colors = new ColorStyleService(database, events);
-        moods = new MoodService(database, blocks, colors, events);
-        frames = new FrameService(database, events);
+        PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);
+        ColorStyleService colors = new ColorStyleService(new ColorStyleRepository(database), events);
+        moods = new MoodService(new MoodRepository(database), blocks, colors, events);
+        frames = new FrameService(new FrameRepository(database), events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
         register(MoodService.class, moods);
         register(FrameService.class, frames);
-        register(FavoriteService.class, new FavoriteService(database, events));
+        register(FavoriteService.class, new FavoriteService(new FavoriteRepository(database), events));
 
         /*  chats, their files and the trash  */
         TrashManager trashManager = new TrashManager(paths, 60);

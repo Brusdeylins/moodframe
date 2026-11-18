@@ -245,7 +245,7 @@ class PromptBlockServiceTest {
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
 
-        TestLibraryServices.blocks();
+        TestLibraryServices.blocks().start();
 
         PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Fog (1)", renamed.getName());
@@ -297,7 +297,7 @@ class PromptBlockServiceTest {
                 true);
         repository.save(clash);
 
-        TestLibraryServices.blocks();
+        TestLibraryServices.blocks().start();
 
         PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Infographic Flat (1)", renamed.getName());
@@ -341,6 +341,7 @@ class PromptBlockServiceTest {
         assertTrue(new art.moodframe.repository.ColorStyleRepository(DatabaseConfig.getDatabase()).save(own));
 
         ColorStyleService service = TestLibraryServices.palettes();
+        service.start();
         assertTrue(service.isDefaultStyle("Silver Screen"));
         ColorStyle renamed = service.getStyleByName("Silver Screen (1)");
         assertNotNull(renamed);
@@ -351,7 +352,7 @@ class PromptBlockServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        PromptBlockService service = new PromptBlockService(database, new LibraryEvents());
+        PromptBlockService service = new PromptBlockService(new PromptBlockRepository(database), new LibraryEvents());
         PromptBlock own = new PromptBlock(null, PromptBlock.Type.STYLE, "Own Style", "own", null, true);
         assertTrue(service.addCustom(own));
 

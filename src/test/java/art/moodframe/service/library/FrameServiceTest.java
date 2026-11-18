@@ -204,7 +204,7 @@ class FrameServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        FrameService service = new FrameService(database, new LibraryEvents());
+        FrameService service = new FrameService(new FrameRepository(database), new LibraryEvents());
         Frame own = new Frame(null, "Own Frame");
         own.setAspectRatio("1:1");
         assertTrue(service.add(own));

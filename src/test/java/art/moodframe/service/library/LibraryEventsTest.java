@@ -91,8 +91,8 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAMoodOnce() throws Exception {
-        MoodService moods = new MoodService(TestLibraryServices.database(), TestLibraryServices.blocks(),
-                TestLibraryServices.palettes(), events);
+        MoodService moods = TestLibraryServices.moods(TestLibraryServices.blocks(), TestLibraryServices.palettes(),
+                events);
         Mood mood = new Mood(null, "Event Mood");
         assertTrue(moods.add(mood));
         assertEquals(once(LibraryEvents.Kind.MOOD, mood.getId()), reported());
@@ -119,7 +119,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAFrameOnce() throws Exception {
-        FrameService frames = new FrameService(TestLibraryServices.database(), events);
+        FrameService frames = TestLibraryServices.frames(events);
         Frame frame = new Frame(null, "Event Frame");
         frame.setAspectRatio("3:2");
         assertTrue(frames.add(frame));
@@ -142,7 +142,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfABuildingBlockOnceWithItsType() throws Exception {
-        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        PromptBlockService blocks = TestLibraryServices.blocks(events);
         PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Event Light", "event light", null, false);
         assertTrue(blocks.addCustom(light));
         assertEquals(once(LibraryEvents.Kind.LIGHT, light.getId()), reported());
@@ -174,7 +174,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAPaletteOnce() throws Exception {
-        ColorStyleService palettes = new ColorStyleService(TestLibraryServices.database(), events);
+        ColorStyleService palettes = TestLibraryServices.palettes(events);
         ColorStyle palette = new ColorStyle("Event Palette", List.of("#112233", "#445566"));
         assertTrue(palettes.addCustomStyle(palette));
         assertNotNull(palette.getId());
@@ -197,7 +197,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEverySwitchedFavoriteOnce() throws Exception {
-        FavoriteService favorites = new FavoriteService(TestLibraryServices.database(), events);
+        FavoriteService favorites = TestLibraryServices.favorites(events);
         assertTrue(favorites.toggle(FavoriteService.Kind.STYLE, "event-style"));
         assertFalse(favorites.toggle(FavoriteService.Kind.STYLE, "event-style"));
         assertEquals(List.of(new Change(LibraryEvents.Kind.FAVORITE, "event-style"),
@@ -243,11 +243,11 @@ class LibraryEventsTest {
 
     @Test
     void anImportOfABackupIsReportedByTheServicesOfTheApplication() throws Exception {
-        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
-        ColorStyleService palettes = new ColorStyleService(TestLibraryServices.database(), events);
-        MoodService moods = new MoodService(TestLibraryServices.database(), blocks, palettes, events);
+        PromptBlockService blocks = TestLibraryServices.blocks(events);
+        ColorStyleService palettes = TestLibraryServices.palettes(events);
+        MoodService moods = TestLibraryServices.moods(blocks, palettes, events);
         ConfigurationExporter exporter = new ConfigurationExporter(blocks, palettes, moods,
-                new FrameService(TestLibraryServices.database(), events));
+                TestLibraryServices.frames(events));
         Mood mood = new Mood(null, "Imported Mood");
         assertTrue(moods.add(mood));
         java.io.File file = tempDir.resolve("events-backup.json").toFile();

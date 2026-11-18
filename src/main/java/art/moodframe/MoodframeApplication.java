@@ -93,10 +93,23 @@ public class MoodframeApplication extends Application {
     private void prepare() {
         initializeApplication();
         ServiceFactory services = ServiceFactory.getInstance();
+        startLibrary(services);
         cleanUpAndLoad(createTrashCleanup(), services.getService(art.moodframe.service.chat.ChatLibrary.class));
         performRetroactiveThumbnailGeneration();
         validateApiProviders();
         createWindowServices();
+    }
+
+    /**
+     * Starts the services of the library once, before anything uses them: the blocks, palettes and moods of the
+     * user named like a standard one get a free name; the moods last, as they refer to blocks and palettes.
+     *
+     * @param services the registered services
+     */
+    private static void startLibrary(ServiceFactory services) {
+        services.getService(art.moodframe.service.library.PromptBlockService.class).start();
+        services.getService(art.moodframe.service.library.ColorStyleService.class).start();
+        services.getService(art.moodframe.service.library.MoodService.class).start();
     }
 
     /**
@@ -210,17 +223,20 @@ public class MoodframeApplication extends Application {
             // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.PromptBlockService.class,
-                    () -> new art.moodframe.service.library.PromptBlockService(database, events));
+                    () -> new art.moodframe.service.library.PromptBlockService(
+                            new art.moodframe.repository.PromptBlockRepository(database), events));
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.ColorStyleService.class,
-                    () -> new art.moodframe.service.library.ColorStyleService(database, events));
+                    () -> new art.moodframe.service.library.ColorStyleService(
+                            new art.moodframe.repository.ColorStyleRepository(database), events));
 
             // Initialize MoodService for the moods, the saved combinations of building blocks
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.MoodService.class,
-                    () -> new art.moodframe.service.library.MoodService(database,
+                    () -> new art.moodframe.service.library.MoodService(
+                            new art.moodframe.repository.MoodRepository(database),
                             ServiceFactory.getInstance().getService(
                                     art.moodframe.service.library.PromptBlockService.class),
                             ServiceFactory.getInstance().getService(
@@ -230,12 +246,14 @@ public class MoodframeApplication extends Application {
             /*  The frames, the saved settings of model, aspect ratio and image count  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.FrameService.class,
-                    () -> new art.moodframe.service.library.FrameService(database, events));
+                    () -> new art.moodframe.service.library.FrameService(
+                            new art.moodframe.repository.FrameRepository(database), events));
 
             /*  The favorites among moods, frames and building blocks, shown first in their lists  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.FavoriteService.class,
-                    () -> new art.moodframe.service.library.FavoriteService(database, events));
+                    () -> new art.moodframe.service.library.FavoriteService(
+                            new art.moodframe.repository.FavoriteRepository(database), events));
 
             /*  Backup of the settings and the library; an import reaches the main window through the events  */
             ServiceFactory.getInstance().registerProvider(

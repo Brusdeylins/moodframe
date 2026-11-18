@@ -115,11 +115,11 @@ class McpServerTest {
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
         ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
                 null, null), events);
-        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
-        ColorStyleService colors = new ColorStyleService(TestLibraryServices.database(), events);
-        MoodService moods = new MoodService(TestLibraryServices.database(), blocks, colors, events);
-        FrameService frames = new FrameService(TestLibraryServices.database(), events);
-        FavoriteService favorites = new FavoriteService(TestLibraryServices.database(), events);
+        PromptBlockService blocks = TestLibraryServices.blocks(events);
+        ColorStyleService colors = TestLibraryServices.palettes(events);
+        MoodService moods = TestLibraryServices.moods(blocks, colors, events);
+        FrameService frames = TestLibraryServices.frames(events);
+        FavoriteService favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));

@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Frame;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.PromptBlock;
@@ -39,13 +38,13 @@ public class FrameService {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates the service on the given database.
+     * Creates the service on the given repository.
      *
-     * @param database the database of the frames of the user
-     * @param events   where the writes are reported
+     * @param repository the frames of the user
+     * @param events     where the writes are reported
      */
-    public FrameService(DatabaseManager database, LibraryEvents events) {
-        this.repository = new FrameRepository(database);
+    public FrameService(FrameRepository repository, LibraryEvents events) {
+        this.repository = repository;
         this.defaultFrames = defaultFrames();
         this.events = events;
     }

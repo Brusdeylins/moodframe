@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Body;
@@ -78,20 +77,29 @@ public class PromptBlockService {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates the service on the given database.
+     * Creates the service on the given repository; it reads and writes nothing until it is used.
      *
-     * @param database the database of the building blocks of the user
-     * @param events   where the writes are reported
+     * @param repository the building blocks of the user
+     * @param events     where the writes are reported
      */
-    public PromptBlockService(DatabaseManager database, LibraryEvents events) {
-        this.repository = new PromptBlockRepository(database);
+    public PromptBlockService(PromptBlockRepository repository, LibraryEvents events) {
+        this.repository = repository;
         this.events = events;
         this.defaultStyles = defaultStyles();
         this.defaultAtmospheres = defaultAtmospheres();
         this.defaultLights = defaultLights();
         this.defaultCameras = defaultCameras();
+    }
+
+    /**
+     * Starts the service once at the program start, before the library is used: a block of the user named like a
+     * standard block, which a new version may have added, gets the next free name (see {@link #freeName}). Not in
+     * the constructor, so creating the service writes nothing.
+     */
+    public void start() {
         renameCustomBlocksNamedLikeDefaults();
     }
+
 
     /*  reports a successful write  */
     private boolean changed(PromptBlock.Type type, boolean success, String id) {

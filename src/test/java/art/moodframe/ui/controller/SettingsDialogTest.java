@@ -9,6 +9,10 @@ import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Mood;
+import art.moodframe.repository.ColorStyleRepository;
+import art.moodframe.repository.FrameRepository;
+import art.moodframe.repository.MoodRepository;
+import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
@@ -371,10 +375,11 @@ class SettingsDialogTest {
     void anExportedBackupComesBackAndTheDialogAndTheLibraryShowIt() throws Exception {
         DatabaseManager database = DatabaseConfig.initialize(folder.resolve("db").resolve("test.db").toString());
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = new PromptBlockService(database, events);
-        ColorStyleService colors = new ColorStyleService(database, events);
-        MoodService moods = new MoodService(database, blocks, colors, events);
-        exporter = new ConfigurationExporter(blocks, colors, moods, new FrameService(database, events));
+        PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);
+        ColorStyleService colors = new ColorStyleService(new ColorStyleRepository(database), events);
+        MoodService moods = new MoodService(new MoodRepository(database), blocks, colors, events);
+        exporter = new ConfigurationExporter(blocks, colors, moods,
+                new FrameService(new FrameRepository(database), events));
         Mood mood = new Mood(null, "Backup Me");
         mood.setReference(Mood.Field.STYLE, "std:style:analog-film");
         assertTrue(moods.add(mood));
