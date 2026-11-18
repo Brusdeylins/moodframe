@@ -1,6 +1,5 @@
 package art.moodframe.service.generation;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
@@ -44,8 +43,7 @@ class ChatEntryTrackerTest {
 
     @Test
     void tellsEveryListenerUntilItIsRemoved() throws Exception {
-        ChatEntryTracker tracker = new ChatEntryTracker(mock(ApplicationConfig.class), mock(ChatRepository.class),
-                Runnable::run);
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
         List<String> calls = new CopyOnWriteArrayList<>();
         Consumer<ChatEntry> first = (ChatEntry entry) -> calls.add("first:" + Platform.isFxApplicationThread());
         Consumer<ChatEntry> broken = (ChatEntry entry) -> {
@@ -76,8 +74,7 @@ class ChatEntryTrackerTest {
 
     @Test
     void cancelEndsARunningEntryForGood() throws Exception {
-        ChatEntryTracker tracker = new ChatEntryTracker(mock(ApplicationConfig.class), mock(ChatRepository.class),
-                Runnable::run);
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
         GeneratedImage done = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.CACHED)
                 .baseCost(0.03).build();
         GeneratedImage pending = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.PENDING)
@@ -108,8 +105,7 @@ class ChatEntryTrackerTest {
 
     @Test
     void aFailedEntryTellsWhyItsImagesFailed() throws Exception {
-        ChatEntryTracker tracker = new ChatEntryTracker(mock(ApplicationConfig.class), mock(ChatRepository.class),
-                Runnable::run);
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
         String reason = "Gemini generation failed: Request contains an invalid argument";
         ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
         for (String message : new String[] { reason, null, reason })

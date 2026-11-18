@@ -79,7 +79,7 @@ class BflGenerationCostTest {
         ApplicationConfig config = mock(ApplicationConfig.class);
         when(config.getApiTimeoutSeconds()).thenReturn(600);
 
-        ChatEntryTracker tracker = new ChatEntryTracker(config, mock(ChatRepository.class), Runnable::run);
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
         BflGenerationFlow flow = new BflGenerationFlow(config, api, mock(ChatRepository.class), tracker, files,
                 scheduler, Runnable::run);
 

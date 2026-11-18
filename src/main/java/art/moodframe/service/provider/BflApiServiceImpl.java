@@ -111,9 +111,7 @@ public class BflApiServiceImpl implements BflApiService {
         }
         
         if (!httpClients.getProxyConfig().isProxyConfigured()) {
-            if (config.getLoggingEnabled()) {
-                logger.warn("Corporate proxy not configured - falling back to regular connection test");
-            }
+            logger.debug("Corporate proxy not configured - falling back to regular connection test");
             return testConnection();
         }
         
@@ -254,10 +252,8 @@ public class BflApiServiceImpl implements BflApiService {
         // Determine the correct endpoint based on model
         String endpoint = getEndpointForModel(request.getModel());
         
-        if (config.getLoggingEnabled()) {
-            logger.info("Submitting to endpoint: {} for model: {}", endpoint, request.getModel());
-            logger.info("Request dimensions: {}x{}", request.getWidth(), request.getHeight());
-        }
+        logger.debug("Submitting to endpoint: {} for model: {}", endpoint, request.getModel());
+        logger.debug("Request dimensions: {}x{}", request.getWidth(), request.getHeight());
         
         try {
             // Build model-specific request body
@@ -357,9 +353,7 @@ public class BflApiServiceImpl implements BflApiService {
     public CompletableFuture<Boolean> cancelJob(String jobId) {
         // Note: BFL API may not support job cancellation
         // This is a placeholder implementation
-        if (config.getLoggingEnabled()) {
-            logger.warn("Job cancellation not supported by BFL API: {}", jobId);
-        }
+        logger.debug("Job cancellation not supported by BFL API: {}", jobId);
         return CompletableFuture.completedFuture(false);
     }
     
@@ -449,9 +443,7 @@ public class BflApiServiceImpl implements BflApiService {
                 new IllegalArgumentException("Polling URL cannot be null or empty"));
         }
         
-        if (config.getLoggingEnabled()) {
-            logger.debug("Polling job status using correct polling URL: {}", pollingUrl);
-        }
+        logger.debug("Polling job status using correct polling URL: {}", pollingUrl);
         
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(pollingUrl))
@@ -473,9 +465,7 @@ public class BflApiServiceImpl implements BflApiService {
                 }
             })
             .exceptionally(throwable -> {
-                if (config.getLoggingEnabled()) {
-                    logger.error("Failed to get job result using polling URL: {}", pollingUrl, throwable);
-                }
+                logger.debug("Failed to get job result using polling URL: {}", pollingUrl, throwable);
                 throw new RuntimeException("Failed to get job result", throwable);
             });
     }
@@ -490,9 +480,7 @@ public class BflApiServiceImpl implements BflApiService {
         int statusCode = response.statusCode();
         String body = response.body();
         
-        if (config.getLoggingEnabled()) {
-            logger.debug("BFL polling response: HTTP {}", statusCode);
-        }
+        logger.debug("BFL polling response: HTTP {}", statusCode);
         
         if (statusCode >= 200 && statusCode < 300) {
             return CompletableFuture.completedFuture(body);
@@ -620,10 +608,8 @@ public class BflApiServiceImpl implements BflApiService {
             if (!images.isEmpty())
                 flux3Request.put("images", images);
 
-            if (config.getLoggingEnabled()) {
-                logger.info("FLUX 3 request body: model={}, resolution={}, aspect_ratio={}, safety={}, images={}",
-                    model, request.getImageSize(), request.getAspectRatio(), request.getSafetyTolerance(), images.size());
-            }
+            logger.debug("FLUX 3 request body: model={}, resolution={}, aspect_ratio={}, safety={}, images={}",
+                model, request.getImageSize(), request.getAspectRatio(), request.getSafetyTolerance(), images.size());
             return objectMapper.writeValueAsString(flux3Request);
         }
         boolean isFlux2 = model != null && model.toLowerCase().startsWith("flux.2-");
@@ -723,8 +709,8 @@ public class BflApiServiceImpl implements BflApiService {
             }
 
             String json = objectMapper.writeValueAsString(flux2Request);
-            if (config.getLoggingEnabled()) {
-                logger.info("FLUX.2 request body: prompt='{}...', width={}, height={}, safety={}, images={}",
+            if (logger.isDebugEnabled()) {
+                logger.debug("FLUX.2 request body: prompt='{}...', width={}, height={}, safety={}, images={}",
                     request.getPrompt().substring(0, Math.min(50, request.getPrompt().length())),
                     request.getWidth(), request.getHeight(), request.getSafetyTolerance(), imageCount);
             }

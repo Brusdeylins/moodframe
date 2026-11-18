@@ -1,7 +1,5 @@
 package art.moodframe.service.chat;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.ImageSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -408,10 +406,7 @@ public class ThumbnailManager {
         long duration = System.currentTimeMillis() - startTime;
         double compressionRatio = thumbnailSize / (double) originalSize;
 
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Generated thumbnail in {}ms, compression ratio: {:.2f}", duration, compressionRatio);
-        }
+        logger.debug("Generated thumbnail in {}ms, compression ratio: {:.2f}", duration, compressionRatio);
 
         return thumbnailFile;
     }

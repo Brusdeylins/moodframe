@@ -1,6 +1,5 @@
 package art.moodframe.service.chat;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.GeneratedImage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +25,6 @@ public class FileManagerService {
     private static final Logger logger = LoggerFactory.getLogger(FileManagerService.class);
     
     private final Path baseImageDirectory;
-    private final ApplicationConfig config;
     
     /**
      * Creates a new file manager service with the default image directory.
@@ -42,7 +40,6 @@ public class FileManagerService {
      */
     public FileManagerService(Path baseImageDirectory) {
         this.baseImageDirectory = baseImageDirectory;
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         ensureDirectoryExists(baseImageDirectory);
     }
     
@@ -139,14 +136,14 @@ public class FileManagerService {
             Path filePath = Paths.get(localFilePath);
             boolean originalDeleted = Files.deleteIfExists(filePath);
             
-            if (originalDeleted && config != null && config.getLoggingEnabled()) {
-                logger.info("Deleted original image file: {}", filePath);
+            if (originalDeleted) {
+                logger.debug("Deleted original image file: {}", filePath);
             }
             
             // Also delete the corresponding thumbnail
             boolean thumbnailDeleted = deleteThumbnailFile(localFilePath);
-            if (thumbnailDeleted && config != null && config.getLoggingEnabled()) {
-                logger.info("Deleted thumbnail for: {}", localFilePath);
+            if (thumbnailDeleted) {
+                logger.debug("Deleted thumbnail for: {}", localFilePath);
             }
             
             // Try to clean up empty parent directories
@@ -186,8 +183,8 @@ public class FileManagerService {
             Path thumbnailFilePath = Paths.get(thumbnailPath);
             boolean existed = Files.deleteIfExists(thumbnailFilePath);
             
-            if (existed && config != null && config.getLoggingEnabled()) {
-                logger.info("Deleted thumbnail file: {}", thumbnailFilePath);
+            if (existed) {
+                logger.debug("Deleted thumbnail file: {}", thumbnailFilePath);
             }
             
             return true;

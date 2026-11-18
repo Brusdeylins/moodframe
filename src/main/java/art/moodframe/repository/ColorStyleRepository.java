@@ -1,8 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.database.DatabaseManager;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +36,6 @@ public class ColorStyleRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(ColorStyleRepository.class);
     private final DatabaseManager database;
-    private final ApplicationConfig config;
 
     /**
      * Creates the repository.
@@ -47,7 +44,6 @@ public class ColorStyleRepository {
      */
     public ColorStyleRepository(DatabaseManager database) {
         this.database = database;
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
 
     /**
@@ -85,7 +81,7 @@ public class ColorStyleRepository {
             int rowsAffected = stmt.executeUpdate();
             boolean success = rowsAffected > 0;
 
-            if (success && config != null && config.getLoggingEnabled()) {
+            if (success) {
                 logger.debug("Saved color style: {}", colorStyle.getName());
             }
 
@@ -124,7 +120,7 @@ public class ColorStyleRepository {
             int rowsAffected = stmt.executeUpdate();
             boolean success = rowsAffected > 0;
 
-            if (success && config != null && config.getLoggingEnabled()) {
+            if (success) {
                 logger.debug("Updated color style: {}", colorStyle.getName());
             }
 
@@ -150,7 +146,7 @@ public class ColorStyleRepository {
             int rowsAffected = stmt.executeUpdate();
             boolean success = rowsAffected > 0;
 
-            if (success && config != null && config.getLoggingEnabled()) {
+            if (success) {
                 logger.debug("Deleted color style with ID: {}", id);
             }
 
@@ -387,9 +383,7 @@ public class ColorStyleRepository {
 
             int rowsAffected = stmt.executeUpdate();
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Deleted {} custom color styles", rowsAffected);
-            }
+            logger.debug("Deleted {} custom color styles", rowsAffected);
             return rowsAffected;
         }
     }

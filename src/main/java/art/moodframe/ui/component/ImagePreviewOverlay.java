@@ -1561,11 +1561,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             // Initially hide chat navigation buttons - will be updated by controller
             updateChatNavigationButtons(false, false);
 
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Image preview overlay opened with {} images, starting at index {}",
-                        imagePaths.size(), currentImageIndex);
-            }
+            logger.debug("Image preview overlay opened with {} images, starting at index {}",
+                    imagePaths.size(), currentImageIndex);
         }
     }
 

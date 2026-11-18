@@ -1,7 +1,5 @@
 package art.moodframe.service.trash;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -178,11 +176,7 @@ public class TrashManager {
             Files.createDirectories(trashImagesDirectory);
             Files.createDirectories(trashThumbnailsDirectory);
             
-            // Only log if logging is enabled
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Trash directories initialized at: {}", trashDirectory);
-            }
+            logger.debug("Trash directories initialized at: {}", trashDirectory);
         } catch (IOException e) {
             logger.error("Failed to create trash directories", e);
         }

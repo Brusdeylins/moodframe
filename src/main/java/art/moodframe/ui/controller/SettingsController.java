@@ -2429,18 +2429,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         logger.warn("Attempted to save unvalidated API key");
                     } else {
                         config.setApiKey(currentApiKey.trim());
-                        if (config != null && config.getLoggingEnabled()) {
-                            logger.info("Validated API key saved to configuration");
-                        }
+                        logger.debug("Validated API key saved to configuration");
                     }
                 } else if (config.hasApiKey() && "configuration".equals(config.getApiKeySource())) {
                     // User cleared the API key field - remove from config
                     config.setApiKey("");
                     apiKeyValidated = false;
                     validatedApiKey = null;
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("API key removed from configuration");
-                    }
+                    logger.debug("API key removed from configuration");
                 }
             }
 
@@ -2454,18 +2450,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         logger.warn("Attempted to save unvalidated Gemini API key");
                     } else {
                         config.setGeminiApiKey(currentGeminiApiKey.trim());
-                        if (config != null && config.getLoggingEnabled()) {
-                            logger.info("Validated Gemini API key saved to configuration");
-                        }
+                        logger.debug("Validated Gemini API key saved to configuration");
                     }
                 } else if (config.hasGeminiApiKey() && "configuration".equals(config.getGeminiApiKeySource())) {
                     // User cleared the Gemini API key field - remove from config
                     config.setGeminiApiKey("");
                     geminiApiKeyValidated = false;
                     validatedGeminiApiKey = null;
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("Gemini API key removed from configuration");
-                    }
+                    logger.debug("Gemini API key removed from configuration");
                 }
             }
 
@@ -2583,15 +2575,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
                 // Note: Certificate path is auto-detected, no saving needed
 
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Proxy settings saved to configuration");
-                }
+                logger.debug("Proxy settings saved to configuration");
 
                 // Rebuild the HTTP clients of all services with the new proxy configuration
                 HttpClients.settingsChanged();
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("HTTP client proxy configuration refreshed");
-                }
+                logger.debug("HTTP client proxy configuration refreshed");
 
             } else {
                 logger.warn("Proxy settings are not editable due to policy configuration");
@@ -2670,9 +2658,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void handleLanguageChange(String languageCode) {
         try {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("User selected language: {}", languageCode);
-            }
+            logger.debug("User selected language: {}", languageCode);
 
             // Update I18nManager locale immediately for live preview
             java.util.Locale newLocale = "de".equals(languageCode) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
@@ -2682,9 +2668,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             // Save to configuration for persistence
             config.setUiLanguage(languageCode);
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Language changed to: {} ({})", languageCode, newLocale.getDisplayName());
-            }
+            logger.debug("Language changed to: {} ({})", languageCode, newLocale.getDisplayName());
 
         } catch (Exception e) {
             logger.error("Failed to change language to: {}", languageCode, e);

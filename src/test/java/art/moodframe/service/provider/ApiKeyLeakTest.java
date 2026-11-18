@@ -121,7 +121,6 @@ class ApiKeyLeakTest {
     void bflSendsTheKeyAsHeaderOnly() throws Exception {
         when(config.getApiKey()).thenReturn(KEY);
         when(config.getApiTimeoutSeconds()).thenReturn(30);
-        when(config.getLoggingEnabled()).thenReturn(true);
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         BflApiServiceImpl service = new BflApiServiceImpl() {
             @Override

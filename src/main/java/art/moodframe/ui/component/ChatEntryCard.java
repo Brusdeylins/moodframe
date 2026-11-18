@@ -11,7 +11,6 @@ import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.ui.dnd.ImageDragExporter;
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Subscription;
@@ -176,12 +175,8 @@ public class ChatEntryCard extends ManagedComponent {
         this.chatEntry = chatEntry;
         this.isChatDeleted = isChatDeleted;
 
-        // Only log if logging is enabled in config
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("ChatEntryCard created - Entry: {}, isChatDeleted: {}",
-                    chatEntry.getId(), isChatDeleted);
-        }
+        logger.debug("ChatEntryCard created - Entry: {}, isChatDeleted: {}",
+                chatEntry.getId(), isChatDeleted);
 
         // Register for I18n change notifications (managed automatically)
         registerI18nListener(this);

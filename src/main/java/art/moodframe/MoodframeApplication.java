@@ -685,9 +685,7 @@ public class MoodframeApplication extends Application {
     @Override
     public void stop() {
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Shutting down MoodFrame Application...");
-        }
+        logger.debug("Shutting down MoodFrame Application...");
 
         try {
             // Shutdown TrashCleanupService background tasks

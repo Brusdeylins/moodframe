@@ -89,10 +89,7 @@ public class ThemeManager {
      * @return true if theme was applied successfully, false otherwise
      */
     public static boolean applyTheme(String themeName) {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Applying theme: {}", themeName);
-        }
+        logger.debug("Applying theme: {}", themeName);
         
         try {
             Theme theme = getAtlantaFXTheme(themeName);
@@ -101,9 +98,7 @@ public class ThemeManager {
                 appliedTheme = themeName;
                 for (var listener : listeners)
                     javafx.application.Platform.runLater(() -> listener.accept(themeName));
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Theme applied successfully: {}", themeName);
-                }
+                logger.debug("Theme applied successfully: {}", themeName);
                 return true;
             } else {
                 logger.warn("Unknown theme '{}', falling back to default", themeName);
@@ -123,10 +118,7 @@ public class ThemeManager {
     public static boolean applyDefaultTheme() {
         try {
             Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Default theme applied: {}", DEFAULT_THEME);
-            }
+            logger.debug("Default theme applied: {}", DEFAULT_THEME);
             return true;
         } catch (Exception e) {
             logger.error("Failed to apply default theme", e);
@@ -142,9 +134,7 @@ public class ThemeManager {
      */
     public static boolean changeTheme(String themeName) {
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Changing theme to: {}", themeName);
-        }
+        logger.debug("Changing theme to: {}", themeName);
         
         if (applyTheme(themeName)) {
             // Save theme preference
@@ -154,9 +144,7 @@ public class ThemeManager {
                 }
                 if (config != null) {
                     config.setUiTheme(themeName);
-                    if (config.getLoggingEnabled()) {
-                        logger.info("Theme preference saved: {}", themeName);
-                    }
+                    logger.debug("Theme preference saved: {}", themeName);
                 }
             } catch (Exception e) {
                 logger.warn("Failed to save theme preference", e);
@@ -296,10 +284,7 @@ public class ThemeManager {
         String currentTheme = getCurrentTheme();
         
         if (!preferredTheme.equals(currentTheme)) {
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Applying system-preferred theme: {} (was: {})", preferredTheme, currentTheme);
-            }
+            logger.debug("Applying system-preferred theme: {} (was: {})", preferredTheme, currentTheme);
             return changeTheme(preferredTheme);
         }
         
@@ -330,10 +315,7 @@ public class ThemeManager {
         String nextTheme = themes[nextIndex];
         
         changeTheme(nextTheme);
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Cycled from '{}' to '{}' theme", currentTheme, nextTheme);
-        }
+        logger.debug("Cycled from '{}' to '{}' theme", currentTheme, nextTheme);
         
         return nextTheme;
     }

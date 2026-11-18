@@ -1,7 +1,5 @@
 package art.moodframe.service.trash;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Chat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +55,6 @@ public class TrashCleanupService {
     private final int retentionDays;
     private final ScheduledExecutorService scheduler;
     private boolean backgroundCleanupEnabled = true;
-    private final ApplicationConfig config;
     
     /**
      * Creates a new trash cleanup service with default retention period.
@@ -77,7 +74,6 @@ public class TrashCleanupService {
     public TrashCleanupService(TrashCenter trashCenter, int retentionDays) {
         this.trashCenter = trashCenter;
         this.retentionDays = retentionDays;
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.scheduler = Executors.newScheduledThreadPool(1, r -> {
             Thread t = new Thread(r, "TrashCleanupService");
             t.setDaemon(true); // Don't prevent JVM shutdown
@@ -127,8 +123,8 @@ public class TrashCleanupService {
                 failCount += expiredIds.size() - deleted;
             }
 
-            if (successCount + failCount > 0 && config != null && config.getLoggingEnabled()) {
-                logger.info("Trash cleanup completed: {} deleted, {} failed", successCount, failCount);
+            if (successCount + failCount > 0) {
+                logger.debug("Trash cleanup completed: {} deleted, {} failed", successCount, failCount);
             }
 
             if (failCount > 0) {
@@ -209,15 +205,11 @@ public class TrashCleanupService {
      */
     private void startBackgroundCleanup() {
         if (!backgroundCleanupEnabled) {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Background cleanup is disabled");
-            }
+            logger.debug("Background cleanup is disabled");
             return;
         }
         
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Starting background trash cleanup - will run every {} hours", DEFAULT_CLEANUP_INTERVAL_HOURS);
-        }
+        logger.debug("Starting background trash cleanup - will run every {} hours", DEFAULT_CLEANUP_INTERVAL_HOURS);
         
         // Schedule cleanup to run every 6 hours
         scheduler.scheduleAtFixedRate(() -> {
@@ -236,9 +228,7 @@ public class TrashCleanupService {
      */
     public void setBackgroundCleanupEnabled(boolean enabled) {
         this.backgroundCleanupEnabled = enabled;
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Background cleanup {}", enabled ? "enabled" : "disabled");
-        }
+        logger.debug("Background cleanup {}", enabled ? "enabled" : "disabled");
     }
     
     /**
@@ -247,9 +237,7 @@ public class TrashCleanupService {
      */
     public void shutdown() {
         if (scheduler != null && !scheduler.isShutdown()) {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Shutting down TrashCleanupService background tasks...");
-            }
+            logger.debug("Shutting down TrashCleanupService background tasks...");
             scheduler.shutdown();
             try {
                 if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {

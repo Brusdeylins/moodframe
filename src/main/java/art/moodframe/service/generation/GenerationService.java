@@ -135,7 +135,7 @@ public class GenerationService {
     /**
      * Creates the service.
      *
-     * @param config      the application configuration (keys, OpenAI models, FLUX.2 safety tolerance, logging)
+     * @param config      the application configuration (keys, OpenAI models, FLUX.2 safety tolerance)
      * @param chats       adds the entries to their chats and stores them
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
@@ -305,9 +305,8 @@ public class GenerationService {
         CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, order.attachment())
                 .whenComplete((Void done, Throwable throwable) -> {
                     if (throwable == null) {
-                        if (config.getLoggingEnabled())
-                            logger.info("Real API request submitted to {} for prompt: {}",
-                                    provider.getDisplayName(), prompt);
+                        logger.debug("Real API request submitted to {} for prompt: {}",
+                                provider.getDisplayName(), prompt);
                         return;
                     }
                     logger.error("Failed to submit API request", throwable);
@@ -329,8 +328,7 @@ public class GenerationService {
         GenerationOrder.Parameters parameters = order.parameters();
         List<String> referenceImages = order.referenceImages() != null ? order.referenceImages() : List.of();
         String apiModelId = model == GenerationModel.OPENAI_IMAGE ? order.modelId() : model.getApiModelId();
-        if (config.getLoggingEnabled())
-            logger.info("Creating request with model id: '{}' -> API ID: '{}'", order.modelId(), apiModelId);
+        logger.debug("Creating request with model id: '{}' -> API ID: '{}'", order.modelId(), apiModelId);
 
         ImageGenerationRequest request = new ImageGenerationRequest(prompt, apiModelId);
         request.setImageCount(order.imageCount());
@@ -375,8 +373,7 @@ public class GenerationService {
         if (apiModelId.toLowerCase().contains("gemini")) {
             String imageSize = determineGeminiImageSize(model);
             request.setImageSize(imageSize);
-            if (config.getLoggingEnabled())
-                logger.info("Setting Gemini imageSize parameter: {} for model: {}", imageSize, apiModelId);
+            logger.debug("Setting Gemini imageSize parameter: {} for model: {}", imageSize, apiModelId);
 
             if (parameters.googleSearch() != null)
                 request.setEnableGoogleSearch(parameters.googleSearch());
@@ -385,14 +382,12 @@ public class GenerationService {
             request.setThinkingMode(model.supportsThinkingLevel() && parameters.thinkingLevel() != null
                     ? parameters.thinkingLevel().toLowerCase() : null);
 
-            if (config.getLoggingEnabled())
-                logger.info("Gemini Phase 2 features - Search: {}, Thinking: always enabled (not controllable)",
-                        Boolean.TRUE.equals(parameters.googleSearch()));
+            logger.debug("Gemini Phase 2 features - Search: {}, Thinking: always enabled (not controllable)",
+                    Boolean.TRUE.equals(parameters.googleSearch()));
 
             if (model.supportsMultiImage() && !referenceImages.isEmpty()) {
                 request.setInputImages(referenceImages);
-                if (config.getLoggingEnabled())
-                    logger.info("Gemini Multi-Image: attached {} images to request", referenceImages.size());
+                logger.debug("Gemini Multi-Image: attached {} images to request", referenceImages.size());
             }
         }
 
@@ -414,14 +409,12 @@ public class GenerationService {
                     request.setGuidance(parameters.guidance());
                 if (parameters.steps() != null)
                     request.setSteps(parameters.steps());
-                if (config.getLoggingEnabled())
-                    logger.info("FLUX.2 [flex] parameters - Guidance: {}, Steps: {}",
-                            request.getGuidance(), request.getSteps());
+                logger.debug("FLUX.2 [flex] parameters - Guidance: {}, Steps: {}",
+                        request.getGuidance(), request.getSteps());
             }
             if (model.supportsMultiImage() && !referenceImages.isEmpty()) {
                 request.setInputImages(referenceImages);
-                if (config.getLoggingEnabled())
-                    logger.info("FLUX.2 Multi-Image: set {} images to request", referenceImages.size());
+                logger.debug("FLUX.2 Multi-Image: set {} images to request", referenceImages.size());
             }
         }
 
@@ -431,18 +424,17 @@ public class GenerationService {
             request.setVideoDuration(parameters.videoSeconds() != null ? parameters.videoSeconds() : 8);
             request.setGenerateAudio(true);
             request.setImageCount(1);
-            if (config.getLoggingEnabled())
-                logger.info("Video params - resolution: {}, duration: {}s, audio: {}, negPrompt: {}",
-                        request.getVideoResolution(), request.getVideoDuration(),
-                        request.getGenerateAudio(), request.getNegativePrompt() != null);
+            logger.debug("Video params - resolution: {}, duration: {}s, audio: {}, negPrompt: {}",
+                    request.getVideoResolution(), request.getVideoDuration(),
+                    request.getGenerateAudio(), request.getNegativePrompt() != null);
         }
 
         /*  The price per image, now that all dimensions are known  */
         double costPerImage = GenerationCost.perImage(model, request.getWidth(), request.getHeight(),
                 request.getVideoDuration());
         request.setBaseCostPerImage(costPerImage);
-        if (config.getLoggingEnabled())
-            logger.info("Cost calculation: ${} per image for model {} ({}x{})", String.format("%.4f", costPerImage),
+        if (logger.isDebugEnabled())
+            logger.debug("Cost calculation: ${} per image for model {} ({}x{})", String.format("%.4f", costPerImage),
                     model.getApiModelId(), request.getWidth(), request.getHeight());
 
         return request;
@@ -463,13 +455,11 @@ public class GenerationService {
             GenerationModel model) {
         int maxResolution = model.getMaxResolution();
         int dimensionMultiple = ImageDimensions.multipleFor(model);
-        if (config.getLoggingEnabled())
-            logger.info("Setting dimensions for aspect ratio: {} with maxResolution: {} (multiple of {}) for model: {}",
-                    aspectRatio, maxResolution, dimensionMultiple, model.getApiModelId());
+        logger.debug("Setting dimensions for aspect ratio: {} with maxResolution: {} (multiple of {}) for model: {}",
+                aspectRatio, maxResolution, dimensionMultiple, model.getApiModelId());
 
         int[] dimensions = ImageDimensions.forAspectRatio(aspectRatio, maxResolution, dimensionMultiple);
-        if (config.getLoggingEnabled())
-            logger.info("Final dimensions: {}x{} for aspect ratio: {}", dimensions[0], dimensions[1], aspectRatio);
+        logger.debug("Final dimensions: {}x{} for aspect ratio: {}", dimensions[0], dimensions[1], aspectRatio);
 
         request.setWidth(dimensions[0]);
         request.setHeight(dimensions[1]);

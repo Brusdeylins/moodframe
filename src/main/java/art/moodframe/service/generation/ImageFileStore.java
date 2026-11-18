@@ -59,7 +59,7 @@ public class ImageFileStore {
     /**
      * Creates the store.
      *
-     * @param config         the application configuration (images directory, logging)
+     * @param config         the application configuration (images directory)
      * @param downloadClient the client for the download of finished BFL jobs
      */
     public ImageFileStore(ApplicationConfig config, Supplier<HttpClient> downloadClient) {
@@ -124,8 +124,8 @@ public class ImageFileStore {
         int width  = size != null ? size.width()  : 0;
         int height = size != null ? size.height() : 0;
 
-        if (config.getLoggingEnabled())
-            logger.info("Image download completed: {} ({}x{}, {} bytes)", filename, width, height,
+        if (logger.isDebugEnabled())
+            logger.debug("Image download completed: {} ({}x{}, {} bytes)", filename, width, height,
                     Files.size(imagePath));
         return new StoredImage(imagePath, filename, format, mimeType, width, height, Files.size(imagePath));
     }

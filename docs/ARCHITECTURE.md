@@ -140,4 +140,5 @@ provider is a client, its entry in the registry, its models and its account sett
 
 The setting "detailed logging" sets the logback logger `art.moodframe` to DEBUG and back to the configured level
 (`config.DetailedLogging`), at startup and on every change. Code logs details with `logger.debug(...)` instead of
-asking the setting; the remaining `if (config.getLoggingEnabled())` gates are being converted.
+asking the setting, and guards a costly argument with `logger.isDebugEnabled()`. Only the startup, the settings
+dialog and the configuration export read `getLoggingEnabled()`.

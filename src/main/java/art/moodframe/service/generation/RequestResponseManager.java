@@ -90,14 +90,12 @@ public class RequestResponseManager implements RequestResponseService {
                 .build());
         this.imageFiles = new ImageFileStore(config, downloadClient);
         this.scheduler = Executors.newScheduledThreadPool(2);
-        this.tracker = new ChatEntryTracker(config, chatRepository, scheduler);
+        this.tracker = new ChatEntryTracker(chatRepository, scheduler);
         this.bflFlow = new BflGenerationFlow(config, providers.get(ApiProvider.BFL, BflApiService.class),
                 chatRepository, tracker, imageFiles, scheduler, io);
 
-        if (config.getLoggingEnabled()) {
-            logger.info("RequestResponseManager initialized with timeout: {}s, proxy: {}",
-                    config.getApiTimeoutSeconds(), config.isProxyEnabled() ? "enabled" : "disabled");
-        }
+        logger.debug("RequestResponseManager initialized with timeout: {}s, proxy: {}",
+                config.getApiTimeoutSeconds(), config.isProxyEnabled() ? "enabled" : "disabled");
     }
 
     @Override

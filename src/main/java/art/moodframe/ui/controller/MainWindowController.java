@@ -547,9 +547,7 @@ public class MainWindowController implements I18nChangeListener {
         config = art.moodframe.config.ServiceFactory.getInstance()
                 .getService(art.moodframe.config.ApplicationConfig.class);
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Initializing MainWindow controller");
-        }
+        logger.debug("Initializing MainWindow controller");
 
         // Register for I18n change notifications
         I18nManager.addChangeListener(this);
@@ -582,9 +580,7 @@ public class MainWindowController implements I18nChangeListener {
         // Apply initial localization
         onLanguageChanged();
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("MainWindow controller initialization complete");
-        }
+        logger.debug("MainWindow controller initialization complete");
     }
 
     /**
@@ -921,8 +917,7 @@ public class MainWindowController implements I18nChangeListener {
     private void showErrorMessage(String message) {
         Platform.runLater(() -> {
             setStatus("Error: " + message);
-            if (config != null && config.getLoggingEnabled())
-                logger.error("UI Error: {}", message);
+            logger.debug("UI Error: {}", message);
         });
     }
 
@@ -1332,9 +1327,7 @@ public class MainWindowController implements I18nChangeListener {
                     setStatus(I18nManager.getText("status.bfl.safety.lowered", value));
                 }));
 
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("RequestResponseManager configured with UI callbacks");
-                }
+                logger.debug("RequestResponseManager configured with UI callbacks");
             } else {
                 logger.warn("RequestResponseManager not available - using mock mode");
             }
@@ -1394,8 +1387,8 @@ public class MainWindowController implements I18nChangeListener {
             chatHistory = art.moodframe.config.ServiceFactory.getInstance().getService(ChatHistoryService.class);
             if (chatHistory == null) {
                 logger.warn("ChatRepository not available - chat persistence disabled");
-            } else if (config != null && config.getLoggingEnabled()) {
-                logger.info("ChatRepository initialized successfully");
+            } else {
+                logger.debug("ChatRepository initialized successfully");
             }
             chatLibrary = art.moodframe.config.ServiceFactory.getInstance().getService(ChatLibrary.class);
 
@@ -1649,10 +1642,8 @@ public class MainWindowController implements I18nChangeListener {
                 wasScrolledToBottom = true;
                 scrollToBottom("new entry added");
 
-                if (config.getLoggingEnabled()) {
-                    logger.info("Added new ChatEntry to ListView - total entries: {}",
-                            chatEntriesListView.getItems().size());
-                }
+                logger.debug("Added new ChatEntry to ListView - total entries: {}",
+                        chatEntriesListView.getItems().size());
             }
         } finally {
             // UI operation completed
@@ -3896,10 +3887,8 @@ public class MainWindowController implements I18nChangeListener {
                 javafx.collections.FXCollections.observableArrayList(chat.getEntries());
             chatEntriesListView.setItems(entries);
 
-            if (config.getLoggingEnabled()) {
-                logger.info("Loading chat {} with {} entries (virtualized ListView)",
-                        chat.getName(), entries.size());
-            }
+            logger.debug("Loading chat {} with {} entries (virtualized ListView)",
+                    chat.getName(), entries.size());
 
             // Auto-scroll to bottom if needed
             if (shouldAutoScroll && !entries.isEmpty()) {
@@ -5146,9 +5135,7 @@ public class MainWindowController implements I18nChangeListener {
         // Select the new chat
         chatListView.getSelectionModel().select(0);
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Created new chat: {}", newChat.getName());
-        }
+        logger.debug("Created new chat: {}", newChat.getName());
         setStatus(I18nManager.getText("status.chat.created"));
     }
 
@@ -6781,13 +6768,9 @@ public class MainWindowController implements I18nChangeListener {
                 int insertIndex = Math.max(0, footerBox.getChildren().size() - 1);
                 footerBox.getChildren().add(insertIndex, memoryStatus);
 
-                if (config.getLoggingEnabled()) {
-                    logger.info("Memory monitoring integrated into UI footer");
-                }
+                logger.debug("Memory monitoring integrated into UI footer");
             } else {
-                if (config.getLoggingEnabled()) {
-                    logger.warn("Could not find footer HBox for memory status integration");
-                }
+                logger.debug("Could not find footer HBox for memory status integration");
             }
 
         } catch (Exception e) {

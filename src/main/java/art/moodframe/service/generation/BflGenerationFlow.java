@@ -51,7 +51,7 @@ public class BflGenerationFlow {
     /**
      * Creates the flow.
      *
-     * @param config         the application configuration (timeout, logging)
+     * @param config         the application configuration (timeout, FLUX.2 safety tolerance)
      * @param bflApiService  the BFL API
      * @param chatRepository where images are stored
      * @param tracker        keeps the chat entry in step with its images
@@ -350,10 +350,8 @@ public class BflGenerationFlow {
 
         pendingRequest.setPollingTask(pollingTask);
         
-        if (config.getLoggingEnabled()) {
-            logger.info("Started polling for job {} (initial delay: 5s, interval: 3s)", 
-                jobId.substring(0, Math.min(8, jobId.length())));
-        }
+        logger.debug("Started polling for job {} (initial delay: 5s, interval: 3s)",
+            jobId.substring(0, Math.min(8, jobId.length())));
     }
 
     /**
@@ -438,7 +436,7 @@ public class BflGenerationFlow {
                         tracker.notifyImageUpdated(pendingRequest.generatedImage);
                     }
 
-                    if (config.getLoggingEnabled() && pendingRequest.pollingAttempts % 5 == 0) {
+                    if (pendingRequest.pollingAttempts % 5 == 0) {
                         logger.debug("Job {} still pending (attempt {})",
                             jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
                     }
@@ -453,10 +451,8 @@ public class BflGenerationFlow {
                         tracker.notifyImageUpdated(pendingRequest.generatedImage);
                     }
 
-                    if (config.getLoggingEnabled()) {
-                        logger.debug("Job {} is running (attempt {})",
-                            jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
-                    }
+                    logger.debug("Job {} is running (attempt {})",
+                        jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
                 }
                 case "ready" -> {
                     // Image is ready for download
@@ -516,9 +512,7 @@ public class BflGenerationFlow {
                     // Start actual image download
                     downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
 
-                    if (config.getLoggingEnabled()) {
-                        logger.info("Job {} completed successfully with image URL: {}", jobId, Secrets.redact(imageUrl));
-                    }
+                    logger.debug("Job {} completed successfully with image URL: {}", jobId, Secrets.redact(imageUrl));
             } else {
                 logger.error("No image URL found in result for job: {}", jobId);
                 handleJobFailed(jobId, pendingRequest, "No image URL in response");

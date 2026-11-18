@@ -1,7 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
@@ -94,7 +92,6 @@ public class ColorStyleService {
             "Vintage Film", "Faded Cream");
 
     private final ColorStyleRepository repository;
-    private final ApplicationConfig config;
     private final ObjectMapper objectMapper;
     private final List<ColorStyle> defaultStyles;
     private final LibraryEvents events;
@@ -124,7 +121,6 @@ public class ColorStyleService {
      */
     public ColorStyleService(DatabaseManager database, LibraryEvents events) {
         this.repository = new ColorStyleRepository(database);
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.objectMapper = new ObjectMapper();
         this.events = events;
         this.defaultStyles = initializeDefaultStyles();
@@ -407,8 +403,8 @@ public class ColorStyleService {
 
         boolean success = save(style);
 
-        if (success && config != null && config.getLoggingEnabled()) {
-            logger.info("Added custom color style: {}", style.getName());
+        if (success) {
+            logger.debug("Added custom color style: {}", style.getName());
         }
 
         return changed(success, style.getId());
@@ -443,8 +439,8 @@ public class ColorStyleService {
 
         boolean success = update(updatedStyle);
 
-        if (success && config != null && config.getLoggingEnabled()) {
-            logger.info("Updated custom color style: {} -> {}", oldName, updatedStyle.getName());
+        if (success) {
+            logger.debug("Updated custom color style: {} -> {}", oldName, updatedStyle.getName());
         }
 
         return changed(success, updatedStyle.getId());
@@ -494,8 +490,8 @@ public class ColorStyleService {
 
         boolean success = setDeletedAt(existing.getId(), LocalDateTime.now());
 
-        if (success && config != null && config.getLoggingEnabled()) {
-            logger.info("Moved custom color style to the trash: {}", name);
+        if (success) {
+            logger.debug("Moved custom color style to the trash: {}", name);
         }
 
         return changed(success, existing.getId());
@@ -531,9 +527,7 @@ public class ColorStyleService {
     public synchronized int resetToDefaults() {
         int deleted = deleteAllCustom();
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Reset color styles to defaults, deleted {} custom styles", deleted);
-        }
+        logger.debug("Reset color styles to defaults, deleted {} custom styles", deleted);
 
         changed(true, null);
         return deleted;
@@ -576,9 +570,7 @@ public class ColorStyleService {
             String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(customStyles);
             Files.writeString(file.toPath(), json);
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Exported {} custom color styles to {}", customStyles.size(), file.getAbsolutePath());
-            }
+            logger.debug("Exported {} custom color styles to {}", customStyles.size(), file.getAbsolutePath());
 
             return true;
         } catch (Exception e) {
@@ -603,9 +595,7 @@ public class ColorStyleService {
 
             int imported = importStyles(importedStyles);
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Imported {} color styles from {}", imported, file.getAbsolutePath());
-            }
+            logger.debug("Imported {} color styles from {}", imported, file.getAbsolutePath());
 
             return imported;
 

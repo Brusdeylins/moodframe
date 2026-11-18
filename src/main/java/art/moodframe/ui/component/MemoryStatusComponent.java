@@ -1,7 +1,5 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -97,11 +95,7 @@ public class MemoryStatusComponent extends HBox {
         // Initial status update
         updateStatus();
 
-        // Only log if logging is enabled
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("MemoryStatusComponent initialized with image and listener tracking");
-        }
+        logger.debug("MemoryStatusComponent initialized with image and listener tracking");
     }
     
     /**

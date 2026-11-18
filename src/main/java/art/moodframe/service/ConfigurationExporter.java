@@ -152,9 +152,7 @@ public class ConfigurationExporter {
             throw new IllegalArgumentException("Configuration cannot be null");
         }
 
-        if (config.getLoggingEnabled()) {
-            logger.info("Exporting configuration to: {}", exportFile.getAbsolutePath());
-        }
+        logger.debug("Exporting configuration to: {}", exportFile.getAbsolutePath());
 
         Map<String, Object> exportData = new HashMap<>();
         
@@ -236,10 +234,8 @@ public class ConfigurationExporter {
         // Write to file
         objectMapper.writeValue(exportFile, exportData);
         
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Configuration exported successfully. Categories: {}, File size: {} bytes", 
-                       categories.size(), exportFile.length());
-        }
+        logger.debug("Configuration exported successfully. Categories: {}, File size: {} bytes",
+                   categories.size(), exportFile.length());
     }
     
     /**
@@ -251,9 +247,7 @@ public class ConfigurationExporter {
      */
     public ImportResult importConfiguration(File importFile, ApplicationConfig targetConfig) {
         try {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Importing configuration from: {}", importFile.getAbsolutePath());
-            }
+            logger.debug("Importing configuration from: {}", importFile.getAbsolutePath());
             
             if (!importFile.exists()) {
                 return new ImportResult(false, "Import file does not exist", null, null);
@@ -473,9 +467,7 @@ public class ConfigurationExporter {
                     changes.put("Frames", String.format("%d frames imported", importedFrames));
             }
 
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Configuration imported successfully. {} settings changed", changes.size());
-            }
+            logger.debug("Configuration imported successfully. {} settings changed", changes.size());
             
             return new ImportResult(true, 
                 String.format("Configuration imported successfully. %d settings updated.", changes.size()), 

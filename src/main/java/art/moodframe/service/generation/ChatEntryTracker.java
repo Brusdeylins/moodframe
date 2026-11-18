@@ -1,6 +1,5 @@
 package art.moodframe.service.generation;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobResult;
@@ -30,7 +29,6 @@ public class ChatEntryTracker {
     /*  BFL reports its prices in credits of one cent  */
     private static final double USD_PER_BFL_CREDIT = 0.01;
 
-    private final ApplicationConfig config;
     private final ChatRepository chatRepository;
     private final Executor executor;
 
@@ -40,12 +38,10 @@ public class ChatEntryTracker {
     /**
      * Creates the tracker.
      *
-     * @param config         the application configuration (logging)
      * @param chatRepository where entries are stored
      * @param executor       runs the database writes
      */
-    public ChatEntryTracker(ApplicationConfig config, ChatRepository chatRepository, Executor executor) {
-        this.config = config;
+    public ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
         this.chatRepository = chatRepository;
         this.executor = executor;
     }
@@ -293,8 +289,8 @@ public class ChatEntryTracker {
         if (credits == null || credits <= 0)
             return;
         double apiCost = credits * USD_PER_BFL_CREDIT;
-        if (config.getLoggingEnabled())
-            logger.info("BFL cost of image {}: ${} (estimated ${})", image.getId(), String.format("%.4f", apiCost),
+        if (logger.isDebugEnabled())
+            logger.debug("BFL cost of image {}: ${} (estimated ${})", image.getId(), String.format("%.4f", apiCost),
                     String.format("%.4f", image.getBaseCost() != null ? image.getBaseCost() : 0.0));
         image.setBaseCost(apiCost);
     }
