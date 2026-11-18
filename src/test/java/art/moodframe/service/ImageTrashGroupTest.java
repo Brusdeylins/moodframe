@@ -225,7 +225,7 @@ class ImageTrashGroupTest {
         return chat;
     }
 
-    /** Stores an entry with images of a model that costs 0.04 per image when deleted, each with its file. */
+    /** Stores an entry with images that share its cost evenly when deleted, each with its file. */
     private ChatEntry entry(Chat chat, String prompt, double cost, int images) throws Exception {
         ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt(prompt).cost(cost).build();
         repository.saveChatEntry(entry);

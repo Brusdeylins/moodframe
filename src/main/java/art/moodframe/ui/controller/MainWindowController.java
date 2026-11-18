@@ -3907,24 +3907,6 @@ public class MainWindowController implements I18nChangeListener {
         Label chatTitle = new Label(chat.getName());
         chatTitle.getStyleClass().add("title-2");
 
-        // TOTAL COST = All images ever created (regardless of deletion status)
-        double totalCost = chat.getEntries().stream()
-                .mapToDouble(ChatEntry::getCost) // All entries, deleted or not
-                .sum();
-
-        // DELETED COST = Only deleted images
-        // 1. From fully deleted entries
-        double deletedCost = chat.getEntries().stream()
-                .filter(entry -> entry.getDeletedAt() != null)
-                .mapToDouble(ChatEntry::getCost)
-                .sum();
-
-        // 2. From deleted images within active entries
-        deletedCost += chat.getEntries().stream()
-                .filter(entry -> entry.getDeletedAt() == null)
-                .mapToDouble(ChatEntry::getDeletedCost)
-                .sum();
-
         // Create info line with message count and total cost
         int messageCount = chat.getEntries().size();
         String messagesText = messageCount == 1 ? I18nManager.getText("chat.messages.singular")
@@ -3936,21 +3918,9 @@ public class MainWindowController implements I18nChangeListener {
                 messageCount,
                 messagesText);
 
-        if (totalCost > 0) {
-            String formattedTotal = String.format("%.2f", totalCost);
-
-            if (deletedCost > 0) {
-                // Show both total and deleted amount
-                String formattedDeleted = String.format("%.2f", deletedCost);
-                infoText += " • " + java.text.MessageFormat.format(
-                        I18nManager.getText("chat.total.cost.with.deleted"),
-                        formattedTotal, formattedDeleted);
-            } else {
-                // Show only total
-                infoText += " • " + java.text.MessageFormat.format(
-                        I18nManager.getText("chat.total.cost"), formattedTotal);
-            }
-        }
+        String costText = costText(chat);
+        if (!costText.isEmpty())
+            infoText += " • " + costText;
 
         Label chatInfo = new Label(infoText);
         chatInfo.getStyleClass().addAll("text-muted", "text-small");
@@ -3999,27 +3969,6 @@ public class MainWindowController implements I18nChangeListener {
      * Updates the info label in the chat header VBox.
      */
     private void updateChatHeaderInfo(VBox headerVBox) {
-        // TOTAL COST OF ALL ENTRIES = Sum of all entry costs (each entry cost includes
-        // its active + deleted images)
-        double totalEntryCosts = currentChat.getEntries().stream()
-                .mapToDouble(ChatEntry::getCost)
-                .sum();
-
-        // DELETED COST FROM ACTIVE ENTRIES = Cost of deleted images within still-active
-        // entries
-        double deletedFromActiveEntries = currentChat.getEntries().stream()
-                .mapToDouble(ChatEntry::getDeletedCost)
-                .sum();
-
-        // CHAT-LEVEL DELETED COST = Cost from fully deleted entries
-        double chatLevelDeletedCost = currentChat.getDeletedCost();
-
-        // TOTAL COST = All entry costs + costs from deleted entries
-        double totalCost = totalEntryCosts + chatLevelDeletedCost;
-
-        // TOTAL DELETED COST = Deleted within entries + deleted entries
-        double totalDeletedCost = deletedFromActiveEntries + chatLevelDeletedCost;
-
         // Create updated info text
         int messageCount = currentChat.getEntries().size();
         String messagesText = messageCount == 1 ? I18nManager.getText("chat.messages.singular")
@@ -4031,19 +3980,9 @@ public class MainWindowController implements I18nChangeListener {
                 messageCount,
                 messagesText);
 
-        if (totalCost > 0) {
-            if (totalDeletedCost > 0) {
-                // Show both total and deleted costs
-                infoText += String.format(" • %s",
-                        I18nManager.getText("chat.total.cost.with.deleted",
-                                String.format("%.2f", totalCost),
-                                String.format("%.2f", totalDeletedCost)));
-            } else {
-                // Show only total cost
-                infoText += String.format(" • %s",
-                        I18nManager.getText("chat.total.cost", String.format("%.2f", totalCost)));
-            }
-        }
+        String costText = costText(currentChat);
+        if (!costText.isEmpty())
+            infoText += " • " + costText;
 
         // Find and update the info label
         for (javafx.scene.Node child : headerVBox.getChildren()) {
@@ -4066,46 +4005,20 @@ public class MainWindowController implements I18nChangeListener {
         /*  An open group names the chat of the new prompts there instead  */
         if (shownGroup != null)
             updateGroupHeader();
-        else if (chatTotalCostLabel != null && chat != null) {
-            // TOTAL COST OF ALL ENTRIES = Sum of all entry costs (each entry cost includes
-            // its active + deleted images)
-            double totalEntryCosts = chat.getEntries().stream()
-                    .mapToDouble(ChatEntry::getCost)
-                    .sum();
+        else if (chatTotalCostLabel != null && chat != null)
+            chatTotalCostLabel.setText(costText(chat));
+    }
 
-            // DELETED COST FROM ACTIVE ENTRIES = Cost of deleted images within still-active
-            // entries
-            double deletedFromActiveEntries = chat.getEntries().stream()
-                    .mapToDouble(ChatEntry::getDeletedCost)
-                    .sum();
-
-            // CHAT-LEVEL DELETED COST = Cost from fully deleted entries
-            double chatLevelDeletedCost = chat.getDeletedCost();
-
-            // TOTAL COST = All entry costs + costs from deleted entries
-            double totalCost = totalEntryCosts + chatLevelDeletedCost;
-
-            // TOTAL DELETED COST = Deleted within entries + deleted entries
-            double totalDeletedCost = deletedFromActiveEntries + chatLevelDeletedCost;
-
-            if (totalCost > 0) {
-                String formattedTotal = String.format("%.2f", totalCost);
-
-                if (totalDeletedCost > 0) {
-                    // Show both total and deleted amount
-                    String formattedDeleted = String.format("%.2f", totalDeletedCost);
-                    chatTotalCostLabel.setText(java.text.MessageFormat.format(
-                            I18nManager.getText("chat.total.cost.with.deleted"),
-                            formattedTotal, formattedDeleted));
-                } else {
-                    // Show only total
-                    chatTotalCostLabel.setText(java.text.MessageFormat.format(
-                            I18nManager.getText("chat.total.cost"), formattedTotal));
-                }
-            } else {
-                chatTotalCostLabel.setText("");
-            }
-        }
+    /*  The cost of a chat for its header: all it cost, the deleted part named; empty for a chat without cost  */
+    private static String costText(Chat chat) {
+        double total = art.moodframe.model.ChatCost.total(chat);
+        if (total <= 0)
+            return "";
+        double deleted = art.moodframe.model.ChatCost.deleted(chat);
+        return deleted > 0
+                ? I18nManager.getText("chat.total.cost.with.deleted", String.format("%.2f", total),
+                        String.format("%.2f", deleted))
+                : I18nManager.getText("chat.total.cost", String.format("%.2f", total));
     }
 
     /**
@@ -6295,11 +6208,6 @@ public class MainWindowController implements I18nChangeListener {
 
         // Use the tracked metadata label if available
         if (chatMetadataInfoLabel != null) {
-            // Calculate total cost
-            double totalCost = chat.getEntries().stream()
-                    .mapToDouble(ChatEntry::getCost)
-                    .sum();
-
             // Create updated info text using current language
             int messageCount = chat.getEntries().size();
             String messagesText = messageCount == 1 ? I18nManager.getText("chat.messages.singular")
@@ -6311,10 +6219,9 @@ public class MainWindowController implements I18nChangeListener {
                     messageCount,
                     messagesText);
 
-            if (totalCost > 0) {
-                infoText += String.format(" • %s",
-                        I18nManager.getText("chat.total.cost", String.format("%.2f", totalCost)));
-            }
+            String costText = costText(chat);
+            if (!costText.isEmpty())
+                infoText += " • " + costText;
 
             // Update the tracked label directly
             chatMetadataInfoLabel.setText(infoText);
@@ -6858,78 +6765,43 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Handles the deletion of a chat entry after confirmation.
+     * Handles the deletion of a chat entry after confirmation. The library books the cost and reports the change,
+     * which removes the card and updates the cost display (see {@link #showEntryChange}).
      * 
      * @param entryId the entry ID to delete
      */
     private void handleDeleteEntry(String entryId) {
-        // Check if entry exists and has any successfully generated images
-        if (this.chatHistory == null) {
-            logger.error("ChatRepository is null - cannot delete entry");
+        ChatEntry entry = chatLibrary.findEntry(entryId);
+        if (entry == null) {
+            logger.warn("Entry not found for deletion: {}", entryId);
             return;
         }
 
-        try {
-            Optional<ChatEntry> entryOpt = this.chatHistory.findChatEntryById(entryId);
-            if (entryOpt.isEmpty()) {
-                logger.warn("Entry not found for deletion: {}", entryId);
-                return;
-            }
+        // Check if at least one image was successfully generated (CACHED status)
+        boolean hasAnySuccessfulImage = entry.getImages().stream()
+                .anyMatch(img -> img.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
+                        && img.getLocalFilePath() != null
+                        && !img.getLocalFilePath().isEmpty());
 
-            ChatEntry entry = entryOpt.get();
+        // Only show confirmation dialog if at least one image was successfully generated
+        boolean confirmed = true;
+        if (hasAnySuccessfulImage) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            ButtonType ok = DialogButtons.ok();
+            alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
+            alert.setTitle(I18nManager.getText("delete.entry.title"));
+            alert.setHeaderText(I18nManager.getText("delete.entry.header"));
+            alert.setContentText(I18nManager.getText("delete.entry.content"));
 
-            // Check if at least one image was successfully generated (CACHED status)
-            java.util.List<GeneratedImage> images = this.chatHistory.findGeneratedImagesByEntry(entryId);
-            boolean hasAnySuccessfulImage = images.stream()
-                    .anyMatch(img -> img.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
-                            && img.getLocalFilePath() != null
-                            && !img.getLocalFilePath().isEmpty());
+            Optional<ButtonType> result = alert.showAndWait();
+            confirmed = result.isPresent() && result.get() == ok;
+        }
 
-            // Only show confirmation dialog if at least one image was successfully generated
-            boolean confirmed = true;
-            if (hasAnySuccessfulImage) {
-                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-                ButtonType ok = DialogButtons.ok();
-                alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
-                alert.setTitle(I18nManager.getText("delete.entry.title"));
-                alert.setHeaderText(I18nManager.getText("delete.entry.header"));
-                alert.setContentText(I18nManager.getText("delete.entry.content"));
-
-                Optional<ButtonType> result = alert.showAndWait();
-                confirmed = result.isPresent() && result.get() == ok;
-            }
-
-            if (confirmed) {
-            /*  The cost goes to the chat of the entry, even if another chat or a mood is shown meanwhile  */
-            Chat owner = getCurrentChatFromEntry(entry);
+        if (confirmed) {
             CompletableFuture.runAsync(() -> {
                 try {
-                    // Only the active cost counts: already deleted images are in the chat's deleted cost already
-                    double activeEntryCost = entry.getCost() - entry.getDeletedCost();
-                    this.chatHistory.deleteEntry(entryId, images);
-
-                    // Update UI
-                    Platform.runLater(() -> {
-                        if (owner != null) {
-                            owner.getEntries().removeIf(e -> e.getId().equals(entryId));
-                            owner.setDeletedCost(owner.getDeletedCost() + activeEntryCost);
-                        }
-
-                        // Remove the card from UI
-                        removeEntryCardFromUI(entryId);
-
-                        // Update cost display in both places
-                        updateChatHeader(); // Updates the scrollable area header
-                        if (currentChat != null) {
-                            updateChatTotalCost(currentChat); // Updates the top header
-                        }
-
-                        refreshGroups();
-
-                        // Show success notification
-                        showNotification(I18nManager.getText("delete.entry.success"));
-                    });
-
+                    chatLibrary.deleteEntry(entry);
+                    Platform.runLater(() -> showNotification(I18nManager.getText("delete.entry.success")));
                 } catch (Exception e) {
                     logger.error("Failed to delete entry: {}", entryId, e);
                     Platform.runLater(() -> {
@@ -6937,135 +6809,50 @@ public class MainWindowController implements I18nChangeListener {
                     });
                 }
             });
-            }
-        } catch (Exception e) {
-            logger.error("Failed to check entry for deletion: {}", entryId, e);
-            showErrorMessage(I18nManager.getText("delete.entry.error") + ": " + e.getMessage());
         }
     }
 
     /**
-     * Handles the deletion of a single image after confirmation.
+     * Handles the deletion of a single image after confirmation. The library books the cost and reports the change,
+     * which renders the card anew or removes it with its last image (see {@link #showEntryChange}).
      * 
      * @param entryId the entry ID containing the image
      * @param imageId the image ID to delete
      */
     private void handleDeleteImage(String entryId, String imageId) {
-        logger.debug("handleDeleteImage called - entryId: {}, imageId: {} (length: {})",
-                entryId, imageId, imageId != null ? imageId.length() : "null");
-
-        // Check if image actually exists (was successfully generated)
-        if (this.chatHistory == null) {
-            logger.error("ChatRepository is null - cannot delete image");
+        ChatEntry entry = chatLibrary.findEntry(entryId);
+        GeneratedImage image = entry == null ? null : entry.getImages().stream()
+                .filter(img -> img.getId().equals(imageId)).findFirst().orElse(null);
+        if (image == null) {
+            logger.warn("Image not found for deletion - entry: {}, image: {}", entryId, imageId);
             return;
         }
 
-        try {
-            Optional<GeneratedImage> imageOpt = this.chatHistory.findGeneratedImageById(imageId);
-            if (imageOpt.isEmpty()) {
-                logger.warn("Image not found for deletion - ID: {} (length: {})",
-                        imageId, imageId != null ? imageId.length() : "null");
-                return;
-            }
+        // Check if image was successfully downloaded (CACHED status means image file exists)
+        boolean imageExists = image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
+                && image.getLocalFilePath() != null
+                && !image.getLocalFilePath().isEmpty();
 
-            GeneratedImage image = imageOpt.get();
+        // Only show confirmation dialog if image actually exists
+        boolean confirmed = true;
+        if (imageExists) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            ButtonType ok = DialogButtons.ok();
+            alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
+            alert.setTitle(I18nManager.getText("delete.image.title"));
+            alert.setHeaderText(I18nManager.getText("delete.image.header"));
+            alert.setContentText(I18nManager.getText("delete.image.content"));
 
-            // Check if image was successfully downloaded (CACHED status means image file exists)
-            boolean imageExists = image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
-                    && image.getLocalFilePath() != null
-                    && !image.getLocalFilePath().isEmpty();
+            Optional<ButtonType> result = alert.showAndWait();
+            confirmed = result.isPresent() && result.get() == ok;
+        }
 
-            // Only show confirmation dialog if image actually exists
-            boolean confirmed = true;
-            if (imageExists) {
-                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-                ButtonType ok = DialogButtons.ok();
-                alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
-                alert.setTitle(I18nManager.getText("delete.image.title"));
-                alert.setHeaderText(I18nManager.getText("delete.image.header"));
-                alert.setContentText(I18nManager.getText("delete.image.content"));
-
-                Optional<ButtonType> result = alert.showAndWait();
-                confirmed = result.isPresent() && result.get() == ok;
-            }
-
-            if (confirmed) {
-            // Perform the deletion
+        if (confirmed) {
             CompletableFuture.runAsync(() -> {
                 try {
-                    logger.info("Deleting image with ID: {} (length: {})",
-                            imageId, imageId != null ? imageId.length() : "null");
-
-                    ChatHistoryService.ImageDeletion deletion = this.chatHistory.deleteImage(entryId, image);
-                    double updatedDeletedCost = deletion.entryDeletedCost();
-                    final boolean entryDeleted = deletion.entryDeleted();
-
-                    // Update UI
-                    Platform.runLater(() -> {
-                        // Find and update the entry in the ListView's items
-                        ChatEntry targetEntry = null;
-                        if (chatEntriesListView != null && chatEntriesListView.getItems() != null) {
-                            for (ChatEntry entry : chatEntriesListView.getItems()) {
-                                if (entry.getId().equals(entryId)) {
-                                    targetEntry = entry;
-                                    // Remove the deleted image from the entry's image list
-                                    entry.getImages().removeIf(img -> img.getId().equals(imageId));
-                                    // Update the deleted cost in the entry
-                                    entry.setDeletedCost(updatedDeletedCost);
-                                    break;
-                                }
-                            }
-                        }
-
-                        // Also update in currentChat's entries
-                        if (currentChat != null) {
-                            for (ChatEntry entry : currentChat.getEntries()) {
-                                if (entry.getId().equals(entryId)) {
-                                    entry.setDeletedCost(updatedDeletedCost);
-                                    break;
-                                }
-                            }
-                            // NOTE: We do NOT update currentChat.deletedCost here!
-                            // Chat.deletedCost only tracks fully deleted entries, not individual deleted
-                            // images.
-                            // Individual deleted images are tracked in ChatEntry.deletedCost
-                        }
-
-                        // If the entry was soft-deleted (all images deleted), remove it from UI
-                        if (entryDeleted && targetEntry != null) {
-                            // Remove the entry from ListView immediately
-                            chatEntriesListView.getItems().remove(targetEntry);
-
-                            // Remove the entry from the in-memory list of its chat immediately
-                            // This prevents it from reappearing when the chat is reloaded
-                            Chat owner = getCurrentChatFromEntry(targetEntry);
-                            if (owner != null) {
-                                owner.getEntries().removeIf(e -> e.getId().equals(entryId));
-                            }
-
-                            // Update the UI immediately
-                            updateChatHeader();
-                            updateChatTotalCost(currentChat);
-                        } else if (targetEntry != null) {
-                            // Force ListView refresh by triggering item update
-                            int index = chatEntriesListView.getItems().indexOf(targetEntry);
-                            if (index >= 0) {
-                                chatEntriesListView.getItems().set(index, targetEntry);
-                            }
-                        }
-
-                        // Update cost display in both places
-                        updateChatHeader(); // Updates the scrollable area header
-                        if (currentChat != null) {
-                            updateChatTotalCost(currentChat); // Updates the top header
-                        }
-
-                        refreshGroups();
-
-                        // Show success notification
-                        showNotification(I18nManager.getText("delete.image.success"));
-                    });
-
+                    logger.info("Deleting image with ID: {}", imageId);
+                    chatLibrary.deleteImage(entry, image);
+                    Platform.runLater(() -> showNotification(I18nManager.getText("delete.image.success")));
                 } catch (Exception e) {
                     logger.error("Failed to delete image: {}", imageId, e);
                     Platform.runLater(() -> {
@@ -7073,10 +6860,6 @@ public class MainWindowController implements I18nChangeListener {
                     });
                 }
             });
-            }
-        } catch (Exception e) {
-            logger.error("Failed to check image for deletion: {}", imageId, e);
-            showErrorMessage(I18nManager.getText("delete.image.error") + ": " + e.getMessage());
         }
     }
 

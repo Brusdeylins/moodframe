@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.util.I18nManager;
@@ -51,8 +52,8 @@ public class ChatTrashGroup implements TrashGroup {
                 int images = chatRepository.findImagesByEntryIds(chatEntries.stream().map(ChatEntry::getId).toList())
                         .values().stream().mapToInt(List::size).sum();
 
-                /*  The total of the chat header: all entries plus what the deleted entries had cost  */
-                double cost = chatEntries.stream().mapToDouble(ChatEntry::getCost).sum() + chat.getDeletedCost();
+                /*  The total of the chat header: all it cost, deleted entries and images included  */
+                double cost = ChatCost.total(chatEntries, chat.getDeletedCost());
 
                 entries.add(new TrashEntry(chat.getId(), chat.getName(), chat.getDeletedAt(), I18nManager.getText(
                         images == 1 ? "trash.context.chat.singular" : "trash.context.chat.plural",

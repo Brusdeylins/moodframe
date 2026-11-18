@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import javafx.application.Platform;
@@ -282,7 +283,8 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /**
-     * Moves an entry with its images to the trash; it leaves its chat, whose deleted cost grows by its cost.
+     * Moves an entry with its images to the trash; it leaves its chat, whose deleted cost grows by its whole cost
+     * (see {@link ChatCost}).
      *
      * @param entry the entry of a chat of the list
      * @throws SQLException if it cannot be marked as deleted
@@ -291,10 +293,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         if (history != null)
             history.deleteEntry(entry.getId(), history.findGeneratedImagesByEntry(entry.getId()));
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
-        runOnFxThread(() -> owner(entry).ifPresent((Chat chat) -> {
-            chat.getEntries().remove(entry);
-            chat.setDeletedCost(deletedCost.orElse(chat.getDeletedCost() + entry.getCost() - entry.getDeletedCost()));
-        }));
+        runOnFxThread(() -> owner(entry).ifPresent((Chat chat) -> leave(chat, entry, deletedCost)));
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
     }
 
@@ -308,19 +307,34 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
         ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
-                : new ChatHistoryService.ImageDeletion(entry.getImages().size() == 1, entry.getDeletedCost());
+                : inMemory(entry, image);
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
         runOnFxThread(() -> {
             entry.getImages().remove(image);
             entry.setDeletedCost(deletion.entryDeletedCost());
-            owner(entry).ifPresent((Chat chat) -> {
-                if (deletion.entryDeleted())
-                    chat.getEntries().remove(entry);
-                deletedCost.ifPresent(chat::setDeletedCost);
-            });
+            if (deletion.entryDeleted())
+                owner(entry).ifPresent((Chat chat) -> leave(chat, entry, deletedCost));
         });
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
         return deletion.entryDeleted();
+    }
+
+    /*  A deleted entry leaves its chat, which takes the deleted cost as stored, without database it books the
+        cost of the entry itself; on the JavaFX thread  */
+    private static void leave(Chat chat, ChatEntry entry, Optional<Double> deletedCost) {
+        boolean removed = chat.getEntries().remove(entry);
+        if (deletedCost.isPresent())
+            chat.setDeletedCost(deletedCost.get());
+        else if (removed)
+            chat.setDeletedCost(chat.getDeletedCost() + entry.getCost());
+    }
+
+    /*  the deletion of an image without database: as ChatRepository#softDeleteImage books it  */
+    private static ChatHistoryService.ImageDeletion inMemory(ChatEntry entry, GeneratedImage image) {
+        return onFxThread(() -> entry.getImages().size() == 1
+                ? new ChatHistoryService.ImageDeletion(true, entry.getCost())
+                : new ChatHistoryService.ImageDeletion(false, entry.getDeletedCost()
+                        + ChatCost.imageShare(entry.getCost() - entry.getDeletedCost(), entry.getImages(), image)));
     }
 
     /*  the chat of an entry in the list, on the JavaFX thread  */
