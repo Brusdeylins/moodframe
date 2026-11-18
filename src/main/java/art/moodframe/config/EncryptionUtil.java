@@ -28,12 +28,14 @@ import java.util.Base64;
  * 
  * <p><strong>Usage Example:</strong></p>
  * <pre>{@code
+ * EncryptionUtil encryption = new EncryptionUtil(paths.secretKey());
+ *
  * // Encrypt sensitive data
  * String apiKey = "bfl_api_key_12345";
- * String encrypted = EncryptionUtil.encrypt(apiKey);
- * 
+ * String encrypted = encryption.encrypt(apiKey);
+ *
  * // Decrypt when needed
- * String decrypted = EncryptionUtil.decrypt(encrypted);
+ * String decrypted = encryption.decrypt(encrypted);
  * }</pre>
  * 
  * <p><strong>External References:</strong></p>
@@ -50,25 +52,33 @@ public class EncryptionUtil {
     private static final int TAG_LENGTH_BIT = 128;
     private static final int IV_LENGTH_BYTE = 12;
     
-    private static SecretKey masterKey;
-    
-    static {
-        initializeMasterKey();
-    }
-    
+    private final Path keyFile;
+    private SecretKey masterKey;
+
     /**
-     * Initializes the master encryption key.
+     * Creates the encryption with the key in the given file, which is read or created on first use.
+     *
+     * @param keyFile the key file, {@link LibraryPaths#secretKey()}
+     */
+    public EncryptionUtil(Path keyFile) {
+        this.keyFile = keyFile;
+    }
+
+    /**
+     * Gets the master encryption key, read or created on first use.
      *
      * <p>Every installation has its own random 256-bit key in {@code ~/.moodframe/secret.key},
      * created on first use and readable only by the user (where the file system supports it).
      * The key never leaves this file; deleting it makes the stored API keys unreadable.</p>
      *
+     * @return the key
      * @throws RuntimeException if the master key cannot be initialized
      * @since 2.0.0
      */
-    private static void initializeMasterKey() {
+    private synchronized SecretKey masterKey() {
+        if (masterKey != null)
+            return masterKey;
         try {
-            Path keyFile = Path.of(System.getProperty("user.home"), ".moodframe", "secret.key");
             byte[] key;
             if (Files.exists(keyFile))
                 key = Base64.getDecoder().decode(Files.readString(keyFile, StandardCharsets.US_ASCII).trim());
@@ -90,6 +100,7 @@ public class EncryptionUtil {
             if (key.length != 32)
                 throw new IllegalStateException("Invalid key file: " + keyFile);
             masterKey = new SecretKeySpec(key, "AES");
+            return masterKey;
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize master encryption key", e);
         }
@@ -112,7 +123,7 @@ public class EncryptionUtil {
      * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/crypto/Cipher.html">Java Cipher API</a>
      * @since 1.0.0
      */
-    public static String encrypt(String plainText) {
+    public String encrypt(String plainText) {
         if (plainText == null || plainText.isEmpty()) {
             return null;
         }
@@ -128,7 +139,7 @@ public class EncryptionUtil {
             // Encrypt
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, masterKey, parameterSpec);
+            cipher.init(Cipher.ENCRYPT_MODE, masterKey(), parameterSpec);
             
             byte[] cipherText = cipher.doFinal(plainBytes);
             
@@ -161,7 +172,7 @@ public class EncryptionUtil {
      * @throws RuntimeException if decryption fails (invalid format, wrong key, or tampering detected)
      * @since 1.0.0
      */
-    public static String decrypt(String encryptedText) {
+    public String decrypt(String encryptedText) {
         if (encryptedText == null || encryptedText.isEmpty()) {
             return null;
         }
@@ -180,7 +191,7 @@ public class EncryptionUtil {
             // Decrypt
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
-            cipher.init(Cipher.DECRYPT_MODE, masterKey, parameterSpec);
+            cipher.init(Cipher.DECRYPT_MODE, masterKey(), parameterSpec);
             
             byte[] plainBytes = cipher.doFinal(cipherText);
             

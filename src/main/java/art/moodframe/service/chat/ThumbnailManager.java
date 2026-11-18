@@ -1,5 +1,7 @@
 package art.moodframe.service.chat;
 
+import art.moodframe.config.LibraryPaths;
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.ImageSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,11 +105,12 @@ public class ThumbnailManager {
     private final Path originalImagesDirectory;
 
     /**
-     * Creates a new ThumbnailManager with default configuration.
-     * 
+     * Creates a new ThumbnailManager.
+     *
+     * @param paths the folders of the library: the images and the thumbnails
      * @throws IOException if thumbnail directory cannot be created
      */
-    public ThumbnailManager() throws IOException {
+    public ThumbnailManager(LibraryPaths paths) throws IOException {
         this.thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREAD_POOL_SIZE,
                 r -> {
                     Thread t = new Thread(r, "ThumbnailGenerator-" + System.currentTimeMillis());
@@ -146,10 +149,8 @@ public class ThumbnailManager {
         this.totalThumbnailSize = new AtomicLong(0);
 
         // Initialize directory structure
-        String userHome = System.getProperty("user.home");
-        Path dataDir = Paths.get(userHome, ".moodframe");
-        this.originalImagesDirectory = dataDir.resolve("images");
-        this.thumbnailDirectory = dataDir.resolve("thumbnails");
+        this.originalImagesDirectory = paths.images();
+        this.thumbnailDirectory = paths.thumbnails();
 
         // Create directories if they don't exist
         createDirectoryStructure();

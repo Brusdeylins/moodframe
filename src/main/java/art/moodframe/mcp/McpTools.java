@@ -120,7 +120,7 @@ public class McpTools {
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events) {
         McpTools tools = new McpTools();
-        new ChatTools(chats, events).addTo(tools);
+        new ChatTools(chats, events, config.paths().downloads()).addTo(tools);
         new LibraryTools(config, moods, blocks, colors, frames, favorites, trash).addTo(tools);
         return tools;
     }

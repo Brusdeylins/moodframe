@@ -1,6 +1,7 @@
 package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
@@ -54,17 +55,22 @@ public class SplashScreen {
     /*  opened from the Info button: stays until Esc or a click, belongs to the main window  */
     private final boolean info;
 
+    /*  the folders of the library, for the saved window bounds; null for the info window  */
+    private final LibraryPaths paths;
+
     /**
      * Creates a new splash screen.
-     * 
+     *
      * @param onComplete callback to execute when splash screen closes
+     * @param paths      the folders of the library, whose configuration holds the saved main window bounds
      */
-    public SplashScreen(Runnable onComplete) {
-        this(onComplete, null);
+    public SplashScreen(Runnable onComplete, LibraryPaths paths) {
+        this(onComplete, null, paths);
     }
 
-    private SplashScreen(Runnable onComplete, Window owner) {
+    private SplashScreen(Runnable onComplete, Window owner, LibraryPaths paths) {
         this.onComplete = onComplete;
+        this.paths = paths;
         this.info = owner != null;
         this.splashStage = new Stage();
         if (info) {
@@ -81,7 +87,7 @@ public class SplashScreen {
      * @param owner the window the info belongs to
      */
     public static void showInfo(Window owner) {
-        new SplashScreen(null, owner).show();
+        new SplashScreen(null, owner, null).show();
     }
 
     /**
@@ -233,9 +239,9 @@ public class SplashScreen {
 
     /*  the main window bounds saved at the last exit, or null where the main window does not restore them either;
         the configuration is registered only after the splash, so it is read here  */
-    private static Rectangle2D savedWindowBounds() {
+    private Rectangle2D savedWindowBounds() {
         try {
-            ApplicationConfig config = new ApplicationConfig();
+            ApplicationConfig config = new ApplicationConfig(paths);
             return config.getWindowX() >= 0 && config.getWindowY() >= 0
                     ? new Rectangle2D(config.getWindowX(), config.getWindowY(),
                             config.getWindowWidth(), config.getWindowHeight())

@@ -127,6 +127,7 @@ class McpEditToolsTest {
 
         /*  Only BFL is enabled with a key; no language model for the analysis of images  */
         ApplicationConfig config = mock(ApplicationConfig.class);
+        when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
         when(config.isBflProviderEnabled()).thenReturn(true);
         when(config.hasApiKey()).thenReturn(true);
         when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();

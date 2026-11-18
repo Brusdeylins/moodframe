@@ -831,7 +831,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         // Set version and config path
         versionLabel.setText(art.moodframe.util.VersionManager.getApplicationNameWithVersion());
-        configPathLabel.setText(System.getProperty("user.home") + "/.moodframe/");
+        configPathLabel.setText(config.paths().root() + "/");
     }
 
     /**
@@ -1892,8 +1892,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             fileChooser.setInitialFileName(exporter.generateExportFilename());
 
             // Set initial directory to user's Documents folder
-            String documentsPath = System.getProperty("user.home") + "/Documents";
-            java.io.File documentsDir = new java.io.File(documentsPath);
+            java.io.File documentsDir = config.paths().documents().toFile();
             if (documentsDir.exists()) {
                 fileChooser.setInitialDirectory(documentsDir);
             }
@@ -1925,8 +1924,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             fileChooser.setTitle("Import Configuration");
 
             // Set initial directory to user's Documents folder
-            String documentsPath = System.getProperty("user.home") + "/Documents";
-            java.io.File documentsDir = new java.io.File(documentsPath);
+            java.io.File documentsDir = config.paths().documents().toFile();
             if (documentsDir.exists()) {
                 fileChooser.setInitialDirectory(documentsDir);
             }
@@ -2623,8 +2621,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onOpenConfigDirectory() {
         try {
-            String configPath = System.getProperty("user.home") + "/.moodframe/";
-            java.io.File configDir = new java.io.File(configPath);
+            java.io.File configDir = config.paths().root().toFile();
+            String configPath = configDir + "/";
 
             // Create directory if it doesn't exist
             if (!configDir.exists()) {

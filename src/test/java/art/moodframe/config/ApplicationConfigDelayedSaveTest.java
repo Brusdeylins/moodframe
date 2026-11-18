@@ -1,6 +1,9 @@
 package art.moodframe.config;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -8,13 +11,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Values dragged with the mouse are written once after a quiet time, and at the latest on shutdown. The configuration
- * lives in the home of the tests (build/test-home).
+ * lives in a temporary home.
  */
 class ApplicationConfigDelayedSaveTest {
+
+    @TempDir
+    Path home;
 
     /*  a configuration that counts its saves after it was read  */
     private static final class CountingConfig extends ApplicationConfig {
         final AtomicInteger saves = new AtomicInteger();
+
+        CountingConfig(LibraryPaths paths) {
+            super(paths);
+        }
 
         @Override
         public synchronized void saveConfiguration() {
@@ -43,7 +53,7 @@ class ApplicationConfigDelayedSaveTest {
 
     @Test
     void writesADragOnceAfterTheQuietTime() throws Exception {
-        CountingConfig config = new CountingConfig();
+        CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
         drag(config);
         assertEquals(0, config.saves.get());
@@ -52,7 +62,7 @@ class ApplicationConfigDelayedSaveTest {
         assertEquals(1, config.saves.get());
 
         /*  what is stored stays the same, only the moment of writing changes  */
-        ApplicationConfig stored = new ApplicationConfig();
+        ApplicationConfig stored = new ApplicationConfig(LibraryPaths.under(home));
         assertEquals(0.249, stored.getSplitterPosition());
         assertEquals(59.0, stored.getWindowX());
         assertEquals(1249, stored.getWindowWidth());
@@ -62,13 +72,13 @@ class ApplicationConfigDelayedSaveTest {
 
     @Test
     void writesAWaitingSaveAtOnceOnShutdown() throws Exception {
-        CountingConfig config = new CountingConfig();
+        CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
         drag(config);
         config.setSplitterPosition(0.3);
         config.flushConfiguration();
         assertEquals(1, config.saves.get());
-        assertEquals(0.3, new ApplicationConfig().getSplitterPosition());
+        assertEquals(0.3, new ApplicationConfig(LibraryPaths.under(home)).getSplitterPosition());
 
         /*  the delayed save is gone, nothing is written twice  */
         Thread.sleep(ApplicationConfig.SAVE_DELAY_MILLIS * 2);
@@ -77,7 +87,7 @@ class ApplicationConfigDelayedSaveTest {
 
     @Test
     void shutdownWritesNothingWithoutAWaitingSave() {
-        CountingConfig config = new CountingConfig();
+        CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
         config.flushConfiguration();
         assertEquals(0, config.saves.get());
@@ -85,7 +95,7 @@ class ApplicationConfigDelayedSaveTest {
 
     @Test
     void otherSettingsAreWrittenAtOnce() {
-        CountingConfig config = new CountingConfig();
+        CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
         config.setOpenPanelGroup("frame");
         assertEquals(1, config.saves.get());

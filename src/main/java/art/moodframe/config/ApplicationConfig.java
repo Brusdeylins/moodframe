@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -49,12 +48,6 @@ public class ApplicationConfig {
     
     private static final Logger logger = LoggerFactory.getLogger(ApplicationConfig.class);
     
-    private static final String CONFIG_DIR = System.getProperty("user.home") + "/.moodframe";
-    private static final String CONFIG_FILE = "config.properties";
-    private static final String DB_DIR = CONFIG_DIR + "/db";
-    private static final String LOGS_DIR = CONFIG_DIR + "/logs";
-    private static final String IMAGES_DIR = CONFIG_DIR + "/images";
-    
     /** Quiet time after the last change of a dragged value (divider, window, slider) before it is written. */
     static final long SAVE_DELAY_MILLIS = 500;
 
@@ -67,11 +60,20 @@ public class ApplicationConfig {
     private static final Object PENDING_LOCK = new Object();
 
     private final Properties properties = new Properties();
+    private final LibraryPaths paths;
     private final Path configPath;
+    private final EncryptionUtil encryption;
     private ScheduledFuture<?> pendingSave;
-    
-    public ApplicationConfig() {
-        this.configPath = Paths.get(CONFIG_DIR, CONFIG_FILE);
+
+    /**
+     * Reads the configuration of the library in the given folders, or creates it with the defaults.
+     *
+     * @param paths the folders of the library
+     */
+    public ApplicationConfig(LibraryPaths paths) {
+        this.paths = paths;
+        this.configPath = paths.configFile();
+        this.encryption = new EncryptionUtil(paths.secretKey());
         initializeDirectories();
         loadConfiguration();
     }
@@ -92,10 +94,10 @@ public class ApplicationConfig {
      */
     private void initializeDirectories() {
         try {
-            Files.createDirectories(Paths.get(CONFIG_DIR));
-            Files.createDirectories(Paths.get(DB_DIR));
-            Files.createDirectories(Paths.get(LOGS_DIR));
-            Files.createDirectories(Paths.get(IMAGES_DIR));
+            Files.createDirectories(paths.root());
+            Files.createDirectories(paths.databaseDirectory());
+            Files.createDirectories(paths.logs());
+            Files.createDirectories(paths.images());
         } catch (IOException e) {
             throw new RuntimeException("Failed to create configuration directories", e);
         }
@@ -153,9 +155,9 @@ public class ApplicationConfig {
         properties.setProperty("ui.window.height", "800");
         
         // Pfade
-        properties.setProperty("path.database", DB_DIR + "/moodframe.db");
-        properties.setProperty("path.logs", LOGS_DIR);
-        properties.setProperty("path.images", IMAGES_DIR);
+        properties.setProperty("path.database", paths.database().toString());
+        properties.setProperty("path.logs", paths.logs().toString());
+        properties.setProperty("path.images", paths.images().toString());
         
         // Modell-Einstellungen
         properties.setProperty("model.default", "flux.3-image");
@@ -200,7 +202,7 @@ public class ApplicationConfig {
      */
     public synchronized void saveConfiguration() {
         /*  Write beside the file and move it over, so a crash never leaves a truncated configuration  */
-        Path temp = configPath.resolveSibling(CONFIG_FILE + ".tmp");
+        Path temp = configPath.resolveSibling(configPath.getFileName() + ".tmp");
         try (FileOutputStream fos = new FileOutputStream(temp.toFile())) {
             properties.store(fos, "MoodFrame Configuration");
             fos.getFD().sync();
@@ -250,6 +252,15 @@ public class ApplicationConfig {
         }
     }
     
+    /**
+     * Gets the folders of the library, with the images folder as configured.
+     *
+     * @return the paths
+     */
+    public LibraryPaths paths() {
+        return paths.withImages(Path.of(getImagesPath()));
+    }
+
     // Configuration getter methods
     // Each getter provides access to a specific configuration value with appropriate type conversion
     
@@ -285,7 +296,7 @@ public class ApplicationConfig {
         if (encrypted == null || encrypted.isBlank())
             return null;
         try {
-            String decrypted = EncryptionUtil.decrypt(encrypted);
+            String decrypted = encryption.decrypt(encrypted);
             return decrypted == null || decrypted.isBlank() ? null : decrypted;
         } catch (Exception e) {
             logger.error("Failed to decrypt {} from configuration", source.name(), e);
@@ -300,7 +311,7 @@ public class ApplicationConfig {
             logger.info("{} removed from configuration", source.name());
         } else {
             try {
-                properties.setProperty(source.key(), EncryptionUtil.encrypt(value.trim()));
+                properties.setProperty(source.key(), encryption.encrypt(value.trim()));
                 logger.info("{} encrypted and stored in configuration", source.name());
             } catch (Exception e) {
                 logger.error("Failed to encrypt {}", source.name(), e);
@@ -465,15 +476,21 @@ public class ApplicationConfig {
      * @since 1.0.0
      */
     public String getDatabasePath() {
-        return properties.getProperty("path.database");
+        return properties.getProperty("path.database", paths.database().toString());
     }
-    
+
     public String getLogsPath() {
-        return properties.getProperty("path.logs");
+        return properties.getProperty("path.logs", paths.logs().toString());
     }
-    
+
+    /**
+     * Gets the folder of the images as configured in {@code path.images}; a fresh configuration writes the default
+     * {@code ~/.moodframe/images} there.
+     *
+     * @return the images folder
+     */
     public String getImagesPath() {
-        return properties.getProperty("path.images");
+        return properties.getProperty("path.images", paths.images().toString());
     }
     
     public String getDefaultModel() {
@@ -1406,7 +1423,7 @@ public class ApplicationConfig {
         }
         
         try {
-            String decryptedPassword = art.moodframe.config.EncryptionUtil.decrypt(encryptedPassword);
+            String decryptedPassword = encryption.decrypt(encryptedPassword);
             return decryptedPassword;
         } catch (Exception e) {
             logger.error("Failed to decrypt proxy password from configuration", e);
@@ -1426,7 +1443,7 @@ public class ApplicationConfig {
             logger.info("Proxy password removed from configuration");
         } else {
             try {
-                String encryptedPassword = art.moodframe.config.EncryptionUtil.encrypt(proxyPassword.trim());
+                String encryptedPassword = encryption.encrypt(proxyPassword.trim());
                 properties.setProperty("proxy.password", encryptedPassword);
                 logger.info("Proxy password encrypted and stored in configuration");
             } catch (Exception e) {
@@ -1493,8 +1510,7 @@ public class ApplicationConfig {
         }
         
         // Default directory (auto-determined)
-        String defaultPath = System.getProperty("user.home") + "/.moodframe/certificates/";
-        return defaultPath;
+        return paths.certificates() + "/";
     }
     
     /**

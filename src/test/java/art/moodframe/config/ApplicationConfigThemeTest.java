@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Path;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,6 +22,9 @@ class ApplicationConfigThemeTest {
         Field properties = ApplicationConfig.class.getDeclaredField("properties");
         properties.setAccessible(true);
         properties.set(config, stored);
+        Field paths = ApplicationConfig.class.getDeclaredField("paths");
+        paths.setAccessible(true);
+        paths.set(config, LibraryPaths.under(Path.of("home")));
         return config;
     }
 

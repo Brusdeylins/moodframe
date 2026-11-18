@@ -3,7 +3,6 @@ package art.moodframe.service.provider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.*;
-import art.moodframe.config.EncryptionUtil;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -391,8 +390,7 @@ public class BflApiServiceImpl implements BflApiService {
         // Also update in config if available
         if (config != null) {
             try {
-                String encrypted = EncryptionUtil.encrypt(apiKey);
-                config.setProperty("api.key", encrypted);
+                config.setApiKey(apiKey);
             } catch (Exception e) {
                 logger.error("Failed to encrypt and store API key", e);
             }

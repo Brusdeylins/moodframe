@@ -1,5 +1,6 @@
 package art.moodframe.service.chat;
 
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.ImageSize;
 import javafx.application.Platform;
 import org.junit.jupiter.api.AfterAll;
@@ -31,18 +32,11 @@ class ThumbnailManagerTest {
     private static ThumbnailManager thumbnails;
     private static Path images;
 
-    /*  The thumbnail manager takes its directories from the home directory once, when it is created; the cached
-        images are JavaFX images, which need the toolkit  */
+    /*  The thumbnail manager works in the library of a temporary home; the cached images are JavaFX images, which
+        need the toolkit  */
     @BeforeAll
     static void createManager() throws Exception {
-        String home = System.getProperty("user.home");
-        System.setProperty("user.home", tempDir.toString());
-        try {
-            thumbnails = new ThumbnailManager();
-        }
-        finally {
-            System.setProperty("user.home", home);
-        }
+        thumbnails = new ThumbnailManager(LibraryPaths.under(tempDir));
         images = thumbnails.getOriginalImagesDirectory();
 
         CountDownLatch started = new CountDownLatch(1);

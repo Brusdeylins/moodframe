@@ -18,6 +18,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.config.DetailedLogging;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.Secrets;
 import art.moodframe.util.ThemeManager;
 
@@ -47,6 +48,9 @@ public class MoodframeApplication extends Application {
 
     private static final Logger logger = LoggerFactory.getLogger(MoodframeApplication.class);
 
+    /*  The folders of the library, the only reading of user.home; the configuration may move the images folder  */
+    private final LibraryPaths homePaths = LibraryPaths.fromUserHome();
+
     @Override
     public void start(Stage primaryStage) {
 
@@ -64,7 +68,7 @@ public class MoodframeApplication extends Application {
         SplashScreen splash = new SplashScreen(() -> {
             // This callback runs after splash screen closes
             initializeAndShowMainWindow(primaryStage);
-        });
+        }, homePaths);
 
         splash.show();
     }
@@ -121,8 +125,10 @@ public class MoodframeApplication extends Application {
 
         try {
             // Initialize configuration
-            ApplicationConfig config = new ApplicationConfig();
+            ApplicationConfig config = new ApplicationConfig(homePaths);
             ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+            LibraryPaths paths = config.paths();
+            ServiceFactory.getInstance().registerService(LibraryPaths.class, paths);
             DetailedLogging.apply(config.getLoggingEnabled());
 
             /*  Earlier versions wrote the Gemini key into the log files  */
@@ -181,7 +187,7 @@ public class MoodframeApplication extends Application {
             // Initialize TrashManager for trash file operations (60 days retention)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.trash.TrashManager.class,
-                    () -> new art.moodframe.service.trash.TrashManager(60));
+                    () -> new art.moodframe.service.trash.TrashManager(paths, 60));
 
             /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
             java.util.concurrent.ExecutorService io = art.moodframe.net.IoExecutor.get();
@@ -218,7 +224,7 @@ public class MoodframeApplication extends Application {
                     () -> new art.moodframe.service.chat.ChatFileService(
                             ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashManager.class),
                             ServiceFactory.getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class),
-                            new art.moodframe.service.chat.FileManagerService()));
+                            new art.moodframe.service.chat.FileManagerService(paths.images())));
 
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
@@ -374,7 +380,7 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.chat.ThumbnailManager.class,
                     () -> {
                         try {
-                            return new art.moodframe.service.chat.ThumbnailManager();
+                            return new art.moodframe.service.chat.ThumbnailManager(paths);
                         } catch (Exception e) {
                             logger.error("Failed to create ThumbnailManager", e);
                             return null;

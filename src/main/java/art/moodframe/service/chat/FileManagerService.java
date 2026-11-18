@@ -27,33 +27,16 @@ public class FileManagerService {
     private final Path baseImageDirectory;
     
     /**
-     * Creates a new file manager service with the default image directory.
-     */
-    public FileManagerService() {
-        this(getDefaultImageDirectory());
-    }
-    
-    /**
-     * Creates a new file manager service with a custom image directory.
-     * 
-     * @param baseImageDirectory the base directory for storing images
+     * Creates a new file manager service.
+     *
+     * @param baseImageDirectory the base directory for storing images, {@code LibraryPaths.images()}
      */
     public FileManagerService(Path baseImageDirectory) {
         this.baseImageDirectory = baseImageDirectory;
         ensureDirectoryExists(baseImageDirectory);
     }
     
-    /**
-     * Gets the default image directory in the user's home folder.
-     * 
-     * @return the default image directory path
-     */
-    private static Path getDefaultImageDirectory() {
-        String userHome = System.getProperty("user.home");
-        return Paths.get(userHome, ".moodframe", "images");
-    }
-    
-    /**
+/**
      * Ensures that the specified directory exists, creating it if necessary.
      * 
      * @param directory the directory to create

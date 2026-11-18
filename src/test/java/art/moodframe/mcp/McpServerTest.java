@@ -127,6 +127,7 @@ class McpServerTest {
 
         /*  Only BFL is enabled with a key  */
         ApplicationConfig config = mock(ApplicationConfig.class);
+        when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
         when(config.isBflProviderEnabled()).thenReturn(true);
         when(config.hasApiKey()).thenReturn(true);
         when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();

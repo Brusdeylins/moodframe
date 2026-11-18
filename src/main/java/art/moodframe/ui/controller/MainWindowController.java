@@ -5943,7 +5943,7 @@ public class MainWindowController implements I18nChangeListener {
         worker.execute(() -> {
             try {
                 String filename = art.moodframe.util.DownloadsFolder.copy(new File(filePath), copyChatName,
-                        copyCreatedAt);
+                        copyCreatedAt, config.paths().downloads().toFile());
                 Platform.runLater(() -> setStatus(
                         java.text.MessageFormat.format(I18nManager.getText("download.image.success"), filename)));
             } catch (Exception e) {
