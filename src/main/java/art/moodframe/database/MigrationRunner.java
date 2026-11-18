@@ -59,7 +59,8 @@ final class MigrationRunner {
             new Migration("026", "Order_brainstorm_sessions"),
             new Migration("027", "Add_favorites"),
             new Migration("028", "Add_source_to_chat_entries"),
-            new Migration("029", "Backfill_flux_costs", "FluxCostBackfill.java", FluxCostBackfill::apply));
+            new Migration("029", "Backfill_flux_costs", "FluxCostBackfill.java", FluxCostBackfill::apply),
+            new Migration("030", "Correct_deleted_costs", "DeletedCostCorrection.java", DeletedCostCorrection::apply));
 
     private MigrationRunner() {
     }
