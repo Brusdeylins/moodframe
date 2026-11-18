@@ -111,9 +111,12 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   listeners the views put on the models hand their work to the JavaFX thread.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
-- **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded
-  pool of daemon threads, never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker
-  (see `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit.
+- **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
+  never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
+  `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
+  for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
+  of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
+  analysis of an image into a mood composes the answer of the language model instead of waiting for it.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O

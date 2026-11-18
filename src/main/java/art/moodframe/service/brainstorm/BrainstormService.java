@@ -10,7 +10,6 @@ import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.Mood;
 import art.moodframe.model.ResearchNote;
-import art.moodframe.net.IoExecutor;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.library.RepositoryAccess;
 import art.moodframe.service.provider.GeminiApiService;
@@ -36,6 +35,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -68,6 +69,12 @@ public class BrainstormService {
             + "look, people, text on screen). Then list the facts shown or said in the video that could go into the "
             + "picture (numbers, names, terms), one per line as \"- [m:ss] fact\", with its time in the whole video. "
             + "Write in %s, at most 300 words.";
+
+    /*  The threads of the turns, their tool calls and the naming of a session: they wait for the language model and
+        the research, which run on the IoExecutor, so they run on virtual threads of their own and never hold a worker
+        of the IoExecutor while they wait (a bounded pool whose tasks wait for each other can stall)  */
+    private static final Executor TURNS = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("brainstorm-", 1).factory());
 
     private final BrainstormRepository repository;
     private final RepositoryAccess access = new RepositoryAccess(logger);
@@ -369,7 +376,7 @@ public class BrainstormService {
             CompletableFuture<?> previous = tails.getOrDefault(sessionId, CompletableFuture.completedFuture(null));
             // The history is read when the request is its turn, so it contains the answer of the one before
             result = previous.handle((Object ignored, Throwable error) -> null)
-                    .thenApplyAsync((Object ignored) -> process(session, message, context), IoExecutor.get());
+                    .thenApplyAsync((Object ignored) -> process(session, message, context), TURNS);
             tails.put(sessionId, result);
         }
         result.whenComplete((BrainstormReply reply, Throwable error) -> tails.remove(sessionId, result));
@@ -444,7 +451,7 @@ public class BrainstormService {
             } catch (RuntimeException e) {
                 logger.warn("Could not name the brainstorm session: {}", e.getMessage());
             }
-        }, IoExecutor.get());
+        }, TURNS);
     }
 
     /**
@@ -479,7 +486,7 @@ public class BrainstormService {
         String request = instruction;
         List<YouTubeClip> watched = clips.stream().limit(MAX_TOOL_CALLS).toList();
         List<CompletableFuture<ResearchNote>> runs = watched.stream().map((YouTubeClip clip) -> CompletableFuture
-                .supplyAsync(() -> watchVideo(session.getId(), clip, request), IoExecutor.get())).toList();
+                .supplyAsync(() -> watchVideo(session.getId(), clip, request), TURNS)).toList();
         List<String> turns = new ArrayList<>();
         for (int i = 0; i < runs.size(); i++) {
             try {
@@ -545,7 +552,7 @@ public class BrainstormService {
             List<CompletableFuture<ToolRun>> runs = new ArrayList<>();
             for (BrainstormTurn.Call call : turn.calls()) {
                 calls++;
-                runs.add(CompletableFuture.supplyAsync(() -> runTool(session, model, call), IoExecutor.get()));
+                runs.add(CompletableFuture.supplyAsync(() -> runTool(session, model, call), TURNS));
             }
             JSONArray responses = new JSONArray();
             for (CompletableFuture<ToolRun> run : runs) {

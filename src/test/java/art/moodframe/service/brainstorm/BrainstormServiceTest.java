@@ -10,6 +10,7 @@ import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
@@ -510,6 +511,37 @@ class BrainstormServiceTest {
         BrainstormReply reply = service.sendUserMessage(session, "Thema", context).join();
 
         assertEquals(List.of("one", "two"), reply.getResearch().stream().map(ResearchNote::query).toList());
+    }
+
+    /**
+     * The turn waits for its language model and runs its tool calls in parallel, all of which run on the
+     * IoExecutor: with a single thread there, a turn with several tool calls still completes, as no task of the
+     * IoExecutor waits for another one.
+     */
+    @Test
+    void aTurnWithSeveralToolCallsCompletesWithAnIoExecutorOfOneThread() throws Exception {
+        JSONArray parts = new JSONArray();
+        List<BrainstormTurn.Call> calls = new ArrayList<>();
+        for (String query : List.of("one", "two", "three")) {
+            JSONObject args = new JSONObject().put("query", query);
+            parts.put(new JSONObject().put("functionCall", new JSONObject().put("name", "research").put("args", args)));
+            calls.add(new BrainstormTurn.Call("research", args));
+        }
+        BrainstormTurn[] turns = {new BrainstormTurn("", parts, calls), text(VALID_REPLY)};
+        java.util.concurrent.atomic.AtomicInteger asked = new java.util.concurrent.atomic.AtomicInteger();
+        when(gemini.chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean())).thenAnswer((invocation) ->
+                CompletableFuture.supplyAsync(() -> turns[Math.min(asked.getAndIncrement(), 1)], IoExecutor.get()));
+        when(gemini.research(anyString())).thenAnswer((invocation) -> CompletableFuture.supplyAsync(() ->
+                new ResearchNote(invocation.getArgument(0), "found", List.of(SOURCE)), IoExecutor.get()));
+        IoExecutor.replace(java.util.concurrent.Executors.newSingleThreadExecutor());
+        try {
+            BrainstormReply reply = service.sendUserMessage(session, "Thema", context).get(10, TimeUnit.SECONDS);
+            assertEquals(List.of("one", "two", "three"), reply.getResearch().stream().map(ResearchNote::query)
+                    .toList());
+        }
+        finally {
+            IoExecutor.shutdown();
+        }
     }
 
     private static final String STEP_TWO_REPLY = "{\"step\": 2, \"message\": \"Welches Modell?\", "

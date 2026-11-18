@@ -3,6 +3,7 @@ package art.moodframe.service.brainstorm;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
@@ -132,26 +133,60 @@ public class MoodAnalysisService {
      * @return the found blocks
      */
     public CompletableFuture<Analysis> analyze(BufferedImage image, BrainstormContext context) {
-        return CompletableFuture.supplyAsync(() -> {
-            List<String> colors = PaletteExtractor.extract(image);
-            if (!hasLanguageModel())
-                return new Analysis(colorsOnly(context, colors), I18nManager.getText("mood.image.no.model"));
-            try {
-                String raw = ask(prompt(template, context), contents(encodeScaled(image)));
-                return new Analysis(parseReply(raw, context, colors), null);
-            }
-            catch (IOException | RuntimeException e) {
-                Throwable cause = e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
-                logger.warn("Image analysis failed: {}", cause.getMessage());
-                return new Analysis(colorsOnly(context, colors),
-                        I18nManager.getText("mood.image.error", cause.getMessage()));
-            }
-        }, IoExecutor.get());
+        /*  The colors and the encoded image on a worker; the answer of the language model is composed, so the worker
+            never waits for another task of the IoExecutor  */
+        return CompletableFuture.supplyAsync(() -> prepare(image, context), IoExecutor.get())
+                .thenCompose((Prepared prepared) -> {
+                    if (!prepared.asks())
+                        return CompletableFuture.completedFuture(new Analysis(colorsOnly(context, prepared.colors()),
+                                I18nManager.getText("mood.image.no.model")));
+                    CompletableFuture<String> raw = prepared.failure() != null
+                            ? CompletableFuture.failedFuture(prepared.failure())
+                            : ask(prepared.systemPrompt(), prepared.contents());
+                    return raw.handle((String reply, Throwable error) -> {
+                        if (error == null) {
+                            try {
+                                return new Analysis(parseReply(reply, context, prepared.colors()), null);
+                            }
+                            catch (RuntimeException e) {
+                                error = e;
+                            }
+                        }
+                        Throwable cause = error instanceof CompletionException && error.getCause() != null
+                                ? error.getCause() : error;
+                        logger.warn("Image analysis failed: {}", cause.getMessage());
+                        return new Analysis(colorsOnly(context, prepared.colors()),
+                                I18nManager.getText("mood.image.error", cause.getMessage()));
+                    });
+                });
+    }
+
+    /** The colors of an image and the request about it; a failure to build the request is kept for the answer. */
+    private record Prepared(List<String> colors, boolean asks, String systemPrompt, JSONArray contents,
+                            Exception failure) {
+    }
+
+    /*  the colors, and the request if a language model is configured, on a worker  */
+    private Prepared prepare(BufferedImage image, BrainstormContext context) {
+        List<String> colors = PaletteExtractor.extract(image);
+        if (!hasLanguageModel())
+            return new Prepared(colors, false, null, null, null);
+        try {
+            return new Prepared(colors, true, prompt(template, context), contents(encodeScaled(image)), null);
+        }
+        catch (IOException | RuntimeException e) {
+            return new Prepared(colors, true, null, null, e);
+        }
     }
 
     /** Sends the image to the language model of the brainstorm, without tools, and returns its JSON text. */
-    private String ask(String systemPrompt, JSONArray contents) {
-        return chatModel().chatTurn(systemPrompt, contents, false, false).join().text();
+    private CompletableFuture<String> ask(String systemPrompt, JSONArray contents) {
+        try {
+            return chatModel().chatTurn(systemPrompt, contents, false, false).thenApply(BrainstormTurn::text);
+        }
+        catch (RuntimeException e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     /**

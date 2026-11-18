@@ -13,8 +13,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link java.util.concurrent.ForkJoinPool#commonPool()}, which the UI code and the parallel streams share.
  *
  * <p>The pool has at most {@link #MAX_THREADS} daemon threads named {@code moodframe-io-N}; idle threads end after a
- * minute and further tasks wait in the queue. A task may wait for another task of this executor (the brainstorm
- * waits for its research), so the bound is kept well above such chains.</p>
+ * minute and further tasks wait in the queue. No task waits for another task of this executor: with all threads
+ * waiting, the queued tasks they wait for would never run. Work that waits for such tasks (a brainstorm turn waits
+ * for its language model and research) runs on threads of its own or composes the futures.</p>
  *
  * <p>{@code MoodframeApplication} shuts it down on exit; a later {@link #get()} starts a new pool, e.g. in tests.</p>
  *
@@ -39,6 +40,18 @@ public final class IoExecutor {
         if (executor == null || executor.isShutdown())
             executor = create();
         return executor;
+    }
+
+    /**
+     * Puts another executor in place of the pool, for tests: e.g. one of a single thread shows that no task waits for
+     * another. The executor before is shut down.
+     *
+     * @param replacement the executor {@link #get()} returns from now on
+     */
+    public static synchronized void replace(ExecutorService replacement) {
+        if (executor != null)
+            executor.shutdownNow();
+        executor = replacement;
     }
 
     /**
