@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.1.3 (unreleased)
+
+### BUGFIX
+- Right panel: the model follows the resolution of the frame, also when it was set elsewhere (reused entry,
+  attachments, saved choice); Nano Banana Pro makes 4K for a 4K frame instead of 2K, and reusing an entry from before
+  the frames were stored takes the resolution of its model
+
 ## 2.1.2 (2026-11-17)
 
 ### IMPROVEMENT
