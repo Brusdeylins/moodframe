@@ -11,6 +11,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 
@@ -75,7 +76,7 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
         this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
 
         // Register for i18n updates
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
 
         /*  A new block and a block of the user are saved, a standard block only as a new one: then "As New Entry" is
             the main button, else it stands at the far left  */

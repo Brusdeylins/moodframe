@@ -34,6 +34,7 @@ import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.CameraExample;
 import art.moodframe.ui.component.CameraPreview;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 
@@ -153,7 +154,7 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         CameraSettings settings = (block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY)
                 .withoutConflicts();
 
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
 
         /*  A new camera and a camera of the user are saved, a standard camera only as a new one: then "As New Entry"
             is the main button, else it stands at the far left  */

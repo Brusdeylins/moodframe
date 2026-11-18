@@ -3,6 +3,7 @@ package art.moodframe.ui.component;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.dnd.ImageDragExporter;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.MediaSupport;
@@ -272,7 +273,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         javafx.application.Platform.runLater(() -> forceWhiteIcons());
 
         // Register I18n listener for tooltip updates on language change
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
     }
 
     /**

@@ -30,6 +30,7 @@ import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -170,7 +171,7 @@ public class MainWindowController implements I18nChangeListener {
         logger.debug("Initializing MainWindow controller");
 
         statusBarController.init(config, validator);
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
         appVersionLabel.setText("v" + art.moodframe.util.VersionManager.getVersion());
 
         /*  The "M" of the logo starts on the line of the names of the sidebar, 1 px further in for the side bearing of
