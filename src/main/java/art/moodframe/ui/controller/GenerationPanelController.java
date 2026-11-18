@@ -1017,7 +1017,7 @@ public class GenerationPanelController {
                     config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
 
         // Add models from enabled providers with valid API keys
-        modelComboBox.getItems().addAll(art.moodframe.service.generation.GenerationService.availableItems(config));
+        modelComboBox.getItems().addAll(GenerationService.availableItems(config));
 
         logger.info("Available models after filtering: {}", modelComboBox.getItems());
 
@@ -1073,51 +1073,11 @@ public class GenerationPanelController {
             }
         }
 
-        // Check if we're in attachment mode to preserve filtering
-        boolean hasAttachment = attachedImageFile != null;
-
-        // Clear and rebuild with localized names
+        // Clear and rebuild with localized names, keeping the filter of the attached images
         String previousItem = modelComboBox.getValue();
         modelComboBox.getItems().clear();
-
-        if (hasAttachment) {
-            // Only add models that take images from enabled providers
-            for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                if (model.supportsImageAttachment()) {
-                    // Check if model's provider is enabled
-                    art.moodframe.model.ApiProvider provider = model.getProvider();
-                    boolean isEnabled = false;
-
-                    if (provider == art.moodframe.model.ApiProvider.BFL && config != null) {
-                        isEnabled = config.accounts().isUsable(ApiProvider.BFL);
-                    } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && config != null) {
-                        isEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-                    }
-
-                    if (isEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    }
-                }
-            }
-        } else {
-            // Add models from enabled providers only
-            if (config != null) {
-                boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
-                boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-
-                for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                    art.moodframe.model.ApiProvider provider = model.getProvider();
-
-                    if (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    }
-                }
-            }
-        }
-
-        modelComboBox.getItems().addAll(openAiModelItems());
+        if (config != null)
+            modelComboBox.getItems().addAll(GenerationService.availableItems(config, attachedImageCount()));
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
@@ -1176,34 +1136,8 @@ public class GenerationPanelController {
         // Get current selection before filtering
         String currentSelection = modelComboBox.getValue();
 
-        // Get provider status
-        boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
-        boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-
-        // Clear and rebuild with filtered models
-        modelComboBox.getItems().clear();
-
-        for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-            art.moodframe.model.ApiProvider provider = model.getProvider();
-
-            // Check if provider is enabled
-            boolean providerEnabled = (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled)
-                    || (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled);
-
-            if (!providerEnabled) {
-                continue;
-            }
-
-            // Check if model supports the current image count
-            int maxImages = model.getMaxInputImages();
-            if (maxImages >= imageCount) {
-                modelComboBox.getItems().add(ModelLabels.displayName(model));
-            }
-        }
-
-        if (art.moodframe.model.GenerationModel.OPENAI_IMAGE.getMaxInputImages() >= imageCount) {
-            modelComboBox.getItems().addAll(openAiModelItems());
-        }
+        // Clear and rebuild with the models of the usable providers that take this many images
+        modelComboBox.getItems().setAll(GenerationService.availableItems(config, imageCount));
 
         logger.info("Filtered models for {} images: {}", imageCount, modelComboBox.getItems());
 
@@ -1246,20 +1180,11 @@ public class GenerationPanelController {
         String currentSelection = modelComboBox.getValue();
 
         if (hasAttachment) {
-            // Filter to only show models that take images
-            modelComboBox.getItems().clear();
-
-            for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                if (model.supportsImageAttachment()) {
-                    modelComboBox.getItems().add(ModelLabels.displayName(model));
-                }
-            }
-            modelComboBox.getItems().addAll(openAiModelItems());
+            // Filter to only show the models of the usable providers that take the attached images
+            modelComboBox.getItems().setAll(GenerationService.availableItems(config, Math.max(1, attachedImageCount())));
 
             // Check if current selection is compatible
-            art.moodframe.model.GenerationModel currentModel = art.moodframe.model.GenerationModel
-                    .fromLocalizedDisplayName(currentSelection);
-            if (currentModel == null || !currentModel.supportsImageAttachment()) {
+            if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {
                 // Auto-switch to the default model, which edits images (FLUX 3 Image)
                 String defaultName = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
 
@@ -1286,17 +1211,11 @@ public class GenerationPanelController {
         }
     }
 
-    /**
-     * Gets the dropdown items of the OpenAI models, empty while the provider is disabled or has no token.
-     *
-     * @return the items ({@link art.moodframe.model.GenerationModel#OPENAI_PREFIX} + model id)
-     */
-    private java.util.List<String> openAiModelItems() {
-        if (config == null || !config.accounts().isUsable(ApiProvider.OPENAI)) {
-            return java.util.List.of();
-        }
-        return config.accounts().getOpenAiModels().stream()
-                .map(id -> art.moodframe.model.GenerationModel.OPENAI_PREFIX + id).toList();
+    /*  the number of attached images, which filters the models  */
+    private int attachedImageCount() {
+        if (attachedImageFile == null)
+            return 0;
+        return multiImagePanel != null ? Math.max(1, multiImagePanel.getAttachmentCount()) : 1;
     }
 
     /**

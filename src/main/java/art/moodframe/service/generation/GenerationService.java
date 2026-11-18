@@ -201,6 +201,25 @@ public class GenerationService {
     }
 
     /**
+     * The items of the models to choose from that take this many attached images, in the order of the dropdown.
+     *
+     * @param config     the configuration with the accounts
+     * @param imageCount the number of attached images, 0 for all models to choose from
+     * @return the items of {@link #availableItems(ApplicationConfig)} whose model takes at least that many images
+     */
+    public static List<String> availableItems(ApplicationConfig config, int imageCount) {
+        if (imageCount <= 0)
+            return availableItems(config);
+        Set<String> taking = GenerationModel.selectable().stream()
+                .filter((GenerationModel model) -> model.getMaxInputImages() >= imageCount)
+                .map(ModelLabels::displayName).collect(java.util.stream.Collectors.toSet());
+        boolean openAi = GenerationModel.OPENAI_IMAGE.getMaxInputImages() >= imageCount;
+        return availableItems(config).stream()
+                .filter((String item) -> GenerationModel.openAiModelId(item) != null ? openAi : taking.contains(item))
+                .toList();
+    }
+
+    /**
      * Picks the model of a family for a target resolution among the models to choose from, as the main window does.
      *
      * @param family     the family name, for example {@code Nano Banana 2}
