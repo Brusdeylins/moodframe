@@ -1,9 +1,10 @@
 package art.moodframe.service;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ImageProvider;
 import org.json.JSONArray;
 
 import java.util.List;
@@ -11,11 +12,26 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Service interface for the OpenAI Images API (or an OpenAI-compatible gateway) with bearer token authentication.
+ * A generation answers with the finished image as Base64: {@code POST /images/generations}, or
+ * {@code POST /images/edits} if the request has input images.
  *
  * @author Matthias Brusdeylins
  * @since 1.9.0
  */
-public interface OpenAiApiService {
+public interface OpenAiApiService extends ImageProvider {
+
+    @Override
+    default ApiProvider getProvider() {
+        return ApiProvider.OPENAI;
+    }
+
+    /**
+     * Serves the OpenAI image models and every model of the gateway the user chose, see {@link #getImageModels()}.
+     */
+    @Override
+    default boolean servesModel(String modelId) {
+        return GenerationModel.isOpenAiImageModelId(modelId) || getImageModels().contains(modelId);
+    }
 
     /**
      * Tests the connection by listing the models ({@code GET /models}). A successful test stores the image
@@ -24,6 +40,7 @@ public interface OpenAiApiService {
      * @return a future with true if the API accepted the bearer token, false on a definite refusal (HTTP 400, 401, 403
      *         or 404); it fails on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
+    @Override
     CompletableFuture<Boolean> testConnection();
 
     /**
@@ -32,16 +49,6 @@ public interface OpenAiApiService {
      * @return the model ids, empty if the API was not connected yet
      */
     List<String> getImageModels();
-
-    /**
-     * Generates one image ({@code POST /images/generations}), or edits the attached images
-     * ({@code POST /images/edits}) if the request has input images. The call is synchronous: the result carries
-     * the image as Base64.
-     *
-     * @param request the generation request, {@link ImageGenerationRequest#getModel()} is the OpenAI model id
-     * @return a future with the finished job
-     */
-    CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request);
 
     /**
      * Asks the language model one question of a tool-calling conversation ({@code POST /chat/completions}). The
@@ -99,20 +106,6 @@ public interface OpenAiApiService {
     CompletableFuture<String> complete(String model, String prompt);
 
     /**
-     * Gets the bearer token.
-     *
-     * @return the token, or null
-     */
-    String getApiKey();
-
-    /**
-     * Sets the bearer token, for example to test a token that is not saved yet.
-     *
-     * @param apiKey the bearer token
-     */
-    void setApiKey(String apiKey);
-
-    /**
      * Gets the base URL.
      *
      * @return the base URL without trailing slash
@@ -125,11 +118,4 @@ public interface OpenAiApiService {
      * @param baseUrl the base URL, for example {@code https://api.openai.com/v1}
      */
     void setBaseUrl(String baseUrl);
-
-    /**
-     * Checks if a bearer token is set.
-     *
-     * @return true if the service can send requests
-     */
-    boolean isConfigured();
 }

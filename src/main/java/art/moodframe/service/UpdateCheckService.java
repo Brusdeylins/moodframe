@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.util.VersionManager;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -218,7 +219,7 @@ public class UpdateCheckService {
                 logger.warn("Update check of {} failed: {}", url, e.getMessage());
                 return new Result(installed, null);
             }
-        });
+        }, IoExecutor.get());
     }
 
     /**

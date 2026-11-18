@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
@@ -78,6 +79,7 @@ class GenerationServiceTest {
         when(config.hasApiKey()).thenReturn(true);
         when(config.hasGeminiApiKey()).thenReturn(true);
         when(config.hasOpenAiApiKey()).thenReturn(true);
+        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
         when(config.getOpenAiModels()).thenReturn(List.of("gpt-image-1", "qwen-image-2.1"));
         when(config.getFlux2SafetyTolerance()).thenReturn(2);
         when(requests.submitImageGeneration(any(), any(), any())).thenReturn(CompletableFuture.completedFuture(null));

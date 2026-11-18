@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -26,6 +27,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -52,16 +54,28 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     private final ApplicationConfig config;
     private final Supplier<OkHttpClient> httpClient;
     private final Supplier<OkHttpClient> researchClient;
+    private final Executor io;
     private String apiKey;
     private String baseUrl;
+
+    /**
+     * Creates the service with the token and base URL of the configuration, sending on the {@link IoExecutor}.
+     *
+     * @param config the application configuration
+     */
+    public OpenAiApiServiceImpl(ApplicationConfig config) {
+        this(config, IoExecutor.get());
+    }
 
     /**
      * Creates the service with the token and base URL of the configuration.
      *
      * @param config the application configuration
+     * @param io     runs the blocking requests
      */
-    public OpenAiApiServiceImpl(ApplicationConfig config) {
+    public OpenAiApiServiceImpl(ApplicationConfig config, Executor io) {
         this.config = config;
+        this.io = io;
         this.apiKey = config.getOpenAiApiKey();
         this.baseUrl = config.getOpenAiBaseUrl();
 
@@ -122,7 +136,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 logger.error("OpenAI API connection test failed with exception", e);
                 throw new java.io.UncheckedIOException(e);
             }
-        });
+        }, io);
     }
 
     private boolean answersModels(String base) {
@@ -232,7 +246,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 logger.error("Failed to submit OpenAI generation request", e);
                 throw new RuntimeException("OpenAI generation failed: " + e.getMessage(), e);
             }
-        });
+        }, io);
     }
 
     @Override
@@ -263,7 +277,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             if (text.isEmpty() && calls.isEmpty())
                 throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
             return new BrainstormTurn(text, parts, calls);
-        });
+        }, io);
     }
 
     @Override
@@ -295,13 +309,13 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                     throw e;
                 return e.getMessage();
             }
-        });
+        }, io);
     }
 
     @Override
     public CompletableFuture<ResearchNote> research(String model, String query) {
         return CompletableFuture.supplyAsync(() -> parseResearch(query,
-                postResponses(webSearchBody(model, RESEARCH_INSTRUCTION + query))));
+                postResponses(webSearchBody(model, RESEARCH_INSTRUCTION + query))), io);
     }
 
     @Override
@@ -320,7 +334,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 logger.warn("OpenAI web search check failed for {}: {}", model, e.getMessage());
                 throw new RuntimeException("OpenAI web search check failed: " + e.getMessage(), e);
             }
-        });
+        }, io);
     }
 
     /**
@@ -412,7 +426,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                     .put(new JSONObject().put("role", "user").put("content", prompt)));
             JSONObject message = postChat(body);
             return message.isNull("content") ? "" : message.optString("content", "");
-        });
+        }, io);
     }
 
     /**

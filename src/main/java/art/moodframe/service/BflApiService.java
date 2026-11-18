@@ -1,9 +1,9 @@
 package art.moodframe.service;
 
 import java.util.concurrent.CompletableFuture;
-import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobResult;
-import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.ImageProvider;
 
 /**
  * Service interface for interacting with the BlackForest Labs (BFL) API.
@@ -46,30 +46,35 @@ import art.moodframe.model.ImageGenerationRequest;
  * 
  * @since 1.0.0
  */
-public interface BflApiService {
+public interface BflApiService extends ImageProvider {
+
+    @Override
+    default ApiProvider getProvider() {
+        return ApiProvider.BFL;
+    }
 
     /**
-     * Tests the API connection and validates the provided API key.
-     * 
-     * <p>
-     * This method performs a lightweight API call to verify that the API key
-     * is valid and the service is accessible. It includes full corporate proxy
-     * support and custom certificate validation.
-     * </p>
-     * 
-     * <p>
-     * <strong>Corporate Proxy Support:</strong> This method automatically
-     * uses configured corporate proxy settings and ZScaler certificates if
-     * available.
-     * </p>
-     * 
-     * @return a CompletableFuture that completes with true if the API key is valid,
-     *         false on a definite refusal (HTTP 400, 401, 403 or 404); it fails on a
-     *         transient failure (no network, timeout, HTTP 429 or 5xx)
-     * @throws IllegalStateException if no API key is configured
-     * @throws RuntimeException      if corporate proxy connection fails
+     * BFL answers a submission with a job, {@link BflGenerationFlow} polls it until the image is ready.
      */
-    CompletableFuture<Boolean> testConnection();
+    @Override
+    default boolean answersWithImage() {
+        return false;
+    }
+
+    @Override
+    default boolean usesSeeds() {
+        return true;
+    }
+
+    /**
+     * Only FLUX 3 and FLUX.2 take an attached image.
+     */
+    @Override
+    default void checkImageInput(String modelId) {
+        String lower = modelId != null ? modelId.toLowerCase() : "";
+        if (!lower.startsWith("flux.3-") && !lower.startsWith("flux.2-"))
+            throw new IllegalArgumentException("Image input is only supported with FLUX 3 and FLUX.2 models");
+    }
 
     /**
      * Tests the API connection specifically through corporate proxy.
@@ -100,14 +105,6 @@ public interface BflApiService {
     CompletableFuture<Boolean> testSslConnection();
 
     /**
-     * Gets the currently configured API key.
-     * 
-     * @return the current API key, or null if not configured
-     * @since 1.0.0
-     */
-    String getApiKey();
-
-    /**
      * Retrieves the current user's finetunes list (for API validation).
      * 
      * <p>
@@ -120,22 +117,6 @@ public interface BflApiService {
      * @throws IllegalStateException if no API key is configured
      */
     CompletableFuture<String> getMyFinetunes();
-
-    /**
-     * Initiates a text-to-image generation request using the specified FLUX model.
-     * 
-     * <p>
-     * This method submits a generation request to the BFL API and returns
-     * a job ID that can be used to poll for completion status and retrieve
-     * the generated images.
-     * </p>
-     * 
-     * @param request the image generation request parameters
-     * @return a CompletableFuture containing the job information
-     * @throws IllegalArgumentException if the request parameters are invalid
-     * @throws IllegalStateException    if no API key is configured
-     */
-    CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request);
 
     /**
      * Polls the status of a generation job and retrieves results if completed.
@@ -170,29 +151,9 @@ public interface BflApiService {
     CompletableFuture<Boolean> cancelJob(String jobId);
 
     /**
-     * Checks if the service is properly configured and ready to use.
-     * 
-     * @return true if an API key is configured and the service is ready
-     */
-    boolean isConfigured();
-
-    /**
      * Gets the current API endpoint base URL being used.
      * 
      * @return the base URL for BFL API requests
      */
     String getApiBaseUrl();
-
-    /**
-     * Sets the API key to use for authentication.
-     * 
-     * <p>
-     * This method updates the API key used for all subsequent requests.
-     * The key should be obtained from the BFL dashboard.
-     * </p>
-     * 
-     * @param apiKey the BFL API key
-     * @throws IllegalArgumentException if the API key is null or empty
-     */
-    void setApiKey(String apiKey);
 }

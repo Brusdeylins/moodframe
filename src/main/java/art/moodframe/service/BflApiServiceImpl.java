@@ -5,6 +5,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.*;
 import art.moodframe.config.EncryptionUtil;
 import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -54,21 +56,14 @@ public class BflApiServiceImpl implements BflApiService {
     private static final String ENDPOINT_MY_FINETUNES = "/v1/my_finetunes";
     private static final String ENDPOINT_GET_RESULT = "/v1/get_result";
 
-    // API Endpoints - FLUX 3 Models
+    // API Endpoint of the default model, the others follow from the model id (see getEndpointForModel)
     private static final String ENDPOINT_FLUX3_IMAGE = "/v1/flux-3-image";
-    private static final String ENDPOINT_FLUX3_IMAGE_KLEIN = "/v1/flux-3-image-klein";
-
-    // API Endpoints - FLUX.2 Models (NEW)
-    private static final String ENDPOINT_FLUX2_PRO = "/v1/flux-2-pro";
-    private static final String ENDPOINT_FLUX2_MAX = "/v1/flux-2-max";
-    private static final String ENDPOINT_FLUX2_FLEX = "/v1/flux-2-flex";
-    private static final String ENDPOINT_FLUX2_KLEIN_4B = "/v1/flux-2-klein-4b";
-    private static final String ENDPOINT_FLUX2_KLEIN_9B = "/v1/flux-2-klein-9b";
     
     private final Supplier<HttpClient> httpClient;
     private final ObjectMapper objectMapper;
     private final ApplicationConfig config;
     private final HttpClients httpClients;
+    private final Executor io;
     private String cachedApiKey;
     
     /**
@@ -78,7 +73,17 @@ public class BflApiServiceImpl implements BflApiService {
      * support including ZScaler certificates and proxy authentication.</p>
      */
     public BflApiServiceImpl() {
+        this(IoExecutor.get());
+    }
+
+    /**
+     * Creates a new BFL API service implementation with corporate proxy support.
+     *
+     * @param io runs the blocking requests; the asynchronous ones run on the threads of the HTTP client
+     */
+    public BflApiServiceImpl(Executor io) {
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        this.io = io;
         this.objectMapper = new ObjectMapper();
         this.httpClients = new HttpClients(config);
 
@@ -144,7 +149,7 @@ public class BflApiServiceImpl implements BflApiService {
                 logger.error("Corporate proxy connection test failed: {}", e.getMessage(), e);
                 return false;
             }
-        });
+        }, io);
     }
 
     @Override
@@ -175,7 +180,7 @@ public class BflApiServiceImpl implements BflApiService {
                 logger.warn("SSL connection test failed: {}", e.getMessage());
                 throw new RuntimeException(e);
             }
-        });
+        }, io);
     }
 
     @Override
@@ -418,35 +423,17 @@ public class BflApiServiceImpl implements BflApiService {
     }
     
     /**
-     * Determines the correct API endpoint based on the model name.
+     * Determines the API endpoint of a model: {@code /v1/} and the id with dashes for dots, e.g.
+     * {@code flux.2-max} gives {@code /v1/flux-2-max}.
      * 
      * @param model the model identifier
-     * @return the API endpoint path
+     * @return the API endpoint path, that of FLUX 3 Image for an unknown model
      */
-    private String getEndpointForModel(String model) {
-        if (model == null) {
+    static String getEndpointForModel(String model) {
+        GenerationModel known = model != null ? GenerationModel.fromApiModelId(model.toLowerCase()) : null;
+        if (known == null || known.getProvider() != ApiProvider.BFL)
             return ENDPOINT_FLUX3_IMAGE; // Default to the latest model
-        }
-
-        switch (model.toLowerCase()) {
-            // FLUX 3 Models
-            case "flux.3-image-klein":
-                return ENDPOINT_FLUX3_IMAGE_KLEIN;
-            // FLUX.2 Models
-            case "flux.2-pro":
-                return ENDPOINT_FLUX2_PRO;
-            case "flux.2-max":
-                return ENDPOINT_FLUX2_MAX;
-            case "flux.2-flex":
-                return ENDPOINT_FLUX2_FLEX;
-            case "flux.2-klein-4b":
-                return ENDPOINT_FLUX2_KLEIN_4B;
-            case "flux.2-klein-9b":
-                return ENDPOINT_FLUX2_KLEIN_9B;
-            case "flux.3-image":
-            default:
-                return ENDPOINT_FLUX3_IMAGE;
-        }
+        return "/v1/" + known.getApiModelId().replace('.', '-');
     }
     
     /**

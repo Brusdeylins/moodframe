@@ -253,12 +253,7 @@ public class GenerationService {
         String item = GenerationModel.itemOf(modelId);
 
         ApiProvider provider = model.getProvider();
-        boolean hasKey = switch (provider) {
-            case OPENAI -> config.hasOpenAiApiKey();
-            case GOOGLE_GEMINI -> config.hasGeminiApiKey();
-            case BFL -> config.hasApiKey();
-        };
-        if (!hasKey) {
+        if (!config.hasApiKey(provider)) {
             logger.warn("Send request blocked - no {} API key configured", provider.getDisplayName());
             throw new GenerationException(Failure.MISSING_KEY, "No API key for " + provider.getDisplayName());
         }

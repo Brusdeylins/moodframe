@@ -14,6 +14,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import art.moodframe.model.ApiProvider;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2188,5 +2190,97 @@ public class ApplicationConfig {
      */
     public boolean hasGeminiProviderEnabledPreference() {
         return properties.containsKey("provider.gemini.enabled");
+    }
+
+    /*  ===== The account settings of a provider, by its id =====  */
+
+    /**
+     * Checks if a key of a provider is configured from any source.
+     *
+     * @param provider the provider
+     * @return true if a key is configured
+     * @since 2.1.3
+     */
+    public boolean hasApiKey(ApiProvider provider) {
+        return switch (provider) {
+            case BFL -> hasApiKey();
+            case GOOGLE_GEMINI -> hasGeminiApiKey();
+            case OPENAI -> hasOpenAiApiKey();
+        };
+    }
+
+    /**
+     * Gets the validation status of a provider from the last check.
+     *
+     * @param provider the provider
+     * @return true if the last check succeeded
+     * @since 2.1.3
+     */
+    public boolean isProviderValidated(ApiProvider provider) {
+        return switch (provider) {
+            case BFL -> isBflProviderValidated();
+            case GOOGLE_GEMINI -> isGeminiProviderValidated();
+            case OPENAI -> isOpenAiProviderValidated();
+        };
+    }
+
+    /**
+     * Sets the validation status of a provider.
+     *
+     * @param provider  the provider
+     * @param validated true if the check succeeded
+     * @since 2.1.3
+     */
+    public void setProviderValidated(ApiProvider provider, boolean validated) {
+        switch (provider) {
+            case BFL -> setBflProviderValidated(validated);
+            case GOOGLE_GEMINI -> setGeminiProviderValidated(validated);
+            case OPENAI -> setOpenAiProviderValidated(validated);
+        }
+    }
+
+    /**
+     * Gets the enabled state of a provider, the choice of the user.
+     *
+     * @param provider the provider
+     * @return true if the provider is enabled
+     * @since 2.1.3
+     */
+    public boolean isProviderEnabled(ApiProvider provider) {
+        return switch (provider) {
+            case BFL -> isBflProviderEnabled();
+            case GOOGLE_GEMINI -> isGeminiProviderEnabled();
+            case OPENAI -> isOpenAiProviderEnabled();
+        };
+    }
+
+    /**
+     * Sets the enabled state of a provider.
+     *
+     * @param provider the provider
+     * @param enabled  true to enable it
+     * @since 2.1.3
+     */
+    public void setProviderEnabled(ApiProvider provider, boolean enabled) {
+        switch (provider) {
+            case BFL -> setBflProviderEnabled(enabled);
+            case GOOGLE_GEMINI -> setGeminiProviderEnabled(enabled);
+            case OPENAI -> setOpenAiProviderEnabled(enabled);
+        }
+    }
+
+    /**
+     * Checks if the enabled state of a provider was ever set, which tells a choice of the user from the default.
+     *
+     * @param provider the provider
+     * @return true if the enabled state is stored
+     * @since 2.1.3
+     */
+    public boolean hasProviderEnabledPreference(ApiProvider provider) {
+        return switch (provider) {
+            case BFL -> hasBflProviderEnabledPreference();
+            case GOOGLE_GEMINI -> hasGeminiProviderEnabledPreference();
+            case OPENAI -> hasOpenAiProviderEnabledPreference();
+        };
     }
 }

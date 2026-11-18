@@ -2,6 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -71,7 +72,7 @@ public class YouTubeInfoService {
      */
     public CompletableFuture<Info> info(String videoId) {
         CompletableFuture<Info> info = infos.computeIfAbsent(videoId,
-                (String id) -> CompletableFuture.supplyAsync(() -> load(id)));
+                (String id) -> CompletableFuture.supplyAsync(() -> load(id), IoExecutor.get()));
         info.thenAccept((Info found) -> {
             if (found.title().isEmpty())
                 infos.remove(videoId, info);
@@ -113,7 +114,7 @@ public class YouTubeInfoService {
             } catch (IOException e) {
                 throw new IllegalStateException("Could not load " + url + ": " + e.getMessage(), e);
             }
-        });
+        }, IoExecutor.get());
     }
 
     private String get(String url, int maxBytes) throws IOException {

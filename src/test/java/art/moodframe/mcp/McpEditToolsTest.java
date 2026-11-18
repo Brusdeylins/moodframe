@@ -3,6 +3,7 @@ package art.moodframe.mcp;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
@@ -63,6 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -127,6 +129,7 @@ class McpEditToolsTest {
         ApplicationConfig config = mock(ApplicationConfig.class);
         when(config.isBflProviderEnabled()).thenReturn(true);
         when(config.hasApiKey()).thenReturn(true);
+        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
         when(config.getOpenAiModels()).thenReturn(List.of());
         when(config.getFlux2SafetyTolerance()).thenReturn(2);
         when(config.getFlux2FlexGuidance()).thenReturn(5.0);

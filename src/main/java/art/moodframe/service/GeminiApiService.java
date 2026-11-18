@@ -1,63 +1,28 @@
 package art.moodframe.service;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ImageProvider;
 import org.json.JSONArray;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Service interface for Google Gemini API interactions.
- * Handles image generation requests and API connectivity testing.
+ * Service interface for Google Gemini API interactions: image generation (an answer carries the finished image),
+ * Gemini Omni video, the brainstorm chat and its research.
  *
  * @author Matthias Brusdeylins
  * @since 1.5.0
  */
-public interface GeminiApiService {
+public interface GeminiApiService extends ImageProvider {
 
-    /**
-     * Tests the connection to the Google Gemini API.
-     * This method validates the API key and checks if the API is accessible.
-     *
-     * @return a CompletableFuture that resolves to true if connection is successful, false on a definite refusal
-     *         (HTTP 400, 401, 403 or 404); it fails on a transient failure (no network, timeout, HTTP 429 or 5xx)
-     */
-    CompletableFuture<Boolean> testConnection();
-
-    /**
-     * Submits an image generation request to the Google Gemini API.
-     *
-     * <p>Note: This method is not yet implemented in Phase 1.
-     * It will be implemented in a future release.</p>
-     *
-     * @param request the image generation request
-     * @return a CompletableFuture containing the generation job information
-     * @throws UnsupportedOperationException in Phase 1
-     */
-    CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request);
-
-    /**
-     * Gets the currently configured API key.
-     *
-     * @return the API key, or null if not configured
-     */
-    String getApiKey();
-
-    /**
-     * Sets the API key for this service.
-     *
-     * @param apiKey the API key to use
-     */
-    void setApiKey(String apiKey);
-
-    /**
-     * Checks if the service is properly configured with an API key.
-     *
-     * @return true if an API key is configured, false otherwise
-     */
-    boolean isConfigured();
+    @Override
+    default ApiProvider getProvider() {
+        return ApiProvider.GOOGLE_GEMINI;
+    }
 
     /**
      * Analyzes a YouTube video using Google Gemini's video understanding capabilities.

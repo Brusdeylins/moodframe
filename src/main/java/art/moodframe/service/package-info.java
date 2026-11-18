@@ -10,6 +10,8 @@
  *     {@link BflGenerationFlow}</li>
  * <li>{@link GeminiApiService}: the Gemini client, implemented by {@link GeminiApiServiceImpl}</li>
  * <li>{@link OpenAiApiService}: the OpenAI client, implemented by {@link OpenAiApiServiceImpl}</li>
+ * <li>{@link art.moodframe.service.provider.ImageProvider}: the provider SPI the three clients extend, found through
+ *     the {@link art.moodframe.service.provider.ProviderRegistry}</li>
  * <li>{@link RequestResponseService}: the lifecycle of a BFL request, implemented by
  *     {@link RequestResponseManager}</li>
  * <li>{@link ChatLibrary}: the chats with their entries, shared by the main window and the MCP tools</li>

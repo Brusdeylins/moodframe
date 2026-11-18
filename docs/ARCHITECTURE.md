@@ -47,6 +47,9 @@ Known deviations: some services use `Platform.runLater` to hand results to the J
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
+- **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded
+  pool of daemon threads, never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker
+  (see `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit.
 - **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
   thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
@@ -110,6 +113,12 @@ and no key is derived from constants in the code. `util.Secrets` keeps keys and 
 `BflApiService`, `GeminiApiService`, `OpenAiApiService` and `RequestResponseService` are interfaces because tests
 replace them with mocks and fake HTTP servers. Interfaces with a single implementation and no consumer typed against
 them were removed; a new interface is introduced when a second implementation or a test seam needs it.
+
+The three provider clients extend the provider SPI `service.provider.ImageProvider` (key, connection test,
+submission, seeds, attached images) and keep their own extras, such as the BFL job polling or the brainstorm chat.
+`MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
+(`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
+provider is a client, its entry in the registry, its models and its account settings in `ApplicationConfig`.
 
 ### D5: Detailed logging as a log level
 

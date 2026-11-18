@@ -1,7 +1,6 @@
 package art.moodframe.mcp;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
@@ -156,7 +155,7 @@ class LibraryTools {
         if (model.isFlux2Model() || model.isFlux3Klein())
             parameters.set("seed", McpTools.JSON.createObjectNode().put("type", "integer")
                     .put("description", "Fixed seed; random without"));
-        if (model.getProvider() == ApiProvider.BFL)
+        if (model.supportsSafetyTolerance())
             parameters.set("safetyTolerance", McpTools.integer("0 strict to 5 permissive", 0, 5,
                     config.getFlux2SafetyTolerance()));
         if (model.isFlux2Model() && !model.isFlux2Klein())
@@ -170,8 +169,7 @@ class LibraryTools {
         if (model.supportsThinkingLevel())
             parameters.set("thinkingLevel", McpTools.choice("Thinking before the image", List.of("minimal", "high"),
                     null));
-        if (model.getProvider() == ApiProvider.GOOGLE_GEMINI && !model.isVideoModel()
-                && model.supportsGroundingSearch())
+        if (model.supportsGoogleSearch())
             parameters.set("googleSearch", McpTools.JSON.createObjectNode().put("type", "boolean")
                     .put("description", "Grounds the image in a Google Search"));
         if (model.isVideoModel()) {

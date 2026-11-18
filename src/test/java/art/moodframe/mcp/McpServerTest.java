@@ -69,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -128,6 +129,7 @@ class McpServerTest {
         ApplicationConfig config = mock(ApplicationConfig.class);
         when(config.isBflProviderEnabled()).thenReturn(true);
         when(config.hasApiKey()).thenReturn(true);
+        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
         when(config.getOpenAiModels()).thenReturn(List.of());
         when(config.getFlux2SafetyTolerance()).thenReturn(2);
         when(config.getFlux2FlexGuidance()).thenReturn(5.0);
