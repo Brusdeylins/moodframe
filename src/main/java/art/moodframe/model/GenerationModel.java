@@ -32,6 +32,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_768(
             "FLUX 3 Image 768 - Draft ($0.041)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.041,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -41,6 +42,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_1K(
             "FLUX 3 Image 1K - Standard ($0.048)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.048,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -50,6 +52,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_1_5K(
             "FLUX 3 Image 1.5K - Detailed ($0.07)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.07,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -59,6 +62,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_2K(
             "FLUX 3 Image 2K - High Resolution ($0.10)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.10,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -68,6 +72,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_4K(
             "FLUX 3 Image 4K - Print ($0.607)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.607,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -77,6 +82,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_768(
             "FLUX 3 Image Klein 768 - Draft ($0.008)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.008,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -86,6 +92,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_1K(
             "FLUX 3 Image Klein 1K - Fast ($0.009)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.009,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -95,6 +102,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_1_5K(
             "FLUX 3 Image Klein 1.5K - Fast ($0.011)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.011,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -104,6 +112,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_2K(
             "FLUX 3 Image Klein 2K - Fast ($0.014)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.014,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -113,6 +122,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_4K(
             "FLUX 3 Image Klein 4K - Fast ($0.036)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.036,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -126,6 +136,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_PRO(
             "FLUX.2 [pro] - Production Grade ($0.03+)",
             "flux.2-pro",
+            ApiProvider.BFL,
             0.015, // Price per additional megapixel (base price: see costForMegapixels)
             "Production-grade image generation with multi-image support"),
 
@@ -137,6 +148,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_MAX(
             "FLUX.2 [max] - Premium with Search ($0.07+)",
             "flux.2-max",
+            ApiProvider.BFL,
             0.03, // Price per additional megapixel (base price: see costForMegapixels)
             "Highest quality with grounding search and multi-image support"),
 
@@ -147,6 +159,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_FLEX(
             "FLUX.2 [flex] - Text Rendering ($0.05/MP)",
             "flux.2-flex",
+            ApiProvider.BFL,
             0.05, // Price per megapixel
             "Specialized for text rendering with adjustable inference parameters"),
 
@@ -159,6 +172,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_KLEIN_4B(
             "FLUX.2 [klein] 4B - Fast & Cheap ($0.014+)",
             "flux.2-klein-4b",
+            ApiProvider.BFL,
             0.001, // Price per additional megapixel (base price: see costForMegapixels)
             "Fast and cheap generation with up to 4 reference images"),
 
@@ -169,6 +183,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_KLEIN_9B(
             "FLUX.2 [klein] 9B - Fast ($0.015+)",
             "flux.2-klein-9b",
+            ApiProvider.BFL,
             0.002, // Price per additional megapixel (base price: see costForMegapixels)
             "Fast generation with higher quality than 4B and up to 4 reference images"),
 
@@ -182,6 +197,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_FLASH_1K(
             "Nano Banana 1K - Fast & Multimodal ($0.039)",
             "gemini-2.5-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.039, // $0.039 per image (1024x1024)
             "Fast generation with Google's multimodal AI, supports text+image input"),
 
@@ -193,6 +209,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_PRO_2K(
             "Nano Banana Pro 2K - Professional ($0.134)",
             "gemini-3-pro-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.134, // $0.134 per output image (2K resolution)
             "Professional quality with enhanced understanding of complex prompts"),
 
@@ -204,6 +221,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_PRO_4K(
             "Nano Banana Pro 4K - Premium ($0.24)",
             "gemini-3-pro-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.24, // $0.24 per output image (4K resolution)
             "Premium quality images with maximum resolution and detail"),
 
@@ -217,6 +235,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_512(
             "Nano Banana 2 512px - Budget ($0.045)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.045,
             "Fast budget image generation at 512px resolution"),
 
@@ -228,6 +247,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_1K(
             "Nano Banana 2 1K - Fast ($0.067)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.067,
             "Fast image generation at 1K resolution"),
 
@@ -239,6 +259,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_2K(
             "Nano Banana 2 2K - Standard ($0.101)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.101,
             "Standard quality image generation at 2K resolution"),
 
@@ -250,6 +271,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_4K(
             "Nano Banana 2 4K - High Quality ($0.151)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.151,
             "High quality image generation at 4K resolution"),
 
@@ -264,6 +286,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_LITE(
             "Nano Banana 2 Lite - Fastest ($0.034)",
             "gemini-3.1-flash-lite-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.034,
             "Fastest, most cost-efficient image generation, capped at 1K resolution"),
 
@@ -277,6 +300,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_360P(
             "Gemini Omni 360p - Draft Video (~$0.034/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.034,
             "Gemini Omni video generation at 360p with audio, 3 to 10 seconds"),
 
@@ -286,6 +310,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_720P(
             "Gemini Omni 720p - Standard Video (~$0.10/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.101,
             "Gemini Omni video generation at 720p with audio, 3 to 10 seconds"),
 
@@ -295,6 +320,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_1080P(
             "Gemini Omni 1080p - Full HD Video (~$0.15/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.152,
             "Gemini Omni video generation at 1080p with audio, 3 to 10 seconds"),
 
@@ -304,6 +330,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_4K(
             "Gemini Omni 4K - Ultra HD Video (~$0.30/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.304,
             "Gemini Omni video generation at 4K with audio, 3 to 10 seconds"),
 
@@ -314,6 +341,7 @@ public enum GenerationModel implements UnifiedModel {
     OPENAI_IMAGE(
             "OpenAI Image",
             "openai-image",
+            ApiProvider.OPENAI,
             0.0,
             "Image models of the OpenAI Images API, listed from the connected API");
 
@@ -322,34 +350,36 @@ public enum GenerationModel implements UnifiedModel {
 
     private final String displayName;
     private final String apiModelId;
+    private final ApiProvider provider;
     private final double pricePerImage;
     private final String description;
     private final boolean supportsImageAttachment;
     private final int maxMegapixels;
     private final int maxResolution;
 
-    GenerationModel(String displayName, String apiModelId, double pricePerImage, String description) {
+    GenerationModel(String displayName, String apiModelId, ApiProvider provider, double pricePerImage,
+            String description) {
         this.displayName = displayName;
         this.apiModelId = apiModelId;
+        this.provider = provider;
         this.pricePerImage = pricePerImage;
         this.description = description;
 
         // Determine image attachment support based on model capabilities
         // BFL: FLUX 3 (up to 10 images) and FLUX.2 (up to 8 images) support image input
-        // Gemini: ALL models support image input (up to 14 images, Omni: one start image)
+        // Gemini: ALL models support image input (up to 14 images, Omni: one start image), OpenAI as well
         this.supportsImageAttachment = apiModelId.startsWith("flux.3-")
                                       || apiModelId.startsWith("flux.2-")
-                                      || apiModelId.startsWith("gemini")
-                                      || apiModelId.startsWith("openai-");
+                                      || provider != ApiProvider.BFL;
 
         // Determine max resolution based on model type
-        if (apiModelId.startsWith("gemini-omni")) {
+        if (isOmniModel()) {
             // Gemini Omni video models - resolution based on enum name
             this.maxMegapixels = 0; // Video, not image
             String enumName = name();
             this.maxResolution = enumName.contains("4K") ? 3840 : enumName.contains("1080P") ? 1920
                     : enumName.contains("360P") ? 640 : 1280;
-        } else if (apiModelId.startsWith("gemini")) {
+        } else if (provider == ApiProvider.GOOGLE_GEMINI) {
             // Gemini models - distinguish resolution by enum name suffix
             String enumName = name();
             if (enumName.contains("4K")) {
@@ -365,7 +395,7 @@ public enum GenerationModel implements UnifiedModel {
                 this.maxMegapixels = 1;
                 this.maxResolution = 1024; // 1K default
             }
-        } else if (apiModelId.startsWith("openai-")) {
+        } else if (provider == ApiProvider.OPENAI) {
             // OpenAI models - largest size of the Images API is 1792 px (dall-e-3)
             this.maxMegapixels = 4;
             this.maxResolution = 1792;
@@ -432,18 +462,13 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the maximum file size for image attachments based on provider.
-     * BFL models: 10MB, Google Gemini models: 20MB.
+     * Gets the maximum file size for image attachments based on provider, see {@link ApiProvider#getMaxFileSize()}.
      *
      * @param provider the API provider
      * @return max file size in bytes
      */
     public static long getMaxFileSize(ApiProvider provider) {
-        if (provider == ApiProvider.GOOGLE_GEMINI)
-            return 20L * 1024 * 1024;
-        if (provider == ApiProvider.OPENAI)
-            return 50L * 1024 * 1024;
-        return 10L * 1024 * 1024;
+        return provider.getMaxFileSize();
     }
 
     /**
@@ -472,12 +497,31 @@ public enum GenerationModel implements UnifiedModel {
      */
     public boolean supportsGroundingSearch() {
         // Nano Banana 2 Lite tier does NOT support Google Search / Image Search grounding
-        if (apiModelId.equals("gemini-3.1-flash-lite-image") || isOmniModel()) {
+        if (this == NANO_BANANA2_LITE || isOmniModel()) {
             return false;
         }
 
         return this == FLUX2_MAX
-            || apiModelId.startsWith("gemini");
+            || provider == ApiProvider.GOOGLE_GEMINI;
+    }
+
+    /**
+     * Checks if the request can switch on Google Search grounding: the Gemini image models with grounding search.
+     * FLUX.2 [max] grounds on its own by the prompt.
+     *
+     * @return true if the model takes the Google Search parameter
+     */
+    public boolean supportsGoogleSearch() {
+        return provider == ApiProvider.GOOGLE_GEMINI && !isVideoModel() && supportsGroundingSearch();
+    }
+
+    /**
+     * Checks if the model takes a safety tolerance (0 strict to 5 permissive): the BFL models.
+     *
+     * @return true for the FLUX models
+     */
+    public boolean supportsSafetyTolerance() {
+        return provider == ApiProvider.BFL;
     }
 
     /**
@@ -489,8 +533,8 @@ public enum GenerationModel implements UnifiedModel {
     public boolean supportsMultiImage() {
         return apiModelId.startsWith("flux.3-")
             || apiModelId.startsWith("flux.2-")
-            || apiModelId.startsWith("openai-")
-            || (apiModelId.startsWith("gemini") && !isOmniModel());
+            || provider == ApiProvider.OPENAI
+            || (provider == ApiProvider.GOOGLE_GEMINI && !isOmniModel());
     }
 
     /**
@@ -505,11 +549,11 @@ public enum GenerationModel implements UnifiedModel {
             return 4; // FLUX.2 [klein] supports up to 4 reference images
         } else if (apiModelId.startsWith("flux.2-")) {
             return 8;
-        } else if (apiModelId.startsWith("openai-")) {
+        } else if (provider == ApiProvider.OPENAI) {
             return 14; // gpt-image accepts up to 16 images, the request model carries 14
         } else if (isOmniModel()) {
             return 1; // Gemini Omni: one start image (image-to-video), more references are not documented
-        } else if (apiModelId.startsWith("gemini")) {
+        } else if (provider == ApiProvider.GOOGLE_GEMINI) {
             return 14; // 6 objects + 5 humans + some extra
         }
         return 0;
@@ -969,21 +1013,13 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the API provider for this model.
-     * FLUX models use BFL, Gemini models use GOOGLE_GEMINI.
+     * Gets the API provider for this model, given with each constant.
      *
-     * @return ApiProvider.BFL or ApiProvider.GOOGLE_GEMINI
+     * @return the provider: BFL for FLUX, GOOGLE_GEMINI for Nano Banana and Gemini Omni, OPENAI for the OpenAI models
      */
     @Override
     public ApiProvider getProvider() {
-        // Determine provider based on model type
-        if (apiModelId.startsWith("gemini")) {
-            return ApiProvider.GOOGLE_GEMINI;
-        }
-        if (apiModelId.startsWith("openai-")) {
-            return ApiProvider.OPENAI;
-        }
-        return ApiProvider.BFL;
+        return provider;
     }
 
     @Override

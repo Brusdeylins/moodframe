@@ -6,6 +6,7 @@ import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.PaletteExtractor;
 import org.json.JSONArray;
@@ -153,7 +154,7 @@ public class MoodAnalysisService {
                 return new Analysis(colorsOnly(context, colors),
                         I18nManager.getText("mood.image.error", cause.getMessage()));
             }
-        });
+        }, IoExecutor.get());
     }
 
     /** Sends the image to the language model of the brainstorm, without tools, and returns its JSON text. */

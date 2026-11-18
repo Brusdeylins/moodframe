@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -23,13 +24,13 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Implementation of Google Gemini API service.
- * Currently supports API key validation via connection testing.
- * Image generation will be implemented in Phase 2.
+ * Implementation of Google Gemini API service with OkHttp; the blocking requests run on the executor of the
+ * constructor.
  *
  * @author Matthias Brusdeylins
  * @since 1.5.0
@@ -83,15 +84,27 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     private static final java.util.regex.Pattern OMNI_FILE_ID = java.util.regex.Pattern.compile("files/([^:/?]+)");
 
     private final Supplier<OkHttpClient> httpClient;
+    private final Executor io;
     private String apiKey;
+
+    /**
+     * Creates a new Gemini API service implementation that sends its requests on the {@link IoExecutor}.
+     *
+     * @param config the application configuration
+     */
+    public GeminiApiServiceImpl(ApplicationConfig config) {
+        this(config, IoExecutor.get());
+    }
 
     /**
      * Creates a new Gemini API service implementation.
      *
      * @param config the application configuration
+     * @param io     runs the blocking requests
      */
-    public GeminiApiServiceImpl(ApplicationConfig config) {
+    public GeminiApiServiceImpl(ApplicationConfig config, Executor io) {
         this.apiKey = config.getGeminiApiKey();
+        this.io = io;
 
         // HTTP client with timeouts, corporate proxy and certificates, built again when the settings change
         this.httpClient = new HttpClients(config).rebuilding(clients -> clients.okHttp()
@@ -147,7 +160,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 logger.error("Gemini API connection test failed with exception", e);
                 throw new java.io.UncheckedIOException(e);
             }
-        });
+        }, io);
     }
 
     @Override
@@ -239,7 +252,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 logger.error("Failed to submit Gemini generation request", e);
                 throw new RuntimeException("Gemini generation failed: " + e.getMessage(), e);
             }
-        });
+        }, io);
     }
 
     /**
@@ -995,7 +1008,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 logger.error("Failed to analyze YouTube video", e);
                 throw new RuntimeException(I18nManager.getText("brainstorm.video.error.analysis.failed", e.getMessage()), e);
             }
-        });
+        }, io);
     }
 
     /**
@@ -1226,7 +1239,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
             }
             return new BrainstormTurn(text.toString(), parts, calls);
-        });
+        }, io);
     }
 
     /**
@@ -1276,7 +1289,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 text.append(parts.getJSONObject(i).optString("text", ""));
             }
             return text.toString();
-        });
+        }, io);
     }
 
     @Override
@@ -1284,7 +1297,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         return CompletableFuture.supplyAsync(() -> {
             requireApiKey();
             return researchWithRetry(query);
-        });
+        }, io);
     }
 
     /*  a research that is asked again once if the model answered without searching  */
@@ -1317,7 +1330,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                     throw e;
                 return e.getMessage();
             }
-        });
+        }, io);
     }
 
     @Override
@@ -1333,7 +1346,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                     throw e;
                 return e.getMessage();
             }
-        });
+        }, io);
     }
 
     private ResearchNote researchOnce(String prompt, String query) {
@@ -1504,7 +1517,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 logger.error("Failed to generate Omni video", e);
                 return failedOmniJob("Omni request failed: " + e.getMessage());
             }
-        });
+        }, io);
     }
 
     /**

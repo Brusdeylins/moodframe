@@ -5,9 +5,11 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.ImageEncoder;
 import art.moodframe.net.HttpClients;
 
@@ -26,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.io.InputStream;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -55,8 +58,8 @@ public class RequestResponseManager implements RequestResponseService {
     private final ApplicationConfig config;
     private final ScheduledExecutorService scheduler;
     private final BflGenerationFlow bflFlow;
-    private final GeminiApiService geminiApiService;
-    private final OpenAiApiService openAiApiService;
+    private final ProviderRegistry providers;
+    private final Executor io;
     private final ChatRepository chatRepository;
     private final Supplier<HttpClient> downloadClient;  // Simple client for downloading images from CDN
     private final ImageFileStore imageFiles;
@@ -65,12 +68,18 @@ public class RequestResponseManager implements RequestResponseService {
 
     /**
      * Creates a new RequestResponseManager with the given configuration.
+     *
+     * @param config         the application configuration
+     * @param chatRepository where the entries and images are stored
+     * @param providers      the providers the requests go to
+     * @param io             runs the blocking work: submission, downloads, file writing
      */
-    public RequestResponseManager(ApplicationConfig config, ChatRepository chatRepository) {
+    public RequestResponseManager(ApplicationConfig config, ChatRepository chatRepository, ProviderRegistry providers,
+            Executor io) {
         this.config = config;
         this.chatRepository = chatRepository;
-        this.geminiApiService = ServiceFactory.getInstance().getService(GeminiApiService.class);
-        this.openAiApiService = ServiceFactory.getInstance().getService(OpenAiApiService.class);
+        this.providers = providers;
+        this.io = io;
 
         // Create HttpClient with corporate proxy and SSL configuration for downloading images
         this.downloadClient = new HttpClients(config).rebuilding(clients -> clients.javaHttp()
@@ -80,8 +89,8 @@ public class RequestResponseManager implements RequestResponseService {
         this.imageFiles = new ImageFileStore(config, downloadClient);
         this.scheduler = Executors.newScheduledThreadPool(2);
         this.tracker = new ChatEntryTracker(config, chatRepository, scheduler);
-        this.bflFlow = new BflGenerationFlow(config, ServiceFactory.getInstance().getService(BflApiService.class),
-                chatRepository, tracker, imageFiles, scheduler);
+        this.bflFlow = new BflGenerationFlow(config, providers.get(ApiProvider.BFL, BflApiService.class),
+                chatRepository, tracker, imageFiles, scheduler, io);
 
         if (config.getLoggingEnabled()) {
             logger.info("RequestResponseManager initialized with timeout: {}s, proxy: {}",
@@ -152,8 +161,8 @@ public class RequestResponseManager implements RequestResponseService {
                 // Validate request
                 request.validate();
 
-                // Detect provider first to determine correct placeholder count
-                ApiProvider provider = detectProvider(request.getModel());
+                // The provider of the model decides about seeds and the flow
+                ImageProvider provider = providers.forModel(request.getModel());
 
                 // Update chat entry status and create placeholder images (ensure on FX thread)
                 Platform.runLater(() -> {
@@ -166,7 +175,7 @@ public class RequestResponseManager implements RequestResponseService {
                     for (int i = 0; i < imageCount; i++) {
                         // Generate seed for each placeholder image (BFL only, Gemini doesn't use seeds)
                         Long placeholderSeed = null;
-                        if (provider == ApiProvider.BFL) {
+                        if (provider.usesSeeds()) {
                             if (request.getSeed() != null) {
                                 placeholderSeed = request.getSeed() + i;
                             } else {
@@ -179,7 +188,7 @@ public class RequestResponseManager implements RequestResponseService {
                                 .downloadStatus(GeneratedImage.DownloadStatus.PENDING)
                                 .sortOrder(i);
 
-                        // Only set seed for BFL (Gemini doesn't use seeds)
+                        // Only set seed for a provider with seeds (BFL, not Gemini)
                         if (placeholderSeed != null) {
                             builder.seed(placeholderSeed);
                         }
@@ -195,19 +204,15 @@ public class RequestResponseManager implements RequestResponseService {
 
                 int imageCount = request.getImageCount() != null ? request.getImageCount() : 1;
 
-                if (isOmniModel(request.getModel())) {
+                GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
+                if (model != null && model.isOmniModel()) {
                     // Gemini Omni: synchronous video generation (always 1 video per request)
                     handleOmniGeneration(request, chatEntry, 0);
-                } else if (provider == ApiProvider.GOOGLE_GEMINI) {
-                    // Gemini: Synchronous flow - submit multiple parallel requests
+                } else if (provider.answersWithImage()) {
+                    // Gemini, OpenAI: Synchronous flow - submit multiple parallel requests, one image per request
                     for (int i = 0; i < imageCount; i++) {
-                        handleGeminiGeneration(request, chatEntry, i);
-                    }
-                } else if (provider == ApiProvider.OPENAI) {
-                    // OpenAI: Synchronous flow like Gemini, one image per request
-                    for (int i = 0; i < imageCount; i++) {
-                        handleSynchronousGeneration(openAiApiService.submitGenerationRequest(request), request,
-                                chatEntry, i, "OpenAI");
+                        handleSynchronousGeneration(provider.submitGenerationRequest(request), request, chatEntry, i,
+                                provider.getProvider().getDisplayName());
                     }
                 } else {
                     // BFL: Asynchronous polling flow
@@ -224,7 +229,7 @@ public class RequestResponseManager implements RequestResponseService {
                     tracker.notifyEntryUpdated(chatEntry);
                 });
             }
-        });
+        }, io);
     }
 
     @Override
@@ -262,50 +267,6 @@ public class RequestResponseManager implements RequestResponseService {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * Detects the API provider based on the model name.
-     *
-     * @param model the model identifier
-     * @return the detected API provider (BFL, GOOGLE_GEMINI or OPENAI)
-     */
-    private ApiProvider detectProvider(String model) {
-        if (model == null) {
-            return ApiProvider.BFL; // Default to BFL
-        }
-        String modelLower = model.toLowerCase();
-        if (modelLower.contains("gemini")) {
-            return ApiProvider.GOOGLE_GEMINI;
-        }
-        if (art.moodframe.model.GenerationModel.isOpenAiImageModelId(model)
-                || (openAiApiService != null && openAiApiService.getImageModels().contains(model))) {
-            return ApiProvider.OPENAI;
-        }
-        return ApiProvider.BFL;
-    }
-
-    /**
-     * Checks if the given model identifier is a Gemini Omni video generation model.
-     *
-     * @param model the model identifier
-     * @return true if this is an Omni model
-     */
-    private boolean isOmniModel(String model) {
-        return model != null && model.toLowerCase().startsWith("gemini-omni");
-    }
-
-    /**
-     * Handles Gemini image generation with synchronous flow.
-     * Note: Placeholder image is already created in submitImageGeneration()
-     *
-     * @param request    the image generation request
-     * @param chatEntry  the chat entry to update
-     * @param imageIndex the index of the image in the batch (0-based)
-     */
-    private void handleGeminiGeneration(ImageGenerationRequest request, ChatEntry chatEntry, int imageIndex) {
-        handleSynchronousGeneration(geminiApiService.submitGenerationRequest(request), request, chatEntry,
-                imageIndex, "Gemini");
     }
 
     /**
@@ -412,7 +373,7 @@ public class RequestResponseManager implements RequestResponseService {
             tracker.notifyImageUpdated(placeholder);
         });
 
-        geminiApiService.submitOmniGenerationRequest(request)
+        providers.get(ApiProvider.GOOGLE_GEMINI, GeminiApiService.class).submitOmniGenerationRequest(request)
             .thenAccept(jobInfo -> {
                 if (jobInfo.isFailed()) {
                     failOmniVideo(chatEntry, imageIndex, jobInfo.getErrorMessage());
@@ -576,7 +537,7 @@ public class RequestResponseManager implements RequestResponseService {
                     tracker.refresh(chatEntry);
                 });
             }
-        });
+        }, io);
     }
 
     /**
@@ -633,7 +594,7 @@ public class RequestResponseManager implements RequestResponseService {
                 tracker.notifyImageUpdated(placeholder);
                 tracker.refresh(chatEntry);
             });
-        });
+        }, io);
     }
 
     /**
@@ -692,26 +653,10 @@ public class RequestResponseManager implements RequestResponseService {
      */
     private void processAttachedImage(ImageGenerationRequest request, java.io.File attachedImageFile) {
         try {
-            // Validate model supports image input
+            // Validate model supports image input (BFL: FLUX 3 and FLUX.2; Gemini and OpenAI: all models)
             String model = request.getModel();
-            ApiProvider provider = detectProvider(model);
-
-            if (provider == ApiProvider.BFL) {
-                // BFL: FLUX 3 and FLUX.2 models support image input
-                String modelLower = model != null ? model.toLowerCase() : "";
-                boolean isFlux = modelLower.startsWith("flux.3-") || modelLower.startsWith("flux.2-");
-
-                if (!isFlux) {
-                    throw new IllegalArgumentException(
-                            "Image input is only supported with FLUX 3 and FLUX.2 models");
-                }
-            } else if (provider == ApiProvider.GOOGLE_GEMINI) {
-                // Gemini: ALL models support image input - no additional check needed
-                logger.info("Gemini model '{}' supports image input", model);
-            } else if (provider == ApiProvider.OPENAI) {
-                // OpenAI: gpt-image models edit images, the service rejects dall-e-3
-                logger.info("OpenAI model '{}' gets the image as edit input", model);
-            }
+            ApiProvider provider = providers.providerOf(model);
+            providers.get(provider).checkImageInput(model);
 
             // Processing attached image
 

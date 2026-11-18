@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,7 @@ public class BflGenerationFlow {
     private final ChatEntryTracker tracker;
     private final ImageFileStore imageFiles;
     private final ScheduledExecutorService scheduler;
+    private final Executor io;
     private final Map<String, PendingRequest> activeRequests = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom = new SecureRandom(); // High-entropy random for seed generation
     private volatile IntConsumer onSafetyToleranceLowered = (value) -> { };
@@ -53,15 +55,17 @@ public class BflGenerationFlow {
      * @param tracker        keeps the chat entry in step with its images
      * @param imageFiles     writes the downloaded images
      * @param scheduler      runs the status polling and the database writes
+     * @param io             runs the downloads of the images and the database writes they cause
      */
     public BflGenerationFlow(ApplicationConfig config, BflApiService bflApiService, ChatRepository chatRepository,
-            ChatEntryTracker tracker, ImageFileStore imageFiles, ScheduledExecutorService scheduler) {
+            ChatEntryTracker tracker, ImageFileStore imageFiles, ScheduledExecutorService scheduler, Executor io) {
         this.config = config;
         this.bflApiService = bflApiService;
         this.chatRepository = chatRepository;
         this.tracker = tracker;
         this.imageFiles = imageFiles;
         this.scheduler = scheduler;
+        this.io = io;
     }
 
     /**
@@ -561,7 +565,7 @@ public class BflGenerationFlow {
                             pendingRequest.generatedImage.getId(), ex);
                 }
             }
-        });
+        }, io);
 
         // Stop polling and remove from active requests
         pendingRequest.cancelPolling();
@@ -598,13 +602,13 @@ public class BflGenerationFlow {
                         } catch (Exception e) {
                             logger.error("Failed to update GeneratedImage in database: {}", generatedImage.getId(), e);
                         }
-                    });
+                    }, io);
                 }
 
                 tracker.notifyImageUpdated(generatedImage);
                 tracker.refresh(chatEntry);
             });
-        });
+        }, io);
     }
 
 

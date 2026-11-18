@@ -3,6 +3,7 @@ package art.moodframe.service;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.provider.MockProviders;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -59,6 +61,12 @@ class ApiProviderValidatorTest {
         doCallRealMethod().when(config).isOpenAiChatAvailable();
         doCallRealMethod().when(config).isOpenAiBrainstormAvailable();
         doCallRealMethod().when(config).isGeminiBrainstormAvailable();
+        doCallRealMethod().when(config).hasApiKey(any(ApiProvider.class));
+        doCallRealMethod().when(config).isProviderValidated(any());
+        doCallRealMethod().when(config).setProviderValidated(any(), anyBoolean());
+        doCallRealMethod().when(config).isProviderEnabled(any());
+        doCallRealMethod().when(config).setProviderEnabled(any(), anyBoolean());
+        doCallRealMethod().when(config).hasProviderEnabledPreference(any());
 
         /*  Every account configured and enabled by the user, the brainstorm talks to Gemini  */
         flags.put("bfl.enabled", true);
@@ -84,7 +92,7 @@ class ApiProviderValidatorTest {
         when(openAi.testConnection()).thenReturn(CompletableFuture.completedFuture(true));
         when(openAi.checkChatModel("gpt-x")).thenReturn(CompletableFuture.completedFuture(null));
         when(openAi.checkWebSearch("gpt-x")).thenReturn(CompletableFuture.completedFuture(null));
-        validator = new ApiProviderValidator(config, bfl, gemini, openAi);
+        validator = new ApiProviderValidator(config, MockProviders.registry(bfl, gemini, openAi));
     }
 
     /*  a flag of the configuration, kept in the map like in the file  */

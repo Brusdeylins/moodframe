@@ -1,0 +1,29 @@
+package art.moodframe.service.provider;
+
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.when;
+
+/**
+ * Builds a {@link ProviderRegistry} of Mockito mocks: a mock answers {@link ImageProvider#getProvider()} with the
+ * default method of its client interface, e.g. BFL for a mock of {@code BflApiService}. The registry asks for the
+ * ids only, so the mocks are handed back without recorded invocations.
+ */
+public final class MockProviders {
+
+    private MockProviders() {
+    }
+
+    /**
+     * Creates the registry.
+     *
+     * @param mocks the mocked client interfaces
+     * @return the registry of the mocks
+     */
+    public static ProviderRegistry registry(ImageProvider... mocks) {
+        for (ImageProvider mock : mocks)
+            when(mock.getProvider()).thenCallRealMethod();
+        ProviderRegistry registry = new ProviderRegistry(mocks);
+        clearInvocations((Object[]) mocks);
+        return registry;
+    }
+}

@@ -181,20 +181,34 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.TrashManager.class,
                     () -> new art.moodframe.service.TrashManager(60));
 
+            /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
+            java.util.concurrent.ExecutorService io = art.moodframe.net.IoExecutor.get();
+
             // Initialize BFL API Service
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.BflApiService.class,
-                    () -> new art.moodframe.service.BflApiServiceImpl());
+                    () -> new art.moodframe.service.BflApiServiceImpl(io));
 
             // Initialize Google Gemini API Service
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.GeminiApiService.class,
-                    () -> new art.moodframe.service.GeminiApiServiceImpl(config));
+                    () -> new art.moodframe.service.GeminiApiServiceImpl(config, io));
 
             // Initialize OpenAI API Service
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.OpenAiApiService.class,
-                    () -> new art.moodframe.service.OpenAiApiServiceImpl(config));
+                    () -> new art.moodframe.service.OpenAiApiServiceImpl(config, io));
+
+            /*  The providers by their id, for the services that dispatch by provider  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.provider.ProviderRegistry.class,
+                    () -> {
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return new art.moodframe.service.provider.ProviderRegistry(
+                                services.getService(art.moodframe.service.BflApiService.class),
+                                services.getService(art.moodframe.service.GeminiApiService.class),
+                                services.getService(art.moodframe.service.OpenAiApiService.class));
+                    });
 
             // Moves the files of chats, entries and images to the trash and back
             ServiceFactory.getInstance().registerProvider(
@@ -292,7 +306,9 @@ public class MoodframeApplication extends Application {
                         try {
                             art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                     .getService(art.moodframe.repository.ChatRepository.class);
-                            return new art.moodframe.service.RequestResponseManager(config, chatRepo);
+                            return new art.moodframe.service.RequestResponseManager(config, chatRepo,
+                                    ServiceFactory.getInstance().getService(
+                                            art.moodframe.service.provider.ProviderRegistry.class), io);
                         } catch (Exception e) {
                             logger.error("Failed to create RequestResponseManager with database integration", e);
                             return null;
@@ -454,21 +470,17 @@ public class MoodframeApplication extends Application {
         try {
             // Get required services from ServiceFactory
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            art.moodframe.service.BflApiService bflService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.BflApiService.class);
-            art.moodframe.service.GeminiApiService geminiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.GeminiApiService.class);
-            art.moodframe.service.OpenAiApiService openAiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            art.moodframe.service.provider.ProviderRegistry providers = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.ProviderRegistry.class);
 
-            if (config == null || bflService == null || geminiService == null || openAiService == null) {
+            if (config == null || providers == null) {
                 logger.warn("Cannot validate API providers: required services not available");
                 return;
             }
 
             // Create and register ApiProviderValidator
             art.moodframe.service.ApiProviderValidator validator = new art.moodframe.service.ApiProviderValidator(
-                    config, bflService, geminiService, openAiService);
+                    config, providers);
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ApiProviderValidator.class,
                     () -> validator);
@@ -696,6 +708,9 @@ public class MoodframeApplication extends Application {
                     .getService(art.moodframe.mcp.McpService.class);
             if (mcp != null)
                 mcp.stop();
+
+            /*  Pending provider calls and downloads end with the application  */
+            art.moodframe.net.IoExecutor.shutdown();
 
             // Clear service factory
             ServiceFactory.getInstance().clearServices();

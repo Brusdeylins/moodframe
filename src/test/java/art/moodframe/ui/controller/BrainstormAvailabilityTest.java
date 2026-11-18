@@ -6,6 +6,7 @@ import art.moodframe.service.ApiProviderValidator;
 import art.moodframe.service.BflApiService;
 import art.moodframe.service.GeminiApiService;
 import art.moodframe.service.OpenAiApiService;
+import art.moodframe.service.provider.MockProviders;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 
@@ -99,8 +100,8 @@ class BrainstormAvailabilityTest {
         when(openAi.checkChatModel(anyString())).thenReturn(CompletableFuture.completedFuture(null));
         when(openAi.checkWebSearch("gpt-x")).thenReturn(CompletableFuture.completedFuture("OpenAI error 404"));
         when(openAi.checkWebSearch("gpt-y")).thenReturn(CompletableFuture.completedFuture(null));
-        ApiProviderValidator validator = new ApiProviderValidator(config, mock(BflApiService.class),
-                mock(GeminiApiService.class), openAi);
+        ApiProviderValidator validator = new ApiProviderValidator(config,
+                MockProviders.registry(mock(BflApiService.class), mock(GeminiApiService.class), openAi));
         validator.checkOpenAiModel("gpt-x").join();
         validator.checkOpenAiModel("gpt-y").join();
 

@@ -47,7 +47,7 @@ class BflSafetyToleranceTest {
             return rejected(body);
         });
         BflGenerationFlow flow = new BflGenerationFlow(config, api, mock(ChatRepository.class), tracker,
-                mock(ImageFileStore.class), mock(ScheduledExecutorService.class));
+                mock(ImageFileStore.class), mock(ScheduledExecutorService.class), Runnable::run);
         flow.setOnSafetyToleranceLowered(lowered::add);
         ImageGenerationRequest request = new ImageGenerationRequest("an apple", "flux.2-pro");
         request.setSafetyTolerance(5);
