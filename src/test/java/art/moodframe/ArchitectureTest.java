@@ -21,8 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
- * checks which package uses which, that no packages depend on each other in a cycle and that model and util need no
- * JavaFX.
+ * checks which package uses which, that no packages depend on each other in a cycle and that model, util and
+ * service.chat need no JavaFX.
  */
 class ArchitectureTest {
 
@@ -157,5 +157,10 @@ class ArchitectureTest {
     void modelAndUtilNeedNoJavaFx() {
         assertEquals(Set.of(), javaFx.getOrDefault("util", Set.of()), "util");
         assertEquals(FX_MODELS, javaFx.getOrDefault("model", Set.of()), "model, besides the known deviation");
+    }
+
+    @Test
+    void theChatsNeedNoJavaFx() {
+        assertEquals(Set.of(), javaFx.getOrDefault("service.chat", Set.of()), "service.chat");
     }
 }

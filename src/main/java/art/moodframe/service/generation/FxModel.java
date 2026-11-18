@@ -1,5 +1,6 @@
 package art.moodframe.service.generation;
 
+import art.moodframe.service.chat.ModelLock;
 import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +10,8 @@ import java.util.function.Supplier;
 
 /**
  * The one place where a generation changes the chat entries and images the user interface is bound to: they carry
- * JavaFX properties, so they are changed on the JavaFX thread, in the order of the calls. Nothing blocking runs in a
+ * JavaFX properties, so they are changed on the JavaFX thread, in the order of the calls, and under the
+ * {@link ModelLock}, so a reader on another thread (the MCP server) sees no change half done. Nothing blocking runs in a
  * change: the database writes of {@link ChatEntryTracker#saveImage} and {@link ChatEntryTracker#saveEntry} only hand
  * the object to their worker, files and requests run on workers before.
  *
@@ -46,7 +48,7 @@ final class FxModel {
         CompletableFuture<T> done = new CompletableFuture<>();
         Platform.runLater(() -> {
             try {
-                done.complete(read.get());
+                done.complete(ModelLock.read(read));
             } catch (RuntimeException e) {
                 logger.error("Failed to update the chat entry of a generation", e);
                 done.completeExceptionally(e);

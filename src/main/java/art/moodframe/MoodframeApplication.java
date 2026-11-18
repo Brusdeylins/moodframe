@@ -87,6 +87,12 @@ public class MoodframeApplication extends Application {
             // Perform trash cleanup on startup
             performTrashCleanup();
 
+            /*  The chats, after the cleanup and before the window that shows them  */
+            art.moodframe.service.chat.ChatLibrary chats = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.chat.ChatLibrary.class);
+            if (chats != null)
+                chats.load();
+
             // Perform retroactive thumbnail generation
             performRetroactiveThumbnailGeneration();
 

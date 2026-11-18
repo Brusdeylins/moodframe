@@ -150,7 +150,9 @@ class MainWindowPanelLayoutTest {
         register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
         register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
         register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
-        register(ChatLibrary.class, new ChatLibrary(null, events));
+        ChatLibrary chats = new ChatLibrary(null, events);
+        chats.load();
+        register(ChatLibrary.class, chats);
         register(ImageAttachmentService.class, new ImageAttachmentService());
     }
 

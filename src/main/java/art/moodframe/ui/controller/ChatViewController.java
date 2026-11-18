@@ -558,7 +558,7 @@ public class ChatViewController {
      * Helper method to get the chat that contains a given entry.
      */
     private Chat getCurrentChatFromEntry(ChatEntry entry) {
-        return chatLibrary.getChats().stream()
+        return chatLibrary.chats().stream()
                 .filter(chat -> chat.getId().equals(entry.getChatId()))
                 .findFirst()
                 .orElse(null);
@@ -945,9 +945,12 @@ public class ChatViewController {
      * running requests keep updating them.
      */
     private void showGroup() {
-        java.util.Map<String, ChatEntry> loaded = new java.util.HashMap<>();
-        chatLibrary.getChats().stream().filter((chat) -> !chat.isDeleted())
-                .forEach((chat) -> chat.getEntries().forEach((entry) -> loaded.put(entry.getId(), entry)));
+        java.util.Map<String, ChatEntry> loaded = chatLibrary.read((chats) -> {
+            java.util.Map<String, ChatEntry> entries = new java.util.HashMap<>();
+            chats.stream().filter((chat) -> !chat.isDeleted())
+                    .forEach((chat) -> chat.getEntries().forEach((entry) -> entries.put(entry.getId(), entry)));
+            return entries;
+        });
         ObservableList<ChatEntry> entries = FXCollections.observableArrayList();
         try {
             if (chatHistory != null)

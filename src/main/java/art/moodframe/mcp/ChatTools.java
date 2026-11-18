@@ -35,8 +35,8 @@ import java.util.Locale;
 /**
  * The tools that read the chats: {@code list_chats}, {@code get_chat}, {@code get_entry} and {@code get_image}, and
  * {@code download_image}, which copies an image like the download button. They see what the main window shows,
- * nothing in the trash, and read the JavaFX models through the {@link ChatLibrary} on the JavaFX thread; files are
- * read on the thread of the call.
+ * nothing in the trash, and read the models through {@link ChatLibrary#read} on the thread of the call, without
+ * waiting for the JavaFX thread; files are read outside of it.
  *
  * @since 2.1.0
  */
@@ -47,7 +47,7 @@ class ChatTools {
 
     private static final List<String> SIZES = List.of("preview", "original");
 
-    /*  an image found in the chats, copied off the JavaFX thread  */
+    /*  an image found in the chats, copied out of the models  */
     record Found(String entryId, String path, boolean video, int width, int height, String chatName,
             LocalDateTime createdAt) {
 
@@ -266,7 +266,7 @@ class ChatTools {
     }
 
     /**
-     * Copies an image with what names its download, on the JavaFX thread.
+     * Copies an image with what names its download, inside {@link ChatLibrary#read}.
      *
      * @param chat  the chat of the image
      * @param image the image
@@ -278,8 +278,8 @@ class ChatTools {
     }
 
     /**
-     * Puts the names the download button gives the files into the JSON of the images; reads the files, so off the
-     * JavaFX thread.
+     * Puts the names the download button gives the files into the JSON of the images; reads the files, so outside
+     * {@link ChatLibrary#read}.
      *
      * @param nodes  the JSON of the images
      * @param images the images in the same order
@@ -336,7 +336,7 @@ class ChatTools {
         return "application/octet-stream";
     }
 
-    /*  ===== JSON of the models, built on the JavaFX thread =====  */
+    /*  ===== JSON of the models, built inside ChatLibrary#read =====  */
 
     private static ObjectNode summary(Chat chat) {
         List<ChatEntry> entries = chat.getEntries().stream().filter(ChatTools::shown).toList();

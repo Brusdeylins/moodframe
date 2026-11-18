@@ -289,6 +289,9 @@ class MainWindowFlowsTest {
         ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
         chats = recording(history, events, deletions);
         trash.addListener(chats);
+
+        /*  the start loads the chats before the window opens  */
+        chats.load();
         register(TrashManager.class, trashManager);
         register(ThumbnailManager.class, thumbnails);
         register(ChatFileService.class, files);
