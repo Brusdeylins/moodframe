@@ -48,7 +48,7 @@
                 <Tooltip fx:id="newChatTooltip" text="Create New Chat" />
             </tooltip>
         </Button>
-        
+
         <!-- Trash Button: opens the central trash -->
         <Button fx:id="trashButton" styleClass="icon-button"
                 onAction="#onTrashClicked">
@@ -60,12 +60,12 @@
             </tooltip>
         </Button>
     </HBox>
-    
+
     <!-- Chat List -->
     <ListView fx:id="chatListView" VBox.vgrow="ALWAYS">
         <!-- Chat list items will be populated dynamically -->
     </ListView>
-    
+
     <!-- Mood List: the moods images were generated with, shown instead of the chats -->
     <ListView fx:id="moodGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
 

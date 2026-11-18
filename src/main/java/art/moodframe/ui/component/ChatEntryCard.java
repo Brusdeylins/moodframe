@@ -9,6 +9,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
@@ -107,6 +108,9 @@ public class ChatEntryCard extends ManagedComponent {
 
     private final ChatEntry chatEntry;
     private final boolean isChatDeleted;
+
+    /*  finds the files of the images, in the trash for a chat there; null where the card shows no stored chat  */
+    private final ChatHistoryService history;
     private final Label promptLabel;
     private final Button reuseButton;
     private final MenuButton moreButton;
@@ -170,7 +174,22 @@ public class ChatEntryCard extends ManagedComponent {
      */
     public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
                          java.util.function.Supplier<Boolean> isFluxModelSelected) {
+        this(chatEntry, isChatDeleted, isFluxModelSelected, null);
+    }
+
+    /**
+     * Creates a new ChatEntryCard for the given ChatEntry, which finds the files of its images with the history.
+     *
+     * @param chatEntry            the ChatEntry to display
+     * @param isChatDeleted        whether the parent chat is deleted (in trash)
+     * @param isFluxModelSelected  supplier that returns true if a FLUX model, which takes a seed, is selected
+     * @param history              finds the files of the images, in the trash for a chat there (may be null: the
+     *                             files where they were generated)
+     */
+    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
+                         java.util.function.Supplier<Boolean> isFluxModelSelected, ChatHistoryService history) {
         super(); // Initialize ManagedComponent
+        this.history = history;
         this.isFluxModelSelected = isFluxModelSelected;
         this.chatEntry = chatEntry;
         this.isChatDeleted = isChatDeleted;
@@ -912,7 +931,8 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Gets the actual file path for an image, considering if it's in trash.
+     * Gets the actual file path for an image, considering if it's in trash: the image itself as the history finds it,
+     * else where it was generated; its thumbnail in the trash for an image there, else in the thumbnails folder.
      *
      * @param generatedImage the generated image
      * @param isThumbnail    whether to get thumbnail path instead of image path
@@ -922,54 +942,17 @@ public class ChatEntryCard extends ManagedComponent {
         String originalPath = generatedImage.getLocalFilePath();
         if (originalPath == null)
             return null;
+        String found = history != null ? history.actualImagePath(generatedImage, isChatDeleted) : null;
+        String imagePath = found != null ? found : originalPath;
+        if (!isThumbnail)
+            return imagePath;
 
-        // Check if the chat or image is deleted and should use trash path
-        boolean useTrashPath = isChatDeleted;
-
-        // If not already marked as deleted, check if file exists in original location
-        if (!useTrashPath) {
-            java.io.File originalFile = new java.io.File(originalPath);
-            if (!originalFile.exists()) {
-                // File might be in trash, check there
-                useTrashPath = true;
-            }
-        }
-
-        if (useTrashPath) {
-            // Get TrashManager to compute trash path
-            art.moodframe.service.trash.TrashManager trashManager = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.trash.TrashManager.class);
-
-            if (trashManager != null) {
-                String pathToCheck = originalPath;
-
-                // If we need thumbnail path, convert to thumbnail first
-                if (isThumbnail) {
-                    art.moodframe.service.chat.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory
-                            .getInstance()
-                            .getService(art.moodframe.service.chat.ThumbnailManager.class);
-                    if (thumbnailManager != null) {
-                        pathToCheck = thumbnailManager.getThumbnailPath(originalPath);
-                    }
-                }
-
-                String trashPath = trashManager.getTrashPath(pathToCheck, isThumbnail);
-                if (new java.io.File(trashPath).exists()) {
-                    return trashPath;
-                }
-            }
-        }
-
-        // For active images, return thumbnail path if requested
-        if (isThumbnail && !useTrashPath) {
-            art.moodframe.service.chat.ThumbnailManager thumbnailManager = art.moodframe.config.ServiceFactory
-                    .getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class);
-            if (thumbnailManager != null) {
-                return thumbnailManager.getThumbnailPath(originalPath);
-            }
-        }
-
-        return originalPath;
+        ThumbnailManager thumbnailManager = getThumbnailManager();
+        String thumbnailPath = thumbnailManager != null ? thumbnailManager.getThumbnailPath(originalPath) : null;
+        if (thumbnailPath == null || !isChatDeleted && imagePath.equals(originalPath))
+            return thumbnailPath != null ? thumbnailPath : originalPath;
+        String trashed = history != null ? history.actualThumbnailPath(thumbnailPath) : null;
+        return trashed != null ? trashed : imagePath;
     }
 
     /**

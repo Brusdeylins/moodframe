@@ -24,17 +24,17 @@ class BrainstormAvailabilityTest {
     @Test
     void theButtonNamesWhyItIsDisabled() {
         ApplicationConfig config = ConfigMocks.config();
-        assertEquals("brainstorm.tooltip.no.key", MainWindowController.brainstormHint(null, true));
-        assertEquals("brainstorm.tooltip.no.key", MainWindowController.brainstormHint(config, true));
+        assertEquals("brainstorm.tooltip.no.key", InputBarController.brainstormHint(null, true));
+        assertEquals("brainstorm.tooltip.no.key", InputBarController.brainstormHint(config, true));
 
         /*  A key, but no account with language model and web search: no brainstorm without research  */
         when(config.accounts().hasApiKey(ApiProvider.OPENAI)).thenReturn(true);
         when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
-        assertEquals("brainstorm.tooltip.no.search", MainWindowController.brainstormHint(config, true));
+        assertEquals("brainstorm.tooltip.no.search", InputBarController.brainstormHint(config, true));
 
         when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
-        assertEquals("brainstorm.tooltip.no.chat", MainWindowController.brainstormHint(config, false));
-        assertEquals("brainstorm.tooltip", MainWindowController.brainstormHint(config, true));
+        assertEquals("brainstorm.tooltip.no.chat", InputBarController.brainstormHint(config, false));
+        assertEquals("brainstorm.tooltip", InputBarController.brainstormHint(config, true));
     }
 
     @Test
@@ -43,7 +43,7 @@ class BrainstormAvailabilityTest {
         when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
 
-        assertEquals("brainstorm.tooltip", MainWindowController.brainstormHint(config, true));
+        assertEquals("brainstorm.tooltip", InputBarController.brainstormHint(config, true));
     }
 
     @Test

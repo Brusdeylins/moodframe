@@ -3,6 +3,7 @@ package art.moodframe.ui.component;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ModelFamilies;
 import javafx.application.Platform;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.ListChangeListener;
 import javafx.scene.control.ChoiceBox;
 
@@ -22,7 +23,7 @@ public class ModelFamilySelector {
 
     private final ChoiceBox<String> variants;
     private final ChoiceBox<String> families;
-    private final ChoiceBox<String> target;
+    private final ObservableValue<String> target;
     private final ApplicationConfig config;
 
     private boolean syncing;
@@ -37,6 +38,19 @@ public class ModelFamilySelector {
      * @param config   remembers the resolution of each family (may be null)
      */
     public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families, ChoiceBox<String> target,
+            ApplicationConfig config) {
+        this(variants, families, target.valueProperty(), config);
+    }
+
+    /**
+     * Connects the choices to a target resolution chosen elsewhere, e.g. in another part of the window.
+     *
+     * @param variants the hidden choice of variants
+     * @param families the visible choice of families
+     * @param target   the target resolution, one of {@link ModelFamilies#RESOLUTIONS}
+     * @param config   remembers the resolution of each family (may be null)
+     */
+    public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families, ObservableValue<String> target,
             ApplicationConfig config) {
         this.variants = variants;
         this.families = families;
@@ -72,7 +86,7 @@ public class ModelFamilySelector {
             if (!syncing && family != null)
                 onFamilyChosen(family);
         });
-        target.valueProperty().addListener((obs, old, resolution) -> {
+        target.addListener((obs, old, resolution) -> {
             if (resolution != null && variants.getValue() != null)
                 onTargetChosen(resolution);
         });

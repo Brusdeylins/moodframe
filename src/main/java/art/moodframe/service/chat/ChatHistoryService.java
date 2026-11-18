@@ -354,6 +354,17 @@ public class ChatHistoryService {
         return null; // Not found anywhere
     }
 
+    /**
+     * Finds the thumbnail of an image in the trash, for an image whose file lies there.
+     *
+     * @param thumbnailPath the path of the thumbnail in the thumbnails folder
+     * @return the path in the trash, null if the thumbnail is not there
+     */
+    public String actualThumbnailPath(String thumbnailPath) {
+        String trashPath = trashManager != null ? trashManager.getTrashPath(thumbnailPath, true) : null;
+        return trashPath != null && new java.io.File(trashPath).exists() ? trashPath : null;
+    }
+
     // ===== Storing and deleting, for the UI that does not talk to the repository itself =====
 
     public void saveChat(Chat chat) throws SQLException {

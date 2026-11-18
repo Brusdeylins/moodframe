@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Bottom: Input Area - height in pixels set via the divider, kept on window resize; flush
+     with the chat area at both sides and with the chat list at the bottom, the gap above it
+     is the divider -->
+<VBox fx:id="chatInputArea" xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="art.moodframe.ui.controller.InputBarController"
+      spacing="10.0" styleClass="bg-inset, see-through"
+      SplitPane.resizableWithParent="false">
+
+    <!-- Main Input Row -->
+    <HBox spacing="10.0" alignment="BOTTOM_LEFT" VBox.vgrow="ALWAYS">
+        <!-- Text Input Area - grows with available space -->
+        <TextArea fx:id="promptTextArea"
+                  promptText="Enter your prompt here..."
+                  wrapText="true" prefRowCount="5"
+                  VBox.vgrow="ALWAYS"
+                  HBox.hgrow="ALWAYS" />
+
+        <!-- Button + Checkbox Column: never shrinks, so the input area cannot get lower -->
+        <VBox alignment="TOP_CENTER" spacing="5.0" minWidth="180.0" prefWidth="180.0" maxWidth="180.0"
+              minHeight="-Infinity">
+            <Button fx:id="sendButton" styleClass="accent"
+                    text="0.00"
+                    maxWidth="Infinity" VBox.vgrow="ALWAYS"
+                    onAction="#onSendClicked"
+                    disable="true">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2s-send" iconSize="18" styleClass="ikonli-font-icon" />
+                </graphic>
+                <tooltip>
+                    <Tooltip fx:id="sendTooltip" text="Send Message (Shift+Enter)" />
+                </tooltip>
+            </Button>
+
+            <!-- Brainstorm Button (active only with a Gemini API key) -->
+            <Button fx:id="brainstormButton" styleClass="button-outlined"
+                    text="Brainstorm"
+                    maxWidth="Infinity"
+                    onAction="#onBrainstormClicked"
+                    disable="true">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2l-lightbulb-outline" iconSize="18" styleClass="ikonli-font-icon" />
+                </graphic>
+            </Button>
+
+            <!-- Character Counter -->
+            <Label fx:id="characterCountLabel" text="0/3000"
+                   styleClass="text-small,text-muted"
+                   maxWidth="Infinity"
+                   style="-fx-alignment: center-left;" />
+        </VBox>
+    </HBox>
+
+</VBox>

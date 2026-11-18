@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Left: Chat Area (grows to take available space) -->
+<BorderPane fx:id="chatView" xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="art.moodframe.ui.controller.ChatViewController"
+            HBox.hgrow="ALWAYS">
+
+    <!-- Chat Header: height and padding like the controls row of the sidebar; the title starts on the
+         left edge of the cards and of the first column of images, 1 px further out for the side bearing
+         of its letters (set by the controller), the costs on the baseline of the title; the view switch
+         ends on the right edge of the cards and of the last column of images (set by the controller) -->
+    <top>
+        <HBox fx:id="chatHeader" alignment="CENTER_LEFT" styleClass="bg-inset" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+            <padding>
+                <Insets right="20.0" top="10.0" bottom="15.0" />
+            </padding>
+            <HBox alignment="BASELINE_LEFT" spacing="10.0" maxHeight="-Infinity" HBox.hgrow="ALWAYS">
+                <Label fx:id="chatTitleLabel" text="Select a chat" styleClass="title-4" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Label fx:id="chatTotalCostLabel" text="" styleClass="text-muted" />
+            </HBox>
+
+            <!-- The size of the images, shared by both views, and the view of all chats and groups:
+                 as chat or as images only -->
+            <HBox alignment="CENTER_LEFT" spacing="4.0" maxHeight="-Infinity">
+                <padding>
+                    <Insets left="16.0" />
+                </padding>
+                <FontIcon iconLiteral="mdi2i-image-outline" iconSize="12" styleClass="ikonli-font-icon, text-muted" />
+                <Slider fx:id="imageSizeSlider" prefWidth="80.0">
+                    <tooltip>
+                        <Tooltip fx:id="imageSizeTooltip" text="Image size" />
+                    </tooltip>
+                </Slider>
+                <FontIcon iconLiteral="mdi2i-image-outline" iconSize="18" styleClass="ikonli-font-icon, text-muted" />
+                <HBox alignment="CENTER_LEFT">
+                    <padding>
+                        <Insets left="12.0" />
+                    </padding>
+                    <ToggleButton fx:id="chatViewButton" styleClass="icon-button" selected="true">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2f-format-list-bulleted" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                        <tooltip>
+                            <Tooltip fx:id="chatViewTooltip" text="Chat" />
+                        </tooltip>
+                    </ToggleButton>
+                    <ToggleButton fx:id="imagesViewButton" styleClass="icon-button">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2v-view-grid-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                        <tooltip>
+                            <Tooltip fx:id="imagesViewTooltip" text="Images" />
+                        </tooltip>
+                    </ToggleButton>
+                </HBox>
+            </HBox>
+        </HBox>
+    </top>
+
+    <!-- Vertical SplitPane for resizable chat and input areas -->
+    <center>
+        <SplitPane fx:id="chatInputSplitPane" orientation="VERTICAL" dividerPositions="0.84" styleClass="grip-split-pane">
+
+            <!-- Top: Chat Messages Area with Overlay Support, the gap to the chat list is the divider -->
+            <StackPane fx:id="chatAreaStackPane" styleClass="glass">
+
+                <!-- Main Chat Content -->
+                <!-- Virtualized ListView for ChatEntries (replaces ScrollPane+VBox) -->
+                <ListView fx:id="chatEntriesListView" />
+
+                <!-- Welcome container (shown when no chat selected, overlays ListView) -->
+                <HBox fx:id="welcomeContainer"
+                      alignment="CENTER" spacing="10.0" visible="true">
+                    <FontIcon iconLiteral="mdi2r-robot" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
+                    <Label fx:id="welcomeLabel" text="Welcome to MoodFrame"
+                           styleClass="title-2" />
+                </HBox>
+
+                <!-- Image Preview Overlay (initially hidden) -->
+                <!-- Will be added programmatically by ChatViewController -->
+
+            </StackPane>
+
+            <!-- Bottom: Input Area, the prompt and its buttons -->
+            <fx:include fx:id="inputBar" source="InputBar.fxml" />
+
+        </SplitPane>
+    </center>
+
+</BorderPane>
