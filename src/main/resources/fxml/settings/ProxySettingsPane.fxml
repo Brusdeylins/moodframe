@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Corporate proxy and certificates -->
+<ScrollPane fx:id="corporateProxyPane" fitToHeight="true" fitToWidth="true" hbarPolicy="NEVER" managed="false" vbarPolicy="AS_NEEDED" visible="false" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.ProxySettingsPane">
+    <VBox spacing="15.0">
+        <padding>
+            <Insets bottom="0" left="20.0" right="20.0" top="0" />
+        </padding>
+
+        <!-- Proxy Configuration Section -->
+        <VBox spacing="8.0">
+            <Label fx:id="proxyTitleLabel" styleClass="text-bold" text="%settings.proxy.title" />
+            <Label fx:id="proxyDescLabel" text="%settings.proxy.description" />
+
+            <!-- Proxy Enable/Disable -->
+            <CheckBox fx:id="enableProxyCheckBox" text="%settings.proxy.enable" />
+
+            <HBox alignment="CENTER_LEFT" spacing="15.0">
+                <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                    <Label fx:id="proxyHostLabel" text="%settings.proxy.host" />
+                    <TextField fx:id="proxyHostField" promptText="%settings.proxy.host.placeholder" />
+                </VBox>
+
+                <VBox spacing="5.0">
+                    <Label fx:id="proxyPortLabel" text="%settings.proxy.port" />
+                    <Spinner fx:id="proxyPortSpinner" initialValue="8080" max="65535" min="1" prefWidth="100.0" />
+                </VBox>
+            </HBox>
+
+            <!-- Proxy Authentication -->
+            <VBox spacing="5.0">
+                <Label fx:id="proxyAuthLabel" text="%settings.proxy.auth" />
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                        <Label fx:id="proxyUsernameLabel" text="%settings.proxy.username" />
+                        <TextField fx:id="proxyUsernameField" promptText="%settings.proxy.username.placeholder" />
+                    </VBox>
+                    <VBox spacing="5.0" HBox.hgrow="ALWAYS">
+                        <Label fx:id="proxyPasswordLabel" text="%settings.proxy.password" />
+                        <PasswordField fx:id="proxyPasswordField" promptText="%settings.proxy.password.placeholder" />
+                    </VBox>
+                </HBox>
+            </VBox>
+
+            <!-- Proxy Test Section -->
+            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                <Button fx:id="testProxyConnectionButton" onAction="#onTestProxyConnection" styleClass="accent" text="%settings.proxy.test">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+                <Button fx:id="resetProxyConfigButton" onAction="#onResetProxyConfig" styleClass="danger" text="%settings.proxy.clear">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2r-restore" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+            </HBox>
+
+            <!-- Proxy Connection Status -->
+            <HBox fx:id="proxyConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                <FontIcon fx:id="proxyConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                <Label fx:id="proxyConnectionStatusLabel" text="%settings.proxy.connection.none" />
+            </HBox>
+        </VBox>
+
+        <Separator />
+
+        <!-- Certificate Management Section -->
+        <VBox spacing="8.0">
+            <Label fx:id="certificatesTitleLabel" styleClass="text-bold" text="%settings.certificates.title" />
+            <Label fx:id="certificatesDescLabel" text="%settings.certificates.description" />
+
+            <!-- Certificate Directory -->
+            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                <Label fx:id="certificatesDirectoryLabel" styleClass="label-muted" text="%settings.certificates.directory" />
+                <Label fx:id="certificatePathLabel" styleClass="text-caption" text="%settings.certificates.path" HBox.hgrow="ALWAYS" />
+            </HBox>
+
+            <!-- Certificate Upload -->
+            <VBox spacing="5.0">
+                <Label fx:id="certificatesUploadTitleLabel" text="%settings.certificates.upload.title" />
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Button fx:id="uploadCertificateButton" onAction="#onUploadCertificate" styleClass="accent" text="%settings.certificates.upload.button">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2u-upload" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </Button>
+                    <Label fx:id="certificateUploadStatus" text="" />
+                </HBox>
+                <Label fx:id="certificatesFormatsLabel" styleClass="text-muted" text="%settings.certificates.formats" />
+            </VBox>
+
+            <!-- Installed Certificates List -->
+            <VBox spacing="5.0">
+                <Label fx:id="certificatesInstalledLabel" text="%settings.certificates.installed" />
+                <ListView fx:id="installedCertificatesListView" maxHeight="150.0" prefHeight="120.0">
+                    <!-- Certificate items will be populated by controller -->
+                </ListView>
+                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                    <Button fx:id="removeCertificateButton" disable="true" onAction="#onRemoveCertificate" styleClass="danger" text="%settings.certificates.remove">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2d-delete" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </Button>
+                    <Button fx:id="refreshCertificatesButton" onAction="#onRefreshCertificates" text="%settings.certificates.refresh">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2r-refresh" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </Button>
+                    <Region HBox.hgrow="ALWAYS" />
+                    <Button fx:id="testCertificateButton" onAction="#onTestCertificateConnection" styleClass="accent" text="%settings.certificates.test">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2s-shield-check" iconSize="16" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </Button>
+                </HBox>
+
+                <!-- Certificate Connection Status -->
+                <HBox fx:id="certificateConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                    <FontIcon fx:id="certificateConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                    <Label fx:id="certificateConnectionStatusLabel" text="%settings.certificates.connection.none" />
+                </HBox>
+            </VBox>
+
+            <!-- Configuration Source Info -->
+            <HBox fx:id="proxyConfigSourceContainer" alignment="CENTER_LEFT" spacing="8.0">
+                <FontIcon fx:id="proxyConfigSourceIcon" iconLiteral="mdi2i-information" iconSize="12" />
+                <Label fx:id="proxyConfigSourceLabel" text="%proxy.source.none" />
+            </HBox>
+        </VBox>
+    </VBox>
+</ScrollPane>

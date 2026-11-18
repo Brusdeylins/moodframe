@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.controller.settings;
 
 import art.moodframe.service.provider.ApiProviderValidator.ModelCheck;
 import art.moodframe.service.provider.ApiProviderValidator.Outcome;
@@ -16,7 +16,7 @@ class OpenaiModelStatusTest {
 
     @Test
     void aModelWithoutWebSearchStaysChosenAndIsNotOfferedForTheBrainstorm() {
-        SettingsController.OpenaiModelStatus status = SettingsController.openaiModelStatus("gpt-x",
+        OpenAiSettingsPane.OpenaiModelStatus status = OpenAiSettingsPane.openaiModelStatus("gpt-x",
                 new ModelCheck(WORKS, new Outcome("OpenAI error 404", true)), null);
 
         assertTrue(status.keepsChoice());
@@ -28,7 +28,7 @@ class OpenaiModelStatusTest {
 
     @Test
     void aModelWhoseSearchCouldNotBeCheckedStaysChosen() {
-        SettingsController.OpenaiModelStatus status = SettingsController.openaiModelStatus("gpt-x",
+        OpenAiSettingsPane.OpenaiModelStatus status = OpenAiSettingsPane.openaiModelStatus("gpt-x",
                 new ModelCheck(WORKS, new Outcome("OpenAI error 503", false)), null);
 
         assertTrue(status.keepsChoice());
@@ -38,7 +38,7 @@ class OpenaiModelStatusTest {
 
     @Test
     void aModelWithWebSearchWorks() {
-        SettingsController.OpenaiModelStatus status = SettingsController.openaiModelStatus("gpt-x",
+        OpenAiSettingsPane.OpenaiModelStatus status = OpenAiSettingsPane.openaiModelStatus("gpt-x",
                 new ModelCheck(WORKS, WORKS), null);
 
         assertTrue(status.keepsChoice());
@@ -47,7 +47,7 @@ class OpenaiModelStatusTest {
 
     @Test
     void onlyADefinitelyFailingAnswerOrToolCallTakesTheChoiceBack() {
-        SettingsController.OpenaiModelStatus failing = SettingsController.openaiModelStatus("gpt-x",
+        OpenAiSettingsPane.OpenaiModelStatus failing = OpenAiSettingsPane.openaiModelStatus("gpt-x",
                 new ModelCheck(new Outcome("The model does not call functions (tool calls).", true), WORKS), null);
 
         assertFalse(failing.keepsChoice());
@@ -58,9 +58,9 @@ class OpenaiModelStatusTest {
 
     @Test
     void anUndecidedCheckKeepsTheModelAndAsksToTestAgain() {
-        SettingsController.OpenaiModelStatus limited = SettingsController.openaiModelStatus("gpt-x",
+        OpenAiSettingsPane.OpenaiModelStatus limited = OpenAiSettingsPane.openaiModelStatus("gpt-x",
                 new ModelCheck(new Outcome("OpenAI: rate limit or quota exceeded (429)", false), WORKS), null);
-        SettingsController.OpenaiModelStatus broken = SettingsController.openaiModelStatus("gpt-x", null,
+        OpenAiSettingsPane.OpenaiModelStatus broken = OpenAiSettingsPane.openaiModelStatus("gpt-x", null,
                 new IllegalStateException("broken"));
 
         assertTrue(limited.keepsChoice());
