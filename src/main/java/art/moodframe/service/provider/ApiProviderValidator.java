@@ -493,14 +493,4 @@ public class ApiProviderValidator {
     public boolean isProviderValidated(ApiProvider provider) {
         return config.accounts().isValidated(provider);
     }
-
-    /**
-     * Gets the current enabled status for a provider.
-     *
-     * @param provider the API provider
-     * @return true if the provider is currently enabled, false otherwise
-     */
-    public boolean isProviderEnabled(ApiProvider provider) {
-        return config.accounts().isEnabled(provider);
-    }
 }

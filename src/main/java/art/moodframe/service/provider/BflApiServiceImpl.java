@@ -1,7 +1,11 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.*;
+import art.moodframe.model.ApiProvider;
+import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationJobResult;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -236,26 +240,6 @@ public class BflApiServiceImpl implements BflApiService {
     }
 
     @Override
-    public CompletableFuture<String> getMyFinetunes() {
-        if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
-        }
-        
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(getApiBaseUrl() + ENDPOINT_MY_FINETUNES))
-            .header("X-Key", getApiKey())
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
-            .timeout(getTimeout())
-            .GET()
-            .build();
-        
-        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
-            .thenCompose(this::handleResponse); // Return the response body
-    }
-    
-    @Override
     public CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request) {
         if (!isConfigured()) {
             return CompletableFuture.failedFuture(
@@ -368,14 +352,6 @@ public class BflApiServiceImpl implements BflApiService {
                     throw new RuntimeException("Failed to parse job status response", e);
                 }
             });
-    }
-    
-    @Override
-    public CompletableFuture<Boolean> cancelJob(String jobId) {
-        // Note: BFL API may not support job cancellation
-        // This is a placeholder implementation
-        logger.debug("Job cancellation not supported by BFL API: {}", jobId);
-        return CompletableFuture.completedFuture(false);
     }
     
     @Override

@@ -147,20 +147,6 @@ public interface BflApiService extends ImageProvider {
     CompletableFuture<Boolean> testSslConnection();
 
     /**
-     * Retrieves the current user's finetunes list (for API validation).
-     * 
-     * <p>
-     * This method calls the BFL API's my_finetunes endpoint to validate
-     * API key access and get finetune information if available. Automatically
-     * uses corporate proxy settings if configured.
-     * </p>
-     * 
-     * @return a CompletableFuture containing the finetunes list as JSON string
-     * @throws IllegalStateException if no API key is configured
-     */
-    CompletableFuture<String> getMyFinetunes();
-
-    /**
      * Polls the status of a generation job and retrieves results if completed.
      * 
      * <p>
@@ -185,22 +171,6 @@ public interface BflApiService extends ImageProvider {
      * @since 2.1.3
      */
     CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl);
-
-    /**
-     * Cancels a pending or running generation job.
-     * 
-     * <p>
-     * This method attempts to cancel a generation job that is currently
-     * queued or in progress. Jobs that have already completed cannot be cancelled.
-     * </p>
-     * 
-     * @param jobId the unique identifier of the generation job to cancel
-     * @return a CompletableFuture that completes with true if the job was
-     *         successfully cancelled, false otherwise
-     * @throws IllegalArgumentException if the job ID is null or empty
-     * @throws IllegalStateException    if no API key is configured
-     */
-    CompletableFuture<Boolean> cancelJob(String jobId);
 
     /**
      * Gets the current API endpoint base URL being used.

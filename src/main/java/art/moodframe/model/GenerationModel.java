@@ -21,7 +21,7 @@ package art.moodframe.model;
  * @since 1.6.7 - Renamed from FluxModel; absorbed Gemini models (removed redundant GeminiModel enum)
  * @since 1.10.0 - Added FLUX 3 Image and FLUX 3 Image Klein, removed the FLUX.1 models
  */
-public enum GenerationModel implements UnifiedModel {
+public enum GenerationModel {
 
     // ===== FLUX 3 IMAGE MODELS =====
     // One request field "resolution" picks an equal-area tier, the price is fixed per tier (bfl.ai/pricing).
@@ -971,7 +971,6 @@ public enum GenerationModel implements UnifiedModel {
      *
      * @return the provider: BFL for FLUX, GOOGLE_GEMINI for Nano Banana and Gemini Omni, OPENAI for the OpenAI models
      */
-    @Override
     public ApiProvider getProvider() {
         return provider;
     }
