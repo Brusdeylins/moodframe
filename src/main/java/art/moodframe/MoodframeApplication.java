@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.SplashScreen;
@@ -127,9 +126,8 @@ public class MoodframeApplication extends Application {
             /*  Earlier versions wrote the Gemini key into the log files  */
             Secrets.redactLogs(java.nio.file.Paths.get(config.getLogsPath()));
 
-            // Initialize CorporateProxyConfig after ApplicationConfig
-            CorporateProxyConfig proxyConfig = new CorporateProxyConfig(config);
-            ServiceFactory.getInstance().registerService(CorporateProxyConfig.class, proxyConfig);
+            // Create the directory of the corporate certificates at the start
+            new art.moodframe.net.CorporateProxyConfig(config);
 
             // Initialize I18n with user's preferred language
             String userLanguage = config.getUiLanguage();

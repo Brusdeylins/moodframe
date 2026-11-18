@@ -1,22 +1,21 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.*;
 import art.moodframe.config.EncryptionUtil;
-import art.moodframe.util.TrustStoreManager;
+import art.moodframe.net.HttpClients;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * Implementation of the BFL API service using java.net.http with corporate proxy support.
@@ -66,11 +65,10 @@ public class BflApiServiceImpl implements BflApiService {
     private static final String ENDPOINT_FLUX2_KLEIN_4B = "/v1/flux-2-klein-4b";
     private static final String ENDPOINT_FLUX2_KLEIN_9B = "/v1/flux-2-klein-9b";
     
-    private HttpClient httpClient;
+    private final Supplier<HttpClient> httpClient;
     private final ObjectMapper objectMapper;
     private final ApplicationConfig config;
-    private CorporateProxyConfig proxyConfig;
-    private TrustStoreManager trustStoreManager;
+    private final HttpClients httpClients;
     private String cachedApiKey;
     
     /**
@@ -82,152 +80,15 @@ public class BflApiServiceImpl implements BflApiService {
     public BflApiServiceImpl() {
         this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         this.objectMapper = new ObjectMapper();
-        this.trustStoreManager = new TrustStoreManager();
-        this.proxyConfig = new CorporateProxyConfig(config);
-        
-        // Initialize HTTP client with corporate proxy support
-        initializeHttpClient();
-        
+        this.httpClients = new HttpClients(config);
+
+        // HTTP client with corporate proxy support, built again when the proxy settings change
+        this.httpClient = httpClients.rebuilding(clients -> clients.javaHttp()
+            .connectTimeout(DEFAULT_TIMEOUT)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build());
     }
-    
-    @Override
-    public void initializeHttpClient() {
-        
-        try {
-            HttpClient.Builder clientBuilder = HttpClient.newBuilder()
-                .connectTimeout(DEFAULT_TIMEOUT)
-                .followRedirects(HttpClient.Redirect.NORMAL);
-            
-            // Configure corporate proxy if enabled
-            if (proxyConfig.isProxyEnabled() && proxyConfig.isProxyConfigurationValid()) {
-                configureProxySupport(clientBuilder);
-            }
-            
-            // Configure SSL context with corporate certificates
-            configureSSLContext(clientBuilder);
-            
-            this.httpClient = clientBuilder.build();
-            
-            
-        } catch (Exception e) {
-            logger.error("Failed to initialize HTTP client with corporate proxy support", e);
-            
-            // Fallback to basic HTTP client
-            this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(DEFAULT_TIMEOUT)
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
-                
-            logger.warn("Using fallback HTTP client without corporate proxy support");
-        }
-    }
-    
-    /**
-     * Configures proxy support for the HTTP client.
-     * 
-     * @param clientBuilder the HTTP client builder to configure
-     * @since 1.0.0
-     */
-    private void configureProxySupport(HttpClient.Builder clientBuilder) {
-        
-        // Create proxy selector for corporate proxy
-        ProxySelector proxySelector = new CorporateProxySelector();
-        clientBuilder.proxy(proxySelector);
-        
-        // Configure proxy authentication if credentials are available
-        if (proxyConfig.hasProxyAuthentication()) {
-            configureProxyAuthentication();
-        }
-        
-    }
-    
-    /**
-     * Configures proxy authentication.
-     * 
-     * @since 1.0.0
-     */
-    private void configureProxyAuthentication() {
-        // Set up authenticator for proxy credentials
-        Authenticator.setDefault(new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                if (getRequestorType() == RequestorType.PROXY) {
-                    String username = proxyConfig.getProxyUsername();
-                    String password = proxyConfig.getProxyPassword();
-                    
-                    if (username != null && password != null) {
-                        return new PasswordAuthentication(username, password.toCharArray());
-                    }
-                }
-                return null;
-            }
-        });
-    }
-    
-    /**
-     * Configures SSL context with corporate certificates.
-     * 
-     * @param clientBuilder the HTTP client builder to configure
-     * @since 1.0.0
-     */
-    private void configureSSLContext(HttpClient.Builder clientBuilder) {
-        try {
-            // Load corporate certificates if available
-            var certificatePaths = proxyConfig.getCertificatePaths();
-            
-            if (!certificatePaths.isEmpty()) {
-                logger.info("Configuring SSL context with {} corporate certificate(s)", certificatePaths.size());
-                
-                // Create corporate trust store
-                trustStoreManager.createCorporateKeyStore(certificatePaths);
-                
-                // Create SSL context with corporate certificates
-                SSLContext sslContext = trustStoreManager.createSSLContext();
-                clientBuilder.sslContext(sslContext);
-                
-                logger.info("SSL context configured successfully with corporate certificates");
-            } else {
-                logger.info("Using default SSL context (no corporate certificates configured)");
-            }
-            
-        } catch (Exception e) {
-            logger.error("Failed to configure SSL context with corporate certificates", e);
-            logger.warn("Proceeding with default SSL context");
-        }
-    }
-    
-    /**
-     * Custom proxy selector for corporate proxy.
-     */
-    private class CorporateProxySelector extends ProxySelector {
-        @Override
-        public java.util.List<Proxy> select(URI uri) {
-            if (proxyConfig.isProxyEnabled() && proxyConfig.isProxyConfigurationValid()) {
-                Proxy proxy = new Proxy(Proxy.Type.HTTP, 
-                    new InetSocketAddress(proxyConfig.getProxyHost(), proxyConfig.getProxyPort()));
-                return java.util.List.of(proxy);
-            }
-            return java.util.List.of(Proxy.NO_PROXY);
-        }
-        
-        @Override
-        public void connectFailed(URI uri, SocketAddress sa, java.io.IOException ioe) {
-            logger.error("Corporate proxy connection failed for {}: {}", uri, ioe.getMessage());
-        }
-    }
-    
-    @Override
-    public void refreshProxyConfiguration() {
-        
-        // Reload proxy configuration
-        proxyConfig.loadProxyConfiguration();
-        
-        // Reinitialize HTTP client with new configuration
-        initializeHttpClient();
-        
-    }
-    
-    
+
     @Override
     public String getApiKey() {
         if (cachedApiKey != null && !cachedApiKey.trim().isEmpty()) {
@@ -244,7 +105,7 @@ public class BflApiServiceImpl implements BflApiService {
                 new IllegalStateException("API key not configured"));
         }
         
-        if (!proxyConfig.isProxyConfigured()) {
+        if (!httpClients.getProxyConfig().isProxyConfigured()) {
             if (config.getLoggingEnabled()) {
                 logger.warn("Corporate proxy not configured - falling back to regular connection test");
             }
@@ -263,7 +124,7 @@ public class BflApiServiceImpl implements BflApiService {
                     .GET()
                     .build();
                 
-                HttpResponse<String> response = httpClient.send(request, 
+                HttpResponse<String> response = httpClient.get().send(request,
                     HttpResponse.BodyHandlers.ofString());
                 
                 long responseTime = System.currentTimeMillis() - startTime;
@@ -298,7 +159,7 @@ public class BflApiServiceImpl implements BflApiService {
                     .timeout(Duration.ofSeconds(15))
                     .build();
 
-                HttpResponse<Void> response = httpClient.send(request,
+                HttpResponse<Void> response = httpClient.get().send(request,
                     HttpResponse.BodyHandlers.discarding());
 
                 /*  Any HTTP response means SSL handshake succeeded  */
@@ -333,7 +194,7 @@ public class BflApiServiceImpl implements BflApiService {
             .GET()
             .build();
         
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenCompose(this::handleResponse)
             .thenApply(body -> {
                 return true;
@@ -366,7 +227,7 @@ public class BflApiServiceImpl implements BflApiService {
             .GET()
             .build();
         
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenCompose(this::handleResponse); // Return the response body
     }
     
@@ -429,7 +290,7 @@ public class BflApiServiceImpl implements BflApiService {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
             
-            return httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
+            return httpClient.get().sendAsync(httpRequest, HttpResponse.BodyHandlers.ofString())
                 .thenCompose(this::handleResponse)
                 .thenApply(body -> {
                     try {
@@ -475,7 +336,7 @@ public class BflApiServiceImpl implements BflApiService {
             .GET()
             .build();
         
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenCompose(this::handlePollingResponse)
             .thenApply(body -> {
                 try {
@@ -614,7 +475,7 @@ public class BflApiServiceImpl implements BflApiService {
             .GET()
             .build();
         
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
             .thenCompose(this::handlePollingResponse)
             .thenApply(body -> {
                 try {

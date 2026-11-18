@@ -1,15 +1,14 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.net.HttpClients;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.TrustStoreManager;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -21,16 +20,11 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
-import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Implementation of Google Gemini API service.
@@ -88,9 +82,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     private static final int OMNI_FILE_POLL_INTERVAL_MS = 3000;
     private static final java.util.regex.Pattern OMNI_FILE_ID = java.util.regex.Pattern.compile("files/([^:/?]+)");
 
-    private final OkHttpClient httpClient;
-    private final TrustStoreManager trustStoreManager;
-    private final CorporateProxyConfig proxyConfig;
+    private final Supplier<OkHttpClient> httpClient;
     private String apiKey;
 
     /**
@@ -100,65 +92,13 @@ public class GeminiApiServiceImpl implements GeminiApiService {
      */
     public GeminiApiServiceImpl(ApplicationConfig config) {
         this.apiKey = config.getGeminiApiKey();
-        this.trustStoreManager = new TrustStoreManager();
-        this.proxyConfig = new CorporateProxyConfig(config);
 
-        // Create HTTP client with timeouts and SSL configuration
-        OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+        // HTTP client with timeouts, corporate proxy and certificates, built again when the settings change
+        this.httpClient = new HttpClients(config).rebuilding(clients -> clients.okHttp()
                 .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-
-        // Configure SSL context with corporate certificates
-        configureSSLContext(clientBuilder);
-
-        this.httpClient = clientBuilder.build();
-    }
-
-    /**
-     * Configures SSL context with corporate certificates for OkHttp client.
-     *
-     * @param clientBuilder the OkHttpClient builder to configure
-     */
-    private void configureSSLContext(OkHttpClient.Builder clientBuilder) {
-        try {
-            var certificatePaths = proxyConfig.getCertificatePaths();
-
-            if (!certificatePaths.isEmpty()) {
-                logger.info("Configuring SSL context with {} corporate certificate(s)", certificatePaths.size());
-
-                // Create corporate trust store
-                KeyStore corporateKeyStore = trustStoreManager.createCorporateKeyStore(certificatePaths);
-
-                // Create trust manager factory with corporate KeyStore
-                TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                        TrustManagerFactory.getDefaultAlgorithm());
-                trustManagerFactory.init(corporateKeyStore);
-
-                // Get trust managers
-                TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-
-                // Create SSL context with corporate certificates
-                SSLContext sslContext = trustStoreManager.createSSLContext();
-
-                // Configure OkHttp with SSL context and trust manager
-                if (trustManagers.length > 0 && trustManagers[0] instanceof X509TrustManager) {
-                    X509TrustManager trustManager = (X509TrustManager) trustManagers[0];
-                    SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-
-                    clientBuilder.sslSocketFactory(sslSocketFactory, trustManager);
-                    logger.info("SSL context configured successfully with corporate certificates");
-                } else {
-                    logger.warn("Could not get X509TrustManager from TrustManagerFactory");
-                }
-            } else {
-                logger.info("Using default SSL context (no corporate certificates configured)");
-            }
-
-        } catch (Exception e) {
-            logger.error("Failed to configure SSL context with corporate certificates", e);
-            logger.warn("Proceeding with default SSL context");
-        }
+                .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build());
     }
 
     @Override
@@ -182,7 +122,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
 
                 logger.info("Testing Gemini API connection...");
 
-                try (Response response = httpClient.newCall(request).execute()) {
+                try (Response response = httpClient.get().newCall(request).execute()) {
                     if (response.isSuccessful()) {
                         logger.info("Gemini API connection test successful");
                         return true;
@@ -242,7 +182,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                     .build();
 
                 // Execute synchronous API call
-                try (Response response = httpClient.newCall(httpRequest).execute()) {
+                try (Response response = httpClient.get().newCall(httpRequest).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
                         String responseBody = response.body().string();
                         logger.info("Gemini API response received: {} bytes", responseBody.length());
@@ -1012,7 +952,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 );
 
                 // Use longer timeout for video analysis (5 minutes)
-                OkHttpClient videoClient = httpClient.newBuilder()
+                OkHttpClient videoClient = httpClient.get().newBuilder()
                     .readTimeout(300, TimeUnit.SECONDS)
                     .build();
 
@@ -1436,7 +1376,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 .header("x-goog-api-key", apiKey)
                 .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json; charset=utf-8")))
                 .build();
-        OkHttpClient client = httpClient.newBuilder().readTimeout(readTimeoutSeconds, TimeUnit.SECONDS).build();
+        OkHttpClient client = httpClient.get().newBuilder().readTimeout(readTimeoutSeconds, TimeUnit.SECONDS).build();
 
         try (Response response = client.newCall(httpRequest).execute()) {
             String responseBody = response.body() != null ? response.body().string() : "";
@@ -1522,7 +1462,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                         request.getModel(), request.getVideoResolution(), request.getVideoDuration(),
                         request.getAspectRatio());
 
-                OkHttpClient omniClient = httpClient.newBuilder()
+                OkHttpClient omniClient = httpClient.get().newBuilder()
                         .readTimeout(OMNI_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .build();
                 Request httpRequest = new Request.Builder()
@@ -1721,7 +1661,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                 .build();
 
         for (int attempt = 0; attempt < OMNI_FILE_POLL_ATTEMPTS; attempt++) {
-            try (Response response = httpClient.newCall(request).execute()) {
+            try (Response response = httpClient.get().newCall(request).execute()) {
                 String responseBody = response.body() != null ? response.body().string() : "";
                 String state = response.isSuccessful() ? new JSONObject(responseBody).optString("state", "") : "";
 
