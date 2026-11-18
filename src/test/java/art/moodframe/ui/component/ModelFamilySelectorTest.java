@@ -87,4 +87,61 @@ class ModelFamilySelectorTest {
         });
         assertEquals(NANO_BANANA_2_1K, variants.getValue());
     }
+
+    @Test
+    void aVariantSetElsewhereFollowsTheTarget() throws Exception {
+        ChoiceBox<String> variants = new ChoiceBox<>();
+        ChoiceBox<String> families = new ChoiceBox<>();
+        ChoiceBox<String> target = new ChoiceBox<>();
+        List<String> seen = new java.util.ArrayList<>();
+
+        onFxThread(() -> {
+            new ModelFamilySelector(variants, families, target, null);
+            variants.valueProperty().addListener((obs, old, item) -> seen.add(item));
+            target.getItems().setAll(ModelFamilies.RESOLUTIONS);
+            variants.getItems().setAll(List.of(NANO_BANANA_2_1K, NANO_BANANA_2_4K, NANO_BANANA_PRO_2K,
+                    NANO_BANANA_PRO_4K, FLUX_2_PRO));
+            target.setValue("4K");
+            variants.setValue(NANO_BANANA_PRO_2K);
+        });
+        assertEquals(NANO_BANANA_PRO_4K, variants.getValue(), "for example a reused entry with the target unchanged");
+        assertEquals(NANO_BANANA_PRO_4K, seen.get(seen.size() - 1), "a later listener ends with the 4K variant");
+        assertEquals("Nano Banana Pro", families.getValue());
+
+        onFxThread(() -> families.setValue("Nano Banana Pro"));
+        assertEquals(NANO_BANANA_PRO_4K, variants.getValue(), "choosing the same family again keeps the 4K variant");
+
+        onFxThread(() -> variants.setValue(FLUX_2_PRO));
+        assertEquals(FLUX_2_PRO, variants.getValue(), "a model without resolution choice keeps its fixed size");
+    }
+
+    @Test
+    void aRebuiltListTakesTheVariantClosestToTheTarget() throws Exception {
+        ChoiceBox<String> variants = new ChoiceBox<>();
+        ChoiceBox<String> families = new ChoiceBox<>();
+        ChoiceBox<String> target = new ChoiceBox<>();
+
+        onFxThread(() -> {
+            new ModelFamilySelector(variants, families, target, null);
+            target.getItems().setAll(ModelFamilies.RESOLUTIONS);
+            variants.getItems().setAll(List.of(NANO_BANANA_PRO_2K, NANO_BANANA_PRO_4K, FLUX_2_PRO));
+            target.setValue("4K");
+        });
+
+        /*  like the attachment filter: the list is rebuilt and the 2K variant restored before the 4K one is back  */
+        onFxThread(() -> {
+            variants.getItems().clear();
+            variants.getItems().add(NANO_BANANA_PRO_2K);
+            variants.setValue(NANO_BANANA_PRO_2K);
+            variants.getItems().addAll(NANO_BANANA_PRO_4K, FLUX_2_PRO);
+        });
+        assertEquals(NANO_BANANA_PRO_4K, variants.getValue());
+
+        onFxThread(() -> target.setValue("2K"));
+        assertEquals(NANO_BANANA_PRO_2K, variants.getValue());
+
+        onFxThread(() -> target.setValue(null));
+        onFxThread(() -> variants.setValue(NANO_BANANA_PRO_4K));
+        assertEquals(NANO_BANANA_PRO_4K, variants.getValue(), "without target the variant stays as set");
+    }
 }

@@ -10,10 +10,11 @@ import java.util.List;
 
 /**
  * Lets the user choose a model as family, while a hidden choice keeps the full variant name (for example
- * "Nano Banana 2 2K ...") that the main window works with. The family and the target resolution of the frame choose
- * the variant closest to the target ({@link ModelFamilies#nearestForItem}), and a variant set elsewhere (attachment
- * filter, saved selection, brainstorm) is shown as its family. The resolution each family takes is remembered in the
- * configuration for the brainstorm popup, but never chooses the variant here.
+ * "Nano Banana 2 2K ...") that the main window works with. The variant is always the one of its family closest to
+ * the target resolution of the frame ({@link ModelFamilies#variantForTarget}): when the family is chosen, when the
+ * target changes, when a variant is set elsewhere (attachment filter, saved selection, reused entry, brainstorm) and
+ * when the list of variants is rebuilt. Whoever wants another resolution sets it as target. The resolution each family
+ * takes is remembered in the configuration for the brainstorm popup, but never chooses the variant here.
  *
  * @since 1.9.1
  */
@@ -55,7 +56,7 @@ public class ModelFamilySelector {
             config.setProperty(ModelFamilies.resolutionKey(ModelFamilies.familyOf(variant)), resolution);
     }
 
-    /** Keeps the choices in step: a new variant list rebuilds the families, a family or target chooses the variant. */
+    /** Keeps the choices in step: a new variant list rebuilds the families, family, target and variant align. */
     private void bind() {
         variants.getItems().addListener((ListChangeListener<String>) (change) -> {
             if (!rebuildPending) {
@@ -63,13 +64,16 @@ public class ModelFamilySelector {
                 Platform.runLater(this::rebuildFamilyChoices);
             }
         });
-        variants.valueProperty().addListener((obs, old, item) -> showVariant(item));
+        variants.valueProperty().addListener((obs, old, item) -> {
+            showVariant(item);
+            alignVariant();
+        });
         families.valueProperty().addListener((obs, old, family) -> {
             if (!syncing && family != null)
                 onFamilyChosen(family);
         });
         target.valueProperty().addListener((obs, old, resolution) -> {
-            if (resolution != null && families.getValue() != null)
+            if (resolution != null && variants.getValue() != null)
                 onTargetChosen(resolution);
         });
         rebuildFamilyChoices();
@@ -85,6 +89,7 @@ public class ModelFamilySelector {
             syncing = false;
         }
         showVariant(variants.getValue());
+        alignVariant();
     }
 
     /** Shows the family of the variant in the dropdown item. */
@@ -107,9 +112,15 @@ public class ModelFamilySelector {
             variants.setValue(item);
     }
 
+    /** Switches a variant to the one of its family closest to the target, as long as there is a target. */
+    private void alignVariant() {
+        if (target.getValue() != null && variants.getValue() != null)
+            onFamilyChosen(ModelFamilies.familyOf(variants.getValue()));
+    }
+
     /** Switches to the variant of the family closest to the new target and remembers the resolution it takes. */
     private void onTargetChosen(String resolution) {
-        onFamilyChosen(families.getValue());
+        alignVariant();
         String taken = ModelFamilies.nearestForItem(resolution, variants.getItems(), variants.getValue());
         if (taken != null)
             remember(variants.getValue(), taken);
