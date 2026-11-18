@@ -2,8 +2,6 @@ package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Mood;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -21,11 +19,11 @@ import java.util.UUID;
  * <p>The standard moods come from code and are never stored. The finders skip the moods in the trash
  * ({@code deleted_at} set), except {@link #findDeleted()} and {@link #exists(String)}.</p>
  *
+ * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
+ *
  * @since 2.0.0
  */
 public class MoodRepository {
-
-    private static final Logger logger = LoggerFactory.getLogger(MoodRepository.class);
 
     private final DatabaseManager database;
 
@@ -43,8 +41,9 @@ public class MoodRepository {
      *
      * @param mood the mood to store
      * @return true if it was stored
+     * @throws SQLException if the database fails
      */
-    public boolean save(Mood mood) {
+    public boolean save(Mood mood) throws SQLException {
         String sql = """
             INSERT INTO moods (id, name, atmosphere_id, style_id, color_id, light_id, camera_id, sort_order)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -61,9 +60,6 @@ public class MoodRepository {
                 stmt.setString(index++, mood.getReference(field));
             stmt.setInt(index, mood.getSortOrder());
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to save mood: {}", mood.getName(), e);
-            return false;
         }
     }
 
@@ -72,8 +68,9 @@ public class MoodRepository {
      *
      * @param mood the mood with its id
      * @return true if it was updated
+     * @throws SQLException if the database fails
      */
-    public boolean update(Mood mood) {
+    public boolean update(Mood mood) throws SQLException {
         String sql = """
             UPDATE moods
             SET name = ?, atmosphere_id = ?, style_id = ?, color_id = ?, light_id = ?, camera_id = ?, sort_order = ?,
@@ -90,9 +87,6 @@ public class MoodRepository {
             stmt.setInt(index++, mood.getSortOrder());
             stmt.setString(index, mood.getId());
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to update mood: {}", mood.getName(), e);
-            return false;
         }
     }
 
@@ -101,8 +95,9 @@ public class MoodRepository {
      *
      * @param id the mood id
      * @return true if it was removed
+     * @throws SQLException if the database fails
      */
-    public boolean delete(String id) {
+    public boolean delete(String id) throws SQLException {
         return execute("DELETE FROM moods WHERE id = ?", id) > 0;
     }
 
@@ -111,17 +106,15 @@ public class MoodRepository {
      *
      * @param id the mood id
      * @return true if it was in use and is in the trash now
+     * @throws SQLException if the database fails
      */
-    public boolean moveToTrash(String id) {
+    public boolean moveToTrash(String id) throws SQLException {
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "UPDATE moods SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")) {
             stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
             stmt.setString(2, id);
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to move mood to the trash: {}", id, e);
-            return false;
         }
     }
 
@@ -130,8 +123,9 @@ public class MoodRepository {
      *
      * @param id the mood id
      * @return true if it was in the trash and is in use now
+     * @throws SQLException if the database fails
      */
-    public boolean restore(String id) {
+    public boolean restore(String id) throws SQLException {
         return execute("UPDATE moods SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL", id) > 0;
     }
 
@@ -140,8 +134,9 @@ public class MoodRepository {
      *
      * @param blockId the id of the block
      * @return the number of emptied fields
+     * @throws SQLException if the database fails
      */
-    public int dropReference(String blockId) {
+    public int dropReference(String blockId) throws SQLException {
         int dropped = 0;
         for (Mood.Field field : Mood.Field.values())
             dropped += execute("UPDATE moods SET " + field.column() + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE "
@@ -154,8 +149,9 @@ public class MoodRepository {
      *
      * @param id the mood id
      * @return true if the id is taken
+     * @throws SQLException if the database fails
      */
-    public boolean exists(String id) {
+    public boolean exists(String id) throws SQLException {
         return !query("SELECT * FROM moods WHERE id = ?", id).isEmpty();
     }
 
@@ -164,8 +160,9 @@ public class MoodRepository {
      *
      * @param id the mood id
      * @return the mood, null if there is none in use
+     * @throws SQLException if the database fails
      */
-    public Mood findById(String id) {
+    public Mood findById(String id) throws SQLException {
         List<Mood> moods = query("SELECT * FROM moods WHERE id = ? AND deleted_at IS NULL", id);
         return moods.isEmpty() ? null : moods.get(0);
     }
@@ -175,8 +172,9 @@ public class MoodRepository {
      *
      * @param name the mood name
      * @return the mood, null if there is none in use
+     * @throws SQLException if the database fails
      */
-    public Mood findByName(String name) {
+    public Mood findByName(String name) throws SQLException {
         List<Mood> moods = query("SELECT * FROM moods WHERE name = ? AND deleted_at IS NULL", name);
         return moods.isEmpty() ? null : moods.get(0);
     }
@@ -184,33 +182,32 @@ public class MoodRepository {
     /**
      * Returns all stored moods in use, ordered by sort order and name.
      *
-     * @return the moods, empty on failure
+     * @return the moods
+     * @throws SQLException if the database fails
      */
-    public List<Mood> findAll() {
+    public List<Mood> findAll() throws SQLException {
         return query("SELECT * FROM moods WHERE deleted_at IS NULL ORDER BY sort_order, name");
     }
 
     /**
      * Returns the moods in the trash.
      *
-     * @return the moods, the latest deletion first, empty on failure
+     * @return the moods, the latest deletion first
+     * @throws SQLException if the database fails
      */
-    public List<Mood> findDeleted() {
+    public List<Mood> findDeleted() throws SQLException {
         return query("SELECT * FROM moods WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC");
     }
 
-    private int execute(String sql, String value) {
+    private int execute(String sql, String value) throws SQLException {
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, value);
             return stmt.executeUpdate();
-        } catch (SQLException e) {
-            logger.error("Failed to change moods for {}", value, e);
-            return 0;
         }
     }
 
-    private List<Mood> query(String sql, String... values) {
+    private List<Mood> query(String sql, String... values) throws SQLException {
         List<Mood> moods = new ArrayList<>();
 
         try (Connection conn = database.getConnection();
@@ -221,8 +218,6 @@ public class MoodRepository {
                 while (rs.next())
                     moods.add(map(rs));
             }
-        } catch (SQLException e) {
-            logger.error("Failed to load moods", e);
         }
         return moods;
     }

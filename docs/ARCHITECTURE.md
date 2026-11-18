@@ -67,6 +67,9 @@ that dependencies become visible in signatures and the locator can shrink to the
 
 - **SQLite** in `~/.moodframe/db`, accessed with **plain JDBC** (`java.sql`), no ORM. The repositories get their
   connections from `database.DatabaseManager`, with foreign keys on and a busy timeout.
+- **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
+  apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,
+  empty) through `service.RepositoryAccess`.
 - **Migrations** are SQL files `V###__description.sql` in `src/main/resources/db/migration`, applied in order at
   startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`) runs in the same
   sequence.

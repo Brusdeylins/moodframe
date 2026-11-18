@@ -52,7 +52,7 @@ class PromptBlockRepositoryTest {
     }
 
     @Test
-    void storesUpdatesAndDeletesBlocksOfTheUser() {
+    void storesUpdatesAndDeletesBlocksOfTheUser() throws Exception {
         PromptBlock block = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Harbor Fog", "foggy harbor", null, true);
         assertTrue(repository.save(block));
         assertNotNull(block.getId());
@@ -87,7 +87,7 @@ class PromptBlockRepositoryTest {
     }
 
     @Test
-    void storesTheSettingsOfACameraAndLoadsThemBack() {
+    void storesTheSettingsOfACameraAndLoadsThemBack() throws Exception {
         CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, CameraSettings.Lens.MM_85,
                 CameraSettings.Aperture.F_4, CameraSettings.Shutter.NORMAL, CameraSettings.Iso.ISO_3200,
                 CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.MEDIUM);

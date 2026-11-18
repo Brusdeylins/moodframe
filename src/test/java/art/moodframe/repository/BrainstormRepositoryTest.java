@@ -30,8 +30,8 @@ class BrainstormRepositoryTest {
     }
 
     @Test
-    void storesSessionsMessagesAndDraftVersions() {
-        BrainstormSession session = repository.createSession("Neue Sitzung").orElseThrow();
+    void storesSessionsMessagesAndDraftVersions() throws Exception {
+        BrainstormSession session = repository.createSession("Neue Sitzung");
 
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "Hallo"));
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, "{}"));
@@ -52,9 +52,9 @@ class BrainstormRepositoryTest {
     }
 
     @Test
-    void remembersTheLanguageModelOfEachSession() {
-        BrainstormSession openAi = repository.createSession("OpenAI", "openai").orElseThrow();
-        BrainstormSession older = repository.createSession("Ohne Wahl").orElseThrow();
+    void remembersTheLanguageModelOfEachSession() throws Exception {
+        BrainstormSession openAi = repository.createSession("OpenAI", "openai");
+        BrainstormSession older = repository.createSession("Ohne Wahl");
         repository.updateEngine(older.getId(), "gemini");
 
         List<BrainstormSession> stored = repository.findAllSessions();
@@ -66,7 +66,7 @@ class BrainstormRepositoryTest {
 
     @Test
     void migrationV015ShiftsTheStepsOfStoredAssistantRepliesToTheEightStepProcess() throws Exception {
-        BrainstormSession session = repository.createSession("Alt").orElseThrow();
+        BrainstormSession session = repository.createSession("Alt");
         for (int step = 1; step <= 5; step++) {
             repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT,
                     "{\"step\": " + step + ", \"message\": \"m" + step + "\"}"));
@@ -90,8 +90,8 @@ class BrainstormRepositoryTest {
     }
 
     @Test
-    void deletesSessionWithMessagesAndDrafts() {
-        BrainstormSession session = repository.createSession("Weg").orElseThrow();
+    void deletesSessionWithMessagesAndDrafts() throws Exception {
+        BrainstormSession session = repository.createSession("Weg");
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "x"));
         repository.addDraft(session.getId(), new BrainstormDraft());
 

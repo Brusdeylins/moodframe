@@ -4,11 +4,14 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FavoriteRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.text.Collator;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,6 +31,8 @@ import java.util.function.ToIntFunction;
  */
 public class FavoriteService {
 
+    private static final Logger logger = LoggerFactory.getLogger(FavoriteService.class);
+
     /** The kinds of entries that can be favorites, one per list of the right panel. */
     public enum Kind {
         MOOD, FRAME, ATMOSPHERE, STYLE, COLOR, LIGHT, CAMERA;
@@ -46,6 +51,7 @@ public class FavoriteService {
     private final FavoriteRepository repository;
     private final Map<Kind, Set<String>> favorites = new EnumMap<>(Kind.class);
     private final LibraryEvents events;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
      * Creates the service, which reports its changes to nobody.
@@ -76,7 +82,8 @@ public class FavoriteService {
 
     /*  the ids of the favorites of a kind, loaded once; only under the lock of the service  */
     private Set<String> ids(Kind kind) {
-        return favorites.computeIfAbsent(kind, (key) -> repository.findIds(key.name()));
+        return favorites.computeIfAbsent(kind, (key) -> access.call(() -> repository.findIds(key.name()),
+                new HashSet<>(), "Failed to load the favorites of " + key.name()));
     }
 
     /**
@@ -99,7 +106,9 @@ public class FavoriteService {
      */
     public synchronized boolean toggle(Kind kind, String id) {
         boolean favorite = !isFavorite(kind, id);
-        boolean stored = favorite ? repository.add(kind.name(), id) : repository.remove(kind.name(), id);
+        String failure = "Failed to change the favorite " + id + " of " + kind;
+        boolean stored = favorite ? access.call(() -> repository.add(kind.name(), id), false, failure)
+                : access.call(() -> repository.remove(kind.name(), id), false, failure);
         if (stored) {
             if (favorite)
                 ids(kind).add(id);

@@ -76,6 +76,7 @@ public class PromptBlockService {
     private final List<PromptBlock> defaultLights;
     private final List<PromptBlock> defaultCameras;
     private final LibraryEvents events;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
      * Creates the service, which reports its writes to nobody.
@@ -116,18 +117,52 @@ public class PromptBlockService {
         return success;
     }
 
+    /*  reads and writes of the repository; a database error is logged and gives no blocks, null or false  */
+    private List<PromptBlock> findAll(PromptBlock.Type type) {
+        return access.call(() -> repository.findAll(type), new ArrayList<>(), "Failed to load prompt blocks");
+    }
+
+    private PromptBlock findById(String id) {
+        return access.call(() -> repository.findById(id), null, "Failed to load prompt blocks");
+    }
+
+    private PromptBlock findByName(PromptBlock.Type type, String name) {
+        return access.call(() -> repository.findByName(type, name), null, "Failed to load prompt blocks");
+    }
+
+    private PromptBlock findDeletedById(String id) {
+        return access.call(() -> repository.findDeletedById(id), null, "Failed to load prompt blocks");
+    }
+
+    private boolean save(PromptBlock block) {
+        return access.call(() -> repository.save(block), false, "Failed to save prompt block: " + block.getName());
+    }
+
+    private boolean update(PromptBlock block) {
+        return access.call(() -> repository.update(block), false, "Failed to update prompt block: " + block.getName());
+    }
+
+    private boolean setDeletedAt(String id, LocalDateTime deletedAt) {
+        return access.call(() -> repository.setDeletedAt(id, deletedAt), false,
+                "Failed to change the trash state of prompt block: " + id);
+    }
+
+    private boolean delete(String id) {
+        return access.call(() -> repository.delete(id), false, "Failed to delete prompt block: " + id);
+    }
+
     /**
      * A block of the user named like a standard block (which may be new) keeps its text and gets the
      * next free name with a counter (see {@link #freeName}), so every name stays selectable.
      */
     private void renameCustomBlocksNamedLikeDefaults() {
         for (PromptBlock.Type type : PromptBlock.Type.values()) {
-            for (PromptBlock custom : repository.findAll(type)) {
+            for (PromptBlock custom : findAll(type)) {
                 if (!isDefault(type, custom.getName()))
                     continue;
                 String original = custom.getName();
                 custom.setName(freeName(type, original));
-                if (repository.update(custom))
+                if (update(custom))
                     logger.info("Renamed {} '{}' of the user to '{}', a standard block has its name",
                             type.name().toLowerCase(Locale.ROOT), original, custom.getName());
             }
@@ -453,7 +488,7 @@ public class PromptBlockService {
      */
     public List<PromptBlock> getAll(PromptBlock.Type type) {
         List<PromptBlock> blocks = getDefaults(type);
-        blocks.addAll(repository.findAll(type));
+        blocks.addAll(findAll(type));
         return blocks;
     }
 
@@ -479,7 +514,7 @@ public class PromptBlockService {
      * @return the blocks
      */
     public List<PromptBlock> getCustom(PromptBlock.Type type) {
-        return repository.findAll(type);
+        return findAll(type);
     }
 
     /**
@@ -498,9 +533,9 @@ public class PromptBlockService {
             if (block.getId().equals(reference) || block.getName().equals(reference))
                 return block;
         }
-        PromptBlock custom = repository.findById(reference);
+        PromptBlock custom = findById(reference);
         if (custom == null || custom.getType() != type)
-            custom = repository.findByName(type, reference);
+            custom = findByName(type, reference);
         if (custom == null && type == PromptBlock.Type.STYLE && MERGED_STYLES.containsKey(reference))
             return find(type, MERGED_STYLES.get(reference));
         return custom;
@@ -513,7 +548,8 @@ public class PromptBlockService {
      * @return the block, null if it is not in the trash
      */
     public PromptBlock findInTrash(String id) {
-        return id == null || id.startsWith(PromptBlock.STANDARD_PREFIX) ? null : repository.findInTrash(id);
+        return id == null || id.startsWith(PromptBlock.STANDARD_PREFIX) ? null
+                : access.call(() -> repository.findInTrash(id), null, "Failed to load prompt blocks");
     }
 
     /**
@@ -541,7 +577,7 @@ public class PromptBlockService {
      * @return true if the name is taken
      */
     public boolean exists(PromptBlock.Type type, String name) {
-        return isDefault(type, name) || repository.findByName(type, name) != null;
+        return isDefault(type, name) || findByName(type, name) != null;
     }
 
     /**
@@ -568,9 +604,9 @@ public class PromptBlockService {
         }
 
         /*  Blocks of the user follow the standard blocks, from 1000 on  */
-        block.setSortOrder(Math.max(1000, repository.findAll(block.getType()).stream()
+        block.setSortOrder(Math.max(1000, findAll(block.getType()).stream()
                 .mapToInt((PromptBlock existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return changed(block.getType(), repository.save(block), block.getId());
+        return changed(block.getType(), save(block), block.getId());
     }
 
     /**
@@ -580,7 +616,7 @@ public class PromptBlockService {
      * @return true if it was updated, false for a standard block, an unknown id or a taken name
      */
     public synchronized boolean updateCustom(PromptBlock block) {
-        PromptBlock existing = block.isDefault() ? null : repository.findById(block.getId());
+        PromptBlock existing = block.isDefault() ? null : findById(block.getId());
         if (existing == null) {
             logger.warn("Cannot update prompt block '{}' - no block of the user", block.getName());
             return false;
@@ -589,7 +625,7 @@ public class PromptBlockService {
             logger.warn("Cannot rename prompt block to '{}' - name already exists", block.getName());
             return false;
         }
-        return changed(block.getType(), repository.update(block), block.getId());
+        return changed(block.getType(), update(block), block.getId());
     }
 
     /**
@@ -614,12 +650,12 @@ public class PromptBlockService {
      */
     public synchronized boolean reorderCustom(PromptBlock.Type type, List<String> ids) {
         boolean updated = true;
-        for (PromptBlock block : repository.findAll(type)) {
+        for (PromptBlock block : findAll(type)) {
             int index = ids.indexOf(block.getId());
             if (index < 0 || block.getSortOrder() == 1000 + index)
                 continue;
             block.setSortOrder(1000 + index);
-            updated &= repository.update(block);
+            updated &= update(block);
         }
         return changed(type, updated, null);
     }
@@ -631,8 +667,8 @@ public class PromptBlockService {
      * @return true if it was moved to the trash
      */
     public synchronized boolean deleteCustom(String id) {
-        PromptBlock block = id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) ? repository.findById(id) : null;
-        return block != null && changed(block.getType(), repository.setDeletedAt(id, LocalDateTime.now()), id);
+        PromptBlock block = id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) ? findById(id) : null;
+        return block != null && changed(block.getType(), setDeletedAt(id, LocalDateTime.now()), id);
     }
 
     /**
@@ -641,7 +677,7 @@ public class PromptBlockService {
      * @return the blocks
      */
     public List<PromptBlock> getDeleted() {
-        return repository.findDeleted();
+        return access.call(repository::findDeleted, new ArrayList<>(), "Failed to load prompt blocks");
     }
 
     /**
@@ -652,16 +688,16 @@ public class PromptBlockService {
      * @return true if it is back in use
      */
     public synchronized boolean restore(String id) {
-        PromptBlock block = repository.findDeletedById(id);
+        PromptBlock block = findDeletedById(id);
         if (block == null)
             return false;
 
         String name = freeName(block.getType(), block.getName());
         if (!name.equals(block.getName())) {
             block.setName(name);
-            repository.update(block);
+            update(block);
         }
-        return changed(block.getType(), repository.setDeletedAt(id, null), id);
+        return changed(block.getType(), setDeletedAt(id, null), id);
     }
 
     /**
@@ -675,10 +711,10 @@ public class PromptBlockService {
             return false;
 
         /*  usually a block in the trash  */
-        PromptBlock block = repository.findDeletedById(id);
+        PromptBlock block = findDeletedById(id);
         if (block == null)
-            block = repository.findById(id);
-        return block != null && changed(block.getType(), repository.delete(id), id);
+            block = findById(id);
+        return block != null && changed(block.getType(), delete(id), id);
     }
 
     /**
@@ -690,7 +726,7 @@ public class PromptBlockService {
      */
     public List<Map<String, Object>> exportCustom(PromptBlock.Type type) {
         List<Map<String, Object>> entries = new ArrayList<>();
-        for (PromptBlock block : repository.findAll(type)) {
+        for (PromptBlock block : findAll(type)) {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("id", block.getId());
             entry.put("type", block.getType().name());
@@ -727,7 +763,7 @@ public class PromptBlockService {
                     !Boolean.FALSE.equals(entry.get("photographic")));
             block.setParams((String) entry.get("params"));
             if (entry.get("id") instanceof String id && !id.startsWith(PromptBlock.STANDARD_PREFIX)
-                    && !repository.existsById(id))
+                    && !access.call(() -> repository.existsById(id), false, "Failed to load prompt blocks"))
                 block.setId(id);
             if (addCustom(block))
                 imported++;
@@ -765,7 +801,8 @@ public class PromptBlockService {
      * @return the number of deleted blocks
      */
     public synchronized int resetToDefaults(PromptBlock.Type type) {
-        int deleted = repository.deleteAll(type);
+        int deleted = access.call(() -> repository.deleteAll(type), 0,
+                "Failed to delete prompt blocks of type " + type);
         changed(type, true, null);
         return deleted;
     }

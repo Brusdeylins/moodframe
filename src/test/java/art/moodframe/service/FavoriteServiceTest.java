@@ -1,11 +1,13 @@
 package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.ColorStyleRepository;
+import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
@@ -14,11 +16,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The order of the lists with favorites, and the favorites in a fresh SQLite database. */
@@ -113,5 +119,21 @@ class FavoriteServiceTest {
         assertFalse(restarted.isFavorite(FavoriteService.Kind.FRAME, frame.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.LIGHT, light.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.COLOR, palette.getId()));
+    }
+
+    @Test
+    void answersADatabaseErrorWithNoFavoriteAndKeepsTheState() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
+        database.initialize();
+        assertTrue(new FavoriteService(database, new LibraryEvents()).toggle(FavoriteService.Kind.MOOD, "own-mood"));
+
+        try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE favorites");
+        }
+
+        assertThrows(SQLException.class, () -> new FavoriteRepository(database).findIds("MOOD"));
+        FavoriteService restarted = new FavoriteService(database, new LibraryEvents());
+        assertFalse(restarted.isFavorite(FavoriteService.Kind.MOOD, "own-mood"));
+        assertFalse(restarted.toggle(FavoriteService.Kind.STYLE, "own-style"), "the former state");
     }
 }

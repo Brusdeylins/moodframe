@@ -1,16 +1,21 @@
 package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.repository.FrameRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +24,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Standard frames, the frames of the user in a fresh SQLite database, and a frame applied to different models. */
@@ -191,5 +197,34 @@ class FrameServiceTest {
         Frame copy = new Frame(null, name);
         copy.setAspectRatio(frame.getAspectRatio());
         return copy;
+    }
+
+    @Test
+    void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
+        database.initialize();
+        FrameService service = new FrameService(database, new LibraryEvents());
+        Frame own = new Frame(null, "Own Frame");
+        own.setAspectRatio("1:1");
+        assertTrue(service.add(own));
+
+        try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE frames");
+        }
+
+        assertThrows(SQLException.class, () -> new FrameRepository(database).findAll());
+        assertEquals(service.getDefaults().size(), service.getAll().size(), "the standard frames only");
+        assertTrue(service.getCustom().isEmpty());
+        assertTrue(service.getDeleted().isEmpty());
+        assertNull(service.find(own.getId()));
+        assertFalse(service.exists("Own Frame"));
+        Frame another = new Frame(null, "Another Frame");
+        another.setAspectRatio("1:1");
+        assertFalse(service.add(another));
+        assertFalse(service.update(own));
+        assertFalse(service.moveToTrash(own.getId()));
+        assertFalse(service.restore(own.getId()));
+        assertFalse(service.deletePermanently(own.getId()));
+        assertEquals(0, service.importCustom(List.of(Map.of("name", "Imported Frame", "aspectRatio", "1:1"))));
     }
 }

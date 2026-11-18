@@ -28,7 +28,7 @@ class MoodRepositoryTest {
     }
 
     @Test
-    void storesUpdatesAndDeletesMoodsOfTheUser() {
+    void storesUpdatesAndDeletesMoodsOfTheUser() throws Exception {
         Mood mood = new Mood(null, "Harbor Dawn");
         mood.setReference(Mood.Field.ATMOSPHERE, "atmosphere-1");
         mood.setReference(Mood.Field.COLOR, "std:color:ocean-breeze");
@@ -55,7 +55,7 @@ class MoodRepositoryTest {
     }
 
     @Test
-    void movesMoodsToTheTrashAndBack() {
+    void movesMoodsToTheTrashAndBack() throws Exception {
         Mood kept = save("Kept Mood", 1001);
         Mood trashed = save("Trashed Mood", 1002);
 
@@ -76,7 +76,7 @@ class MoodRepositoryTest {
     }
 
     @Test
-    void dropsTheReferencesToABlockInEveryMood() {
+    void dropsTheReferencesToABlockInEveryMood() throws Exception {
         Mood first = save("Drop First", 1003);
         first.setReference(Mood.Field.LIGHT, "light-gone");
         first.setReference(Mood.Field.STYLE, "std:style:watercolor");
@@ -93,12 +93,12 @@ class MoodRepositoryTest {
         assertTrue(deleted(second.getId()).isEmpty());
     }
 
-    private Mood deleted(String id) {
+    private Mood deleted(String id) throws Exception {
         return repository.findDeleted().stream().filter((Mood mood) -> mood.getId().equals(id)).findFirst()
                 .orElse(null);
     }
 
-    private Mood save(String name, int sortOrder) {
+    private Mood save(String name, int sortOrder) throws Exception {
         Mood mood = new Mood(null, name);
         mood.setSortOrder(sortOrder);
         repository.save(mood);

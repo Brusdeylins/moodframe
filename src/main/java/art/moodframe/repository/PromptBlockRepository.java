@@ -2,8 +2,6 @@ package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.PromptBlock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -21,11 +19,11 @@ import java.util.UUID;
  * <p>The standard blocks come from code and are never stored. All queries skip the blocks
  * in the trash ({@code deleted_at} set), except those for the trash itself.</p>
  *
+ * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
+ *
  * @since 2.0.0
  */
 public class PromptBlockRepository {
-
-    private static final Logger logger = LoggerFactory.getLogger(PromptBlockRepository.class);
 
     private final DatabaseManager database;
 
@@ -43,8 +41,9 @@ public class PromptBlockRepository {
      *
      * @param block the block to store
      * @return true if it was stored
+     * @throws SQLException if the database fails
      */
-    public boolean save(PromptBlock block) {
+    public boolean save(PromptBlock block) throws SQLException {
         String sql = """
             INSERT INTO prompt_blocks (id, type, name, text, block_group, photographic, params, sort_order)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -63,9 +62,6 @@ public class PromptBlockRepository {
             stmt.setString(7, block.getParams());
             stmt.setInt(8, block.getSortOrder());
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to save prompt block: {}", block.getName(), e);
-            return false;
         }
     }
 
@@ -74,8 +70,9 @@ public class PromptBlockRepository {
      *
      * @param block the block with its id
      * @return true if it was updated
+     * @throws SQLException if the database fails
      */
-    public boolean update(PromptBlock block) {
+    public boolean update(PromptBlock block) throws SQLException {
         String sql = """
             UPDATE prompt_blocks
             SET name = ?, text = ?, block_group = ?, photographic = ?, params = ?, sort_order = ?,
@@ -93,9 +90,6 @@ public class PromptBlockRepository {
             stmt.setInt(6, block.getSortOrder());
             stmt.setString(7, block.getId());
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to update prompt block: {}", block.getName(), e);
-            return false;
         }
     }
 
@@ -104,15 +98,13 @@ public class PromptBlockRepository {
      *
      * @param id the block id
      * @return true if it was removed
+     * @throws SQLException if the database fails
      */
-    public boolean delete(String id) {
+    public boolean delete(String id) throws SQLException {
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE id = ?")) {
             stmt.setString(1, id);
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to delete prompt block: {}", id, e);
-            return false;
         }
     }
 
@@ -122,16 +114,14 @@ public class PromptBlockRepository {
      * @param id the block id
      * @param deletedAt when it was moved to the trash, null to take it out
      * @return true if the block was changed
+     * @throws SQLException if the database fails
      */
-    public boolean setDeletedAt(String id, LocalDateTime deletedAt) {
+    public boolean setDeletedAt(String id, LocalDateTime deletedAt) throws SQLException {
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("UPDATE prompt_blocks SET deleted_at = ? WHERE id = ?")) {
             stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
             stmt.setString(2, id);
             return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            logger.error("Failed to change the trash state of prompt block: {}", id, e);
-            return false;
         }
     }
 
@@ -140,17 +130,19 @@ public class PromptBlockRepository {
      *
      * @param id the block id
      * @return true if the id is taken
+     * @throws SQLException if the database fails
      */
-    public boolean existsById(String id) {
+    public boolean existsById(String id) throws SQLException {
         return !query("SELECT * FROM prompt_blocks WHERE id = ?", id).isEmpty();
     }
 
     /**
      * Returns the blocks in the trash, the latest deletion first.
      *
-     * @return the blocks, empty on failure
+     * @return the blocks
+     * @throws SQLException if the database fails
      */
-    public List<PromptBlock> findDeleted() {
+    public List<PromptBlock> findDeleted() throws SQLException {
         return query("SELECT * FROM prompt_blocks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC");
     }
 
@@ -159,8 +151,9 @@ public class PromptBlockRepository {
      *
      * @param id the block id
      * @return the block, null if there is none in the trash
+     * @throws SQLException if the database fails
      */
-    public PromptBlock findDeletedById(String id) {
+    public PromptBlock findDeletedById(String id) throws SQLException {
         List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id);
         return blocks.isEmpty() ? null : blocks.get(0);
     }
@@ -170,15 +163,13 @@ public class PromptBlockRepository {
      *
      * @param type the block type
      * @return the number of removed blocks
+     * @throws SQLException if the database fails
      */
-    public int deleteAll(PromptBlock.Type type) {
+    public int deleteAll(PromptBlock.Type type) throws SQLException {
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE type = ?")) {
             stmt.setString(1, type.name());
             return stmt.executeUpdate();
-        } catch (SQLException e) {
-            logger.error("Failed to delete prompt blocks of type {}", type, e);
-            return 0;
         }
     }
 
@@ -187,8 +178,9 @@ public class PromptBlockRepository {
      *
      * @param id the block id
      * @return the block, null if there is none
+     * @throws SQLException if the database fails
      */
-    public PromptBlock findById(String id) {
+    public PromptBlock findById(String id) throws SQLException {
         List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NULL", id);
         return blocks.isEmpty() ? null : blocks.get(0);
     }
@@ -198,8 +190,9 @@ public class PromptBlockRepository {
      *
      * @param id the block id
      * @return the block, null if it is not in the trash
+     * @throws SQLException if the database fails
      */
-    public PromptBlock findInTrash(String id) {
+    public PromptBlock findInTrash(String id) throws SQLException {
         List<PromptBlock> blocks = query("SELECT * FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL", id);
         return blocks.isEmpty() ? null : blocks.get(0);
     }
@@ -210,8 +203,9 @@ public class PromptBlockRepository {
      * @param type the block type
      * @param name the block name
      * @return the block, null if there is none
+     * @throws SQLException if the database fails
      */
-    public PromptBlock findByName(PromptBlock.Type type, String name) {
+    public PromptBlock findByName(PromptBlock.Type type, String name) throws SQLException {
         List<PromptBlock> blocks = query(
                 "SELECT * FROM prompt_blocks WHERE type = ? AND name = ? AND deleted_at IS NULL", type.name(), name);
         return blocks.isEmpty() ? null : blocks.get(0);
@@ -221,14 +215,15 @@ public class PromptBlockRepository {
      * Returns all stored blocks of a type, ordered by sort order and name.
      *
      * @param type the block type
-     * @return the blocks, empty on failure
+     * @return the blocks
+     * @throws SQLException if the database fails
      */
-    public List<PromptBlock> findAll(PromptBlock.Type type) {
+    public List<PromptBlock> findAll(PromptBlock.Type type) throws SQLException {
         return query("SELECT * FROM prompt_blocks WHERE type = ? AND deleted_at IS NULL ORDER BY sort_order, name",
                 type.name());
     }
 
-    private List<PromptBlock> query(String sql, String... values) {
+    private List<PromptBlock> query(String sql, String... values) throws SQLException {
         List<PromptBlock> blocks = new ArrayList<>();
 
         try (Connection conn = database.getConnection();
@@ -239,8 +234,6 @@ public class PromptBlockRepository {
                 while (rs.next())
                     blocks.add(map(rs));
             }
-        } catch (SQLException e) {
-            logger.error("Failed to load prompt blocks", e);
         }
         return blocks;
     }

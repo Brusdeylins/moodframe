@@ -51,6 +51,7 @@ public class MoodService implements BlockUsage {
     private final List<Mood> defaultMoods;
     private final List<Mood> emptied = new ArrayList<>();
     private final LibraryEvents events;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
      * Creates the service, which reports its writes to nobody.
@@ -98,17 +99,42 @@ public class MoodService implements BlockUsage {
         return success;
     }
 
+    /*  reads and writes of the repository; a database error is logged and gives no moods, null or false  */
+    private List<Mood> findAll() {
+        return access.call(repository::findAll, new ArrayList<>(), "Failed to load moods");
+    }
+
+    private List<Mood> findDeleted() {
+        return access.call(repository::findDeleted, new ArrayList<>(), "Failed to load moods");
+    }
+
+    private Mood findById(String id) {
+        return access.call(() -> repository.findById(id), null, "Failed to load moods");
+    }
+
+    private Mood findByName(String name) {
+        return access.call(() -> repository.findByName(name), null, "Failed to load moods");
+    }
+
+    private boolean save(Mood mood) {
+        return access.call(() -> repository.save(mood), false, "Failed to save mood: " + mood.getName());
+    }
+
+    private boolean updateStored(Mood mood) {
+        return access.call(() -> repository.update(mood), false, "Failed to update mood: " + mood.getName());
+    }
+
     /**
      * A mood of the user named like a standard mood (which may be new) keeps its blocks and gets the next free name
      * with a counter (see {@link #freeName}), so every name stays selectable.
      */
     private void renameCustomMoodsNamedLikeDefaults() {
-        for (Mood custom : repository.findAll()) {
+        for (Mood custom : findAll()) {
             if (defaultMoods.stream().noneMatch((Mood mood) -> mood.getName().equals(custom.getName())))
                 continue;
             String original = custom.getName();
             custom.setName(freeName(original));
-            if (repository.update(custom))
+            if (updateStored(custom))
                 logger.info("Renamed mood '{}' of the user to '{}', a standard mood has its name", original,
                         custom.getName());
         }
@@ -172,7 +198,7 @@ public class MoodService implements BlockUsage {
      */
     public List<Mood> getAll() {
         List<Mood> moods = getDefaults();
-        moods.addAll(repository.findAll());
+        moods.addAll(findAll());
         return moods;
     }
 
@@ -191,7 +217,7 @@ public class MoodService implements BlockUsage {
      * @return the moods
      */
     public List<Mood> getCustom() {
-        return repository.findAll();
+        return findAll();
     }
 
     /**
@@ -200,7 +226,7 @@ public class MoodService implements BlockUsage {
      * @return the moods, the latest deletion first
      */
     public List<Mood> getDeleted() {
-        return repository.findDeleted();
+        return findDeleted();
     }
 
     /**
@@ -216,7 +242,7 @@ public class MoodService implements BlockUsage {
             if (mood.getId().equals(id))
                 return mood;
         }
-        return repository.findById(id);
+        return findById(id);
     }
 
     /**
@@ -227,7 +253,7 @@ public class MoodService implements BlockUsage {
      */
     public boolean exists(String name) {
         return defaultMoods.stream().anyMatch((Mood mood) -> mood.getName().equals(name))
-                || repository.findByName(name) != null;
+                || findByName(name) != null;
     }
 
     /**
@@ -259,9 +285,9 @@ public class MoodService implements BlockUsage {
         }
 
         /*  Moods of the user follow the standard moods, from 1000 on  */
-        mood.setSortOrder(Math.max(1000, repository.findAll().stream()
+        mood.setSortOrder(Math.max(1000, findAll().stream()
                 .mapToInt((Mood existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return changed(repository.save(mood), mood.getId());
+        return changed(save(mood), mood.getId());
     }
 
     /**
@@ -271,7 +297,7 @@ public class MoodService implements BlockUsage {
      * @return true if it was updated, false for a standard mood, an unknown id or a taken name
      */
     public synchronized boolean update(Mood mood) {
-        Mood existing = mood.isDefault() ? null : repository.findById(mood.getId());
+        Mood existing = mood.isDefault() ? null : findById(mood.getId());
         if (existing == null) {
             logger.warn("Cannot update mood '{}' - no mood of the user", mood.getName());
             return false;
@@ -282,7 +308,7 @@ public class MoodService implements BlockUsage {
             return false;
         }
         mood.setSortOrder(existing.getSortOrder());
-        return changed(repository.update(mood), mood.getId());
+        return changed(updateStored(mood), mood.getId());
     }
 
     /**
@@ -292,10 +318,10 @@ public class MoodService implements BlockUsage {
      */
     public synchronized void reorder(List<String> ids) {
         for (int i = 0; i < ids.size(); i++) {
-            Mood mood = repository.findById(ids.get(i));
+            Mood mood = findById(ids.get(i));
             if (mood != null) {
                 mood.setSortOrder(1000 + i);
-                repository.update(mood);
+                updateStored(mood);
             }
         }
         changed(true, null);
@@ -308,7 +334,9 @@ public class MoodService implements BlockUsage {
      * @return true if it is in the trash now
      */
     public synchronized boolean moveToTrash(String id) {
-        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id), id);
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)
+                && access.call(() -> repository.moveToTrash(id), false, "Failed to move mood to the trash: " + id),
+                id);
     }
 
     /**
@@ -318,15 +346,15 @@ public class MoodService implements BlockUsage {
      * @return true if it is in use again
      */
     public synchronized boolean restore(String id) {
-        Mood mood = repository.findDeleted().stream().filter((Mood deleted) -> deleted.getId().equals(id))
+        Mood mood = findDeleted().stream().filter((Mood deleted) -> deleted.getId().equals(id))
                 .findFirst().orElse(null);
         if (mood == null)
             return false;
         if (exists(mood.getName())) {
             mood.setName(freeName(mood.getName()));
-            repository.update(mood);
+            updateStored(mood);
         }
-        return changed(repository.restore(id), id);
+        return changed(access.call(() -> repository.restore(id), false, "Failed to change moods for " + id), id);
     }
 
     /**
@@ -336,7 +364,8 @@ public class MoodService implements BlockUsage {
      * @return true if it is gone
      */
     public synchronized boolean deletePermanently(String id) {
-        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id), id);
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)
+                && access.call(() -> repository.delete(id), false, "Failed to change moods for " + id), id);
     }
 
     /**
@@ -571,11 +600,12 @@ public class MoodService implements BlockUsage {
      * @param blockIds the ids of the deleted blocks
      */
     public synchronized void blocksDeleted(List<String> blockIds) {
-        List<Mood> affected = repository.findAll().stream().filter((Mood mood) -> !mood.isEmpty()
+        List<Mood> affected = findAll().stream().filter((Mood mood) -> !mood.isEmpty()
                 && mood.getReferences().values().stream().anyMatch(blockIds::contains)).toList();
-        blockIds.forEach(repository::dropReference);
+        blockIds.forEach((String blockId) -> access.call(() -> repository.dropReference(blockId), 0,
+                "Failed to change moods for " + blockId));
         for (Mood mood : affected) {
-            Mood after = repository.findById(mood.getId());
+            Mood after = findById(mood.getId());
             if (after != null && after.isEmpty())
                 emptied.add(after);
         }
@@ -588,7 +618,7 @@ public class MoodService implements BlockUsage {
      * @return the moods that are still in use and still empty
      */
     public synchronized List<Mood> takeEmptied() {
-        List<Mood> moods = emptied.stream().map((Mood mood) -> repository.findById(mood.getId()))
+        List<Mood> moods = emptied.stream().map((Mood mood) -> findById(mood.getId()))
                 .filter((Mood mood) -> mood != null && mood.isEmpty()).toList();
         emptied.clear();
         return moods;
@@ -626,8 +656,9 @@ public class MoodService implements BlockUsage {
             if (name.isEmpty())
                 continue;
             String id = entry.get("id") instanceof String text ? text : "";
-            Mood mood = new Mood(id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX) || repository.exists(id)
-                    ? null : id, freeName(name));
+            boolean taken = id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX)
+                    || access.call(() -> repository.exists(id), false, "Failed to load moods");
+            Mood mood = new Mood(taken ? null : id, freeName(name));
             for (Mood.Field field : Mood.Field.values())
                 mood.setReference(field, entry.get(field.name().toLowerCase(Locale.ROOT)) instanceof String blockId
                         ? blockId : null);

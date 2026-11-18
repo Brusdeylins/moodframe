@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs against a fresh SQLite database, so migration V023 is applied together with all earlier ones. */
@@ -43,7 +45,7 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void storesUpdatesAndDeletesFramesOfTheUser() {
+    void storesUpdatesAndDeletesFramesOfTheUser() throws Exception {
         Frame frame = frame("Instagram Story", "9:16", 1000);
         frame.setResolution("2K");
         assertTrue(repository.save(frame));
@@ -78,7 +80,7 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void movesFramesToTheTrashAndBack() {
+    void movesFramesToTheTrashAndBack() throws Exception {
         Frame kept = frame("Kept Frame", "1:1", 1002);
         Frame trashed = frame("Trashed Frame", "16:9", 1003);
         assertTrue(repository.save(kept));
@@ -102,9 +104,9 @@ class FrameRepositoryTest {
     }
 
     @Test
-    void doesNotStoreAFrameWithoutAspectRatio() {
+    void doesNotStoreAFrameWithoutAspectRatio() throws Exception {
         Frame frame = frame("No Ratio", null, 1004);
-        assertFalse(repository.save(frame));
+        assertThrows(SQLException.class, () -> repository.save(frame));
         assertNull(repository.findByName("No Ratio"));
     }
 
