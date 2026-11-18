@@ -84,7 +84,7 @@ import java.util.*;
  *
  * @since 1.3.0
  */
-public class ColorStyleService implements ColorStyles {
+public class ColorStyleService {
 
     private static final Logger logger = LoggerFactory.getLogger(ColorStyleService.class);
 
@@ -308,7 +308,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets all available color styles (default from code + custom from DB).
      */
-    @Override
     public List<ColorStyle> getAllStyles() {
         List<ColorStyle> allStyles = new ArrayList<>(defaultStyles);
         allStyles.addAll(findAllCustom());
@@ -318,7 +317,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets only the default system color styles (from code, not DB).
      */
-    @Override
     public List<ColorStyle> getDefaultStyles() {
         return new ArrayList<>(defaultStyles);
     }
@@ -326,7 +324,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets only the custom user-created color styles (from DB).
      */
-    @Override
     public List<ColorStyle> getCustomStyles() {
         return findAllCustom();
     }
@@ -334,7 +331,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets a color style by name (checks defaults first, then custom, then the former names of defaults).
      */
-    @Override
     public ColorStyle getStyleByName(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -382,7 +378,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets the palette text of the prompt for a style (see {@link ColorStyle#toPromptString()}).
      */
-    @Override
     public String getColorPromptText(String styleName) {
         if (styleName == null || styleName.isEmpty() || "None".equals(styleName)) {
             return "";
@@ -395,7 +390,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Adds a new custom color style.
      */
-    @Override
     public synchronized boolean addCustomStyle(ColorStyle style) {
         // Check for duplicate names (in defaults or custom)
         if (styleExists(style.getName())) {
@@ -423,7 +417,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Updates an existing custom color style.
      */
-    @Override
     public synchronized boolean updateCustomStyle(String oldName, ColorStyle updatedStyle) {
         // Cannot update default styles
         if (isDefaultStyle(oldName)) {
@@ -461,7 +454,6 @@ public class ColorStyleService implements ColorStyles {
      * Adds a palette as a new custom color style, e.g. a copy of a default one; a taken name gets the next free
      * counter.
      */
-    @Override
     public synchronized boolean addCopy(ColorStyle style) {
         style.setId(null);
         style.setSortOrder(999);
@@ -472,7 +464,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Puts the custom color styles into the given order.
      */
-    @Override
     public synchronized boolean reorderCustomStyles(List<String> ids) {
         boolean updated = true;
         for (ColorStyle style : findAllCustom()) {
@@ -488,7 +479,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Moves a custom color style to the trash.
      */
-    @Override
     public synchronized boolean deleteCustomStyle(String name) {
         // Cannot delete default styles
         if (isDefaultStyle(name)) {
@@ -514,7 +504,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Gets the custom color styles in the trash, the latest deletion first.
      */
-    @Override
     public List<ColorStyle> getDeletedStyles() {
         return access.call(repository::findDeleted, new ArrayList<>(),
                 "Failed to retrieve the color styles in the trash");
@@ -523,7 +512,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Takes a custom color style out of the trash; its name stayed taken meanwhile.
      */
-    @Override
     public synchronized boolean restoreStyle(String id) {
         return getDeletedStyles().stream().anyMatch((ColorStyle style) -> style.getId().equals(id))
                 && changed(setDeletedAt(id, null), id);
@@ -532,7 +520,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Removes a custom color style for good.
      */
-    @Override
     public synchronized boolean deleteStylePermanently(String id) {
         return changed(id != null && !id.startsWith("std:")
                 && access.call(() -> repository.delete(id), false, "Failed to delete color style with ID: " + id), id);
@@ -541,7 +528,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Resets all styles to defaults (deletes all custom styles).
      */
-    @Override
     public synchronized int resetToDefaults() {
         int deleted = deleteAllCustom();
 
@@ -556,7 +542,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Checks if a style exists (in defaults or custom).
      */
-    @Override
     public boolean styleExists(String name) {
         // Check defaults first
         for (ColorStyle style : defaultStyles) {
@@ -573,7 +558,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Checks if a style is a default (system) style.
      */
-    @Override
     public boolean isDefaultStyle(String name) {
         for (ColorStyle style : defaultStyles) {
             if (style.getName().equals(name)) {
@@ -586,7 +570,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Exports custom styles to a JSON file.
      */
-    @Override
     public boolean exportStyles(File file) {
         try {
             List<ColorStyle> customStyles = getCustomStyles();
@@ -607,7 +590,6 @@ public class ColorStyleService implements ColorStyles {
     /**
      * Imports styles from a JSON file.
      */
-    @Override
     public synchronized int importStyles(File file, boolean mergeWithExisting) {
         try {
             String json = Files.readString(file.toPath());
@@ -637,7 +619,6 @@ public class ColorStyleService implements ColorStyles {
      * Adds palettes behind the custom styles: an ID that is taken gets a new one, a taken name the next free
      * counter.
      */
-    @Override
     public synchronized int importStyles(List<ColorStyle> styles) {
         int imported = 0;
         for (ColorStyle style : styles) {

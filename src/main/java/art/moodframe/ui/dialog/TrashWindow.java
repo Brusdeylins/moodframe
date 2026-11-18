@@ -2,7 +2,6 @@ package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.service.trash.TrashCenter;
-import art.moodframe.service.trash.TrashCleanup;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
@@ -57,7 +56,7 @@ public class TrashWindow extends Stage {
      * @param trashCenter  the central trash with its groups
      * @param trashCleanup knows how long an item stays in the trash
      */
-    public TrashWindow(Window owner, TrashCenter trashCenter, TrashCleanup trashCleanup) {
+    public TrashWindow(Window owner, TrashCenter trashCenter, TrashCleanupService trashCleanup) {
         this.trashCenter = trashCenter;
 
         initOwner(owner);

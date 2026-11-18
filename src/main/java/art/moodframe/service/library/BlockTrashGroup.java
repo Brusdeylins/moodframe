@@ -20,7 +20,7 @@ import java.util.Locale;
 public class BlockTrashGroup implements TrashGroup {
 
     private final PromptBlockService blocks;
-    private final ColorStyles palettes;
+    private final ColorStyleService palettes;
     private final BlockUsage usage;
 
     /**
@@ -30,7 +30,7 @@ public class BlockTrashGroup implements TrashGroup {
      * @param palettes the palettes
      * @param usage    tells which moods use a block, null as long as there are no moods
      */
-    public BlockTrashGroup(PromptBlockService blocks, ColorStyles palettes, BlockUsage usage) {
+    public BlockTrashGroup(PromptBlockService blocks, ColorStyleService palettes, BlockUsage usage) {
         this.blocks = blocks;
         this.palettes = palettes;
         this.usage = usage;

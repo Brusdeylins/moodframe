@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * 
  * @since 1.0.0
  */
-public class TrashCleanupService implements TrashCleanup {
+public class TrashCleanupService {
     
     private static final Logger logger = LoggerFactory.getLogger(TrashCleanupService.class);
     
@@ -93,7 +93,6 @@ public class TrashCleanupService implements TrashCleanup {
      * 
      * @return the number of items permanently deleted
      */
-    @Override
     public int performAutoCleanup() {
         return cleanupExpired();
     }
@@ -147,7 +146,6 @@ public class TrashCleanupService implements TrashCleanup {
      * @param deletedAt when the item was moved to the trash
      * @return days remaining, or -1 if the item is not deleted
      */
-    @Override
     public int getDaysUntilAutoDeletion(LocalDateTime deletedAt) {
         if (deletedAt == null) {
             return -1; // Not in trash
@@ -165,7 +163,6 @@ public class TrashCleanupService implements TrashCleanup {
      * @param chat the deleted chat
      * @return a message describing the auto-deletion timeline
      */
-    @Override
     public String getRetentionMessage(Chat chat) {
         int daysRemaining = getDaysUntilAutoDeletion(chat.getDeletedAt());
         
@@ -188,7 +185,6 @@ public class TrashCleanupService implements TrashCleanup {
      * @param chat the chat to check
      * @return true if the chat should be auto-deleted
      */
-    @Override
     public boolean isExpired(Chat chat) {
         if (chat.getDeletedAt() == null) {
             return false;
@@ -203,7 +199,6 @@ public class TrashCleanupService implements TrashCleanup {
      * 
      * @return the retention period
      */
-    @Override
     public int getRetentionDays() {
         return retentionDays;
     }
@@ -239,7 +234,6 @@ public class TrashCleanupService implements TrashCleanup {
      * 
      * @param enabled true to enable background cleanup, false to disable
      */
-    @Override
     public void setBackgroundCleanupEnabled(boolean enabled) {
         this.backgroundCleanupEnabled = enabled;
         if (config != null && config.getLoggingEnabled()) {
@@ -251,7 +245,6 @@ public class TrashCleanupService implements TrashCleanup {
      * Shuts down the background cleanup service.
      * Should be called when the application is closing.
      */
-    @Override
     public void shutdown() {
         if (scheduler != null && !scheduler.isShutdown()) {
             if (config != null && config.getLoggingEnabled()) {
@@ -276,7 +269,6 @@ public class TrashCleanupService implements TrashCleanup {
      * 
      * @return the number of items permanently deleted
      */
-    @Override
     public int forceCleanup() {
         return cleanupExpired();
     }
