@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * 
  * @since 1.0.0
  */
-public class ImageAttachmentService implements ImageAttachment {
+public class ImageAttachmentService {
     
     private static final Logger logger = LoggerFactory.getLogger(ImageAttachmentService.class);
     
@@ -60,7 +60,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @throws IOException if file processing fails
      * @throws IllegalArgumentException if file is invalid
      */
-    @Override
     public AttachedImage createAttachment(File file) throws IOException, IllegalArgumentException {
         if (file == null || !file.exists()) {
             throw new IllegalArgumentException("File does not exist");
@@ -183,7 +182,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @param attachment the attachment to encode
      * @throws IOException if encoding fails
      */
-    @Override
     public void encodeToBase64(AttachedImage attachment) throws IOException {
         if (attachment == null || attachment.getImageFile() == null) {
             throw new IllegalArgumentException("Invalid attachment");
@@ -214,7 +212,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @param file the image file to process
      * @return CompletableFuture that resolves to the processed AttachedImage
      */
-    @Override
     public CompletableFuture<AttachedImage> createAttachmentAsync(File file) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -235,7 +232,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @param file the image file to process
      * @return Task that produces an AttachedImage
      */
-    @Override
     public Task<AttachedImage> createAttachmentTask(File file) {
         return new Task<AttachedImage>() {
             @Override
@@ -267,7 +263,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @return JavaFX Image for UI display
      * @throws IOException if image loading fails
      */
-    @Override
     public Image createPreviewImage(AttachedImage attachment, double maxWidth, double maxHeight) 
             throws IOException {
         if (attachment == null || attachment.getImageFile() == null) {
@@ -293,7 +288,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @param file the file to validate
      * @return validation result
      */
-    @Override
     public ValidationResult validateFile(File file) {
         if (file == null || !file.exists()) {
             return new ValidationResult(false, "File does not exist");
@@ -337,7 +331,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @param extension the file extension (without dot)
      * @return true if supported
      */
-    @Override
     public boolean isSupportedFormat(String extension) {
         if (extension == null || extension.isEmpty()) {
             return false;
@@ -357,7 +350,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * 
      * @return formatted extensions (e.g., "PNG, JPEG, WebP")
      */
-    @Override
     public String getSupportedFormatsDisplay() {
         return String.join(", ", SUPPORTED_EXTENSIONS).toUpperCase();
     }
@@ -367,7 +359,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * 
      * @return filter string (e.g., "*.png;*.jpg;*.jpeg;*.webp")
      */
-    @Override
     public String getFileChooserFilter() {
         StringBuilder filter = new StringBuilder();
         for (int i = 0; i < SUPPORTED_EXTENSIONS.length; i++) {
@@ -385,7 +376,6 @@ public class ImageAttachmentService implements ImageAttachment {
      * @return the processed AttachedImage with Base64 data
      * @throws IOException if processing fails
      */
-    @Override
     public AttachedImage attachImage(File file) throws IOException {
         AttachedImage attachment = createAttachment(file);
         encodeToBase64(attachment);
@@ -409,12 +399,26 @@ public class ImageAttachmentService implements ImageAttachment {
         return fileName.substring(lastDotIndex + 1);
     }
     
-    // Keep ValidationResult for backward compatibility
-    public static class ValidationResult extends ImageAttachment.ValidationResult {
+    /**
+     * Validation result for file validation.
+     */
+    public static class ValidationResult {
+        private final boolean valid;
+        private final String message;
+
         public ValidationResult(boolean valid, String message) {
-            super(valid, message);
+            this.valid = valid;
+            this.message = message;
         }
-        
+
+        public boolean isValid() {
+            return valid;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
         @Override
         public String toString() {
             return String.format("ValidationResult{valid=%s, message='%s'}", isValid(), getMessage());

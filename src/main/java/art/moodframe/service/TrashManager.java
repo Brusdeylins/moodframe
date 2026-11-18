@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  * Service for managing the trash directory and moving/deleting files.
  * Handles moving files to trash, restoring from trash, and permanent deletion.
  */
-public class TrashManager implements TrashService {
+public class TrashManager {
     private static final Logger logger = LoggerFactory.getLogger(TrashManager.class);
     
     private final Path baseDirectory;
@@ -54,7 +54,6 @@ public class TrashManager implements TrashService {
      * @return CompletableFuture that completes when all files are moved
      * @throws RuntimeException if any move operation fails
      */
-    @Override
     public CompletableFuture<Void> moveToTrash(List<String> imagePaths, List<String> thumbnailPaths) {
         return CompletableFuture.runAsync(() -> {
             for (int i = 0; i < imagePaths.size(); i++) {
@@ -73,7 +72,6 @@ public class TrashManager implements TrashService {
      * @return CompletableFuture that completes when all files are restored
      * @throws RuntimeException if any restore operation fails
      */
-    @Override
     public CompletableFuture<Void> restoreFromTrash(List<String> imagePaths, List<String> thumbnailPaths) {
         return CompletableFuture.runAsync(() -> {
             for (int i = 0; i < imagePaths.size(); i++) {
@@ -95,7 +93,6 @@ public class TrashManager implements TrashService {
      * @return CompletableFuture that completes when all files are deleted
      * @throws RuntimeException if any delete operation fails
      */
-    @Override
     public CompletableFuture<Void> permanentlyDelete(List<String> imagePaths, List<String> thumbnailPaths) {
         return CompletableFuture.runAsync(() -> {
             for (int i = 0; i < imagePaths.size(); i++) {
@@ -118,7 +115,6 @@ public class TrashManager implements TrashService {
      * @return CompletableFuture with the number of files deleted
      * @throws RuntimeException if the operation fails
      */
-    @Override
     public CompletableFuture<Integer> emptyTrash() {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -144,7 +140,6 @@ public class TrashManager implements TrashService {
      * 
      * @return retention period in days
      */
-    @Override
     public int getRetentionPeriod() {
         return trashRetentionDays;
     }
