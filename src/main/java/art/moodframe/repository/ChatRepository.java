@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
@@ -1289,24 +1290,27 @@ public class ChatRepository {
     
     /**
      * Soft deletes a single image and moves it to trash.
-     * Updates the entry's deleted_cost.
-     * 
+     * The entry's deleted_cost grows by the image's share of the entry cost (see {@link ChatCost#imageShare});
+     * with its last image the entry is deleted, and its cost goes to the chat's deleted_cost.
+     *
      * @param imageId the image ID to delete
      * @return true if successfully deleted
      */
     public boolean softDeleteImage(String imageId) throws SQLException {
         logger.info("Soft deleting image: {}", imageId);
-        
+
         // Get the image details first
         GeneratedImage image = findGeneratedImageByIdInternal(imageId);
-        if (image == null) {
-            logger.warn("Image not found for soft delete: {}", imageId);
+        if (image == null || image.getDeletedAt() != null) {
+            logger.warn("Image not found or already deleted for soft delete: {}", imageId);
             return false;
         }
-        
-        // Calculate the cost of this image
-        double imageCost = calculateImageCost(image);
-        
+
+        // The image's share of what its entry cost, less the images deleted before
+        ChatEntry entry = findChatEntryById(image.getChatEntryId()).orElse(null);
+        double imageCost = entry != null ? ChatCost.imageShare(entry.getCost() - entry.getDeletedCost(),
+                findGeneratedImagesByEntry(entry.getId()), image) : 0.0;
+
         // Start transaction
         Connection conn = databaseManager.getConnection();
         try {
@@ -1356,24 +1360,11 @@ public class ChatRepository {
                 }
             }
             
-            // 4. If no active images left, mark entry as deleted
+            // 4. If no active images left, mark entry as deleted; its cost goes to the chat
             if (activeCount == 0) {
-                String sqlDeleteEntry = """
-                    UPDATE chat_entries
-                    SET deleted_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """;
-                
-                try (PreparedStatement stmt = conn.prepareStatement(sqlDeleteEntry)) {
-                    stmt.setString(1, image.getChatEntryId());
-                    stmt.executeUpdate();
-                }
+                markEntryDeleted(conn, image.getChatEntryId());
             }
-            
-            // NOTE: We do NOT update the chat's deleted_cost here!
-            // Chat.deleted_cost only tracks fully deleted entries, not individual deleted images.
-            // Individual deleted images are tracked in chat_entries.deleted_cost
-            
+
             conn.commit();
             logger.info("Successfully soft deleted image: {} (cost: {})", imageId, imageCost);
             return true;
@@ -1412,11 +1403,7 @@ public class ChatRepository {
                 }
             }
             
-            // 1. Get all images for this entry
-            List<GeneratedImage> images = findGeneratedImagesByEntryId(entryId);
-            double totalCost = 0.0;
-            
-            // 2. Mark all images as deleted
+            // 1. Mark all images as deleted; they keep the deleted_cost 0, as the entry books their cost
             String sqlImages = """
                 UPDATE generated_images
                 SET deleted_at = CURRENT_TIMESTAMP,
@@ -1428,46 +1415,12 @@ public class ChatRepository {
                 stmt.setString(1, entryId);
                 stmt.executeUpdate();
             }
-            
-            // 3. Calculate cost of ACTIVE (non-deleted) images only
-            // Images already marked as deleted should not be counted again
-            for (GeneratedImage image : images) {
-                // Only count images that are not already in trash
-                if (!image.isInTrash()) {
-                    totalCost += calculateImageCost(image);
-                }
-            }
-            
-            // 4. Mark entry as deleted and set deleted_cost to the entry's total cost
-            // Since all images are now deleted, deleted_cost should equal the total cost
-            String sqlEntry = """
-                UPDATE chat_entries
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    deleted_cost = cost
-                WHERE id = ?
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlEntry)) {
-                stmt.setString(1, entryId);
-                stmt.executeUpdate();
-            }
-            
-            // 5. Update chat's deleted_cost
-            String sqlChat = """
-                UPDATE chats
-                SET deleted_cost = deleted_cost + ?
-                WHERE id = (SELECT chat_id FROM chat_entries WHERE id = ?)
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlChat)) {
-                stmt.setDouble(1, totalCost);
-                stmt.setString(2, entryId);
-                stmt.executeUpdate();
-            }
-            
+
+            // 2. Mark entry as deleted; its whole cost goes to the chat
+            markEntryDeleted(conn, entryId);
+
             conn.commit();
-            logger.info("Successfully soft deleted entry: {} with {} images (total cost: {})", 
-                entryId, images.size(), totalCost);
+            logger.info("Successfully soft deleted entry: {}", entryId);
             return true;
             
         } catch (SQLException e) {
@@ -1476,6 +1429,33 @@ public class ChatRepository {
         } finally {
             conn.setAutoCommit(true);
             conn.close();
+        }
+    }
+
+    /*  Marks an entry in use as deleted: its whole cost is deleted now, and its chat books it, as the entry leaves
+        the entries of the chat (see ChatCost)  */
+    private static void markEntryDeleted(Connection conn, String entryId) throws SQLException {
+        String sqlEntry = """
+            UPDATE chat_entries
+            SET deleted_at = CURRENT_TIMESTAMP,
+                deleted_cost = cost
+            WHERE id = ? AND deleted_at IS NULL
+            """;
+        try (PreparedStatement stmt = conn.prepareStatement(sqlEntry)) {
+            stmt.setString(1, entryId);
+            if (stmt.executeUpdate() == 0)
+                return;
+        }
+
+        String sqlChat = """
+            UPDATE chats
+            SET deleted_cost = deleted_cost + (SELECT cost FROM chat_entries WHERE id = ?)
+            WHERE id = (SELECT chat_id FROM chat_entries WHERE id = ?)
+            """;
+        try (PreparedStatement stmt = conn.prepareStatement(sqlChat)) {
+            stmt.setString(1, entryId);
+            stmt.setString(2, entryId);
+            stmt.executeUpdate();
         }
     }
     
@@ -1520,27 +1500,6 @@ public class ChatRepository {
         }
         
         return null;
-    }
-    
-    /**
-     * Calculates the cost of a single image based on model pricing.
-     */
-    private double calculateImageCost(GeneratedImage image) {
-        String model = image.getModel();
-        if (model == null) {
-            return 0.0;
-        }
-        
-        // Get pricing from model
-        return switch (model.toLowerCase()) {
-            case "flux.1-dev", "flux-dev" -> 0.025;
-            case "flux.1-pro", "flux-pro" -> 0.04;
-            case "flux.1.1-pro" -> 0.04;
-            case "flux.1.1-pro-ultra" -> 0.06;
-            case "flux.1-kontext-pro" -> 0.04;
-            case "flux.1-kontext-max" -> 0.08;
-            default -> 0.025; // Default price
-        };
     }
     
     /**
@@ -1720,30 +1679,35 @@ public class ChatRepository {
         try {
             conn.setAutoCommit(false);
 
-            /*  The chat counts a deleted entry with the images deleted together with it, those without a cost
-                of their own (see softDeleteChatEntry): the chat drops that share, the images get their cost  */
+            /*  The chat booked the whole cost of a deleted entry (see markEntryDeleted) and drops it; the images
+                deleted together with the entry, those without a cost of their own, share what the images deleted
+                before left of the entry cost  */
             if (entry.getDeletedAt() != null) {
-                double share = 0.0;
+                double booked = 0.0;
+                List<GeneratedImage> together = new ArrayList<>();
                 try (PreparedStatement select = conn.prepareStatement(
-                                "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL "
-                                + "AND deleted_cost = 0");
-                        PreparedStatement update = conn.prepareStatement(
-                                "UPDATE generated_images SET deleted_cost = ? WHERE id = ?")) {
+                        "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL")) {
                     select.setString(1, entryId);
                     try (ResultSet rs = select.executeQuery()) {
                         while (rs.next()) {
-                            GeneratedImage image = mapRowToGeneratedImage(rs);
-                            double imageCost = calculateImageCost(image);
-                            share += imageCost;
-                            update.setDouble(1, imageCost);
-                            update.setString(2, image.getId());
-                            update.executeUpdate();
+                            double imageCost = rs.getDouble("deleted_cost");
+                            booked += imageCost;
+                            if (imageCost == 0)
+                                together.add(mapRowToGeneratedImage(rs));
                         }
+                    }
+                }
+                try (PreparedStatement update = conn.prepareStatement(
+                        "UPDATE generated_images SET deleted_cost = ? WHERE id = ?")) {
+                    for (GeneratedImage image : together) {
+                        update.setDouble(1, ChatCost.imageShare(entry.getCost() - booked, together, image));
+                        update.setString(2, image.getId());
+                        update.executeUpdate();
                     }
                 }
                 try (PreparedStatement stmt = conn.prepareStatement(
                         "UPDATE chats SET deleted_cost = MAX(0, deleted_cost - ?) WHERE id = ?")) {
-                    stmt.setDouble(1, share);
+                    stmt.setDouble(1, entry.getCost());
                     stmt.setString(2, entry.getChatId());
                     stmt.executeUpdate();
                 }

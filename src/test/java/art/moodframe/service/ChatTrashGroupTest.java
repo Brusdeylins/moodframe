@@ -60,7 +60,7 @@ class ChatTrashGroupTest {
         repository.softDeleteImage(repository.findGeneratedImagesByEntry(first.getId()).get(0).getId());
         repository.softDeleteChatEntry(second.getId());
         double headerCost = headerCost(chat);
-        assertEquals(0.54, headerCost, 0.0001);
+        assertEquals(0.70, headerCost, 0.0001);
 
         repository.softDeleteChat(chat.getId());
         assertEquals(I18nManager.getText("trash.context.chat.singular", 1, String.format("%.2f", headerCost)),
@@ -102,7 +102,7 @@ class ChatTrashGroupTest {
         return chat;
     }
 
-    /** Stores an entry with images of a model that costs 0.04 per image when deleted. */
+    /** Stores an entry with images without a stored cost: they share the cost of the entry evenly when deleted. */
     private ChatEntry entry(Chat chat, double cost, int images) throws Exception {
         ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").cost(cost).build();
         repository.saveChatEntry(entry);

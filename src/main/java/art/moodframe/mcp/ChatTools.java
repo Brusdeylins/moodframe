@@ -1,6 +1,7 @@
 package art.moodframe.mcp;
 
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
@@ -337,8 +338,8 @@ class ChatTools {
     private static ObjectNode summary(Chat chat) {
         List<ChatEntry> entries = chat.getEntries().stream().filter(ChatTools::shown).toList();
 
-        /*  as the header of the chat: all entry costs plus those of the deleted entries  */
-        double cost = chat.getEntries().stream().mapToDouble(ChatEntry::getCost).sum() + chat.getDeletedCost();
+        /*  as the header of the chat: all it cost, deleted entries and images included  */
+        double cost = ChatCost.total(chat);
         return McpTools.JSON.createObjectNode().put("id", chat.getId()).put("name", chat.getName())
                 .put("entries", entries.size()).put("cost", McpTools.usd(cost))
                 .put("createdAt", McpTools.time(chat.getCreatedAt()))
