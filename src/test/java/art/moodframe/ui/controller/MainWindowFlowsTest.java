@@ -297,7 +297,7 @@ class MainWindowFlowsTest {
         register(ChatHistoryService.class, history);
         register(ChatLibrary.class, chats);
         register(ImageAttachmentService.class, new ImageAttachmentService());
-        sizeCheck = new ImageSizeCheck(repository);
+        sizeCheck = new ImageSizeCheck(repository, Platform::runLater);
         register(ImageSizeCheck.class, sizeCheck);
 
         /*  the providers: Gemini answers every request at once with the test image; the answer holds nothing of the

@@ -7,6 +7,7 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.VideoPoster;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -477,17 +478,17 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         }
         String thumbnailPath = thumbnails.getThumbnailPath(path);
         SharpThumbnail.follow(view, path, thumbnails);
-        Image cached = thumbnails.getFromCacheOnly(thumbnailPath);
+        Image cached = ImageCache.shared().getIfCached(thumbnailPath);
         if (cached != null) {
             view.setImage(cached);
             return;
         }
 
         /*  A missing thumbnail is created first; the next stage follows the creation, no thread waits for it  */
-        CompletableFuture.supplyAsync(() -> thumbnails.getCachedImage(thumbnailPath))
+        CompletableFuture.supplyAsync(() -> ImageCache.shared().get(thumbnailPath))
                 .thenCompose((loaded) -> loaded != null ? CompletableFuture.completedFuture(loaded)
                         : thumbnails.getThumbnail(path)
-                                .thenApplyAsync((file) -> thumbnails.getCachedImage(file.getAbsolutePath())))
+                                .thenApplyAsync((file) -> ImageCache.shared().get(file.getAbsolutePath())))
                 .whenComplete((loaded, error) -> Platform.runLater(() -> {
                     if (loaded != null)
                         view.setImage(loaded);

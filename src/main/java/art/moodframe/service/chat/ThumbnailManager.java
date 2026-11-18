@@ -1,7 +1,6 @@
 package art.moodframe.service.chat;
 
 import art.moodframe.config.LibraryPaths;
-import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.ImageSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Collections;
@@ -84,11 +82,6 @@ public class ThumbnailManager {
     // Thumbnail cache with LRU eviction (caches File paths)
     private final Map<String, CompletableFuture<File>> thumbnailCache;
 
-    /*  JavaFX Image cache with LRU eviction (avoids disk I/O on scroll), limited by pixels: as many as 200
-        thumbnails of 400 by 400 px or 50 of 800 by 800 px, about 128 MB  */
-    private static final double IMAGE_CACHE_PIXELS = 32_000_000.0;
-    private final Map<String, javafx.scene.image.Image> imageCache;
-
     /*  The thumbnails checked for their full size in this run, by original image path  */
     private final Map<String, CompletableFuture<Boolean>> enlargements = new ConcurrentHashMap<>();
 
@@ -126,23 +119,6 @@ public class ThumbnailManager {
             }
         });
 
-        /*  LRU cache for JavaFX Image objects: the least recently used give way while the cache holds more pixels
-            than its limit, the newest one always stays  */
-        this.imageCache = Collections.synchronizedMap(new LinkedHashMap<String, javafx.scene.image.Image>(
-                128, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<String, javafx.scene.image.Image> eldest) {
-                double pixels = values().stream().mapToDouble((image) -> image.getWidth() * image.getHeight()).sum();
-                Iterator<javafx.scene.image.Image> images = values().iterator();
-                while (pixels > IMAGE_CACHE_PIXELS && size() > 1) {
-                    javafx.scene.image.Image image = images.next();
-                    pixels -= image.getWidth() * image.getHeight();
-                    images.remove();
-                }
-                return false;
-            }
-        });
-
         this.totalThumbnailsGenerated = new AtomicLong(0);
         this.totalOriginalSize = new AtomicLong(0);
         this.totalThumbnailSize = new AtomicLong(0);
@@ -169,53 +145,6 @@ public class ThumbnailManager {
         if (!Files.exists(originalImagesDirectory)) {
             Files.createDirectories(originalImagesDirectory);
         }
-    }
-
-    /**
-     * Gets an image from the cache only, without loading from disk.
-     * This is a fast, non-blocking check used to determine if async loading is needed.
-     *
-     * @param imagePath the path to the image file
-     * @return the cached Image, or null if not in cache
-     */
-    public javafx.scene.image.Image getFromCacheOnly(String imagePath) {
-        if (imagePath == null || imagePath.isEmpty()) {
-            return null;
-        }
-        return imageCache.get(imagePath);
-    }
-
-    /**
-     * Gets a cached JavaFX Image for the given path, loading from disk only if not cached.
-     * This dramatically reduces disk I/O during scrolling.
-     *
-     * @param imagePath the path to the image file
-     * @return the cached or newly loaded Image, or null if loading fails
-     */
-    public javafx.scene.image.Image getCachedImage(String imagePath) {
-        if (imagePath == null || imagePath.isEmpty()) {
-            return null;
-        }
-
-        return imageCache.computeIfAbsent(imagePath, path -> {
-            try {
-                File file = new File(path);
-                if (!file.exists()) {
-                    return null;
-                }
-                // Load image with size constraint (MAX_THUMBNAIL_SIZE) to reduce memory usage
-                // This is the same size as our thumbnails, so originals are downscaled on load
-                // preserveRatio=true, smooth=true, backgroundLoading=false
-                // IMPORTANT: backgroundLoading must be FALSE so the image is fully loaded
-                // before being cached. Otherwise incomplete images get cached and cause flicker.
-                return new javafx.scene.image.Image(
-                        file.toURI().toString(),
-                        MAX_THUMBNAIL_SIZE, MAX_THUMBNAIL_SIZE, true, true, false);
-            } catch (Exception e) {
-                logger.warn("Failed to load cached image: {}", path, e);
-                return null;
-            }
-        });
     }
 
     /**
@@ -318,7 +247,6 @@ public class ThumbnailManager {
             activeTasks.incrementAndGet();
             try {
                 generateThumbnail(originalFile, thumbnailFile);
-                imageCache.remove(thumbnailPath);
                 return true;
             }
             catch (IOException e) {

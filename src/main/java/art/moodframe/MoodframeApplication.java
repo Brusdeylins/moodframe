@@ -324,7 +324,8 @@ public class MoodframeApplication extends Application {
                     () -> {
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
-                        return chatRepo != null ? new art.moodframe.service.chat.ImageSizeCheck(chatRepo) : null;
+                        return chatRepo != null ? new art.moodframe.service.chat.ImageSizeCheck(chatRepo,
+                                javafx.application.Platform::runLater) : null;
                     });
 
             // Initialize RequestResponseManager for real API integration

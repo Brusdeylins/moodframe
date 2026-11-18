@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.ui.support.ImageCache;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.WeakInvalidationListener;
@@ -38,8 +39,7 @@ final class SharpThumbnail {
                 return;
             requested[0] = true;
             thumbnails.enlargeThumbnail(path)
-                    .thenApplyAsync((enlarged) -> enlarged
-                            ? thumbnails.getCachedImage(thumbnails.getThumbnailPath(path)) : null)
+                    .thenApplyAsync((enlarged) -> enlarged ? reload(thumbnails.getThumbnailPath(path)) : null)
                     .thenAccept((larger) -> Platform.runLater(() -> {
                         if (larger != null && view.getImage() == image)
                             view.setImage(larger);
@@ -55,6 +55,12 @@ final class SharpThumbnail {
                 scene.getWindow().outputScaleXProperty().addListener(new WeakInvalidationListener(check));
             check.invalidated(obs);
         });
+    }
+
+    /*  the thumbnail created anew, in place of the old one in the cache  */
+    private static Image reload(String thumbnailPath) {
+        ImageCache.shared().remove(thumbnailPath);
+        return ImageCache.shared().get(thumbnailPath);
     }
 
     /**
