@@ -431,25 +431,15 @@ public class MainWindowController implements I18nChangeListener {
 
     // Dynamic UI components
     private Label costDisplayLabel;
-    private MemoryStatusComponent memoryStatus;
     private art.moodframe.ui.component.GeminiAdvancedFeaturesSection geminiAdvancedFeaturesSection;
 
-    // Status Bar Controls
+    // Status Bar
     @FXML
-    private Label statusLabel;
+    private StatusBarController statusBarController;
     @FXML
     private Label chatTitleLabel;
     @FXML
     private Label chatTotalCostLabel;
-    @FXML
-    private Label sessionInfoLabel;
-    @FXML
-    private HBox apiKeyStatusGroup;
-    @FXML
-    private FontIcon apiKeyStatusIcon;
-    @FXML
-    private Label apiKeyStatusLabel;
-    private Tooltip apiKeyStatusTooltip;
 
     // Chat Management: the list of the chats belongs to the library of the chats
     private ObservableList<Chat> chatList;
@@ -482,9 +472,6 @@ public class MainWindowController implements I18nChangeListener {
 
     // Track the currently selected model to survive language changes
     private art.moodframe.model.GenerationModel currentSelectedModel;
-
-    // Protect error messages from being overwritten for a minimum duration
-    private long errorStatusProtectedUntil = 0;
 
     // Track the chat metadata info label for live language updates
     private Label chatMetadataInfoLabel;
@@ -548,6 +535,9 @@ public class MainWindowController implements I18nChangeListener {
                 .getService(art.moodframe.config.ApplicationConfig.class);
 
         logger.debug("Initializing MainWindow controller");
+        ApiProviderValidator validator = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(ApiProviderValidator.class);
+        statusBarController.init(config, validator);
 
         // Register for I18n change notifications
         I18nManager.addChangeListener(this);
@@ -568,13 +558,11 @@ public class MainWindowController implements I18nChangeListener {
         setupMultiImageAttachmentPanel();
 
         /*  The check of the accounts runs in the background since the start: its end refreshes button and status bar  */
-        ApiProviderValidator validator = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(ApiProviderValidator.class);
         if (validator != null)
             validator.addCompletionListener(() -> Platform.runLater(this::refreshApiKeyStatus));
-        checkApiKeyStatus();
+        statusBarController.checkApiKeys();
+        updateUIState();
         setupServices();
-        setupMemoryMonitoring();
         setupUpdateCheck();
 
         // Apply initial localization
@@ -918,7 +906,7 @@ public class MainWindowController implements I18nChangeListener {
      */
     private void showErrorMessage(String message) {
         Platform.runLater(() -> {
-            setStatus("Error: " + message);
+            statusBarController.error("Error: " + message);
             logger.debug("UI Error: {}", message);
         });
     }
@@ -1090,13 +1078,6 @@ public class MainWindowController implements I18nChangeListener {
         chatHeader.setPadding(new javafx.geometry.Insets(chatHeader.getPadding().getTop(), BoxInset.RIGHT,
                 chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
         promptTextArea.setPadding(new javafx.geometry.Insets(2.0, 2.0, 2.0, BoxInset.LEFT - 1.0 - BoxInset.TEXT));
-
-        /*  symbol and text of the API key status share one tooltip on their group, like the other displays of the
-            status bar, so it stays while the pointer moves between them  */
-        apiKeyStatusTooltip = new Tooltip();
-        apiKeyStatusTooltip.setShowDelay(javafx.util.Duration.millis(500));
-        apiKeyStatusTooltip.setShowDuration(javafx.util.Duration.INDEFINITE);
-        Tooltip.install(apiKeyStatusGroup, apiKeyStatusTooltip);
 
         // Configure SplitPane with restored position
         try {
@@ -1307,7 +1288,7 @@ public class MainWindowController implements I18nChangeListener {
         updateUIState();
         updateCostDisplay(); // Initial cost calculation
         updateGenerationSummary();
-        updateInitialStatus();
+        statusBarController.ready();
     }
 
     /**
@@ -3351,7 +3332,7 @@ public class MainWindowController implements I18nChangeListener {
                                         && newProvider == art.moodframe.model.ApiProvider.BFL) {
                                     multiImagePanel.clearAllAttachments();
                                     attachedImageFile = null;
-                                    setStatus(I18nManager.getText("status.attachments.cleared.provider"));
+                                    statusBarController.error(I18nManager.getText("status.attachments.cleared.provider"));
                                 }
                             }
 
@@ -4118,11 +4099,11 @@ public class MainWindowController implements I18nChangeListener {
                 setStatus(I18nManager.getText("status.chat.moved.trash"));
             } else {
                 logger.error("Failed to soft delete chat: {}", chat.getName());
-                setStatus(I18nManager.getText("status.error.chat.deletion"));
+                statusBarController.error(I18nManager.getText("status.error.chat.deletion"));
             }
         } catch (Exception e) {
             logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
-            setStatus(I18nManager.getText("status.error.chat.deletion"));
+            statusBarController.error(I18nManager.getText("status.error.chat.deletion"));
         }
     }
 
@@ -4179,7 +4160,7 @@ public class MainWindowController implements I18nChangeListener {
                     I18nManager.getText("status.chat.renamed"), chat.getName()));
         } catch (Exception e) {
             logger.error("Failed to save chat rename to database: {}", chat.getName(), e);
-            setStatus(java.text.MessageFormat.format(
+            statusBarController.error(java.text.MessageFormat.format(
                     I18nManager.getText("status.error.chat.rename"), e.getMessage()));
         }
     }
@@ -4690,198 +4671,18 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /**
-     * Checks and updates the API key status by reading from ApplicationConfig.
-     * Only shows "valid" (green) if ALL enabled providers have valid API keys.
-     */
-    private void checkApiKeyStatus() {
-        try {
-            // Get ApplicationConfig from ServiceFactory
-            art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.config.ApplicationConfig.class);
-
-            if (config != null) {
-                // Check if ALL enabled providers have valid keys
-                boolean bflEnabled = config.accounts().isEnabled(ApiProvider.BFL);
-                boolean geminiEnabled = config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI);
-                boolean bflHasKey = config.accounts().hasApiKey(ApiProvider.BFL); // BFL API key
-                boolean geminiHasKey = config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI); // Gemini API key
-
-                // API keys are only "valid" if all enabled providers have keys
-                boolean hasValidKey = true;
-                if (bflEnabled && !bflHasKey) {
-                    hasValidKey = false;
-                }
-                if (geminiEnabled && !geminiHasKey) {
-                    hasValidKey = false;
-                }
-
-                // If no providers are enabled, require at least one key
-                if (!bflEnabled && !geminiEnabled) {
-                    hasValidKey = bflHasKey || geminiHasKey;
-                }
-
-                updateApiKeyStatus(hasValidKey);
-            } else {
-                logger.warn("ApplicationConfig not available, assuming no API key");
-                updateApiKeyStatus(false);
-            }
-        } catch (Exception e) {
-            logger.error("Error checking API key status", e);
-            updateApiKeyStatus(false);
-        }
-    }
-
-    /**
      * Refreshes the API key status and updates the UI accordingly.
      * This method should be called after API key configuration changes.
      */
     public void refreshApiKeyStatus() {
-        checkApiKeyStatus();
+        statusBarController.checkApiKeys();
+        updateUIState();
         updateBrainstormButton();
     }
 
-    /**
-     * Updates the API key status indicator with theme-aware colors.
-     * 
-     * @param hasValidKey true if a valid API key is configured
-     */
-    private void updateApiKeyStatus(boolean hasValidKey) {
-        // Clear existing style classes
-        apiKeyStatusIcon.getStyleClass().clear();
-        apiKeyStatusLabel.getStyleClass().clear();
-
-        // Add base classes
-        apiKeyStatusIcon.getStyleClass().add("ikonli-font-icon");
-
-        if (hasValidKey) {
-            apiKeyStatusIcon.setIconLiteral("mdi2k-key");
-            apiKeyStatusIcon.getStyleClass().add("success");
-            apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
-            apiKeyStatusLabel.setStyle("-fx-text-fill: -color-success-emphasis;");
-            apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.valid.tooltip"));
-        } else {
-            apiKeyStatusIcon.setIconLiteral("mdi2k-key");
-            apiKeyStatusIcon.getStyleClass().add("danger");
-            apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
-            apiKeyStatusLabel.setStyle("-fx-text-fill: -color-danger-emphasis;");
-            apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.none.tooltip"));
-        }
-
-        updateUIState();
-    }
-
-    /**
-     * Builds the hint of the API key display: the given text, followed by the result of the last check of every
-     * configured account.
-     *
-     * @param key the i18n key of the text
-     * @return the hint
-     */
-    private String apiKeyHint(String key) {
-        ApiProviderValidator validator = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(ApiProviderValidator.class);
-        String checks = config != null ? accountChecks(config, validator) : "";
-        return I18nManager.getText(key) + (checks.isEmpty() ? "" : "\n\n" + checks);
-    }
-
-    /**
-     * Describes the last check of every configured account in one line each: connection, language model and web
-     * search with ✓ or ✗ and the reason of a failure (BFL: connection only), e.g.
-     * "OpenAI: connection ✓, gpt-x ✓, web search ✗ (HTTP 404)"; a check that could not decide keeps the last
-     * result and says so; a switched-off account is marked. The flags stem from the configuration, the reasons of
-     * the running program from the validator.
-     *
-     * @param config    the application configuration
-     * @param validator the validator of the program start, may be null
-     * @return the lines, empty if no account is configured
-     */
-    static String accountChecks(art.moodframe.config.ApplicationConfig config, ApiProviderValidator validator) {
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        art.moodframe.config.ProviderAccounts accounts = config.accounts();
-        ApiProvider gemini = ApiProvider.GOOGLE_GEMINI;
-        ApiProvider openAi = ApiProvider.OPENAI;
-        if (accounts.hasApiKey(ApiProvider.BFL))
-            lines.add(accountCheck(account("BFL", accounts.isEnabled(ApiProvider.BFL)), ApiProvider.BFL,
-                    accounts.isValidated(ApiProvider.BFL), null, false, false, validator));
-        if (accounts.hasApiKey(gemini))
-            lines.add(accountCheck(account("Google", accounts.isEnabled(gemini)), gemini, accounts.isValidated(gemini),
-                    I18nManager.getText("status.api.check.model"), accounts.isChatOk(gemini),
-                    accounts.isWebSearch(gemini), validator));
-        if (accounts.hasApiKey(openAi))
-            lines.add(accountCheck(account("OpenAI", accounts.isEnabled(openAi)), openAi, accounts.isValidated(openAi),
-                    accounts.getOpenAiChatModel(), accounts.isChatOk(openAi), accounts.isWebSearch(openAi), validator));
-        return String.join("\n", lines);
-    }
-
-    /*  the name of an account, marked if the user switched it off: then it is not offered whatever its checks say  */
-    private static String account(String name, boolean enabled) {
-        return enabled ? name : name + " (" + I18nManager.getText("status.api.check.off") + ")";
-    }
-
-    /*  one line of the checks of an account; without a model (BFL) only the connection, with a blank one "no model"  */
-    private static String accountCheck(String account, ApiProvider provider, boolean connection, String model,
-            boolean chatOk, boolean webSearch, ApiProviderValidator validator) {
-        StringBuilder line = new StringBuilder(account).append(": ").append(checkResult(
-                I18nManager.getText("status.api.check.connection"), connection, provider,
-                ApiProviderValidator.Check.CONNECTION, validator));
-        if (connection && model != null && model.isBlank())
-            line.append(", ").append(I18nManager.getText("status.api.check.nomodel"));
-        else if (connection && model != null) {
-            line.append(", ").append(checkResult(model, chatOk, provider, ApiProviderValidator.Check.LANGUAGE_MODEL,
-                    validator));
-            line.append(", ").append(checkResult(I18nManager.getText("status.api.check.search"), webSearch, provider,
-                    ApiProviderValidator.Check.WEB_SEARCH, validator));
-        }
-        return line.toString();
-    }
-
-    /*  "name ✓" or "name ✗", with the reason of the last check if known (also for a kept ✓), cut short  */
-    private static String checkResult(String name, boolean ok, ApiProvider provider,
-            ApiProviderValidator.Check check, ApiProviderValidator validator) {
-        String result = name + (ok ? " ✓" : " ✗");
-        String reason = validator != null ? validator.getReason(provider, check) : null;
-        if (reason == null || reason.isBlank())
-            return result;
-        reason = reason.strip().replaceAll("\\s+", " ");
-        return result + " (" + (reason.length() > 80 ? reason.substring(0, 79) + "…" : reason) + ")";
-    }
-
-    /**
-     * Updates the initial status message based on API key availability.
-     */
-    private void updateInitialStatus() {
-        try {
-            art.moodframe.config.ApplicationConfig config = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.config.ApplicationConfig.class);
-
-            if (config != null && config.accounts().hasApiKey(ApiProvider.BFL)) {
-                setStatus(I18nManager.getText("status.ready"));
-            } else {
-                setStatus(I18nManager.getText("status.ready"));
-            }
-        } catch (Exception e) {
-            logger.warn("Error checking API key for initial status", e);
-            setStatus(I18nManager.getText("status.ready"));
-        }
-    }
-
-    /**
-     * Updates the status message.
-     * 
-     * @param message the status message to display
-     */
+    /** Shows a status message in the status bar, unless an error is protected there. */
     private void setStatus(String message) {
-        boolean isError = message.startsWith("Error") || message.startsWith("Fehler");
-
-        // Don't overwrite error messages during protection period
-        if (!isError && System.currentTimeMillis() < errorStatusProtectedUntil)
-            return;
-
-        // Error messages get 4s protection from being overwritten
-        if (isError)
-            errorStatusProtectedUntil = System.currentTimeMillis() + 4000;
-
-        statusLabel.setText(message);
+        statusBarController.status(message);
     }
 
     // FXML Event Handlers
@@ -5089,7 +4890,7 @@ public class MainWindowController implements I18nChangeListener {
             });
 
             // Reset status to ready after dialog is shown
-            setStatus(I18nManager.getText("status.ready"));
+            statusBarController.ready();
 
             // Show the dialog and handle the result
             dialog.showAndWait();
@@ -5105,7 +4906,7 @@ public class MainWindowController implements I18nChangeListener {
             // Refresh available models based on enabled providers
             populateAvailableModels();
 
-            setStatus(I18nManager.getText("status.ready"));
+            statusBarController.ready();
 
         } catch (IOException e) {
             logger.error("Failed to load Settings Dialog", e);
@@ -5158,7 +4959,7 @@ public class MainWindowController implements I18nChangeListener {
             return;
         }
         if (generationService == null) {
-            setStatus(I18nManager.getText("status.error.service.unavailable"));
+            statusBarController.error(I18nManager.getText("status.error.service.unavailable"));
             logger.error("GenerationService not available");
             return;
         }
@@ -5176,9 +4977,9 @@ public class MainWindowController implements I18nChangeListener {
                     attachedBase64Images(), ChatEntry.Source.UI));
         } catch (art.moodframe.service.generation.GenerationService.GenerationException e) {
             switch (e.getFailure()) {
-                case PROMPT_TOO_LONG -> setStatus(I18nManager.getText("status.error.prompt.too.long",
+                case PROMPT_TOO_LONG -> statusBarController.error(I18nManager.getText("status.error.prompt.too.long",
                         e.getPromptLength(), e.getMaxPromptLength()));
-                case MISSING_KEY -> setStatus(I18nManager.getText("status.error.api.key.missing"));
+                case MISSING_KEY -> statusBarController.error(I18nManager.getText("status.error.api.key.missing"));
                 case UNKNOWN_MODEL -> setStatus(I18nManager.getText("status.request.failed"));
                 case EMPTY_PROMPT, NO_CHAT -> logger.debug("Nothing to send: {}", e.getMessage());
             }
@@ -5267,7 +5068,7 @@ public class MainWindowController implements I18nChangeListener {
                                                  : art.moodframe.model.ApiProvider.BFL);
                 if (selectedFile.length() > maxSize) {
                     int maxMB = (int) (maxSize / (1024 * 1024));
-                    setStatus(String.format(I18nManager.getText("status.error.file.too.large"), maxMB));
+                    statusBarController.error(String.format(I18nManager.getText("status.error.file.too.large"), maxMB));
                     return;
                 }
 
@@ -5294,7 +5095,7 @@ public class MainWindowController implements I18nChangeListener {
                 setStatus(I18nManager.getText("status.image.attached"));
 
             } catch (Exception e) {
-                setStatus(I18nManager.getText("status.error.image.load"));
+                statusBarController.error(I18nManager.getText("status.error.image.load"));
                 logger.error("Failed to load selected image: {}", selectedFile.getPath(), e);
             }
         } else {
@@ -6077,7 +5878,7 @@ public class MainWindowController implements I18nChangeListener {
             updateInputAreaTexts();
 
             // Update status bar
-            updateStatusBarTexts();
+            statusBarController.updateTexts();
 
             // Update parameter controls
             updateParameterTexts();
@@ -6453,7 +6254,7 @@ public class MainWindowController implements I18nChangeListener {
         if (promptTextArea == null)
             return;
 
-        boolean hasApiKey = !I18nManager.getText("status.api.key.none").equals(apiKeyStatusLabel.getText());
+        boolean hasApiKey = statusBarController.hasValidKeys();
         boolean hasChatSelected = currentChat != null && !currentChat.isDeleted();
 
         if (!hasApiKey) {
@@ -6480,33 +6281,6 @@ public class MainWindowController implements I18nChangeListener {
             } else {
                 promptTextArea.setPromptText(I18nManager.getText("input.prompt.placeholder"));
             }
-        }
-    }
-
-    /**
-     * Updates status bar texts.
-     */
-    private void updateStatusBarTexts() {
-        if (apiKeyStatusLabel != null) {
-            String currentText = apiKeyStatusLabel.getText();
-            if (currentText.contains("API Key Valid") || currentText.contains("API-Schlüssel gültig")) {
-                apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.valid"));
-                apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.valid.tooltip"));
-            } else if (currentText.contains("No API Key") || currentText.contains("Kein API-Schlüssel")) {
-                apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.none"));
-                apiKeyStatusTooltip.setText(apiKeyHint("status.api.key.none.tooltip"));
-            } else if (currentText.contains("Invalid") || currentText.contains("ungültig")) {
-                apiKeyStatusLabel.setText(I18nManager.getText("status.api.key.invalid"));
-            }
-        }
-
-        if (statusLabel != null) {
-            String currentText = statusLabel.getText();
-            if (currentText.contains("Ready") || currentText.contains("Bereit")) {
-                statusLabel.setText(I18nManager.getText("status.ready"));
-            }
-            // Note: Most status messages are set dynamically via setStatus() which already
-            // uses i18n
         }
     }
 
@@ -6760,40 +6534,6 @@ public class MainWindowController implements I18nChangeListener {
         if (removeImageTooltip != null) {
             removeImageTooltip.setText(I18nManager.getText("params.image.remove.tooltip"));
         }
-    }
-
-    /**
-     * Sets up memory monitoring and integrates it into the UI.
-     */
-    private void setupMemoryMonitoring() {
-        try {
-            // Create and initialize memory status component
-            memoryStatus = new MemoryStatusComponent();
-
-            // Find the footer HBox and add memory status before the API key status
-            Node footerContent = mainBorderPane.getBottom();
-            if (footerContent instanceof HBox footerBox) {
-                // Insert memory status component before the last element (API key status)
-                int insertIndex = Math.max(0, footerBox.getChildren().size() - 1);
-                footerBox.getChildren().add(insertIndex, memoryStatus);
-
-                logger.debug("Memory monitoring integrated into UI footer");
-            } else {
-                logger.debug("Could not find footer HBox for memory status integration");
-            }
-
-        } catch (Exception e) {
-            logger.error("Failed to setup memory monitoring", e);
-        }
-    }
-
-    /**
-     * Gets the memory status component for external access.
-     * 
-     * @return the memory status component, or null if not initialized
-     */
-    public MemoryStatusComponent getMemoryStatus() {
-        return memoryStatus;
     }
 
     /**

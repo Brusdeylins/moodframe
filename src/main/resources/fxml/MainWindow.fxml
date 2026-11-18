@@ -811,27 +811,7 @@
 
     <!-- Footer: Status Bar -->
     <bottom>
-        <HBox spacing="10.0" alignment="CENTER_LEFT" styleClass="bg-inset">
-            <padding>
-                <Insets bottom="8.0" left="20.0" right="20.0" top="8.0" />
-            </padding>
-            
-            <!-- Status Message -->
-            <Label fx:id="statusLabel" text="Ready" />
-            
-            <!-- Spacer -->
-            <Region HBox.hgrow="ALWAYS" />
-            
-            <!-- Session Info -->
-            <Label fx:id="sessionInfoLabel" />
-            
-            <!-- API Key Status Indicator: symbol and text share one tooltip on the group -->
-            <HBox fx:id="apiKeyStatusGroup" spacing="8.0" alignment="CENTER">
-                <FontIcon fx:id="apiKeyStatusIcon" iconLiteral="mdi2k-key" iconSize="16" styleClass="ikonli-font-icon" />
-                <Label fx:id="apiKeyStatusLabel" text="No API Key" />
-            </HBox>
-            
-        </HBox>
+        <fx:include fx:id="statusBar" source="StatusBar.fxml" />
     </bottom>
 
     </BorderPane>

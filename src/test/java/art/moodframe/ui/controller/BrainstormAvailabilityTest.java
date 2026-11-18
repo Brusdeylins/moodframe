@@ -69,7 +69,7 @@ class BrainstormAvailabilityTest {
                         + "Google (" + I18nManager.getText("status.api.check.off") + "): " + connection + " ✗\n"
                         + "OpenAI: " + connection + " ✓, gpt-x ✓, " + I18nManager.getText("status.api.check.search")
                         + " ✗ (OpenAI error 404: Not found)",
-                MainWindowController.accountChecks(config, validator));
+                StatusBarController.accountChecks(config, validator));
     }
 
     @Test
@@ -87,7 +87,7 @@ class BrainstormAvailabilityTest {
 
         assertEquals("OpenAI: " + I18nManager.getText("status.api.check.connection") + " ✓, gpt-x ✓, "
                 + I18nManager.getText("status.api.check.search") + " ✓ (" + kept + ")",
-                MainWindowController.accountChecks(config, validator));
+                StatusBarController.accountChecks(config, validator));
     }
 
     @Test
@@ -114,7 +114,7 @@ class BrainstormAvailabilityTest {
 
         assertEquals("OpenAI: " + I18nManager.getText("status.api.check.connection") + " ✓, gpt-y ✓, "
                         + I18nManager.getText("status.api.check.search") + " ✓",
-                MainWindowController.accountChecks(config, validator));
+                StatusBarController.accountChecks(config, validator));
     }
 
     @Test
@@ -126,7 +126,7 @@ class BrainstormAvailabilityTest {
         when(config.accounts().getOpenAiChatModel()).thenReturn("");
 
         assertEquals("OpenAI: " + I18nManager.getText("status.api.check.connection") + " ✓, "
-                + I18nManager.getText("status.api.check.nomodel"), MainWindowController.accountChecks(config, null));
-        assertEquals("", MainWindowController.accountChecks(ConfigMocks.config(), null));
+                + I18nManager.getText("status.api.check.nomodel"), StatusBarController.accountChecks(config, null));
+        assertEquals("", StatusBarController.accountChecks(ConfigMocks.config(), null));
     }
 }
