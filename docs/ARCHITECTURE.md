@@ -68,8 +68,8 @@ that dependencies become visible in signatures and the locator can shrink to the
 - **SQLite** in `~/.moodframe/db`, accessed with **plain JDBC** (`java.sql`), no ORM. The repositories get their
   connections from `database.DatabaseManager`, with foreign keys on and a busy timeout.
 - **Migrations** are SQL files `V###__description.sql` in `src/main/resources/db/migration`, applied in order at
-  startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`) runs in the same
-  sequence.
+  startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`, `DeletedCostCorrection`) runs in
+  the same sequence.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
   (`service.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
 - **Files**: images and videos live under `~/.moodframe/images`, thumbnails under `~/.moodframe/thumbnails`; the
