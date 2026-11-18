@@ -1,0 +1,131 @@
+package art.moodframe.service.prompt;
+
+import art.moodframe.model.CameraSettings;
+import art.moodframe.model.ColorStyle;
+import art.moodframe.model.PromptBlock;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Composes the final prompt from the subject of the user and the selected building blocks.
+ *
+ * <p>One labeled line per block, the medium first (BFL "Building a Good Prompt": medium, subject,
+ * environment, lighting, framing); empty blocks are left out:</p>
+ * <pre>
+ * Image style: &lt;style&gt;.
+ * &lt;subject&gt;
+ * Atmosphere: &lt;atmosphere&gt;.
+ * Lighting: &lt;light&gt;.
+ * Camera: &lt;camera&gt;.            (Framing: for a style that is not photographic)
+ * Color palette: &lt;palette&gt;
+ * </pre>
+ *
+ * <p>With a reference image the camera line of a photographic style starts with {@link #EDIT_CAMERA_INTRO}: without
+ * it, the image models read the camera as a description of the photo and leave it unchanged.</p>
+ *
+ * <p>The light does not apply to layout styles; these get a rule for their text instead. For a style that is not
+ * photographic, layout included, the camera adds only perspective and shot size (see {@link CameraPromptBuilder}).</p>
+ *
+ * @since 2.0.0
+ */
+public class PromptComposer {
+
+    /** Appended once to the style line of every layout style. */
+    public static final String LAYOUT_TEXT_RULE =
+            "All text is short, correctly spelled and clearly legible, set in one consistent typeface.";
+
+    /** Put before the camera of a photographic style when the order has a reference image. */
+    public static final String EDIT_CAMERA_INTRO = "Change only the camera of the reference photo, as if the photo "
+            + "were taken again with these settings; keep the subject, all people and objects, the scene and the "
+            + "light.";
+
+    /**
+     * The selected building blocks; every part may be null.
+     *
+     * @param style the style
+     * @param atmosphere the atmosphere
+     * @param light the light
+     * @param camera the camera
+     * @param palette the color palette
+     */
+    public record Selection(PromptBlock style, PromptBlock atmosphere, PromptBlock light, PromptBlock camera,
+            ColorStyle palette) {
+    }
+
+    private final int maxPromptLength;
+
+    /**
+     * Creates a composer for a model.
+     *
+     * @param maxPromptLength the maximum number of characters the model accepts for the whole prompt
+     */
+    public PromptComposer(int maxPromptLength) {
+        this.maxPromptLength = maxPromptLength;
+    }
+
+    /**
+     * Composes the prompt without reference image.
+     *
+     * @param subject the prompt of the user
+     * @param selection the selected building blocks
+     * @return the prompt, empty if the subject is empty
+     */
+    public String compose(String subject, Selection selection) {
+        return compose(subject, selection, false);
+    }
+
+    /**
+     * Composes the prompt.
+     *
+     * @param subject the prompt of the user
+     * @param selection the selected building blocks
+     * @param reference whether the order has at least one reference image
+     * @return the prompt, empty if the subject is empty
+     */
+    public String compose(String subject, Selection selection, boolean reference) {
+        if (subject == null || subject.isBlank())
+            return "";
+
+        PromptBlock style = selection.style();
+        boolean layout = style != null && style.isLayout();
+        boolean photographic = style == null || style.isPhotographic();
+        String camera = selection.camera() != null
+                ? CameraPromptBuilder.build(CameraSettings.fromJson(selection.camera().getParams()), photographic) : "";
+        List<String> lines = new ArrayList<>();
+
+        if (style != null && !isBlank(style.getText()))
+            lines.add("Image style: " + sentence(style.getText()) + (layout ? " " + LAYOUT_TEXT_RULE : ""));
+        lines.add(subject.trim());
+        if (selection.atmosphere() != null && !isBlank(selection.atmosphere().getText()))
+            lines.add("Atmosphere: " + sentence(selection.atmosphere().getText()));
+        if (!layout && selection.light() != null && !isBlank(selection.light().getText()))
+            lines.add("Lighting: " + sentence(selection.light().getText()));
+        if (!camera.isEmpty())
+            lines.add((photographic ? (reference ? EDIT_CAMERA_INTRO + " " : "") + "Camera: " : "Framing: ")
+                    + sentence(camera));
+        if (selection.palette() != null && !selection.palette().toPromptString().isEmpty())
+            lines.add("Color palette: " + selection.palette().toPromptString());
+        return String.join("\n", lines);
+    }
+
+    /**
+     * Checks the whole prompt against the length limit of the model.
+     *
+     * @param prompt the composed prompt
+     * @return true if the model accepts it
+     */
+    public boolean fits(String prompt) {
+        return prompt.length() <= maxPromptLength;
+    }
+
+    /** The text trimmed and ending with a period, unless it already ends with a sentence mark. */
+    private static String sentence(String text) {
+        String trimmed = text.trim();
+        return ".!?".indexOf(trimmed.charAt(trimmed.length() - 1)) >= 0 ? trimmed : trimmed + ".";
+    }
+
+    private static boolean isBlank(String text) {
+        return text == null || text.isBlank();
+    }
+}

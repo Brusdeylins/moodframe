@@ -2,9 +2,6 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.service.BflApiService;
-import art.moodframe.service.GeminiApiService;
-import art.moodframe.service.OpenAiApiService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

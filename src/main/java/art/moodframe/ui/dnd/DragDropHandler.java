@@ -1,7 +1,7 @@
 package art.moodframe.ui.dnd;
 
 import art.moodframe.model.AttachedImage;
-import art.moodframe.service.ImageAttachmentService;
+import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;

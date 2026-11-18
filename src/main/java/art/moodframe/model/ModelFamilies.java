@@ -1,6 +1,5 @@
 package art.moodframe.model;
 
-import art.moodframe.model.GenerationModel;
 
 import java.util.Comparator;
 import java.util.List;

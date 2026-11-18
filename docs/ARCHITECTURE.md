@@ -23,7 +23,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 |--------------|----------------------------------------------------------------------------------------|
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
-| `service`    | application logic: generation, provider clients, library, trash, files of the images  |
+| `service`    | application logic, split by topic into subpackages (see below)                         |
 | `repository` | data access with plain JDBC, one repository per aggregate                              |
 | `database`   | SQLite connections, WAL mode, schema migrations                                         |
 | `model`      | domain data classes, records and enums                                                  |
@@ -36,7 +36,23 @@ Allowed dependency directions:
 - `mcp` → `service`, never `ui`. Whatever the UI can do to the library, the MCP tools do through the same services.
 - `model` depends on nothing of the application. `util` depends only on `config` (settings such as the theme).
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
-  the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.ChatFileService`.
+  the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
+
+The subpackages of `service`, each using only those above it in the table (no cycles):
+
+| Package              | Role                                                                                 |
+|----------------------|--------------------------------------------------------------------------------------|
+| `service.provider`   | provider SPI and registry, the clients of BFL, Gemini and OpenAI, account checks     |
+| `service.prompt`     | the prompt text: `PromptComposer`, `CameraPromptBuilder`                             |
+| `service.trash`      | the central trash (`TrashCenter`, `TrashGroup`), its cleanup, the trash directory    |
+| `service.library`    | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
+| `service.chat`       | the chats with their entries, files, thumbnails, attachments, their trash groups     |
+| `service.generation` | carries out a generation order: entry, request, BFL job polling, image files         |
+| `service.brainstorm` | the brainstorm chat and the analysis of an image into a mood                         |
+| `service`            | `ConfigurationExporter` (settings and library backup), `UpdateCheckService`          |
+
+`service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
+items in `service.chat` and `service.library`, so the trash depends on none of them.
 
 Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (e.g.
 `LibraryEvents`, `GenerationService`), and some model classes carry JavaFX properties for binding.
@@ -75,12 +91,12 @@ that dependencies become visible in signatures and the locator can shrink to the
   connections from `database.DatabaseManager`, with foreign keys on and a busy timeout.
 - **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
   apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,
-  empty) through `service.RepositoryAccess`.
+  empty) through `service.library.RepositoryAccess`.
 - **Migrations** are SQL files `V###__description.sql` in `src/main/resources/db/migration`, applied in order at
   startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`, `DeletedCostCorrection`) runs in
   the same sequence.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
-  (`service.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
+  (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
 - **Files**: images and videos live under `~/.moodframe/images`, thumbnails under `~/.moodframe/thumbnails`; the
   database stores their paths.
 - **Settings** are a properties file `~/.moodframe/config.properties`, not part of the database.

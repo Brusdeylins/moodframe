@@ -1,11 +1,11 @@
 package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashCleanup;
-import art.moodframe.service.TrashCleanupService;
-import art.moodframe.service.TrashEntry;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanup;
+import art.moodframe.service.trash.TrashCleanupService;
+import art.moodframe.service.trash.TrashEntry;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.cell.TrashEntryCell;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;

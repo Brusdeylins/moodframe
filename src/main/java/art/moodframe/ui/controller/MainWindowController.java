@@ -11,13 +11,13 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
-import art.moodframe.service.ApiProviderValidator;
-import art.moodframe.service.ChatHistoryService;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodService;
+import art.moodframe.service.provider.ApiProviderValidator;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.BoxInset;
@@ -465,8 +465,8 @@ public class MainWindowController implements I18nChangeListener {
     private boolean reorderingChats;
 
     // Services
-    private art.moodframe.service.RequestResponseManager requestResponseManager;
-    private art.moodframe.service.GenerationService generationService;
+    private art.moodframe.service.generation.RequestResponseManager requestResponseManager;
+    private art.moodframe.service.generation.GenerationService generationService;
     private ChatHistoryService chatHistory;
     private ChatLibrary chatLibrary;
     private art.moodframe.config.ApplicationConfig config;
@@ -478,7 +478,7 @@ public class MainWindowController implements I18nChangeListener {
     private art.moodframe.ui.dnd.DragDropHandler dragDropHandler;
 
     // Image attachment service (shared between DragDropHandler and MultiImagePanel)
-    private art.moodframe.service.ImageAttachmentService imageAttachmentService;
+    private art.moodframe.service.chat.ImageAttachmentService imageAttachmentService;
 
     // Track the currently selected model to survive language changes
     private art.moodframe.model.GenerationModel currentSelectedModel;
@@ -598,7 +598,7 @@ public class MainWindowController implements I18nChangeListener {
 
         // Create ImageAttachmentService instance directly (since it's not registered in
         // ServiceFactory)
-        imageAttachmentService = new art.moodframe.service.ImageAttachmentService();
+        imageAttachmentService = new art.moodframe.service.chat.ImageAttachmentService();
 
         // Create drag and drop handler
         dragDropHandler = new art.moodframe.ui.dnd.DragDropHandler(
@@ -628,7 +628,7 @@ public class MainWindowController implements I18nChangeListener {
         try {
             // Reuse shared ImageAttachmentService (or create if not yet initialized)
             if (imageAttachmentService == null)
-                imageAttachmentService = new art.moodframe.service.ImageAttachmentService();
+                imageAttachmentService = new art.moodframe.service.chat.ImageAttachmentService();
 
             // Create the multi-image panel
             multiImagePanel = new art.moodframe.ui.component.MultiImageAttachmentPanel();
@@ -723,10 +723,10 @@ public class MainWindowController implements I18nChangeListener {
     private void onBrainstormClicked() {
         try {
             art.moodframe.config.ServiceFactory services = art.moodframe.config.ServiceFactory.getInstance();
-            art.moodframe.service.PromptBlockService styleService =
-                    services.getService(art.moodframe.service.PromptBlockService.class);
-            art.moodframe.service.ColorStyleService colorService =
-                    services.getService(art.moodframe.service.ColorStyleService.class);
+            art.moodframe.service.library.PromptBlockService styleService =
+                    services.getService(art.moodframe.service.library.PromptBlockService.class);
+            art.moodframe.service.library.ColorStyleService colorService =
+                    services.getService(art.moodframe.service.library.ColorStyleService.class);
 
             /*  The names stay as shown: the OpenAI models share one constant and differ only by their name  */
             java.util.List<String> modelNames = modelComboBox.getItems().stream()
@@ -751,13 +751,14 @@ public class MainWindowController implements I18nChangeListener {
                     + "\nText currently in the input field: "
                     + (promptTextArea.getText().isBlank() ? "(empty)" : promptTextArea.getText().trim());
 
-            art.moodframe.service.BrainstormContext brainstormContext = new art.moodframe.service.BrainstormContext(
+            art.moodframe.service.brainstorm.BrainstormContext brainstormContext =
+                    new art.moodframe.service.brainstorm.BrainstormContext(
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
                     styleService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                     moodService != null ? moodService.getAll() : List.of(), models, currentState, modelNames, locked);
-            art.moodframe.service.BrainstormService brainstormService = art.moodframe.service.BrainstormService.create(config);
+            art.moodframe.service.brainstorm.BrainstormService brainstormService = art.moodframe.service.brainstorm.BrainstormService.create(config);
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
             new art.moodframe.ui.dialog.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
@@ -832,18 +833,18 @@ public class MainWindowController implements I18nChangeListener {
 
         boolean saved;
         if (field == Mood.Field.COLOR) {
-            art.moodframe.service.ColorStyleService service = colorStyleService();
+            art.moodframe.service.library.ColorStyleService service = colorStyleService();
             saved = service != null && service.addCustomStyle(
                     new art.moodframe.model.ColorStyle(block.name(), block.colors(), false));
             if (saved)
                 fillColorChoice(block.name());
         }
         else {
-            art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.PromptBlockService.class);
+            art.moodframe.service.library.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.library.PromptBlockService.class);
             art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
             saved = service != null && service.addCustom(type == art.moodframe.model.PromptBlock.Type.CAMERA
-                    ? art.moodframe.service.PromptBlockService.camera(null, block.name(), block.settings())
+                    ? art.moodframe.service.library.PromptBlockService.camera(null, block.name(), block.settings())
                     : new art.moodframe.model.PromptBlock(null, type, block.name(), block.text(), null,
                             type == art.moodframe.model.PromptBlock.Type.STYLE));
             if (saved)
@@ -927,21 +928,21 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Builds the final prompt from the user input and the selected building blocks, with the attached image as
-     * reference, see {@link art.moodframe.service.PromptComposer}.
+     * reference, see {@link art.moodframe.service.prompt.PromptComposer}.
      */
     public String buildFinalPrompt() {
         return promptComposer().compose(promptTextArea.getText(), selectedBlocks(), attachedImageFile != null);
     }
 
     /** The composer for the length limit of the selected model. */
-    private art.moodframe.service.PromptComposer promptComposer() {
-        return new art.moodframe.service.PromptComposer(getMaxPromptLength());
+    private art.moodframe.service.prompt.PromptComposer promptComposer() {
+        return new art.moodframe.service.prompt.PromptComposer(getMaxPromptLength());
     }
 
     /** The building blocks selected in the main window; none with a reference image unless "Apply mood" is on. */
-    private art.moodframe.service.PromptComposer.Selection selectedBlocks() {
+    private art.moodframe.service.prompt.PromptComposer.Selection selectedBlocks() {
         if (attachedImageFile != null && moodApplyCheckBox != null && !moodApplyCheckBox.isSelected())
-            return new art.moodframe.service.PromptComposer.Selection(null, null, null, null, null);
+            return new art.moodframe.service.prompt.PromptComposer.Selection(null, null, null, null, null);
 
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
         art.moodframe.model.StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
@@ -950,7 +951,8 @@ public class MainWindowController implements I18nChangeListener {
         art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
-        return new art.moodframe.service.PromptComposer.Selection(styleItem != null ? styleItem.getBlock() : null,
+        return new art.moodframe.service.prompt.PromptComposer.Selection(
+                styleItem != null ? styleItem.getBlock() : null,
                 atmosphereItem != null ? atmosphereItem.getBlock() : null, lightItem != null ? lightItem.getBlock() : null,
                 cameraItem != null ? cameraItem.getBlock() : null, palette);
     }
@@ -1318,7 +1320,7 @@ public class MainWindowController implements I18nChangeListener {
         try {
             // Get RequestResponseManager from ServiceFactory
             requestResponseManager = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.RequestResponseManager.class);
+                    .getService(art.moodframe.service.generation.RequestResponseManager.class);
 
             if (requestResponseManager != null) {
                 // Set up event handlers for real-time UI updates
@@ -1337,7 +1339,7 @@ public class MainWindowController implements I18nChangeListener {
                 logger.warn("RequestResponseManager not available - using mock mode");
             }
             generationService = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.GenerationService.class);
+                    .getService(art.moodframe.service.generation.GenerationService.class);
 
             /*  The lists follow every change of the library, made here or by another caller  */
             LibraryEvents events = art.moodframe.config.ServiceFactory.getInstance().getService(LibraryEvents.class);
@@ -1348,23 +1350,23 @@ public class MainWindowController implements I18nChangeListener {
 
             /*  What leaves the trash shows by the changes of the library; the trash adds the status and the moods
                 that lost their last block  */
-            art.moodframe.service.TrashCenter trashCenter = art.moodframe.config.ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.TrashCenter.class);
+            art.moodframe.service.trash.TrashCenter trashCenter = art.moodframe.config.ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.trash.TrashCenter.class);
             if (trashCenter != null) {
-                trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
+                trashCenter.addListener(new art.moodframe.service.trash.TrashCenter.Listener() {
                     @Override
-                    public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
-                        if (kind == art.moodframe.service.TrashGroup.Kind.CHATS)
+                    public void restored(art.moodframe.service.trash.TrashGroup.Kind kind, String id) {
+                        if (kind == art.moodframe.service.trash.TrashGroup.Kind.CHATS)
                             javafx.application.Platform.runLater(() -> setStatus(
                                     I18nManager.getText("status.chat.restored")));
-                        else if (kind == art.moodframe.service.TrashGroup.Kind.IMAGES)
+                        else if (kind == art.moodframe.service.trash.TrashGroup.Kind.IMAGES)
                             javafx.application.Platform.runLater(() -> showImagesRestoredStatus(id));
                     }
 
                     /*  A mood that lost its last block with these blocks may go to the trash as well  */
                     @Override
-                    public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
-                        if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                    public void deleted(art.moodframe.service.trash.TrashGroup.Kind kind, java.util.List<String> ids) {
+                        if (kind == art.moodframe.service.trash.TrashGroup.Kind.BLOCKS)
                             javafx.application.Platform.runLater(() -> askToDeleteEmptiedMoods());
                     }
                 });
@@ -1799,8 +1801,8 @@ public class MainWindowController implements I18nChangeListener {
     private void fillBlockChoice(art.moodframe.model.PromptBlock.Type type, String name) {
         List<art.moodframe.model.StylePresetItem> entries = new java.util.ArrayList<>();
         entries.add(new art.moodframe.model.StylePresetItem("None", "", false));
-        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
+        art.moodframe.service.library.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.PromptBlockService.class);
         boolean grouped = type == art.moodframe.model.PromptBlock.Type.STYLE;
         java.util.function.Predicate<art.moodframe.model.StylePresetItem> favorite = (item) -> item.getBlock() != null
                 && isFavorite(FavoriteService.Kind.of(type), item.getBlock().getId());
@@ -1841,8 +1843,8 @@ public class MainWindowController implements I18nChangeListener {
     private void fillColorChoice(String name) {
         List<art.moodframe.model.ColorStyleItem> entries = new java.util.ArrayList<>();
         entries.add(new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true));
-        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
+        art.moodframe.service.library.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.ColorStyleService.class);
         if (service == null)
             logger.warn("ColorStyleService not available, color list only offers None");
         else
@@ -1948,8 +1950,8 @@ public class MainWindowController implements I18nChangeListener {
      * @param block the block to edit, null for a new one
      */
     private String editBlock(art.moodframe.model.PromptBlock.Type type, art.moodframe.model.PromptBlock block) {
-        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
+        art.moodframe.service.library.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.PromptBlockService.class);
         if (service == null)
             return null;
         if (type == art.moodframe.model.PromptBlock.Type.CAMERA)
@@ -1987,13 +1989,14 @@ public class MainWindowController implements I18nChangeListener {
      * @param service the building blocks
      * @param block   the camera to edit, null for a new one
      */
-    private String editCamera(art.moodframe.service.PromptBlockService service, art.moodframe.model.PromptBlock block) {
+    private String editCamera(art.moodframe.service.library.PromptBlockService service,
+                              art.moodframe.model.PromptBlock block) {
         art.moodframe.ui.dialog.CameraEditDialog dialog = new art.moodframe.ui.dialog.CameraEditDialog(block);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
             boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
-            art.moodframe.model.PromptBlock stored = art.moodframe.service.PromptBlockService.camera(
+            art.moodframe.model.PromptBlock stored = art.moodframe.service.library.PromptBlockService.camera(
                     inPlace ? block.getId() : null, result.name(), result.settings());
             if (block != null)
                 stored.setSortOrder(block.getSortOrder());
@@ -2020,8 +2023,8 @@ public class MainWindowController implements I18nChangeListener {
      * @param item the palette to edit, null for a new one
      */
     private String editPalette(art.moodframe.model.ColorStyleItem item) {
-        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
+        art.moodframe.service.library.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.ColorStyleService.class);
         if (service == null)
             return null;
 
@@ -2059,8 +2062,8 @@ public class MainWindowController implements I18nChangeListener {
      * @param type the type of the blocks
      */
     private void manageBlocks(art.moodframe.model.PromptBlock.Type type) {
-        art.moodframe.service.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
+        art.moodframe.service.library.PromptBlockService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.PromptBlockService.class);
         if (service == null)
             return;
 
@@ -2126,8 +2129,8 @@ public class MainWindowController implements I18nChangeListener {
      * Opens the "Manage…" dialog for the palettes of the user; the lists follow its changes.
      */
     private void managePalettes() {
-        art.moodframe.service.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.ColorStyleService.class);
+        art.moodframe.service.library.ColorStyleService service = art.moodframe.config.ServiceFactory.getInstance()
+                .getService(art.moodframe.service.library.ColorStyleService.class);
         if (service == null)
             return;
 
@@ -2561,8 +2564,8 @@ public class MainWindowController implements I18nChangeListener {
         return locked;
     }
 
-    private art.moodframe.service.ColorStyleService colorStyleService() {
-        return art.moodframe.config.ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class);
+    private art.moodframe.service.library.ColorStyleService colorStyleService() {
+        return art.moodframe.config.ServiceFactory.getInstance().getService(art.moodframe.service.library.ColorStyleService.class);
     }
 
     /** Whether a field differs from the chosen mood, compared anew each time; "No mood" is never changed. */
@@ -2657,20 +2660,21 @@ public class MainWindowController implements I18nChangeListener {
      * @param imageFile the image to analyze at once, null to let the user give one
      */
     private void openMoodFromImage(File imageFile) {
-        art.moodframe.service.PromptBlockService blockService = art.moodframe.config.ServiceFactory.getInstance()
-                .getService(art.moodframe.service.PromptBlockService.class);
-        art.moodframe.service.ColorStyleService colorService = colorStyleService();
+        art.moodframe.service.library.PromptBlockService blockService = art.moodframe.config.ServiceFactory
+                .getInstance().getService(art.moodframe.service.library.PromptBlockService.class);
+        art.moodframe.service.library.ColorStyleService colorService = colorStyleService();
         if (blockService == null || colorService == null)
             return;
 
-        art.moodframe.service.BrainstormContext context = new art.moodframe.service.BrainstormContext(
+        art.moodframe.service.brainstorm.BrainstormContext context =
+                new art.moodframe.service.brainstorm.BrainstormContext(
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                 List.of(), List.of(), "", List.of(), lockedMoodFields());
         new art.moodframe.ui.dialog.MoodImageDialog(mainBorderPane.getScene().getWindow(),
-                art.moodframe.service.MoodAnalysisService.create(config), context, imageFile,
+                art.moodframe.service.brainstorm.MoodAnalysisService.create(config), context, imageFile,
                 this::applyMoodFromImage).show();
     }
 
@@ -2695,7 +2699,7 @@ public class MainWindowController implements I18nChangeListener {
         List<String> trashed = mood != null ? moodService.trashedBlocks(mood) : List.of();
         if (!trashed.isEmpty())
             art.moodframe.ui.dialog.TrashWindow.open(mainBorderPane.getScene().getWindow(),
-                    art.moodframe.service.TrashGroup.Kind.BLOCKS, trashed.get(0));
+                    art.moodframe.service.trash.TrashGroup.Kind.BLOCKS, trashed.get(0));
     }
 
     /** Asks for every mood that lost its last block whether to move it to the trash. */
@@ -3209,8 +3213,8 @@ public class MainWindowController implements I18nChangeListener {
                 imageCountSlider.setValue(savedImageCount);
 
                 // Load style selection; a merged former style resolves to the one it went into
-                art.moodframe.service.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
-                        .getService(art.moodframe.service.PromptBlockService.class);
+                art.moodframe.service.library.PromptBlockService styleService = art.moodframe.config.ServiceFactory.getInstance()
+                        .getService(art.moodframe.service.library.PromptBlockService.class);
                 art.moodframe.model.PromptBlock savedBlock = styleService != null
                         ? styleService.find(art.moodframe.model.PromptBlock.Type.STYLE, config.getDefaultStyle()) : null;
                 String savedStyle = savedBlock != null ? savedBlock.getName() : config.getDefaultStyle();
@@ -3224,8 +3228,8 @@ public class MainWindowController implements I18nChangeListener {
 
                 // Load color style selection; a renamed default palette resolves to its new name
                 if (colorStyleComboBox != null) {
-                    art.moodframe.service.ColorStyleService colorService = art.moodframe.config.ServiceFactory.getInstance()
-                            .getService(art.moodframe.service.ColorStyleService.class);
+                    art.moodframe.service.library.ColorStyleService colorService = art.moodframe.config.ServiceFactory.getInstance()
+                            .getService(art.moodframe.service.library.ColorStyleService.class);
                     art.moodframe.model.ColorStyle savedPalette = colorService != null
                             ? colorService.getStyleByName(config.getDefaultColorStyle()) : null;
                     String savedColorStyle = savedPalette != null ? savedPalette.getName() : config.getDefaultColorStyle();
@@ -4413,7 +4417,7 @@ public class MainWindowController implements I18nChangeListener {
      * @return maximum character limit for current provider
      */
     private int getMaxPromptLength() {
-        return art.moodframe.service.GenerationService.maxPromptLength(selectedModelId());
+        return art.moodframe.service.generation.GenerationService.maxPromptLength(selectedModelId());
     }
 
     /** The fixed id of the selected model, null without selection. */
@@ -5167,15 +5171,15 @@ public class MainWindowController implements I18nChangeListener {
         /*  Without selection the default model  */
         String modelId = java.util.Objects.requireNonNullElse(selectedModelId(),
                 art.moodframe.model.GenerationModel.getDefault().name());
-        art.moodframe.service.GenerationService.Submission submission;
+        art.moodframe.service.generation.GenerationService.Submission submission;
         try {
-            submission = generationService.submit(new art.moodframe.service.GenerationOrder(currentChat, userPrompt,
-                    selectedBlocks(), chosenMood(), isMoodChanged(),
-                    new art.moodframe.service.GenerationOrder.Target(chosenFrame(), frameChanged,
+            submission = generationService.submit(new art.moodframe.service.generation.GenerationOrder(currentChat,
+                    userPrompt, selectedBlocks(), chosenMood(), isMoodChanged(),
+                    new art.moodframe.service.generation.GenerationOrder.Target(chosenFrame(), frameChanged,
                             aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue()),
                     modelId, (int) imageCountSlider.getValue(), modelParameters(), attachedImageFile,
                     attachedBase64Images(), ChatEntry.Source.UI));
-        } catch (art.moodframe.service.GenerationService.GenerationException e) {
+        } catch (art.moodframe.service.generation.GenerationService.GenerationException e) {
             switch (e.getFailure()) {
                 case PROMPT_TOO_LONG -> setStatus(I18nManager.getText("status.error.prompt.too.long",
                         e.getPromptLength(), e.getMaxPromptLength()));
@@ -5218,7 +5222,7 @@ public class MainWindowController implements I18nChangeListener {
     /**
      * The parameters of the model as set in the panel; a seed that is no number counts as random.
      */
-    private art.moodframe.service.GenerationOrder.Parameters modelParameters() {
+    private art.moodframe.service.generation.GenerationOrder.Parameters modelParameters() {
         Long seed = null;
         String seedText = seedTextField.getText();
         if (seedText != null && !seedText.trim().isEmpty() && !seedText.trim().equals("random")) {
@@ -5232,7 +5236,8 @@ public class MainWindowController implements I18nChangeListener {
         /*  The thinking level is disabled while an image is attached, then the API default is used  */
         String thinkingLevel = geminiThinkingLevelChoiceBox != null && !geminiThinkingLevelChoiceBox.isDisabled()
                 ? geminiThinkingLevelChoiceBox.getValue() : null;
-        return new art.moodframe.service.GenerationOrder.Parameters(seed, (int) safetyToleranceSlider.getValue(),
+        return new art.moodframe.service.generation.GenerationOrder.Parameters(seed,
+                (int) safetyToleranceSlider.getValue(),
                 flux2SafetySlider != null ? (int) flux2SafetySlider.getValue() : null,
                 bflPromptUpsamplingCheckBox != null && bflPromptUpsamplingCheckBox.isSelected(), thinkingLevel,
                 geminiAdvancedFeaturesSection != null ? geminiAdvancedFeaturesSection.isSearchGroundingEnabled() : null,
@@ -5492,7 +5497,7 @@ public class MainWindowController implements I18nChangeListener {
     private void onTrashClicked() {
         try {
             art.moodframe.ui.dialog.TrashWindow.open(mainBorderPane.getScene().getWindow(),
-                    art.moodframe.service.TrashGroup.Kind.CHATS, null);
+                    art.moodframe.service.trash.TrashGroup.Kind.CHATS, null);
         } catch (Exception e) {
             logger.error("Failed to open trash window", e);
         }
@@ -6335,7 +6340,7 @@ public class MainWindowController implements I18nChangeListener {
                     config.isGeminiProviderEnabled(), config.hasGeminiApiKey());
 
         // Add models from enabled providers with valid API keys
-        modelComboBox.getItems().addAll(art.moodframe.service.GenerationService.availableItems(config));
+        modelComboBox.getItems().addAll(art.moodframe.service.generation.GenerationService.availableItems(config));
 
         logger.info("Available models after filtering: {}", modelComboBox.getItems());
 
@@ -6596,15 +6601,15 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Shows the hints below the camera: for a style that is not photographic, layout included, only perspective and
-     * shot size apply (see {@link art.moodframe.service.PromptComposer}); with a reference image, a stage that changes
-     * the geometry may show only weakly, as an edit hardly changes it.
+     * shot size apply (see {@link art.moodframe.service.prompt.PromptComposer}); with a reference image, a stage that
+     * changes the geometry may show only weakly, as an edit hardly changes it.
      */
     private void updateCameraHint() {
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean framingOnly = styleItem != null && styleItem.getBlock() != null
                 && !styleItem.getBlock().isPhotographic();
         art.moodframe.model.PromptBlock camera = attachedImageFile != null ? selectedBlocks().camera() : null;
-        List<Enum<?>> weak = camera != null ? art.moodframe.service.CameraPromptBuilder.weakInEdits(
+        List<Enum<?>> weak = camera != null ? art.moodframe.service.prompt.CameraPromptBuilder.weakInEdits(
                 art.moodframe.model.CameraSettings.fromJson(camera.getParams()), !framingOnly) : List.of();
         List<String> hints = new java.util.ArrayList<>();
         if (framingOnly)

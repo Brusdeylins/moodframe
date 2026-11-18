@@ -1,7 +1,7 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.service.BrainstormService;
-import art.moodframe.service.YouTubeInfoService;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.YouTubeInfoService;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.YouTubeClip;
 import javafx.application.Platform;

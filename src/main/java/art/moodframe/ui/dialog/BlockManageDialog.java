@@ -1,10 +1,10 @@
 package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.service.BlockUsage;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashCleanupService;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.library.BlockUsage;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanupService;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
 import javafx.beans.binding.Bindings;

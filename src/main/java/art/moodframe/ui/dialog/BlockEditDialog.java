@@ -9,7 +9,7 @@ import javafx.scene.layout.Region;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.service.PromptBlockService;
+import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;

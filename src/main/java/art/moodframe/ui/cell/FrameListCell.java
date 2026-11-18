@@ -1,7 +1,7 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.Frame;
-import art.moodframe.service.FrameService;
+import art.moodframe.service.library.FrameService;
 import art.moodframe.ui.component.DropdownBounds;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;

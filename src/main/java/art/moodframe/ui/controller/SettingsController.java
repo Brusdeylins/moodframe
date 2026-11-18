@@ -20,8 +20,8 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.ThemeManager;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
-import art.moodframe.service.ApiProviderValidator;
-import art.moodframe.service.BflApiService;
+import art.moodframe.service.provider.ApiProviderValidator;
+import art.moodframe.service.provider.BflApiService;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -1482,8 +1482,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.testing.status"));
         runConnectionTest(testGeminiConnectionButton, I18nManager.getText("settings.gemini.test"), () -> {
-            art.moodframe.service.GeminiApiService apiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.GeminiApiService.class);
+            art.moodframe.service.provider.GeminiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.GeminiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("Gemini API service not available");
             apiService.setApiKey(apiKey);
@@ -1612,8 +1612,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.testing.status"));
         runConnectionTest(testOpenaiConnectionButton, I18nManager.getText("settings.openai.test"), () -> {
-            art.moodframe.service.OpenAiApiService apiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            art.moodframe.service.provider.OpenAiApiService apiService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.OpenAiApiService.class);
             if (apiService == null)
                 throw new RuntimeException("OpenAI API service not available");
 
@@ -1632,8 +1632,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
             validatedOpenaiBaseUrl = baseUrl;
 
             /*  The service may have added "/v1"; the field shows it, so "Save" keeps it  */
-            art.moodframe.service.OpenAiApiService testedService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            art.moodframe.service.provider.OpenAiApiService testedService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.provider.OpenAiApiService.class);
             if (testedService != null && !baseUrl.equals(testedService.getBaseUrl())) {
                 validatedOpenaiBaseUrl = testedService.getBaseUrl();
                 openaiBaseUrlField.setText(validatedOpenaiBaseUrl);
@@ -1694,12 +1694,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     service.setApiKey(config.getApiKey());
             }
             case "gemini" -> {
-                art.moodframe.service.GeminiApiService service = factory.getService(art.moodframe.service.GeminiApiService.class);
+                art.moodframe.service.provider.GeminiApiService service = factory.getService(art.moodframe.service.provider.GeminiApiService.class);
                 if (service != null)
                     service.setApiKey(config.getGeminiApiKey());
             }
             default -> {
-                art.moodframe.service.OpenAiApiService service = factory.getService(art.moodframe.service.OpenAiApiService.class);
+                art.moodframe.service.provider.OpenAiApiService service = factory.getService(art.moodframe.service.provider.OpenAiApiService.class);
                 if (service != null) {
                     service.setApiKey(config.getOpenAiApiKey());
                     service.setBaseUrl(config.getOpenAiBaseUrl());
@@ -2316,8 +2316,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     config.resetToDefaults();
 
                     // Delete all custom styles
-                    art.moodframe.service.PromptBlockService styleService = ServiceFactory.getInstance()
-                            .getService(art.moodframe.service.PromptBlockService.class);
+                    art.moodframe.service.library.PromptBlockService styleService = ServiceFactory.getInstance()
+                            .getService(art.moodframe.service.library.PromptBlockService.class);
                     if (styleService != null) {
                         styleService.resetToDefaults(art.moodframe.model.PromptBlock.Type.STYLE);
                     }

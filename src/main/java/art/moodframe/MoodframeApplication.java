@@ -140,64 +140,66 @@ public class MoodframeApplication extends Application {
             art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
 
             /*  The services report every change of the library here, the main window shows what others changed  */
-            art.moodframe.service.LibraryEvents events = new art.moodframe.service.LibraryEvents();
-            ServiceFactory.getInstance().registerService(art.moodframe.service.LibraryEvents.class, events);
+            art.moodframe.service.library.LibraryEvents events = new art.moodframe.service.library.LibraryEvents();
+            ServiceFactory.getInstance().registerService(art.moodframe.service.library.LibraryEvents.class, events);
 
             // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.PromptBlockService.class,
-                    () -> new art.moodframe.service.PromptBlockService(database, events));
+                    art.moodframe.service.library.PromptBlockService.class,
+                    () -> new art.moodframe.service.library.PromptBlockService(database, events));
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ColorStyleService.class,
-                    () -> new art.moodframe.service.ColorStyleService(database, events));
+                    art.moodframe.service.library.ColorStyleService.class,
+                    () -> new art.moodframe.service.library.ColorStyleService(database, events));
 
             // Initialize MoodService for the moods, the saved combinations of building blocks
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.MoodService.class,
-                    () -> new art.moodframe.service.MoodService(database,
-                            ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
+                    art.moodframe.service.library.MoodService.class,
+                    () -> new art.moodframe.service.library.MoodService(database,
+                            ServiceFactory.getInstance().getService(
+                                    art.moodframe.service.library.PromptBlockService.class),
+                            ServiceFactory.getInstance().getService(
+                                    art.moodframe.service.library.ColorStyleService.class),
                             events));
 
             /*  The frames, the saved settings of model, aspect ratio and image count  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.FrameService.class,
-                    () -> new art.moodframe.service.FrameService(database, events));
+                    art.moodframe.service.library.FrameService.class,
+                    () -> new art.moodframe.service.library.FrameService(database, events));
 
             /*  The favorites among moods, frames and building blocks, shown first in their lists  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.FavoriteService.class,
-                    () -> new art.moodframe.service.FavoriteService(database, events));
+                    art.moodframe.service.library.FavoriteService.class,
+                    () -> new art.moodframe.service.library.FavoriteService(database, events));
 
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.BlockUsage.class,
-                    () -> ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class));
+                    art.moodframe.service.library.BlockUsage.class,
+                    () -> ServiceFactory.getInstance().getService(art.moodframe.service.library.MoodService.class));
 
             // Initialize TrashManager for trash file operations (60 days retention)
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashManager.class,
-                    () -> new art.moodframe.service.TrashManager(60));
+                    art.moodframe.service.trash.TrashManager.class,
+                    () -> new art.moodframe.service.trash.TrashManager(60));
 
             /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
             java.util.concurrent.ExecutorService io = art.moodframe.net.IoExecutor.get();
 
             // Initialize BFL API Service
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.BflApiService.class,
-                    () -> new art.moodframe.service.BflApiServiceImpl(io));
+                    art.moodframe.service.provider.BflApiService.class,
+                    () -> new art.moodframe.service.provider.BflApiServiceImpl(io));
 
             // Initialize Google Gemini API Service
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.GeminiApiService.class,
-                    () -> new art.moodframe.service.GeminiApiServiceImpl(config, io));
+                    art.moodframe.service.provider.GeminiApiService.class,
+                    () -> new art.moodframe.service.provider.GeminiApiServiceImpl(config, io));
 
             // Initialize OpenAI API Service
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.OpenAiApiService.class,
-                    () -> new art.moodframe.service.OpenAiApiServiceImpl(config, io));
+                    art.moodframe.service.provider.OpenAiApiService.class,
+                    () -> new art.moodframe.service.provider.OpenAiApiServiceImpl(config, io));
 
             /*  The providers by their id, for the services that dispatch by provider  */
             ServiceFactory.getInstance().registerProvider(
@@ -205,59 +207,61 @@ public class MoodframeApplication extends Application {
                     () -> {
                         ServiceFactory services = ServiceFactory.getInstance();
                         return new art.moodframe.service.provider.ProviderRegistry(
-                                services.getService(art.moodframe.service.BflApiService.class),
-                                services.getService(art.moodframe.service.GeminiApiService.class),
-                                services.getService(art.moodframe.service.OpenAiApiService.class));
+                                services.getService(art.moodframe.service.provider.BflApiService.class),
+                                services.getService(art.moodframe.service.provider.GeminiApiService.class),
+                                services.getService(art.moodframe.service.provider.OpenAiApiService.class));
                     });
 
             // Moves the files of chats, entries and images to the trash and back
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatFileService.class,
-                    () -> new art.moodframe.service.ChatFileService(
-                            ServiceFactory.getInstance().getService(art.moodframe.service.TrashManager.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ThumbnailManager.class),
-                            new art.moodframe.service.FileManagerService()));
+                    art.moodframe.service.chat.ChatFileService.class,
+                    () -> new art.moodframe.service.chat.ChatFileService(
+                            ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashManager.class),
+                            ServiceFactory.getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class),
+                            new art.moodframe.service.chat.FileManagerService()));
 
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.repository.ChatRepository.class,
                     () -> new art.moodframe.repository.ChatRepository(database,
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class)));
+                            ServiceFactory.getInstance().getService(art.moodframe.service.chat.ChatFileService.class)));
 
             // The central trash: chats first, the other kinds of items dock in with their own group
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashCenter.class,
+                    art.moodframe.service.trash.TrashCenter.class,
                     () -> {
-                        art.moodframe.service.TrashCenter trashCenter = new art.moodframe.service.TrashCenter();
+                        art.moodframe.service.trash.TrashCenter trashCenter =
+                                new art.moodframe.service.trash.TrashCenter();
+                        ServiceFactory services = ServiceFactory.getInstance();
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
                         if (chatRepo != null) {
-                            trashCenter.register(new art.moodframe.service.ChatTrashGroup(chatRepo));
-                            ServiceFactory services = ServiceFactory.getInstance();
-                            trashCenter.register(new art.moodframe.service.ImageTrashGroup(chatRepo,
-                                    services.getService(art.moodframe.service.ChatFileService.class),
-                                    services.getService(art.moodframe.service.TrashManager.class),
-                                    services.getService(art.moodframe.service.ThumbnailManager.class)));
+                            trashCenter.register(new art.moodframe.service.chat.ChatTrashGroup(chatRepo));
+                            trashCenter.register(new art.moodframe.service.chat.ImageTrashGroup(chatRepo,
+                                    services.getService(art.moodframe.service.chat.ChatFileService.class),
+                                    services.getService(art.moodframe.service.trash.TrashManager.class),
+                                    services.getService(art.moodframe.service.chat.ThumbnailManager.class)));
                         }
-                        trashCenter.register(new art.moodframe.service.BlockTrashGroup(
-                                ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.BlockUsage.class)));
+                        trashCenter.register(new art.moodframe.service.library.BlockTrashGroup(
+                                services.getService(art.moodframe.service.library.PromptBlockService.class),
+                                services.getService(art.moodframe.service.library.ColorStyleService.class),
+                                services.getService(art.moodframe.service.library.BlockUsage.class)));
 
                         /*  Moods lose the references to blocks deleted for good, also by the automatic cleanup  */
-                        art.moodframe.service.MoodService moodService = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.MoodService.class);
-                        trashCenter.register(new art.moodframe.service.MoodTrashGroup(moodService));
-                        trashCenter.register(new art.moodframe.service.FrameTrashGroup(ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.FrameService.class)));
-                        trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
+                        art.moodframe.service.library.MoodService moodService = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.library.MoodService.class);
+                        trashCenter.register(new art.moodframe.service.library.MoodTrashGroup(moodService));
+                        trashCenter.register(new art.moodframe.service.library.FrameTrashGroup(
+                                services.getService(art.moodframe.service.library.FrameService.class)));
+                        trashCenter.addListener(new art.moodframe.service.trash.TrashCenter.Listener() {
                             @Override
-                            public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
+                            public void restored(art.moodframe.service.trash.TrashGroup.Kind kind, String id) {
                             }
 
                             @Override
-                            public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
-                                if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
+                            public void deleted(art.moodframe.service.trash.TrashGroup.Kind kind,
+                                                java.util.List<String> ids) {
+                                if (kind == art.moodframe.service.trash.TrashGroup.Kind.BLOCKS)
                                     moodService.blocksDeleted(ids);
                             }
                         });
@@ -266,25 +270,27 @@ public class MoodframeApplication extends Application {
 
             // Loads the chats and settles what a restart left behind
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatHistoryService.class,
+                    art.moodframe.service.chat.ChatHistoryService.class,
                     () -> {
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
-                        return chatRepo != null ? new art.moodframe.service.ChatHistoryService(chatRepo,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.TrashManager.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class))
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return chatRepo != null ? new art.moodframe.service.chat.ChatHistoryService(chatRepo,
+                                services.getService(art.moodframe.service.trash.TrashManager.class),
+                                services.getService(art.moodframe.service.chat.ChatFileService.class))
                                 : null;
                     });
 
             /*  The list of the chats, shared by the main window and later callers; it follows the trash as well  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatLibrary.class,
+                    art.moodframe.service.chat.ChatLibrary.class,
                     () -> {
-                        art.moodframe.service.ChatLibrary chats = new art.moodframe.service.ChatLibrary(
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatHistoryService.class),
+                        art.moodframe.service.chat.ChatLibrary chats = new art.moodframe.service.chat.ChatLibrary(
+                                ServiceFactory.getInstance().getService(
+                                        art.moodframe.service.chat.ChatHistoryService.class),
                                 events);
-                        art.moodframe.service.TrashCenter trashCenter = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.TrashCenter.class);
+                        art.moodframe.service.trash.TrashCenter trashCenter = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.trash.TrashCenter.class);
                         if (trashCenter != null)
                             trashCenter.addListener(chats);
                         return chats;
@@ -292,21 +298,21 @@ public class MoodframeApplication extends Application {
 
             /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ImageSizeCheck.class,
+                    art.moodframe.service.chat.ImageSizeCheck.class,
                     () -> {
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
-                        return chatRepo != null ? new art.moodframe.service.ImageSizeCheck(chatRepo) : null;
+                        return chatRepo != null ? new art.moodframe.service.chat.ImageSizeCheck(chatRepo) : null;
                     });
 
             // Initialize RequestResponseManager for real API integration
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.RequestResponseManager.class,
+                    art.moodframe.service.generation.RequestResponseManager.class,
                     () -> {
                         try {
                             art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                     .getService(art.moodframe.repository.ChatRepository.class);
-                            return new art.moodframe.service.RequestResponseManager(config, chatRepo,
+                            return new art.moodframe.service.generation.RequestResponseManager(config, chatRepo,
                                     ServiceFactory.getInstance().getService(
                                             art.moodframe.service.provider.ProviderRegistry.class), io);
                         } catch (Exception e) {
@@ -317,13 +323,14 @@ public class MoodframeApplication extends Application {
 
             /*  Carries out a generation order without the user interface: entry, request and submission  */
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.GenerationService.class,
+                    art.moodframe.service.generation.GenerationService.class,
                     () -> {
-                        art.moodframe.service.RequestResponseManager requests = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.RequestResponseManager.class);
-                        return requests != null ? new art.moodframe.service.GenerationService(config,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatLibrary.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class),
+                        art.moodframe.service.generation.RequestResponseManager requests = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.generation.RequestResponseManager.class);
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return requests != null ? new art.moodframe.service.generation.GenerationService(config,
+                                services.getService(art.moodframe.service.chat.ChatLibrary.class),
+                                services.getService(art.moodframe.service.library.MoodService.class),
                                 requests) : null;
                     });
 
@@ -333,26 +340,26 @@ public class MoodframeApplication extends Application {
                     art.moodframe.mcp.McpService.class,
                     () -> {
                         ServiceFactory services = ServiceFactory.getInstance();
-                        art.moodframe.service.ChatLibrary chats = services.getService(
-                                art.moodframe.service.ChatLibrary.class);
-                        art.moodframe.service.MoodService moods = services.getService(
-                                art.moodframe.service.MoodService.class);
-                        art.moodframe.service.PromptBlockService blocks = services.getService(
-                                art.moodframe.service.PromptBlockService.class);
-                        art.moodframe.service.ColorStyleService colors = services.getService(
-                                art.moodframe.service.ColorStyleService.class);
-                        art.moodframe.service.FrameService frames = services.getService(
-                                art.moodframe.service.FrameService.class);
-                        art.moodframe.service.FavoriteService favorites = services.getService(
-                                art.moodframe.service.FavoriteService.class);
-                        art.moodframe.service.TrashCenter trash = services.getService(
-                                art.moodframe.service.TrashCenter.class);
-                        art.moodframe.service.GenerationService generation = services.getService(
-                                art.moodframe.service.GenerationService.class);
+                        art.moodframe.service.chat.ChatLibrary chats = services.getService(
+                                art.moodframe.service.chat.ChatLibrary.class);
+                        art.moodframe.service.library.MoodService moods = services.getService(
+                                art.moodframe.service.library.MoodService.class);
+                        art.moodframe.service.library.PromptBlockService blocks = services.getService(
+                                art.moodframe.service.library.PromptBlockService.class);
+                        art.moodframe.service.library.ColorStyleService colors = services.getService(
+                                art.moodframe.service.library.ColorStyleService.class);
+                        art.moodframe.service.library.FrameService frames = services.getService(
+                                art.moodframe.service.library.FrameService.class);
+                        art.moodframe.service.library.FavoriteService favorites = services.getService(
+                                art.moodframe.service.library.FavoriteService.class);
+                        art.moodframe.service.trash.TrashCenter trash = services.getService(
+                                art.moodframe.service.trash.TrashCenter.class);
+                        art.moodframe.service.generation.GenerationService generation = services.getService(
+                                art.moodframe.service.generation.GenerationService.class);
                         return new art.moodframe.mcp.McpService(config, generation != null
                                 ? art.moodframe.mcp.McpTools.all(config, chats, moods, blocks, colors, frames,
                                         favorites, trash, events, generation,
-                                        art.moodframe.service.MoodAnalysisService.create(config))
+                                        art.moodframe.service.brainstorm.MoodAnalysisService.create(config))
                                 : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
                                         favorites, trash, events));
                     });
@@ -364,10 +371,10 @@ public class MoodframeApplication extends Application {
 
             // Initialize ThumbnailManager for image optimization
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ThumbnailManager.class,
+                    art.moodframe.service.chat.ThumbnailManager.class,
                     () -> {
                         try {
-                            return new art.moodframe.service.ThumbnailManager();
+                            return new art.moodframe.service.chat.ThumbnailManager();
                         } catch (Exception e) {
                             logger.error("Failed to create ThumbnailManager", e);
                             return null;
@@ -389,10 +396,11 @@ public class MoodframeApplication extends Application {
         try {
 
             // Create and register TrashCleanupService in ServiceFactory
-            art.moodframe.service.TrashCleanupService cleanupService = new art.moodframe.service.TrashCleanupService(
-                    ServiceFactory.getInstance().getService(art.moodframe.service.TrashCenter.class));
+            art.moodframe.service.trash.TrashCleanupService cleanupService =
+                    new art.moodframe.service.trash.TrashCleanupService(
+                            ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashCenter.class));
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashCleanupService.class,
+                    art.moodframe.service.trash.TrashCleanupService.class,
                     () -> cleanupService);
 
             // Perform initial cleanup
@@ -412,8 +420,8 @@ public class MoodframeApplication extends Application {
         try {
 
             // Get ThumbnailManager from ServiceFactory
-            art.moodframe.service.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ThumbnailManager.class);
+            art.moodframe.service.chat.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.chat.ThumbnailManager.class);
 
             if (thumbnailManager != null) {
                 // Start thumbnail generation in background (non-blocking)
@@ -479,10 +487,10 @@ public class MoodframeApplication extends Application {
             }
 
             // Create and register ApiProviderValidator
-            art.moodframe.service.ApiProviderValidator validator = new art.moodframe.service.ApiProviderValidator(
-                    config, providers);
+            art.moodframe.service.provider.ApiProviderValidator validator =
+                    new art.moodframe.service.provider.ApiProviderValidator(config, providers);
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ApiProviderValidator.class,
+                    art.moodframe.service.provider.ApiProviderValidator.class,
                     () -> validator);
 
             // Start validation in background (non-blocking)
@@ -683,33 +691,33 @@ public class MoodframeApplication extends Application {
 
         try {
             // Shutdown TrashCleanupService background tasks
-            art.moodframe.service.TrashCleanupService cleanupService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.TrashCleanupService.class);
+            art.moodframe.service.trash.TrashCleanupService cleanupService = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.trash.TrashCleanupService.class);
             if (cleanupService != null) {
                 cleanupService.shutdown();
             }
 
             // Shutdown RequestResponseManager to stop all threads
-            art.moodframe.service.RequestResponseManager requestManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.RequestResponseManager.class);
+            art.moodframe.service.generation.RequestResponseManager requestManager = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.generation.RequestResponseManager.class);
             if (requestManager != null) {
                 requestManager.shutdown();
             }
 
             // Shutdown ThumbnailManager to stop thumbnail generation threads
-            art.moodframe.service.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ThumbnailManager.class);
+            art.moodframe.service.chat.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.chat.ThumbnailManager.class);
             if (thumbnailManager != null) {
                 thumbnailManager.shutdown();
             }
 
             /*  Stop the workers of the trash and the size check, if they were started at all  */
-            art.moodframe.service.TrashManager trashManager = ServiceFactory.getInstance()
-                    .getCreatedService(art.moodframe.service.TrashManager.class);
+            art.moodframe.service.trash.TrashManager trashManager = ServiceFactory.getInstance()
+                    .getCreatedService(art.moodframe.service.trash.TrashManager.class);
             if (trashManager != null)
                 trashManager.shutdown();
-            art.moodframe.service.ImageSizeCheck sizeCheck = ServiceFactory.getInstance()
-                    .getCreatedService(art.moodframe.service.ImageSizeCheck.class);
+            art.moodframe.service.chat.ImageSizeCheck sizeCheck = ServiceFactory.getInstance()
+                    .getCreatedService(art.moodframe.service.chat.ImageSizeCheck.class);
             if (sizeCheck != null)
                 sizeCheck.shutdown();
 

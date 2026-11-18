@@ -2,11 +2,11 @@ package art.moodframe.ui.dialog;
 
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Mood;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashCleanupService;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanupService;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.util.I18nManager;

@@ -2,7 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.AttachedImage;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.service.ImageAttachmentService;
+import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Subscription;
 import javafx.animation.Animation;
