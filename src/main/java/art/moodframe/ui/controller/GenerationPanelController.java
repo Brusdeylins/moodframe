@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.ui.support.SafetyTolerance;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -935,28 +936,8 @@ public class GenerationPanelController {
      */
     private void updateSafetyToleranceLabel(int value) {
         if (safetyToleranceLabel != null) {
-            String description = getSafetyToleranceDescription(value);
-            safetyToleranceLabel.setText(I18nManager.getText("params.safety", description));
+            safetyToleranceLabel.setText(SafetyTolerance.label(value));
         }
-    }
-
-    /**
-     * Gets a user-friendly description for safety tolerance values.
-     *
-     * @param value the safety tolerance value (0-6)
-     * @return descriptive text for the tolerance level
-     */
-    private String getSafetyToleranceDescription(int value) {
-        return switch (value) {
-            case 0 -> I18nManager.getText("params.safety.most.strict");
-            case 1 -> I18nManager.getText("params.safety.very.strict");
-            case 2 -> I18nManager.getText("params.safety.strict");
-            case 3 -> I18nManager.getText("params.safety.balanced");
-            case 4 -> I18nManager.getText("params.safety.permissive");
-            case 5 -> I18nManager.getText("params.safety.very.permissive");
-            case 6 -> I18nManager.getText("params.safety.most.permissive");
-            default -> I18nManager.getText("params.safety.unknown");
-        };
     }
 
     /**

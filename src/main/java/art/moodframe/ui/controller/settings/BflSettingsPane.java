@@ -67,6 +67,11 @@ public class BflSettingsPane implements SettingsSection {
     private boolean apiKeyValidated = false;
     private String validatedApiKey = null;
 
+    /*  the key and arguments of the status message, so a change of the language relabels it; null for a message
+        without a key  */
+    private String statusKey;
+    private Object[] statusArguments;
+
     @Override
     public void init(SettingsServices services) {
         this.services = services;
@@ -76,7 +81,7 @@ public class BflSettingsPane implements SettingsSection {
         timeoutSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(60, 3600, 600));
 
         status = new StatusLine(connectionStatusContainer, connectionStatusLabel, connectionStatusIcon);
-        status.hide();
+        hideStatus();
         apiKeyInputControl = apiKeyField;
 
         /*  The checkbox is only enabled if the API key exists and is validated  */
@@ -90,7 +95,7 @@ public class BflSettingsPane implements SettingsSection {
                 if (!newText.equals(validatedApiKey)) {
                     apiKeyValidated = false;
                     validatedApiKey = null;
-                    status.hide();
+                    hideStatus();
                 }
             });
         }
@@ -126,9 +131,9 @@ public class BflSettingsPane implements SettingsSection {
                 case "system_property" -> "API key loaded from system property bfl.api.key (read-only)";
                 default -> "";
             };
-            status.show("info", sourceText);
+            showText("info", sourceText);
         } else if (apiKeyValidated && "configuration".equals(apiKeySource)) {
-            status.show("success", I18nManager.getText("settings.test.api.validated.ready"));
+            showMessage("success", "settings.test.api.validated.ready");
         }
 
         timeoutSpinner.getValueFactory().setValue(config.accounts().getApiTimeoutSeconds());
@@ -176,23 +181,8 @@ public class BflSettingsPane implements SettingsSection {
     public void relabel() {
         testConnectionButton.setText(I18nManager.getText("settings.api.test"));
 
-        String currentText = connectionStatusLabel.getText();
-        if (currentText.contains("No connection")) {
-            connectionStatusLabel.setText(I18nManager.getText("settings.api.connection.none"));
-        } else if (currentText.contains("API key validated and ready")
-                || currentText.contains("API-Schlüssel validiert und bereit")) {
-            connectionStatusLabel.setText(I18nManager.getText("settings.test.api.validated.ready"));
-        } else if (currentText.contains("Connection successful") || currentText.contains("Verbindung erfolgreich")) {
-            /*  The success names the region as "(Region: xyz)"  */
-            String region = "Global";
-            int regionStart = currentText.indexOf("(Region: ");
-            if (regionStart != -1) {
-                int regionEnd = currentText.indexOf(")", regionStart);
-                if (regionEnd != -1)
-                    region = currentText.substring(regionStart + 9, regionEnd);
-            }
-            connectionStatusLabel.setText(I18nManager.getText("settings.test.api.connection.success", region));
-        }
+        if (statusKey != null)
+            connectionStatusLabel.setText(I18nManager.getText(statusKey, statusArguments));
 
         apiKeyLabel.setText(I18nManager.getText("settings.api.key"));
         apiKeyDescLabel.setText(I18nManager.getText("settings.api.key.description"));
@@ -227,19 +217,19 @@ public class BflSettingsPane implements SettingsSection {
     private void onTestConnection() {
         String apiKey = apiKeyInputControl.getText();
         if (apiKey == null || apiKey.trim().isEmpty()) {
-            status.show("error", I18nManager.getText("settings.test.api.enter.key"));
+            showMessage("error", "settings.test.api.enter.key");
             return;
         }
 
         String selectedRegion = regionComboBox.getValue();
-        status.show("testing", I18nManager.getText("settings.test.api.testing.status", selectedRegion));
+        showMessage("testing", "settings.test.api.testing.status", selectedRegion);
         ConnectionTest.run(testConnectionButton, I18nManager.getText("settings.api.test"),
                 () -> services.bfl().testConnection(apiKey, selectedRegion).get(), (success) -> {
             String testedRegion = regionComboBox.getValue();
             apiKeyValidated = success;
             validatedApiKey = success ? apiKey : null;
             if (success) {
-                status.show("success", I18nManager.getText("settings.test.api.connection.success", testedRegion));
+                showMessage("success", "settings.test.api.connection.success", testedRegion);
 
                 /*  A successful test unlocks the provider, like for Gemini and OpenAI  */
                 bflProviderEnabledCheckBox.setDisable(false);
@@ -249,15 +239,33 @@ public class BflSettingsPane implements SettingsSection {
                 }
                 services.connectionTested(ApiProvider.BFL, true);
             } else {
-                status.show("error", I18nManager.getText("settings.test.api.connection.failed", testedRegion));
+                showMessage("error", "settings.test.api.connection.failed", testedRegion);
                 logger.warn("API key validation failed for region: {}", testedRegion);
             }
         }, (exception) -> {
-            status.show("error", testError(exception));
+            showText("error", testError(exception));
             apiKeyValidated = false;
             validatedApiKey = null;
             logger.warn("API connection test failed: {}", exception != null ? exception.getMessage() : "Unknown error");
         });
+    }
+
+    /** Shows a status message from the i18n resources, which a change of the language relabels. */
+    private void showMessage(String kind, String key, Object... arguments) {
+        statusKey = key;
+        statusArguments = arguments;
+        status.show(kind, I18nManager.getText(key, arguments));
+    }
+
+    /** Shows a status message without a key, which stays as it is. */
+    private void showText(String kind, String message) {
+        statusKey = null;
+        status.show(kind, message);
+    }
+
+    private void hideStatus() {
+        statusKey = null;
+        status.hide();
     }
 
     /** The message for a BFL connection test that ended with an exception. */

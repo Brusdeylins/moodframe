@@ -16,6 +16,7 @@ import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.ImageCache;
+import art.moodframe.ui.support.SafetyTolerance;
 import art.moodframe.ui.support.Subscription;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -617,25 +618,10 @@ public class ChatEntryCard extends ManagedComponent {
         GenerationModel known = GenerationModel.fromDisplayName(chatEntry.getModel());
         String name = known != null ? ModelLabels.displayName(known) : chatEntry.getModel();
         if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
-            return name + "\n" + I18nManager.getText("params.safety",
-                    getSafetyToleranceDescription(chatEntry.getSafetyTolerance()));
+            return name + "\n" + SafetyTolerance.label(chatEntry.getSafetyTolerance());
         return name;
     }
 
-    /**
-     * Gets a user-friendly description for safety tolerance values.
-     * 
-     * @param value the safety tolerance value (0-6)
-     * @return descriptive text for the tolerance level
-     */
-    private String getSafetyToleranceDescription(int value) {
-        return switch (value) {
-            case 0, 1, 2 -> I18nManager.getText("params.safety.strict");
-            case 3 -> I18nManager.getText("params.safety.moderate");
-            case 4, 5, 6 -> I18nManager.getText("params.safety.relaxed");
-            default -> "Unknown";
-        };
-    }
 
     /**
      * Updates the images display: one row of tiles of the same width.
