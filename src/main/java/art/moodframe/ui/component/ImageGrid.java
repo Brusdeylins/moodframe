@@ -4,6 +4,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
@@ -269,16 +270,23 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             Platform.runLater(this::rebuild);
     }
 
+    /*  the images of an entry, copied under the lock of the chat models, which a generation changes meanwhile; the
+        one place to switch to a snapshot helper of service.chat  */
+    private static List<GeneratedImage> imagesOf(ChatEntry entry) {
+        return ModelLock.read(() -> new ArrayList<>(entry.getImages()));
+    }
+
     /** Collects the images of the entries in the order of the chat, the oldest entry first. */
     private void rebuild() {
         watched.forEach((list) -> list.removeListener(onImagesChange));
         watched.clear();
         images.clear();
         if (followed != null) {
-            for (ChatEntry entry : followed) {
+            List<ChatEntry> entries = ModelLock.read(() -> new ArrayList<>(followed));
+            for (ChatEntry entry : entries) {
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
-                for (GeneratedImage image : entry.getImages())
+                for (GeneratedImage image : imagesOf(entry))
                     images.add(new Item(entry, image));
             }
         }
@@ -515,8 +523,9 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /** The style of an entry; one from before 2.0 may carry it at its first image only (BFL). */
     private static String styleOf(ChatEntry entry) {
-        if (entry.getStyle() == null && !entry.getImages().isEmpty())
-            return entry.getImages().get(0).getStylePreset();
+        List<GeneratedImage> images = imagesOf(entry);
+        if (entry.getStyle() == null && !images.isEmpty())
+            return images.get(0).getStylePreset();
         return entry.getStyle();
     }
 

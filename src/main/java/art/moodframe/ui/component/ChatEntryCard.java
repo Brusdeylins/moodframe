@@ -11,6 +11,7 @@ import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
@@ -301,7 +302,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         availableWidth.bind(widthProperty());
         this.tileWidth = Bindings.createDoubleBinding(() -> {
-            int count = Math.max(1, chatEntry.getImages().size());
+            int count = Math.max(1, images().size());
             double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
                     - IMAGE_GAP * (count - 1);
             return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
@@ -341,6 +342,12 @@ public class ChatEntryCard extends ManagedComponent {
         return item;
     }
 
+    /*  the images of the entry, copied under the lock of the chat models, which a generation changes meanwhile; the
+        one place to switch to a snapshot helper of service.chat  */
+    private List<GeneratedImage> images() {
+        return ModelLock.read(() -> new ArrayList<>(chatEntry.getImages()));
+    }
+
     /**
      * Sets up bindings to automatically update the UI when ChatEntry changes.
      * All listeners are managed automatically and will be cleaned up on disposal.
@@ -353,25 +360,27 @@ public class ChatEntryCard extends ManagedComponent {
 
         // Update when images are added/removed
         javafx.collections.ListChangeListener<GeneratedImage> imagesListener = change -> {
-            javafx.application.Platform.runLater(() -> {
-                while (change.next()) {
-                    if (change.wasAdded()) {
-                        // Add property listeners to newly added images
-                        for (GeneratedImage addedImage : change.getAddedSubList()) {
-                            setupImagePropertyListeners(addedImage);
-                        }
+            /*  The change is read here, on the thread that changes the list under the lock of the chat models; the
+                JavaFX thread gets a copy of the added images  */
+            List<GeneratedImage> added = new ArrayList<>();
+            boolean changed = false;
+            while (change.next()) {
+                if (change.wasAdded())
+                    added.addAll(change.getAddedSubList());
+                changed |= change.wasAdded() || change.wasRemoved();
+            }
+            if (!changed)
+                return;
+            Platform.runLater(() -> {
+                // Add property listeners to newly added images
+                for (GeneratedImage addedImage : added)
+                    setupImagePropertyListeners(addedImage);
 
-                        /*  The constructor showed the images of that time, so also the first placeholders of a new
-                            request show at once  */
-                        updateImagesDisplay();
-                        updateBadgesDisplay();
-                        updateInfoDisplay();
-                    } else if (change.wasRemoved()) {
-                        updateImagesDisplay();
-                        updateBadgesDisplay();
-                        updateInfoDisplay();
-                    }
-                }
+                /*  The constructor showed the images of that time, so also the first placeholders of a new request
+                    show at once  */
+                updateImagesDisplay();
+                updateBadgesDisplay();
+                updateInfoDisplay();
             });
         };
         chatEntry.getImages().addListener(imagesListener);
@@ -382,7 +391,7 @@ public class ChatEntryCard extends ManagedComponent {
                 "ChatEntry images collection listener"));
 
         // Setup property listeners for existing images
-        for (GeneratedImage image : chatEntry.getImages()) {
+        for (GeneratedImage image : images()) {
             setupImagePropertyListeners(image);
         }
 
@@ -487,8 +496,9 @@ public class ChatEntryCard extends ManagedComponent {
         List<String> parts = new ArrayList<>();
         parts.add(chatEntry.getCreatedAt() != null ? chatEntry.getCreatedAt().format(TIME_FORMATTER)
                 : I18nManager.getText("chat.timestamp.none"));
-        if (!chatEntry.getImages().isEmpty())
-            parts.add(I18nManager.getText("params.image.count", chatEntry.getImages().size()));
+        int imageCount = images().size();
+        if (imageCount > 0)
+            parts.add(I18nManager.getText("params.image.count", imageCount));
         if (chatEntry.getCost() > 0)
             parts.add(String.format("%s $%.2f", I18nManager.getText("params.cost"), chatEntry.getCost()));
         infoLabel.setText(String.join(" · ", parts));
@@ -504,8 +514,9 @@ public class ChatEntryCard extends ManagedComponent {
 
         /*  An entry from before 2.0 may carry its style at its first image only (BFL)  */
         String style = chatEntry.getStyle();
-        if (style == null && !chatEntry.getImages().isEmpty())
-            style = chatEntry.getImages().get(0).getStylePreset();
+        List<GeneratedImage> images = images();
+        if (style == null && !images.isEmpty())
+            style = images.get(0).getStylePreset();
 
         EntryBadge mood = EntryBadge.mood(chatEntry.getMood(), style);
         if (mood != null)
@@ -605,7 +616,7 @@ public class ChatEntryCard extends ManagedComponent {
     private String frameDetails() {
         EntryFrame frame = chatEntry.getFrame();
         String target = frame != null ? EntryBadge.join(frame.aspectRatio(), frame.resolution()) : chatEntry.getSize();
-        GeneratedImage sized = chatEntry.getImages().stream()
+        GeneratedImage sized = images().stream()
                 .filter((image) -> image.getWidth() > 0 && image.getHeight() > 0).findFirst().orElse(null);
         String result = EntryBadge.join(chatEntry.getSize(),
                 sized != null ? sized.getWidth() + " × " + sized.getHeight() : null);
@@ -630,14 +641,15 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.getChildren().clear();
         imageBars.clear();
 
-        if (chatEntry.getImages().isEmpty()) {
+        List<GeneratedImage> images = images();
+        if (images.isEmpty()) {
             imagesContainer.setVisible(false);
             return;
         }
 
         imagesContainer.setVisible(true);
-        for (int i = 0; i < chatEntry.getImages().size(); i++)
-            imagesContainer.getChildren().add(createImageTile(chatEntry.getImages().get(i), i));
+        for (int i = 0; i < images.size(); i++)
+            imagesContainer.getChildren().add(createImageTile(images.get(i), i));
     }
 
     /**
@@ -1107,7 +1119,7 @@ public class ChatEntryCard extends ManagedComponent {
         GeneratedImage.DownloadStatus status = generatedImage.getDownloadStatus();
 
         // Get the image index for click handler
-        int imageIndex = chatEntry.getImages().indexOf(generatedImage);
+        int imageIndex = images().indexOf(generatedImage);
 
         switch (status) {
             case PENDING, DOWNLOADING -> {
