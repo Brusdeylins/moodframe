@@ -1,5 +1,6 @@
 package art.moodframe.service.library;
 
+import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
@@ -90,7 +91,8 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAMoodOnce() throws Exception {
-        MoodService moods = new MoodService(new PromptBlockService(), new ColorStyleService(), events);
+        MoodService moods = new MoodService(TestLibraryServices.database(), TestLibraryServices.blocks(),
+                TestLibraryServices.palettes(), events);
         Mood mood = new Mood(null, "Event Mood");
         assertTrue(moods.add(mood));
         assertEquals(once(LibraryEvents.Kind.MOOD, mood.getId()), reported());
@@ -117,7 +119,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAFrameOnce() throws Exception {
-        FrameService frames = new FrameService(events);
+        FrameService frames = new FrameService(TestLibraryServices.database(), events);
         Frame frame = new Frame(null, "Event Frame");
         frame.setAspectRatio("3:2");
         assertTrue(frames.add(frame));
@@ -140,7 +142,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfABuildingBlockOnceWithItsType() throws Exception {
-        PromptBlockService blocks = new PromptBlockService(events);
+        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
         PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Event Light", "event light", null, false);
         assertTrue(blocks.addCustom(light));
         assertEquals(once(LibraryEvents.Kind.LIGHT, light.getId()), reported());
@@ -172,7 +174,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEveryWriteOfAPaletteOnce() throws Exception {
-        ColorStyleService palettes = new ColorStyleService(events);
+        ColorStyleService palettes = new ColorStyleService(TestLibraryServices.database(), events);
         ColorStyle palette = new ColorStyle("Event Palette", List.of("#112233", "#445566"));
         assertTrue(palettes.addCustomStyle(palette));
         assertNotNull(palette.getId());
@@ -195,7 +197,7 @@ class LibraryEventsTest {
 
     @Test
     void reportsEverySwitchedFavoriteOnce() throws Exception {
-        FavoriteService favorites = new FavoriteService(events);
+        FavoriteService favorites = new FavoriteService(TestLibraryServices.database(), events);
         assertTrue(favorites.toggle(FavoriteService.Kind.STYLE, "event-style"));
         assertFalse(favorites.toggle(FavoriteService.Kind.STYLE, "event-style"));
         assertEquals(List.of(new Change(LibraryEvents.Kind.FAVORITE, "event-style"),
@@ -237,5 +239,25 @@ class LibraryEventsTest {
         assertEquals(once(LibraryEvents.Kind.CHAT, unsaved.getId()), reported());
         assertFalse(history.findChat(unsaved.getId()).isPresent());
         assertEquals(unsaved, library.getChats().get(0));
+    }
+
+    @Test
+    void anImportOfABackupIsReportedByTheServicesOfTheApplication() throws Exception {
+        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        ColorStyleService palettes = new ColorStyleService(TestLibraryServices.database(), events);
+        MoodService moods = new MoodService(TestLibraryServices.database(), blocks, palettes, events);
+        ConfigurationExporter exporter = new ConfigurationExporter(blocks, palettes, moods,
+                new FrameService(TestLibraryServices.database(), events));
+        Mood mood = new Mood(null, "Imported Mood");
+        assertTrue(moods.add(mood));
+        java.io.File file = tempDir.resolve("events-backup.json").toFile();
+        exporter.exportConfiguration(art.moodframe.config.ConfigMocks.config(), file,
+                java.util.Set.of(ConfigurationExporter.ConfigCategory.MOODS));
+        assertTrue(moods.deletePermanently(mood.getId()));
+        reported();
+
+        /*  the main window listens to these events: an import must not go to services of its own  */
+        assertTrue(exporter.importConfiguration(file, art.moodframe.config.ConfigMocks.config()).isSuccess());
+        assertTrue(reported().contains(new Change(LibraryEvents.Kind.MOOD, mood.getId())));
     }
 }

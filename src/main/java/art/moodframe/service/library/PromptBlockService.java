@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
@@ -78,22 +77,6 @@ public class PromptBlockService {
     private final List<PromptBlock> defaultCameras;
     private final LibraryEvents events;
     private final RepositoryAccess access = new RepositoryAccess(logger);
-
-    /**
-     * Creates the service, which reports its writes to nobody.
-     */
-    public PromptBlockService() {
-        this(new LibraryEvents());
-    }
-
-    /**
-     * Creates the service.
-     *
-     * @param events where the writes are reported
-     */
-    public PromptBlockService(LibraryEvents events) {
-        this(DatabaseConfig.getDatabase(), events);
-    }
 
     /**
      * Creates the service on the given database.

@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
@@ -105,27 +104,27 @@ public class ConfigurationExporter {
     private final ColorStyleService colorStyleService;
     private final MoodService moodService;
     private final FrameService frameService;
-    private final ApplicationConfig config;
-    
+
     /**
-     * Creates a new configuration exporter.
+     * Creates a new configuration exporter on the services of the application, so an import reaches the main window
+     * through their library events.
+     *
+     * @param promptBlockService the building blocks
+     * @param colorStyleService  the palettes
+     * @param moodService        the moods
+     * @param frameService       the frames
      */
-    public ConfigurationExporter() {
+    public ConfigurationExporter(PromptBlockService promptBlockService, ColorStyleService colorStyleService,
+            MoodService moodService, FrameService frameService) {
         this.objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-        /*  The services of the application report an import to the main window; without them, own ones  */
-        ServiceFactory services = ServiceFactory.getInstance();
-        this.promptBlockService = Objects.requireNonNullElseGet(services.getService(PromptBlockService.class),
-                PromptBlockService::new);
-        this.colorStyleService = Objects.requireNonNullElseGet(services.getService(ColorStyleService.class),
-                ColorStyleService::new);
-        this.moodService = Objects.requireNonNullElseGet(services.getService(MoodService.class),
-                () -> new MoodService(promptBlockService, colorStyleService));
-        this.frameService = Objects.requireNonNullElseGet(services.getService(FrameService.class), FrameService::new);
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        this.promptBlockService = promptBlockService;
+        this.colorStyleService = colorStyleService;
+        this.moodService = moodService;
+        this.frameService = frameService;
     }
     
     /**

@@ -1,5 +1,6 @@
 package art.moodframe.tools;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
@@ -12,7 +13,6 @@ import art.moodframe.model.CameraSettings.Shutter;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.prompt.CameraPromptBuilder;
-import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
@@ -232,8 +232,8 @@ public final class CameraCheck {
         Files.createDirectories(dir.resolve("images"));
         Files.createDirectories(dir.resolve("ratings"));
         Files.createDirectories(dir.resolve("sheets"));
-        blocks = new PromptBlockService();
-        moods = new MoodService(blocks, new ColorStyleService());
+        blocks = TestLibraryServices.blocks();
+        moods = TestLibraryServices.moods(blocks, TestLibraryServices.palettes());
         try (Stream<Path> files = Stream.concat(Files.list(dir.resolve("images")),
                 Files.list(dir.resolve("ratings")))) {
             for (Path file : files.filter((Path path) -> path.toString().endsWith(".json")).toList()) {

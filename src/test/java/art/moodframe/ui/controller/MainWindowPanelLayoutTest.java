@@ -1,5 +1,6 @@
 package art.moodframe.ui.controller;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
@@ -139,14 +140,14 @@ class MainWindowPanelLayoutTest {
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
         DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
-        blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
+        blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        ColorStyleService colors = new ColorStyleService(TestLibraryServices.database(), events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
-        register(MoodService.class, new MoodService(blocks, colors, events));
-        register(FrameService.class, new FrameService(events));
-        register(FavoriteService.class, new FavoriteService(events));
+        register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
+        register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
+        register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
     }
 
     @AfterAll

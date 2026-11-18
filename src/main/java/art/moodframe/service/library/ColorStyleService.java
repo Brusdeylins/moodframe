@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.repository.ColorStyleRepository;
@@ -96,22 +95,6 @@ public class ColorStyleService {
     private final List<ColorStyle> defaultStyles;
     private final LibraryEvents events;
     private final RepositoryAccess access = new RepositoryAccess(logger);
-
-    /**
-     * Creates a new ColorStyleService, which reports its writes to nobody.
-     */
-    public ColorStyleService() {
-        this(new LibraryEvents());
-    }
-
-    /**
-     * Creates a new ColorStyleService.
-     *
-     * @param events where the writes are reported
-     */
-    public ColorStyleService(LibraryEvents events) {
-        this(DatabaseConfig.getDatabase(), events);
-    }
 
     /**
      * Creates a new ColorStyleService on the given database.

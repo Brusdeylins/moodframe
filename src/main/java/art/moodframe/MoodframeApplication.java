@@ -179,6 +179,18 @@ public class MoodframeApplication extends Application {
                     art.moodframe.service.library.FavoriteService.class,
                     () -> new art.moodframe.service.library.FavoriteService(database, events));
 
+            /*  Backup of the settings and the library; an import reaches the main window through the events  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.ConfigurationExporter.class,
+                    () -> {
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        return new art.moodframe.service.ConfigurationExporter(
+                                services.getService(art.moodframe.service.library.PromptBlockService.class),
+                                services.getService(art.moodframe.service.library.ColorStyleService.class),
+                                services.getService(art.moodframe.service.library.MoodService.class),
+                                services.getService(art.moodframe.service.library.FrameService.class));
+                    });
+
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.BlockUsage.class,

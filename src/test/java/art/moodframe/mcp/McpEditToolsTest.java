@@ -1,5 +1,6 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
@@ -111,11 +112,11 @@ class McpEditToolsTest {
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
         ChatRepository repository = new ChatRepository(new DatabaseManager(database));
         chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
-        blocks = new PromptBlockService(events);
-        colors = new ColorStyleService(events);
-        moods = new MoodService(blocks, colors, events);
-        frames = new FrameService(events);
-        favorites = new FavoriteService(events);
+        blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        colors = new ColorStyleService(TestLibraryServices.database(), events);
+        moods = new MoodService(TestLibraryServices.database(), blocks, colors, events);
+        frames = new FrameService(TestLibraryServices.database(), events);
+        favorites = new FavoriteService(TestLibraryServices.database(), events);
         TrashCenter trash = new TrashCenter();
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, ChatFiles.NONE, null, null));

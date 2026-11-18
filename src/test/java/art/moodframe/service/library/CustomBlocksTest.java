@@ -33,8 +33,8 @@ class CustomBlocksTest {
     @TempDir
     static Path tempDir;
 
-    private final PromptBlockService blocks = new PromptBlockService();
-    private final ColorStyleService palettes = new ColorStyleService();
+    private final PromptBlockService blocks = TestLibraryServices.blocks();
+    private final ColorStyleService palettes = TestLibraryServices.palettes();
 
     @BeforeAll
     static void createDatabase() {
@@ -230,12 +230,12 @@ class CustomBlocksTest {
 
         ApplicationConfig config = ConfigMocks.config();
         File file = tempDir.resolve("backup.json").toFile();
-        new ConfigurationExporter().exportConfiguration(config, file,
+        exporter().exportConfiguration(config, file,
                 Set.of(ConfigurationExporter.ConfigCategory.CUSTOM_STYLES));
         assertEquals(3, new ObjectMapper().readTree(file).at("/configuration/customBlocks").size());
 
         /*  Into the same library: everything is added next to the existing entries, with new ids  */
-        ConfigurationExporter.ImportResult result = new ConfigurationExporter().importConfiguration(file, config);
+        ConfigurationExporter.ImportResult result = exporter().importConfiguration(file, config);
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals(List.of("My Style", "My Style (1)"), names(blocks.getCustom(PromptBlock.Type.STYLE)));
         assertNotEquals(style.getId(), blocks.find(PromptBlock.Type.STYLE, "My Style (1)").getId());
@@ -244,12 +244,20 @@ class CustomBlocksTest {
 
         /*  Into an empty library: the ids stay  */
         clear();
-        assertTrue(new ConfigurationExporter().importConfiguration(file, config).isSuccess());
+        assertTrue(exporter().importConfiguration(file, config).isSuccess());
         assertEquals(style.getId(), blocks.find(PromptBlock.Type.STYLE, "My Style").getId());
         assertEquals(atmosphere.getId(), blocks.find(PromptBlock.Type.ATMOSPHERE, "My Atmosphere").getId());
         assertEquals(light.getId(), blocks.find(PromptBlock.Type.LIGHT, "My Light").getId());
         assertEquals("light fragment", blocks.find(PromptBlock.Type.LIGHT, "My Light").getText());
         assertEquals(palette.getId(), palettes.getStyleByName("My Palette").getId());
         assertEquals(List.of("#112233", "#445566"), palettes.getStyleByName("My Palette").getColors());
+    }
+
+    /*  an exporter on library services of its own, as the application builds one on its registered services  */
+    private static ConfigurationExporter exporter() {
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        ColorStyleService palettes = TestLibraryServices.palettes();
+        return new ConfigurationExporter(blocks, palettes, TestLibraryServices.moods(blocks, palettes),
+                TestLibraryServices.frames());
     }
 }

@@ -1,5 +1,6 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
@@ -114,11 +115,11 @@ class McpServerTest {
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
         ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
                 null, null), events);
-        PromptBlockService blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
-        MoodService moods = new MoodService(blocks, colors, events);
-        FrameService frames = new FrameService(events);
-        FavoriteService favorites = new FavoriteService(events);
+        PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);
+        ColorStyleService colors = new ColorStyleService(TestLibraryServices.database(), events);
+        MoodService moods = new MoodService(TestLibraryServices.database(), blocks, colors, events);
+        FrameService frames = new FrameService(TestLibraryServices.database(), events);
+        FavoriteService favorites = new FavoriteService(TestLibraryServices.database(), events);
         TrashCenter trash = new TrashCenter();
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));

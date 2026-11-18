@@ -40,7 +40,7 @@ class FrameServiceTest {
     @BeforeAll
     static void createDatabase() {
         DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
-        frames = new FrameService();
+        frames = TestLibraryServices.frames();
     }
 
     private static String item(GenerationModel model) {

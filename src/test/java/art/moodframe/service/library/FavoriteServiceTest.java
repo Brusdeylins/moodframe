@@ -67,7 +67,7 @@ class FavoriteServiceTest {
 
     @Test
     void keepsTheFavoritesOfEachKindAcrossARestart() {
-        FavoriteService favorites = new FavoriteService();
+        FavoriteService favorites = TestLibraryServices.favorites();
         assertFalse(favorites.isFavorite(FavoriteService.Kind.MOOD, "std:mood:noir"));
         assertTrue(favorites.toggle(FavoriteService.Kind.MOOD, "std:mood:noir"));
         assertTrue(favorites.toggle(FavoriteService.Kind.STYLE, "my-style"));
@@ -75,7 +75,7 @@ class FavoriteServiceTest {
         assertFalse(favorites.toggle(FavoriteService.Kind.FRAME, "std:frame:social-post"),
                 "a second click takes it away");
 
-        FavoriteService restarted = new FavoriteService();
+        FavoriteService restarted = TestLibraryServices.favorites();
         assertTrue(restarted.isFavorite(FavoriteService.Kind.MOOD, "std:mood:noir"));
         assertTrue(restarted.isFavorite(FavoriteService.Kind.STYLE, "my-style"));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.FRAME, "std:frame:social-post"));
@@ -100,7 +100,7 @@ class FavoriteServiceTest {
         assertTrue(blocks.save(light));
         assertTrue(palettes.save(palette));
 
-        FavoriteService favorites = new FavoriteService();
+        FavoriteService favorites = TestLibraryServices.favorites();
         favorites.toggle(FavoriteService.Kind.MOOD, mood.getId());
         favorites.toggle(FavoriteService.Kind.FRAME, frame.getId());
         favorites.toggle(FavoriteService.Kind.LIGHT, light.getId());
@@ -108,13 +108,13 @@ class FavoriteServiceTest {
 
         /*  in the trash, an entry keeps its favorite, so a restored one comes back as it was  */
         assertTrue(moods.moveToTrash(mood.getId()));
-        assertTrue(new FavoriteService().isFavorite(FavoriteService.Kind.MOOD, mood.getId()));
+        assertTrue(TestLibraryServices.favorites().isFavorite(FavoriteService.Kind.MOOD, mood.getId()));
 
         assertTrue(moods.delete(mood.getId()));
         assertTrue(frames.delete(frame.getId()));
         assertTrue(blocks.delete(light.getId()));
         assertTrue(palettes.delete(palette.getId()));
-        FavoriteService restarted = new FavoriteService();
+        FavoriteService restarted = TestLibraryServices.favorites();
         assertFalse(restarted.isFavorite(FavoriteService.Kind.MOOD, mood.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.FRAME, frame.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.LIGHT, light.getId()));

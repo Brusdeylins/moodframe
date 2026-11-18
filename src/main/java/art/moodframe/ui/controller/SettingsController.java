@@ -1873,7 +1873,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
             fileChooser.setTitle("Export Configuration");
 
             // Set default filename with timestamp
-            art.moodframe.service.ConfigurationExporter exporter = new art.moodframe.service.ConfigurationExporter();
+            art.moodframe.service.ConfigurationExporter exporter = ServiceFactory.getInstance()
+                    .getService(art.moodframe.service.ConfigurationExporter.class);
             fileChooser.setInitialFileName(exporter.generateExportFilename());
 
             // Set initial directory to user's Documents folder
@@ -1916,7 +1917,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             java.io.File importFile = fileChooser.showOpenDialog(importSettingsButton.getScene().getWindow());
             if (importFile != null) {
-                art.moodframe.service.ConfigurationExporter exporter = new art.moodframe.service.ConfigurationExporter();
+                art.moodframe.service.ConfigurationExporter exporter = ServiceFactory.getInstance()
+                        .getService(art.moodframe.service.ConfigurationExporter.class);
                 art.moodframe.service.ConfigurationExporter.ImportResult result = exporter.importConfiguration(importFile,
                         config);
 

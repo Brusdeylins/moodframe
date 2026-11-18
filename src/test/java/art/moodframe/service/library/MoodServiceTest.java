@@ -50,9 +50,9 @@ class MoodServiceTest {
     @BeforeAll
     static void createDatabase() {
         DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
-        blocks = new PromptBlockService();
-        colors = new ColorStyleService();
-        moods = new MoodService(blocks, colors);
+        blocks = TestLibraryServices.blocks();
+        colors = TestLibraryServices.palettes();
+        moods = TestLibraryServices.moods(blocks, colors);
     }
 
     @Test
@@ -116,7 +116,7 @@ class MoodServiceTest {
         clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
         assertTrue(repository.save(clash));
 
-        new MoodService(blocks, colors);
+        TestLibraryServices.moods(blocks, colors);
 
         Mood renamed = repository.findById(clash.getId());
         assertEquals("Lifestyle Product (1)", renamed.getName());
@@ -431,7 +431,7 @@ class MoodServiceTest {
 
     @Test
     void namesTheMoodsThatUseABlock() {
-        MoodService moods = new MoodService(new PromptBlockService(), new ColorStyleService());
+        MoodService moods = TestLibraryServices.moods(TestLibraryServices.blocks(), TestLibraryServices.palettes());
         Mood mood = new Mood(null, "Uses Watercolor");
         mood.setReference(Mood.Field.STYLE, "std:style:watercolor");
         assertTrue(moods.add(mood));

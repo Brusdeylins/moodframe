@@ -1,5 +1,6 @@
 package art.moodframe.service;
 
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.Frame;
@@ -36,14 +37,14 @@ class ConfigurationExporterTest {
 
     @Test
     void exportsAndImportsTheMoodsOfTheUser() throws Exception {
-        MoodService moods = new MoodService(new PromptBlockService(), new ColorStyleService());
+        MoodService moods = TestLibraryServices.moods(TestLibraryServices.blocks(), TestLibraryServices.palettes());
         Mood mood = new Mood(null, "Backup Me");
         mood.setReference(Mood.Field.STYLE, "std:style:analog-film");
         mood.setReference(Mood.Field.COLOR, "std:color:faded-cream");
         mood.setReference(Mood.Field.CAMERA, "std:camera:street-35mm");
         assertTrue(moods.add(mood));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("backup.json").toFile();
         exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.MOODS));
@@ -69,13 +70,13 @@ class ConfigurationExporterTest {
 
     @Test
     void exportsAndImportsTheFramesOfTheUser() throws Exception {
-        FrameService frames = new FrameService();
+        FrameService frames = TestLibraryServices.frames();
         Frame frame = new Frame(null, "Druck A3");
         frame.setAspectRatio("2:3");
         frame.setResolution("4K");
         assertTrue(frames.add(frame));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("frames-backup.json").toFile();
         exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.FRAMES));
@@ -105,11 +106,11 @@ class ConfigurationExporterTest {
                 }
                 """);
 
-        ConfigurationExporter.ImportResult result = new ConfigurationExporter().importConfiguration(file,
+        ConfigurationExporter.ImportResult result = exporter().importConfiguration(file,
                 ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 frames imported", result.getChanges().get("Frames"));
-        Frame imported = new FrameService().find("older-backup");
+        Frame imported = TestLibraryServices.frames().find("older-backup");
         assertNotNull(imported);
         assertEquals("Older Backup", imported.getName());
         assertEquals("21:9", imported.getAspectRatio());
@@ -118,15 +119,15 @@ class ConfigurationExporterTest {
 
     @Test
     void aRestoredMoodFindsItsRestoredBlocks() throws Exception {
-        PromptBlockService blocks = new PromptBlockService();
-        MoodService moods = new MoodService(blocks, new ColorStyleService());
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        MoodService moods = TestLibraryServices.moods(blocks, TestLibraryServices.palettes());
         PromptBlock style = new PromptBlock(null, PromptBlock.Type.STYLE, "Backup Style", "grainy test look", null, true);
         assertTrue(blocks.addCustom(style));
         Mood mood = new Mood(null, "Backup With Block");
         mood.setReference(Mood.Field.STYLE, style.getId());
         assertTrue(moods.add(mood));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("backup-blocks.json").toFile();
         exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.CUSTOM_STYLES, ConfigurationExporter.ConfigCategory.MOODS));
@@ -145,10 +146,18 @@ class ConfigurationExporterTest {
 
     @Test
     void aStyleOfTheUserNamedLikeAFormerLookStaysAStyle() {
-        PromptBlockService blocks = new PromptBlockService();
-        MoodService moods = new MoodService(blocks, new ColorStyleService());
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        MoodService moods = TestLibraryServices.moods(blocks, TestLibraryServices.palettes());
         assertNotNull(moods.findForLegacyStyle("Film Noir"));
         assertTrue(blocks.addCustom(new PromptBlock(null, PromptBlock.Type.STYLE, "Film Noir", "my own noir", null, true)));
         assertEquals(null, moods.findForLegacyStyle("Film Noir"));
+    }
+
+    /*  an exporter on library services of its own, as the application builds one on its registered services  */
+    private static ConfigurationExporter exporter() {
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        ColorStyleService palettes = TestLibraryServices.palettes();
+        return new ConfigurationExporter(blocks, palettes, TestLibraryServices.moods(blocks, palettes),
+                TestLibraryServices.frames());
     }
 }
