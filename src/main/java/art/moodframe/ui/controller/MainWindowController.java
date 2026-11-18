@@ -2437,14 +2437,15 @@ public class MainWindowController implements I18nChangeListener {
     /**
      * Sets aspect ratio and resolution to the targets of a chat entry and shows its frame as chosen; a setting of its
      * own shows the frame it started from as changed. An entry from before the frames were copied takes the aspect
-     * ratio of its model.
+     * ratio and the resolution of its model, so the model keeps the resolution the entry was made with.
      */
     private void reuseFrame(ChatEntry entry) {
         if (frameService == null)
             return;
         EntryFrame copy = entry.getFrame();
+        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromDisplayName(entry.getModel());
         String aspectRatio = copy != null ? copy.aspectRatio() : entry.getSize();
-        String resolution = copy != null ? copy.resolution() : null;
+        String resolution = copy != null ? copy.resolution() : model != null ? model.getResolutionLabel() : null;
         Frame frame = copy != null ? frameService.find(copy.frameId() != null ? copy.frameId() : copy.baseId()) : null;
 
         updatingFrame = true;
@@ -7136,7 +7137,7 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * The resolution the chosen model generates: of free sizes the one closest to the target, else the one of its
-     * variant, which the family took closest to the target unless it was set elsewhere (for example by brainstorm).
+     * variant, which is always the one of its family closest to the target (see {@code ModelFamilySelector}).
      *
      * @return the resolution, null for a model with a fixed size
      */
