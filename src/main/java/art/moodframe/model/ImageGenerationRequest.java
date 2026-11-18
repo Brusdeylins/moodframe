@@ -715,7 +715,7 @@ public class ImageGenerationRequest {
         }
 
         // Determine provider from model name to apply correct prompt limit
-        // Must match UI limits in MainWindowController.getMaxPromptLength()
+        // Must match the limits of GenerationService#promptLimit, which the main window shows
         boolean isGeminiModel = model != null && model.toLowerCase().contains("gemini");
         boolean isOpenAiModel = isOpenAiModel(model);
         int maxPromptLength = isGeminiModel ? 250000 // Gemini: 250k
