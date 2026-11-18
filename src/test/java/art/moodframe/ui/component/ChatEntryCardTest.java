@@ -2,6 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -225,5 +227,26 @@ class ChatEntryCardTest {
         assertEquals(I18nManager.getText("entry.status.failed"), ChatEntryCard.failure(image));
         image.setFailureReason("Moderated");
         assertEquals("Moderated", ChatEntryCard.failure(image));
+    }
+
+    /**
+     * "Copy seed" of the card and of the images view follows the provider of the model of an image, not its name: a
+     * FLUX image and one of a former FLUX model offer it, a Gemini, Omni or OpenAI image never, nor one without seed.
+     */
+    @Test
+    void onlyAnImageOfBflWithASeedOffersItsSeed() {
+        assertTrue(ChatEntryCard.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 42)));
+        assertTrue(ChatEntryCard.offersSeed(image(GenerationModel.FLUX3_IMAGE_1K.getApiModelId(), -7)));
+        assertTrue(ChatEntryCard.offersSeed(image("flux-pro-1.1", 42)), "a former FLUX model");
+        assertFalse(ChatEntryCard.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 0)), "no seed");
+        assertFalse(ChatEntryCard.offersSeed(image(null, 42)), "no model");
+        for (GenerationModel model : List.of(GenerationModel.GEMINI_PRO_2K, GenerationModel.NANO_BANANA2_1K,
+                GenerationModel.OMNI_720P))
+            assertFalse(ChatEntryCard.offersSeed(image(model.getApiModelId(), 42)), model.name());
+        assertFalse(ChatEntryCard.offersSeed(image("gpt-image-1", 42)), "a model of the OpenAI Images API");
+    }
+
+    private static GeneratedImage image(String model, long seed) {
+        return new GeneratedImage.Builder().model(model).seed(seed).build();
     }
 }

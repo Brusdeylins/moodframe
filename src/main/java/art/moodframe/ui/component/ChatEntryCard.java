@@ -1614,10 +1614,7 @@ public class ChatEntryCard extends ManagedComponent {
             menu.getItems().add(fromImage);
         }
 
-        /*  FLUX seeds can be negative (XOR of random longs), so check != 0  */
-        String imageModel = generatedImage.getModel();
-        if (onSeedCopy != null && generatedImage.getSeed() != 0 && imageModel != null
-                && !imageModel.toLowerCase().contains("gemini")) {
+        if (onSeedCopy != null && offersSeed(generatedImage)) {
             MenuItem copySeed = new MenuItem(I18nManager.getText("tooltip.copy.seed"));
             copySeed.setOnAction((action) -> onSeedCopy.accept(generatedImage.getSeed()));
             copySeed.setDisable(isFluxModelSelected == null || !isFluxModelSelected.get());
@@ -1627,6 +1624,22 @@ public class ChatEntryCard extends ManagedComponent {
             return;
         menu.show(this, event.getScreenX(), event.getScreenY());
         event.consume();
+    }
+
+    /**
+     * Whether an image offers "Copy seed": an image of BFL with a seed, as only BFL repeats an image by its seed. The
+     * provider is that of the constant of its model; a model that is no constant any more is a former FLUX model,
+     * unless it is one of the OpenAI Images API. FLUX seeds can be negative (XOR of random longs), so any seed but 0.
+     *
+     * @param image the image
+     * @return true if its seed can be copied
+     */
+    static boolean offersSeed(GeneratedImage image) {
+        String modelId = image.getModel();
+        if (image.getSeed() == 0 || modelId == null)
+            return false;
+        GenerationModel model = GenerationModel.fromApiModelId(modelId);
+        return model != null ? model.getProvider() == ApiProvider.BFL : !GenerationModel.isOpenAiImageModelId(modelId);
     }
 
     /**
