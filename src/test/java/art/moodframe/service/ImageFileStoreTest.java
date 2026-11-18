@@ -133,7 +133,7 @@ class ImageFileStoreTest {
                 .createdAt(LocalDateTime.of(2026, 10, 26, 14, 30, 5)).imageUrl("https://delivery.example/result.png")
                 .width(1024).height(1024).build();
 
-        new ImageFileStore(config(dir), client).download(image).applyTo(image);
+        new ImageFileStore(config(dir), () -> client).download(image).applyTo(image);
 
         assertEquals(160, image.getWidth());
         assertEquals(90, image.getHeight());

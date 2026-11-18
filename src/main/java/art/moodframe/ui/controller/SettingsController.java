@@ -13,7 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.config.CorporateProxyConfig;
+import art.moodframe.net.CorporateProxyConfig;
+import art.moodframe.net.HttpClients;
 import art.moodframe.mcp.McpService;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.ThemeManager;
@@ -2301,8 +2302,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                         throw new RuntimeException("BFL API service not available");
                     }
 
-                    // Refresh the HTTP client to use updated certificates
-                    apiService.refreshProxyConfiguration();
+                    // Rebuild the HTTP clients to use updated certificates
+                    HttpClients.settingsChanged();
 
                     // Test SSL connectivity (no API key needed)
                     Boolean result = apiService.testSslConnection().get();
@@ -2664,13 +2665,10 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     logger.info("Proxy settings saved to configuration");
                 }
 
-                // Refresh proxy configuration in the service
-                BflApiService apiService = ServiceFactory.getInstance().getService(BflApiService.class);
-                if (apiService != null) {
-                    apiService.refreshProxyConfiguration();
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("BFL API service proxy configuration refreshed");
-                    }
+                // Rebuild the HTTP clients of all services with the new proxy configuration
+                HttpClients.settingsChanged();
+                if (config != null && config.getLoggingEnabled()) {
+                    logger.info("HTTP client proxy configuration refreshed");
                 }
 
             } else {

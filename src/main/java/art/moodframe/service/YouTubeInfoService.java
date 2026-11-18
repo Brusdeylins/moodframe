@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.net.HttpClients;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,20 +48,19 @@ public class YouTubeInfoService {
     public record Info(String title, int durationSeconds) {
     }
 
-    private final OkHttpClient httpClient;
+    private final Supplier<OkHttpClient> httpClient;
     private final Map<String, CompletableFuture<Info>> infos = new ConcurrentHashMap<>();
 
     /**
-     * Creates the service with the corporate certificates of the configuration.
+     * Creates the service with the corporate proxy and certificates of the configuration.
      *
      * @param config the application configuration
      */
     public YouTubeInfoService(ApplicationConfig config) {
-        OkHttpClient.Builder builder = new OkHttpClient.Builder()
+        this.httpClient = new HttpClients(config).rebuilding(clients -> clients.okHttp()
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS);
-        OpenAiApiServiceImpl.configureSSLContext(builder, config);
-        this.httpClient = builder.build();
+                .readTimeout(20, TimeUnit.SECONDS)
+                .build());
     }
 
     /**
@@ -105,7 +106,7 @@ public class YouTubeInfoService {
     public CompletableFuture<byte[]> image(String url) {
         return CompletableFuture.supplyAsync(() -> {
             Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT).build();
-            try (Response response = httpClient.newCall(request).execute()) {
+            try (Response response = httpClient.get().newCall(request).execute()) {
                 if (!response.isSuccessful() || response.body() == null)
                     throw new IllegalStateException("HTTP " + response.code() + " for " + url);
                 return response.body().bytes();
@@ -118,7 +119,7 @@ public class YouTubeInfoService {
     private String get(String url, int maxBytes) throws IOException {
         Request request = new Request.Builder().url(url).header("User-Agent", USER_AGENT)
                 .header("Accept-Language", "en").build();
-        try (Response response = httpClient.newCall(request).execute()) {
+        try (Response response = httpClient.get().newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null)
                 throw new IOException("HTTP " + response.code());
             return new String(response.body().byteStream().readNBytes(maxBytes), StandardCharsets.UTF_8);

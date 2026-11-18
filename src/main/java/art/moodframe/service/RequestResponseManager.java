@@ -9,8 +9,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.util.ImageEncoder;
-import art.moodframe.util.TrustStoreManager;
-import art.moodframe.config.CorporateProxyConfig;
+import art.moodframe.net.HttpClients;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +31,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import javafx.application.Platform;
-import javax.net.ssl.SSLContext;
 
 /**
  * Central manager for handling BFL API requests and responses.
@@ -59,7 +58,7 @@ public class RequestResponseManager implements RequestResponseService {
     private final GeminiApiService geminiApiService;
     private final OpenAiApiService openAiApiService;
     private final ChatRepository chatRepository;
-    private final HttpClient downloadClient;  // Simple client for downloading images from CDN
+    private final Supplier<HttpClient> downloadClient;  // Simple client for downloading images from CDN
     private final ImageFileStore imageFiles;
 
     private final ChatEntryTracker tracker;
@@ -73,8 +72,11 @@ public class RequestResponseManager implements RequestResponseService {
         this.geminiApiService = ServiceFactory.getInstance().getService(GeminiApiService.class);
         this.openAiApiService = ServiceFactory.getInstance().getService(OpenAiApiService.class);
 
-        // Create HttpClient with corporate SSL configuration for downloading images
-        this.downloadClient = createDownloadClient();
+        // Create HttpClient with corporate proxy and SSL configuration for downloading images
+        this.downloadClient = new HttpClients(config).rebuilding(clients -> clients.javaHttp()
+                .connectTimeout(Duration.ofSeconds(30))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build());
         this.imageFiles = new ImageFileStore(config, downloadClient);
         this.scheduler = Executors.newScheduledThreadPool(2);
         this.tracker = new ChatEntryTracker(config, chatRepository, scheduler);
@@ -85,52 +87,6 @@ public class RequestResponseManager implements RequestResponseService {
             logger.info("RequestResponseManager initialized with timeout: {}s, proxy: {}",
                     config.getApiTimeoutSeconds(), config.isProxyEnabled() ? "enabled" : "disabled");
         }
-    }
-
-    /**
-     * Creates HttpClient with corporate SSL configuration for downloading images.
-     * This ensures that image downloads work behind corporate proxies with custom certificates.
-     */
-    private HttpClient createDownloadClient() {
-        HttpClient.Builder clientBuilder = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .followRedirects(HttpClient.Redirect.NORMAL);
-        
-        try {
-            // Get proxy configuration
-            CorporateProxyConfig proxyConfig = ServiceFactory.getInstance().getService(CorporateProxyConfig.class);
-            
-            if (proxyConfig == null) {
-                logger.warn("CorporateProxyConfig not available - using default SSL context for download client");
-                return clientBuilder.build();
-            }
-            
-            // Load corporate certificates if available
-            var certificatePaths = proxyConfig.getCertificatePaths();
-            
-            if (!certificatePaths.isEmpty()) {
-                logger.info("Configuring download client with {} corporate certificate(s)", certificatePaths.size());
-                
-                // Create trust store manager
-                TrustStoreManager trustStoreManager = new TrustStoreManager();
-                
-                // Create corporate trust store
-                trustStoreManager.createCorporateKeyStore(certificatePaths);
-                
-                // Create SSL context with corporate certificates
-                SSLContext sslContext = trustStoreManager.createSSLContext();
-                clientBuilder.sslContext(sslContext);
-                
-                logger.info("Download client SSL context configured successfully with corporate certificates");
-            } else {
-                logger.debug("Using default SSL context for download client (no corporate certificates configured)");
-            }
-        } catch (Exception e) {
-            logger.error("Failed to configure SSL context for download client", e);
-            logger.warn("Download client will use default SSL context - image downloads may fail behind corporate proxy");
-        }
-        
-        return clientBuilder.build();
     }
 
     @Override
@@ -549,7 +505,7 @@ public class RequestResponseManager implements RequestResponseService {
                 }
                 HttpRequest downloadRequest = downloadBuilder.GET().build();
 
-                HttpResponse<InputStream> downloadResponse = downloadClient.send(
+                HttpResponse<InputStream> downloadResponse = downloadClient.get().send(
                         downloadRequest,
                         HttpResponse.BodyHandlers.ofInputStream());
 

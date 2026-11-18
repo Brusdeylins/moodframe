@@ -1,7 +1,5 @@
-package art.moodframe.util;
+package art.moodframe.net;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +53,6 @@ public class TrustStoreManager {
     private static final Logger logger = LoggerFactory.getLogger(TrustStoreManager.class);
 
     private KeyStore corporateKeyStore;
-    private final ApplicationConfig config;
     private List<X509Certificate> loadedCertificates;
     private TrustManager[] customTrustManagers;
 
@@ -64,7 +61,6 @@ public class TrustStoreManager {
      */
     public TrustStoreManager() {
         this.loadedCertificates = new ArrayList<>();
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
 
     /**
@@ -78,9 +74,7 @@ public class TrustStoreManager {
      */
     public KeyStore createCorporateKeyStore(List<Path> certificatePaths) {
         try {
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Creating corporate trust store with {} certificate paths", certificatePaths.size());
-            }
+            logger.debug("Creating corporate trust store with {} certificate paths", certificatePaths.size());
 
             // Initialize empty KeyStore
             corporateKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -157,10 +151,8 @@ public class TrustStoreManager {
                 if (certificate != null) {
                     certificates.add(certificate);
 
-                    if (config != null && config.getLoggingEnabled()) {
-                        logger.info("Loaded corporate certificate: {} (expires: {})",
-                                certificate.getSubjectX500Principal().getName(), certificate.getNotAfter());
-                    }
+                    logger.debug("Loaded corporate certificate: {} (expires: {})",
+                            certificate.getSubjectX500Principal().getName(), certificate.getNotAfter());
                 } else {
                     logger.warn("Failed to load certificate from: {}", certPath);
                 }
@@ -170,9 +162,7 @@ public class TrustStoreManager {
             }
         }
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Loaded {} corporate certificates", certificates.size());
-        }
+        logger.debug("Loaded {} corporate certificates", certificates.size());
         this.loadedCertificates = new ArrayList<>(certificates);
         return certificates;
     }
@@ -226,9 +216,7 @@ public class TrustStoreManager {
 
         }
 
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Added {} corporate certificates to trust store", certificates.size());
-        }
+        logger.debug("Added {} corporate certificates to trust store", certificates.size());
     }
 
     /**
@@ -266,6 +254,22 @@ public class TrustStoreManager {
         }
     }
 
+
+    /**
+     * Gets the trust manager of the SSL context last created by {@link #createSSLContext()}.
+     *
+     * @return the X.509 trust manager, or null if no SSL context was created yet
+     */
+    public X509TrustManager getTrustManager() {
+        if (customTrustManagers != null) {
+            for (TrustManager trustManager : customTrustManagers) {
+                if (trustManager instanceof X509TrustManager) {
+                    return (X509TrustManager) trustManager;
+                }
+            }
+        }
+        return null;
+    }
 
     /**
      * Gets the corporate KeyStore.

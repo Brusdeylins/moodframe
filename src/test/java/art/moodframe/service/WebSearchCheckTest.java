@@ -19,6 +19,7 @@ import java.util.Queue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -201,6 +202,7 @@ class WebSearchCheckTest {
         Field client = OpenAiApiServiceImpl.class.getDeclaredField("researchClient");
         client.setAccessible(true);
 
-        assertEquals(60_000, ((OkHttpClient) client.get(new OpenAiApiServiceImpl(config))).readTimeoutMillis());
+        Supplier<?> research = (Supplier<?>) client.get(new OpenAiApiServiceImpl(config));
+        assertEquals(60_000, ((OkHttpClient) research.get()).readTimeoutMillis());
     }
 }

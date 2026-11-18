@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * Writes generated images to the images directory: decodes Base64 answers, downloads the result of a BFL
@@ -30,7 +31,7 @@ public class ImageFileStore {
     private static final Logger logger = LoggerFactory.getLogger(ImageFileStore.class);
 
     private final ApplicationConfig config;
-    private final HttpClient downloadClient;
+    private final Supplier<HttpClient> downloadClient;
 
     /** The written file of a generated image, to be applied to the image object on the FX thread. */
     public record StoredImage(Path path, String filename, String format, String mimeType, int width, int height,
@@ -61,7 +62,7 @@ public class ImageFileStore {
      * @param config         the application configuration (images directory, logging)
      * @param downloadClient the client for the download of finished BFL jobs
      */
-    public ImageFileStore(ApplicationConfig config, HttpClient downloadClient) {
+    public ImageFileStore(ApplicationConfig config, Supplier<HttpClient> downloadClient) {
         this.config = config;
         this.downloadClient = downloadClient;
     }
@@ -94,7 +95,7 @@ public class ImageFileStore {
             /*  The message quotes the rejected URL, which carries the signature of the download  */
             throw new java.io.IOException(Secrets.redact(e.getMessage()));
         }
-        HttpResponse<byte[]> downloadResponse = downloadClient.send(
+        HttpResponse<byte[]> downloadResponse = downloadClient.get().send(
                 downloadRequest, HttpResponse.BodyHandlers.ofByteArray());
         if (downloadResponse.statusCode() != 200)
             throw new java.io.IOException("Failed to download image: HTTP " + downloadResponse.statusCode());

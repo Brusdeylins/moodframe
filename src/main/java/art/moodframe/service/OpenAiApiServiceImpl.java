@@ -1,15 +1,14 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.net.HttpClients;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.TrustStoreManager;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -22,16 +21,13 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509TrustManager;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * OkHttp implementation of {@link OpenAiApiService}.
@@ -54,8 +50,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             + "terms), at most 300 words. Question: ";
 
     private final ApplicationConfig config;
-    private final OkHttpClient httpClient;
-    private final OkHttpClient researchClient;
+    private final Supplier<OkHttpClient> httpClient;
+    private final Supplier<OkHttpClient> researchClient;
     private String apiKey;
     private String baseUrl;
 
@@ -69,35 +65,16 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
         this.apiKey = config.getOpenAiApiKey();
         this.baseUrl = config.getOpenAiBaseUrl();
 
-        OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+        /*  Built again when the proxy or certificate settings change  */
+        HttpClients clients = new HttpClients(config);
+        this.httpClient = clients.rebuilding(factory -> factory.okHttp()
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        configureSSLContext(clientBuilder, config);
-        this.httpClient = clientBuilder.build();
-        this.researchClient = httpClient.newBuilder().readTimeout(RESEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS).build();
-    }
-
-    static void configureSSLContext(OkHttpClient.Builder clientBuilder, ApplicationConfig config) {
-        try {
-            TrustStoreManager trustStoreManager = new TrustStoreManager();
-            var certificatePaths = new CorporateProxyConfig(config).getCertificatePaths();
-
-            if (!certificatePaths.isEmpty()) {
-                TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
-                        TrustManagerFactory.getDefaultAlgorithm());
-                trustManagerFactory.init(trustStoreManager.createCorporateKeyStore(certificatePaths));
-                TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();
-                SSLContext sslContext = trustStoreManager.createSSLContext();
-
-                if (trustManagers.length > 0 && trustManagers[0] instanceof X509TrustManager) {
-                    clientBuilder.sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustManagers[0]);
-                    logger.info("OpenAI SSL context configured with {} corporate certificate(s)", certificatePaths.size());
-                }
-            }
-        } catch (Exception e) {
-            logger.error("Failed to configure SSL context with corporate certificates, using the default", e);
-        }
+                .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build());
+        this.researchClient = clients.rebuilding(factory -> httpClient.get().newBuilder()
+                .readTimeout(RESEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build());
     }
 
     @Override
@@ -120,7 +97,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                     .get()
                     .build();
 
-            try (Response response = httpClient.newCall(request).execute()) {
+            try (Response response = httpClient.get().newCall(request).execute()) {
                 String body = response.body() != null ? response.body().string() : "";
                 if (!response.isSuccessful()) {
                     logger.warn("OpenAI API connection test failed: HTTP {} - {}", response.code(), body);
@@ -151,7 +128,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     private boolean answersModels(String base) {
         Request request = new Request.Builder().url(base + "/models")
                 .header("Authorization", "Bearer " + apiKey).get().build();
-        try (Response response = httpClient.newCall(request).execute()) {
+        try (Response response = httpClient.get().newCall(request).execute()) {
             return response.isSuccessful();
         } catch (java.io.IOException e) {
             return false;
@@ -334,7 +311,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 return "OpenAI API key not configured";
 
             String body = webSearchBody(model, ApiProviderValidator.SEARCH_CHECK_QUESTION).toString();
-            try (Response response = post(researchClient, "/responses", () -> RequestBody.create(body, JSON))) {
+            try (Response response = post(researchClient.get(), "/responses", () -> RequestBody.create(body, JSON))) {
                 String problem = webSearchProblem(response.code(), response.body() != null ? response.body().string() : "");
                 if (problem != null)
                     logger.warn("OpenAI web search check failed for {}: {}", model, problem);
@@ -522,7 +499,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     }
 
     private Response post(String path, java.util.function.Supplier<RequestBody> body) throws java.io.IOException {
-        return post(httpClient, path, body);
+        return post(httpClient.get(), path, body);
     }
 
     private Response post(OkHttpClient client, String path, java.util.function.Supplier<RequestBody> body)
@@ -598,7 +575,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
         if (!isConfigured())
             throw new IllegalStateException("OpenAI API key not configured");
 
-        try (Response response = post(researchClient, "/responses", () -> RequestBody.create(body.toString(), JSON))) {
+        try (Response response = post(researchClient.get(), "/responses",
+                () -> RequestBody.create(body.toString(), JSON))) {
             String responseBody = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) {
                 logger.warn("OpenAI responses request failed: HTTP {} - {}", response.code(), responseBody);

@@ -108,35 +108,6 @@ public interface BflApiService {
     String getApiKey();
 
     /**
-     * Initializes the HTTP client with corporate proxy support.
-     * 
-     * <p>
-     * This method configures the HTTP client with:
-     * </p>
-     * <ul>
-     * <li>Corporate proxy settings (if configured)</li>
-     * <li>ZScaler root certificates (if available)</li>
-     * <li>Custom SSL context with corporate trust store</li>
-     * <li>Proper timeout and retry configuration</li>
-     * </ul>
-     * 
-     * @since 1.0.0
-     */
-    void initializeHttpClient();
-
-    /**
-     * Refreshes the corporate proxy configuration.
-     * 
-     * <p>
-     * This method reloads proxy settings and reinitializes the HTTP client
-     * with updated corporate proxy configuration.
-     * </p>
-     * 
-     * @since 1.0.0
-     */
-    void refreshProxyConfiguration();
-
-    /**
      * Retrieves the current user's finetunes list (for API validation).
      * 
      * <p>

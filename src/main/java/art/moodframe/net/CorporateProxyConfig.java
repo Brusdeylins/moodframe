@@ -1,5 +1,6 @@
-package art.moodframe.config;
+package art.moodframe.net;
 
+import art.moodframe.config.ApplicationConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,9 +74,7 @@ public class CorporateProxyConfig {
      * @since 1.0.0
      */
     public void loadProxyConfiguration() {
-        if (applicationConfig.getLoggingEnabled()) {
-            logger.info("Loading corporate proxy configuration from multiple sources");
-        }
+        logger.debug("Loading corporate proxy configuration from multiple sources");
         
         // Load proxy settings from ApplicationConfig (which handles priority)
         this.proxyHost = applicationConfig.getProxyHost();
@@ -87,10 +86,8 @@ public class CorporateProxyConfig {
         // Log configuration source for debugging
         String configSource = applicationConfig.getProxyConfigurationSource();
         if (!"none".equals(configSource)) {
-            if (applicationConfig.getLoggingEnabled()) {
-                logger.info("Corporate proxy configured from source: {} ({}:{})", 
-                    configSource, proxyHost, proxyPort);
-            }
+            logger.debug("Corporate proxy configured from source: {} ({}:{})",
+                configSource, proxyHost, proxyPort);
         }
         
         // Load certificate paths
@@ -110,6 +107,9 @@ public class CorporateProxyConfig {
         
         // Get certificate path from configuration
         String certPath = applicationConfig.getCertificatePath();
+        if (certPath == null) {
+            return;
+        }
         Path certDirectory = Paths.get(certPath);
         
         try {
@@ -124,16 +124,12 @@ public class CorporateProxyConfig {
                     .filter(path -> isCertificateFile(path))
                     .forEach(certificatePaths::add);
                     
-                if (applicationConfig.getLoggingEnabled()) {
-                    logger.info("Found {} certificate files in directory: {}", 
-                        certificatePaths.size(), certDirectory);
-                }
+                logger.debug("Found {} certificate files in directory: {}",
+                    certificatePaths.size(), certDirectory);
             } else if (Files.exists(certDirectory) && isCertificateFile(certDirectory)) {
                 // Single certificate file
                 certificatePaths.add(certDirectory);
-                if (applicationConfig.getLoggingEnabled()) {
-                    logger.info("Found single certificate file: {}", certDirectory);
-                }
+                logger.debug("Found single certificate file: {}", certDirectory);
             }
             
         } catch (Exception e) {
@@ -171,9 +167,7 @@ public class CorporateProxyConfig {
                         this.proxyPort = address.getPort();
                         this.proxyEnabled = true;
                         
-                        if (applicationConfig.getLoggingEnabled()) {
-                            logger.info("Auto-detected system proxy: {}:{}", proxyHost, proxyPort);
-                        }
+                        logger.debug("Auto-detected system proxy: {}:{}", proxyHost, proxyPort);
                         return;
                     }
                 }
@@ -277,9 +271,7 @@ public class CorporateProxyConfig {
     public void addCertificatePath(Path certificatePath) {
         if (certificatePath != null && isCertificateFile(certificatePath)) {
             certificatePaths.add(certificatePath);
-            if (applicationConfig.getLoggingEnabled()) {
-                logger.info("Added certificate path: {}", certificatePath);
-            }
+            logger.debug("Added certificate path: {}", certificatePath);
         }
     }
     
