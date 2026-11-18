@@ -27,6 +27,7 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ImageTrashGroup;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.generation.RequestResponseManager;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
@@ -49,9 +50,9 @@ import art.moodframe.ui.component.ImagePreviewOverlay;
 import art.moodframe.ui.component.InPlaceEditableLabel;
 import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
-import art.moodframe.ui.dialog.BrainstormDialog;
+import art.moodframe.ui.brainstorm.BrainstormDialog;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.fxml.FXMLLoader;
@@ -1050,7 +1051,7 @@ class MainWindowFlowsTest {
         return GenerationModel.selectable().stream()
                 .filter((model) -> model.getProvider() == ApiProvider.BFL
                         || model.getProvider() == ApiProvider.GOOGLE_GEMINI)
-                .filter(test).map(GenerationModel::getLocalizedDisplayName).toList();
+                .filter(test).map(ModelLabels::displayName).toList();
     }
 
     private File image(String name) throws Exception {

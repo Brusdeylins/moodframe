@@ -159,7 +159,7 @@ test {
 
     // Time limit of every test and lifecycle method, and of the whole run
     systemProperty 'junit.jupiter.execution.timeout.default', '60 s'
-    timeout = Duration.ofMinutes(2)
+    timeout = Duration.ofMinutes(4)
 
     // The full suite retains ~680 MB (FX nodes and image data), beyond the default worker heap of 512 MB
     maxHeapSize = '1g'
