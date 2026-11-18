@@ -585,10 +585,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         });
         ContextMenu menu = new ContextMenu(reuse);
 
-        /*  FLUX seeds can be negative (XOR of random longs), so check != 0  */
         long seed = item.image().getSeed();
-        String model = item.image().getModel();
-        if (onSeedCopy != null && seed != 0 && model != null && !model.toLowerCase().contains("gemini")) {
+        if (onSeedCopy != null && ChatEntryCard.offersSeed(item.image())) {
             MenuItem copySeed = new MenuItem(I18nManager.getText("tooltip.copy.seed"));
             copySeed.setOnAction((action) -> onSeedCopy.accept(seed));
             copySeed.setDisable(isFluxModelSelected == null || !isFluxModelSelected.get());
