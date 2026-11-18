@@ -2,6 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.AttachedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Subscription;
@@ -23,7 +24,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.image.PixelReader;
+import javafx.scene.image.PixelFormat;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
@@ -45,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 
@@ -306,11 +308,8 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             return;
         }
 
-        /*  Images above the provider limit are shrunk by the service  */
-        attachmentService.setMaxFileSize(getCurrentMaxFileSize());
-
-        // Use async processing to avoid blocking UI
-        attachmentService.createAttachmentAsync(imageFile)
+        /*  Images above the limit of the provider are shrunk by the service; async to keep the UI responsive  */
+        attachmentService.createAttachmentAsync(imageFile, getCurrentMaxFileSize())
             .thenAccept(attachment -> {
                 if (attachment != null && attachment.isValid()) {
                     Platform.runLater(() -> setImageAtSlot(slotIndex, attachment));
@@ -336,7 +335,9 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     }
 
     /**
-     * Attaches the image currently on the system clipboard, if any.
+     * Attaches the image currently on the system clipboard, if any. The pixels are copied at once on the JavaFX
+     * thread; the PNG is written and compared with the attached images on a worker, then attached on the JavaFX
+     * thread again.
      */
     private void pasteFromClipboard() {
         Clipboard clipboard = Clipboard.getSystemClipboard();
@@ -348,54 +349,67 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             return;
         }
 
-        try {
-            int width  = (int) image.getWidth();
-            int height = (int) image.getHeight();
-            PixelReader reader = image.getPixelReader();
-            BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                    buffered.setRGB(x, y, reader.getArgb(x, y));
+        int width  = (int) image.getWidth();
+        int height = (int) image.getHeight();
+        int[] argb = new int[width * height];
+        image.getPixelReader().getPixels(0, 0, width, height, PixelFormat.getIntArgbInstance(), argb, 0, width);
+        List<File> attached = getAttachedImages().stream().map(AttachedImage::getImageFile)
+                .filter(java.util.Objects::nonNull).toList();
 
-            File tempFile = File.createTempFile("clipboard-", ".png");
-            tempFile.deleteOnExit();
-            ImageIO.write(buffered, "png", tempFile);
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                buffered.setRGB(0, 0, width, height, argb, 0, width);
+                File tempFile = File.createTempFile("clipboard-", ".png");
+                tempFile.deleteOnExit();
+                ImageIO.write(buffered, "png", tempFile);
 
-            /*  Skip if the same image is already attached  */
-            byte[] newBytes = Files.readAllBytes(tempFile.toPath());
-            for (AttachedImage existing : getAttachedImages()) {
-                File existingFile = existing.getImageFile();
-                if (existingFile != null && existingFile.length() == newBytes.length
-                        && Arrays.equals(Files.readAllBytes(existingFile.toPath()), newBytes)) {
-                    tempFile.delete();
-                    if (onError != null)
-                        onError.accept(I18nManager.getText("attachment.paste.duplicate"));
-                    return;
-                }
+                /*  Skip if the same image is already attached  */
+                byte[] newBytes = Files.readAllBytes(tempFile.toPath());
+                for (File existingFile : attached)
+                    if (existingFile.length() == newBytes.length
+                            && Arrays.equals(Files.readAllBytes(existingFile.toPath()), newBytes)) {
+                        tempFile.delete();
+                        return null;
+                    }
+                return tempFile;
             }
-
-            /*  Always append: first empty slot, else a new slot  */
-            int slotIndex = -1;
-            for (int i = 0; i < imageSlots.size() && slotIndex < 0; i++)
-                if (!imageSlots.get(i).hasImage())
-                    slotIndex = i;
-            if (slotIndex < 0 && imageSlots.size() < maxImages.get()) {
-                addNewSlot();
-                slotIndex = imageSlots.size() - 1;
+            catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
             }
-            if (slotIndex < 0) {
-                tempFile.delete();
+        }, IoExecutor.get()).whenComplete((tempFile, error) -> Platform.runLater(() -> {
+            if (error != null) {
+                Throwable cause = error.getCause() != null ? error.getCause() : error;
+                logger.error("Failed to paste image from clipboard: {}", cause.getMessage(), cause);
                 if (onError != null)
-                    onError.accept(I18nManager.getText("attachment.max.reached", maxImages.get()));
-                return;
+                    onError.accept(cause.getMessage());
             }
-            attachImageToSlot(slotIndex, tempFile);
+            else if (tempFile == null) {
+                if (onError != null)
+                    onError.accept(I18nManager.getText("attachment.paste.duplicate"));
+            }
+            else
+                attachPasted(tempFile);
+        }));
+    }
+
+    /*  Attaches a pasted image, always appended: into the first empty slot, else a new slot  */
+    private void attachPasted(File tempFile) {
+        int slotIndex = -1;
+        for (int i = 0; i < imageSlots.size() && slotIndex < 0; i++)
+            if (!imageSlots.get(i).hasImage())
+                slotIndex = i;
+        if (slotIndex < 0 && imageSlots.size() < maxImages.get()) {
+            addNewSlot();
+            slotIndex = imageSlots.size() - 1;
         }
-        catch (IOException e) {
-            logger.error("Failed to paste image from clipboard: {}", e.getMessage(), e);
+        if (slotIndex < 0) {
+            tempFile.delete();
             if (onError != null)
-                onError.accept(e.getMessage());
+                onError.accept(I18nManager.getText("attachment.max.reached", maxImages.get()));
+            return;
         }
+        attachImageToSlot(slotIndex, tempFile);
     }
 
     /**
@@ -607,7 +621,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
         GenerationModel model = currentModel.get();
         if (model != null)
             return GenerationModel.getMaxFileSize(model.getProvider());
-        return 10L * 1024 * 1024;
+        return ImageAttachmentService.DEFAULT_MAX_FILE_SIZE;
     }
 
     /**

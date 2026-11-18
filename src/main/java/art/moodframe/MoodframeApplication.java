@@ -314,6 +314,10 @@ public class MoodframeApplication extends Application {
                         return chats;
                     });
 
+            /*  Reads, shrinks and encodes the images attached to an order, for the drop square and the attachment panel  */
+            ServiceFactory.getInstance().registerService(art.moodframe.service.chat.ImageAttachmentService.class,
+                    new art.moodframe.service.chat.ImageAttachmentService());
+
             /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.chat.ImageSizeCheck.class,

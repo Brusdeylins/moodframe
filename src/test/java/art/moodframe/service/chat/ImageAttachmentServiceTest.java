@@ -29,10 +29,9 @@ class ImageAttachmentServiceTest {
         ImageIO.write(noise, "png", png);
 
         ImageAttachmentService service = new ImageAttachmentService();
-        service.setMaxFileSize(100L * 1024);
         assertTrue(png.length() > 100L * 1024, "the test image must exceed the limit");
 
-        AttachedImage attachment = service.createAttachment(png);
+        AttachedImage attachment = service.createAttachment(png, 100L * 1024);
 
         assertTrue(attachment.getImageFile().getName().endsWith(".jpg"));
         assertTrue(attachment.getImageFile().length() <= 100L * 1024);

@@ -246,7 +246,7 @@ public class DragDropHandler {
         CompletableFuture.supplyAsync(() -> {
             try {
                 // Use existing ImageAttachmentService logic
-                return attachmentService.attachImage(imageFile);
+                return attachmentService.attachImage(imageFile, maxFileSizeSupplier.get());
             } catch (Exception e) {
                 logger.error("Failed to process dropped image", e);
                 throw new CompletionException(e);
