@@ -1,5 +1,6 @@
 package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormTurn;
@@ -112,7 +113,7 @@ public class MoodAnalysisService {
 
     /** Whether Gemini may answer: a key, the provider enabled, and not OpenAI as the only provider in use. */
     private boolean geminiUsable() {
-        return geminiService != null && config.hasGeminiApiKey() && config.isGeminiProviderEnabled()
+        return geminiService != null && config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI)
                 && !ProviderPolicy.isOpenAiOnly(config);
     }
 
@@ -121,8 +122,9 @@ public class MoodAnalysisService {
      * else null for Gemini; as in the brainstorm.
      */
     private String openAiModel() {
-        return openAiService != null && config.isOpenAiChatAvailable()
-                && ("openai".equals(config.getBrainstormEngine()) || !geminiUsable()) ? config.getOpenAiChatModel() : null;
+        return openAiService != null && config.accounts().isOpenAiChatAvailable()
+                && ("openai".equals(config.accounts().getBrainstormEngine()) || !geminiUsable())
+                ? config.accounts().getOpenAiChatModel() : null;
     }
 
     /**

@@ -103,7 +103,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
      * @param io     runs the blocking requests
      */
     public GeminiApiServiceImpl(ApplicationConfig config, Executor io) {
-        this.apiKey = config.getGeminiApiKey();
+        this.apiKey = config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI);
         this.io = io;
 
         // HTTP client with timeouts, corporate proxy and certificates, built again when the settings change

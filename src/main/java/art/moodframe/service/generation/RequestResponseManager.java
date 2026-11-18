@@ -459,7 +459,7 @@ public class RequestResponseManager implements RequestResponseService {
                 HttpRequest.Builder downloadBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(videoUrl))
                         .timeout(Duration.ofSeconds(120)); // Longer timeout for video download
-                String geminiKey = config.getGeminiApiKey();
+                String geminiKey = config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI);
                 if (videoUrl.startsWith("https://generativelanguage.googleapis.com/")
                         && geminiKey != null && !geminiKey.isBlank()) {
                     downloadBuilder.header("x-goog-api-key", geminiKey);

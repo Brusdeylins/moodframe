@@ -1,5 +1,6 @@
 package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormFact;
@@ -131,14 +132,15 @@ public class BrainstormService {
      * Gemini is not usable), else null for Gemini. A choice that is no longer usable falls back to the other one.
      */
     private String openAiModel(BrainstormSession session) {
-        boolean geminiUsable = config != null && config.isGeminiBrainstormAvailable();
+        boolean geminiUsable = config != null && config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI);
         String engine = session.getEngine() != null ? session.getEngine()
-                : config != null ? config.getBrainstormEngine() : "gemini";
+                : config != null ? config.accounts().getBrainstormEngine() : "gemini";
 
         /*  Without a usable Gemini the session stays with OpenAI, so it never turns to Google unasked  */
-        return openAiService != null && config != null && config.isOpenAiChatAvailable()
-                && (config.isOpenAiBrainstormAvailable() && "openai".equals(engine) || !geminiUsable)
-                ? config.getOpenAiChatModel() : null;
+        return openAiService != null && config != null && config.accounts().isOpenAiChatAvailable()
+                && (config.accounts().isBrainstormAvailable(ApiProvider.OPENAI) && "openai".equals(engine)
+                        || !geminiUsable)
+                ? config.accounts().getOpenAiChatModel() : null;
     }
 
     private static String loadTemplate() {

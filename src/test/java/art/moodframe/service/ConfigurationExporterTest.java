@@ -1,6 +1,6 @@
 package art.moodframe.service;
 
-import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** The full backup of the moods and frames of the user in a fresh SQLite database. */
 class ConfigurationExporterTest {
@@ -46,12 +45,12 @@ class ConfigurationExporterTest {
 
         ConfigurationExporter exporter = new ConfigurationExporter();
         File file = tempDir.resolve("backup.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.MOODS));
 
         /*  A restore after the mood was lost brings it back under its id and name  */
         assertTrue(moods.deletePermanently(mood.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 moods imported", result.getChanges().get("Moods"));
         Mood restored = moods.find(mood.getId());
@@ -60,7 +59,7 @@ class ConfigurationExporterTest {
         assertEquals(mood.getReferences(), restored.getReferences());
 
         /*  Importing again keeps the mood and adds a copy under a new id and the next free name  */
-        result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        result = exporter.importConfiguration(file, ConfigMocks.config());
         assertEquals("1 moods imported", result.getChanges().get("Moods"));
         Mood copy = moods.getCustom().stream().filter((Mood custom) -> custom.getName().equals("Backup Me (1)"))
                 .findFirst().orElseThrow();
@@ -78,12 +77,12 @@ class ConfigurationExporterTest {
 
         ConfigurationExporter exporter = new ConfigurationExporter();
         File file = tempDir.resolve("frames-backup.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.FRAMES));
 
         /*  A restore after the frame was lost brings it back under its id and name  */
         assertTrue(frames.deletePermanently(frame.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 frames imported", result.getChanges().get("Frames"));
         Frame restored = frames.find(frame.getId());
@@ -107,7 +106,7 @@ class ConfigurationExporterTest {
                 """);
 
         ConfigurationExporter.ImportResult result = new ConfigurationExporter().importConfiguration(file,
-                mock(ApplicationConfig.class));
+                ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 frames imported", result.getChanges().get("Frames"));
         Frame imported = new FrameService().find("older-backup");
@@ -129,14 +128,14 @@ class ConfigurationExporterTest {
 
         ConfigurationExporter exporter = new ConfigurationExporter();
         File file = tempDir.resolve("backup-blocks.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.CUSTOM_STYLES, ConfigurationExporter.ConfigCategory.MOODS));
 
         /*  Block and mood are lost, the backup brings both back and the mood points at the block again  */
         assertTrue(blocks.deleteCustom(style.getId()));
         assertTrue(blocks.deletePermanently(style.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         Mood restored = moods.find(mood.getId());
         assertNotNull(restored);

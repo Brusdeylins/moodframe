@@ -1,6 +1,7 @@
 package art.moodframe.service.generation;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
@@ -9,9 +10,7 @@ import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.BflApiServiceImpl;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -58,7 +56,7 @@ class BflSafetyToleranceTest {
 
     @Test
     void retriesExactlyOnceWithTheApprovedMaximum() {
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         ChatEntryTracker tracker = mock(ChatEntryTracker.class);
         List<Integer> sent = new CopyOnWriteArrayList<>();
         List<Integer> lowered = new CopyOnWriteArrayList<>();
@@ -73,7 +71,7 @@ class BflSafetyToleranceTest {
 
     @Test
     void keepsTheErrorWithoutAnApprovedMaximum() {
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         ChatEntryTracker tracker = mock(ChatEntryTracker.class);
         List<Integer> sent = new CopyOnWriteArrayList<>();
         List<Integer> lowered = new CopyOnWriteArrayList<>();
@@ -102,11 +100,8 @@ class BflSafetyToleranceTest {
 
     @Test
     void defaultsToSafetyToleranceTwoLikeBfl() throws Exception {
-        /*  a configuration without any stored value, without reading or writing ~/.moodframe  */
-        ApplicationConfig config = mock(ApplicationConfig.class, CALLS_REAL_METHODS);
-        Field properties = ApplicationConfig.class.getDeclaredField("properties");
-        properties.setAccessible(true);
-        properties.set(config, new Properties());
+        /*  a configuration without any stored value, in a library of its own  */
+        ApplicationConfig config = art.moodframe.config.ConfigMocks.fresh();
         assertEquals(2, config.getFlux2SafetyTolerance());
     }
 }

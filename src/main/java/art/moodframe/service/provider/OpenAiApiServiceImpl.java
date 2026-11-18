@@ -76,7 +76,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     public OpenAiApiServiceImpl(ApplicationConfig config, Executor io) {
         this.config = config;
         this.io = io;
-        this.apiKey = config.getOpenAiApiKey();
+        this.apiKey = config.accounts().getApiKey(ApiProvider.OPENAI);
         this.baseUrl = config.getOpenAiBaseUrl();
 
         /*  Built again when the proxy or certificate settings change  */

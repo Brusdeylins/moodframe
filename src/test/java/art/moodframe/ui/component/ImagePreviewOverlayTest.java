@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.MediaSupport;
@@ -69,7 +70,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -1353,8 +1353,8 @@ class ImagePreviewOverlayTest {
     /*  A configuration without file that lets the frame turn or not, instead of what another test left behind  */
     private static Object useConfig(boolean animated) throws Exception {
         Object realConfig = services().get(ApplicationConfig.class);
-        ApplicationConfig config = mock(ApplicationConfig.class);
-        when(config.isPreviewFrameAnimated()).thenReturn(animated);
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.ui().isPreviewFrameAnimated()).thenReturn(animated);
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         return realConfig;
     }

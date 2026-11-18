@@ -1,5 +1,6 @@
 package art.moodframe.ui.dialog;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormFact;
@@ -306,13 +307,13 @@ public class BrainstormDialog extends Stage {
         if (appConfig == null)
             return null;
 
-        boolean geminiUsable = appConfig.isGeminiBrainstormAvailable();
-        boolean openAiUsable = appConfig.isOpenAiBrainstormAvailable();
+        boolean geminiUsable = appConfig.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI);
+        boolean openAiUsable = appConfig.accounts().isBrainstormAvailable(ApiProvider.OPENAI);
         if (!geminiUsable && !openAiUsable)
             return null;
 
         geminiItem = I18nManager.getText("brainstorm.engine.gemini");
-        openAiItem = I18nManager.getText("brainstorm.engine.openai", appConfig.getOpenAiChatModel());
+        openAiItem = I18nManager.getText("brainstorm.engine.openai", appConfig.accounts().getOpenAiChatModel());
         ComboBox<String> box = new ComboBox<>();
         if (geminiUsable)
             box.getItems().add(geminiItem);
@@ -334,7 +335,7 @@ public class BrainstormDialog extends Stage {
             chat.engine = engine;
             if (chat.session != null)
                 service.setEngine(chat.session, engine);
-            appConfig.setBrainstormEngine(engine);
+            appConfig.accounts().setBrainstormEngine(engine);
         });
         return box;
     }
@@ -347,7 +348,7 @@ public class BrainstormDialog extends Stage {
         ApplicationConfig appConfig = config();
         String engine = target.session != null && target.session.getEngine() != null ? target.session.getEngine()
                 : target.engine != null ? target.engine
-                : appConfig != null ? appConfig.getBrainstormEngine() : "gemini";
+                : appConfig != null ? appConfig.accounts().getBrainstormEngine() : "gemini";
         String item = "openai".equals(engine) ? openAiItem : geminiItem;
         updatingUi = true;
         engineBox.setValue(engineBox.getItems().contains(item) ? item : engineBox.getItems().get(0));

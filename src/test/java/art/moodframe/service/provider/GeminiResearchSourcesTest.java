@@ -10,7 +10,6 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
 
 /** Checks how the sources of a researched answer are read, based on the shapes the live API returned. */
 class GeminiResearchSourcesTest {
@@ -20,8 +19,7 @@ class GeminiResearchSourcesTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
+        ApplicationConfig config = art.moodframe.config.ConfigMocks.withEmptyTexts();
         service = new GeminiApiServiceImpl(config);
         extract = GeminiApiServiceImpl.class.getDeclaredMethod("extractSources", JSONObject.class);
         extract.setAccessible(true);

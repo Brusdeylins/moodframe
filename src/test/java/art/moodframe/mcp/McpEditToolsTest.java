@@ -1,6 +1,7 @@
 package art.moodframe.mcp;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ApiProvider;
@@ -64,8 +65,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -126,15 +125,14 @@ class McpEditToolsTest {
         trash.addListener(chats);
 
         /*  Only BFL is enabled with a key; no language model for the analysis of images  */
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
-        when(config.isBflProviderEnabled()).thenReturn(true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.hasApiKey(any(ApiProvider.class))).thenCallRealMethod();
-        when(config.getOpenAiModels()).thenReturn(List.of());
-        when(config.getFlux2SafetyTolerance()).thenReturn(2);
-        when(config.getFlux2FlexGuidance()).thenReturn(5.0);
-        when(config.getFlux2FlexSteps()).thenReturn(50);
+        when(config.accounts().isEnabled(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().getOpenAiModels()).thenReturn(List.of());
+        when(config.generation().getFlux2SafetyTolerance()).thenReturn(2);
+        when(config.generation().getFlux2FlexGuidance()).thenReturn(5.0);
+        when(config.generation().getFlux2FlexSteps()).thenReturn(50);
 
         provider = new Provider(repository);
         GenerationService generation = new GenerationService(config, chats, moods, provider);

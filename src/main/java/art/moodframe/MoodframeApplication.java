@@ -138,7 +138,7 @@ public class MoodframeApplication extends Application {
             new art.moodframe.net.CorporateProxyConfig(config);
 
             // Initialize I18n with user's preferred language
-            String userLanguage = config.getUiLanguage();
+            String userLanguage = config.ui().getUiLanguage();
             java.util.Locale appLocale = "de".equals(userLanguage) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
             art.moodframe.util.I18nManager.setLocale(appLocale);
 
@@ -545,10 +545,10 @@ public class MoodframeApplication extends Application {
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        String configuredTheme = config.getUiTheme();
+        String configuredTheme = config.ui().getUiTheme();
 
         // Check if user has explicitly set a theme preference
-        boolean hasUserPreference = config.hasUserSetTheme();
+        boolean hasUserPreference = config.ui().hasUserSetTheme();
 
         String themeToApply;
         if (!hasUserPreference) {
@@ -557,7 +557,7 @@ public class MoodframeApplication extends Application {
 
             // If system theme differs from config, update the config
             if (!themeToApply.equals(configuredTheme)) {
-                config.setUiTheme(themeToApply);
+                config.ui().setUiTheme(themeToApply);
             }
         } else {
             // User has set a preference, use it
@@ -627,11 +627,11 @@ public class MoodframeApplication extends Application {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null) {
-                double x = config.getWindowX();
-                double y = config.getWindowY();
-                int width = config.getWindowWidth();
-                int height = config.getWindowHeight();
-                boolean maximized = config.getWindowMaximized();
+                double x = config.ui().getWindowX();
+                double y = config.ui().getWindowY();
+                int width = config.ui().getWindowWidth();
+                int height = config.ui().getWindowHeight();
+                boolean maximized = config.ui().getWindowMaximized();
 
                 stage.setWidth(width);
                 stage.setHeight(height);
@@ -660,7 +660,7 @@ public class MoodframeApplication extends Application {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null && stage.isShowing()) {
-                config.setWindowBounds(
+                config.ui().setWindowBounds(
                         stage.getX(),
                         stage.getY(),
                         stage.getWidth(),

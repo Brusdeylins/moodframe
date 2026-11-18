@@ -12,7 +12,6 @@ import java.lang.reflect.Method;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** Checks the Interactions API request and response handling of Gemini Omni, as confirmed with live requests. */
 class GeminiOmniRequestBodyTest {
@@ -24,8 +23,7 @@ class GeminiOmniRequestBodyTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
+        ApplicationConfig config = art.moodframe.config.ConfigMocks.withEmptyTexts();
         service = new GeminiApiServiceImpl(config);
         build = GeminiApiServiceImpl.class.getDeclaredMethod("buildOmniRequestBody", ImageGenerationRequest.class);
         extractUri = GeminiApiServiceImpl.class.getDeclaredMethod("extractOmniVideoUri", JSONObject.class);

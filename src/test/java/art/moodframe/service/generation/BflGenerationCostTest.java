@@ -1,6 +1,7 @@
 package art.moodframe.service.generation;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
@@ -76,7 +77,7 @@ class BflGenerationCostTest {
         ImageFileStore files = mock(ImageFileStore.class);
         when(files.download(any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
                 "png", "image/png", width, height, 1000));
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
 
         ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);

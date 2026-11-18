@@ -143,7 +143,7 @@ public class ThemeManager {
                     config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
                 }
                 if (config != null) {
-                    config.setUiTheme(themeName);
+                    config.ui().setUiTheme(themeName);
                     logger.debug("Theme preference saved: {}", themeName);
                 }
             } catch (Exception e) {
@@ -164,7 +164,7 @@ public class ThemeManager {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null) {
-                return config.getUiTheme();
+                return config.ui().getUiTheme();
             }
         } catch (Exception e) {
             logger.warn("Failed to get current theme from config", e);

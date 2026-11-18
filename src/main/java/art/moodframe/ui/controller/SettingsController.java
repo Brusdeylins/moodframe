@@ -1,5 +1,6 @@
 package art.moodframe.ui.controller;
 
+import art.moodframe.model.ApiProvider;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -621,18 +622,21 @@ public class SettingsController implements Initializable, I18nChangeListener {
         openaiModelList.setCellFactory(javafx.scene.control.cell.CheckBoxListCell.forListView(openaiModelChecks::get));
 
         // Initialize provider checkboxes based on validation status AND API key presence
-        bflProviderEnabledCheckBox.setSelected(config.isBflProviderEnabled());
+        bflProviderEnabledCheckBox.setSelected(config.accounts().isEnabled(ApiProvider.BFL));
         // Checkbox is only enabled if API key exists AND is validated
-        boolean bflCanBeEnabled = config.hasApiKey() && config.isBflProviderValidated();
+        boolean bflCanBeEnabled = config.accounts().hasApiKey(ApiProvider.BFL)
+                && config.accounts().isValidated(ApiProvider.BFL);
         bflProviderEnabledCheckBox.setDisable(!bflCanBeEnabled);
 
-        geminiProviderEnabledCheckBox.setSelected(config.isGeminiProviderEnabled());
+        geminiProviderEnabledCheckBox.setSelected(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI));
         // Checkbox is only enabled if API key exists AND is validated
-        boolean geminiCanBeEnabled = config.hasGeminiApiKey() && config.isGeminiProviderValidated();
+        boolean geminiCanBeEnabled = config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)
+                && config.accounts().isValidated(ApiProvider.GOOGLE_GEMINI);
         geminiProviderEnabledCheckBox.setDisable(!geminiCanBeEnabled);
 
-        openaiProviderEnabledCheckBox.setSelected(config.isOpenAiProviderEnabled());
-        boolean openaiCanBeEnabled = config.hasOpenAiApiKey() && config.isOpenAiProviderValidated();
+        openaiProviderEnabledCheckBox.setSelected(config.accounts().isEnabled(ApiProvider.OPENAI));
+        boolean openaiCanBeEnabled = config.accounts().hasApiKey(ApiProvider.OPENAI)
+                && config.accounts().isValidated(ApiProvider.OPENAI);
         openaiProviderEnabledCheckBox.setDisable(!openaiCanBeEnabled);
     }
 
@@ -662,20 +666,20 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         /*  background image of the main window, applied at once  */
         if (backgroundImageCheckBox != null) {
-            backgroundImageCheckBox.setSelected(config == null || config.isBackgroundImageEnabled());
+            backgroundImageCheckBox.setSelected(config == null || config.ui().isBackgroundImageEnabled());
             backgroundImageCheckBox.selectedProperty().addListener((obs, was, on) -> {
                 if (config != null)
-                    config.setBackgroundImageEnabled(on);
+                    config.ui().setBackgroundImageEnabled(on);
                 ThemeManager.notifyAppearanceChanged();
             });
         }
 
         /*  turning frame of the large preview, taken on its next opening  */
         if (previewFrameAnimatedCheckBox != null) {
-            previewFrameAnimatedCheckBox.setSelected(config == null || config.isPreviewFrameAnimated());
+            previewFrameAnimatedCheckBox.setSelected(config == null || config.ui().isPreviewFrameAnimated());
             previewFrameAnimatedCheckBox.selectedProperty().addListener((obs, was, on) -> {
                 if (config != null)
-                    config.setPreviewFrameAnimated(on);
+                    config.ui().setPreviewFrameAnimated(on);
             });
         }
     }
@@ -788,7 +792,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void updateProxyFieldsEnabledState() {
         boolean proxyEnabled = enableProxyCheckBox.isSelected();
-        boolean isEditable = config.isProxyConfigurationEditable();
+        boolean isEditable = config.proxy().isProxyConfigurationEditable();
 
         proxyHostField.setDisable(!proxyEnabled || !isEditable);
         proxyPortSpinner.setDisable(!proxyEnabled || !isEditable);
@@ -805,7 +809,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
      * Shows information about the proxy configuration source.
      */
     private void showProxyConfigSourceInfo() {
-        String source = config.getProxyConfigurationSource();
+        String source = config.proxy().getProxyConfigurationSource();
         if (!"none".equals(source) && !"configuration".equals(source)) {
             String sourceText = switch (source) {
                 case "environment" -> "Proxy configuration loaded from environment variables (read-only)";
@@ -841,7 +845,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void initializeMcpTab() {
         mcpService = ServiceFactory.getInstance().getService(McpService.class);
         mcpPortSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1024, 65535,
-                ApplicationConfig.MCP_DEFAULT_PORT));
+                art.moodframe.config.McpSettings.MCP_DEFAULT_PORT));
 
         mcpStatusProgress = new ProgressIndicator();
         mcpStatusProgress.setMaxSize(16.0, 16.0);
@@ -856,8 +860,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
         mcpStatusContainer.getChildren().remove(mcpStatusIcon);
         mcpStatusContainer.getChildren().add(0, mcpIconContainer);
 
-        mcpEnabledCheckBox.setSelected(config.isMcpEnabled());
-        mcpPortSpinner.getValueFactory().setValue(config.getMcpPort());
+        mcpEnabledCheckBox.setSelected(config.mcp().isMcpEnabled());
+        mcpPortSpinner.getValueFactory().setValue(config.mcp().getMcpPort());
         showMcpToken();
         if (mcpService != null)
             mcpStatus = mcpService.getStatus();
@@ -865,16 +869,16 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         /*  The first activation creates the token  */
         mcpEnabledCheckBox.selectedProperty().addListener((obs, was, enabled) -> {
-            if (enabled && config.getMcpToken() == null)
-                config.setMcpToken(McpService.newToken());
-            config.setMcpEnabled(enabled);
+            if (enabled && config.mcp().getMcpToken() == null)
+                config.mcp().setMcpToken(McpService.newToken());
+            config.mcp().setMcpEnabled(enabled);
             showMcpToken();
             applyMcp();
         });
         mcpPortSpinner.valueProperty().addListener((obs, old, port) -> {
-            if (port == null || port == config.getMcpPort())
+            if (port == null || port == config.mcp().getMcpPort())
                 return;
-            config.setMcpPort(port);
+            config.mcp().setMcpPort(port);
             showMcpToken();
             applyMcp();
         });
@@ -882,12 +886,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
     /*  the token hidden in its field, the command with the token hidden; the copy buttons take the real ones  */
     private void showMcpToken() {
-        String token = config.getMcpToken();
+        String token = config.mcp().getMcpToken();
         mcpTokenField.setText(token != null ? token : "");
-        mcpCommandField.setText(token != null ? McpService.command(config.getMcpPort(), "\u2022".repeat(12)) : "");
+        mcpCommandField.setText(token != null
+                ? McpService.command(config.mcp().getMcpPort(), "\u2022".repeat(12)) : "");
         copyMcpTokenButton.setDisable(token == null);
         copyMcpCommandButton.setDisable(token == null);
-        newMcpTokenButton.setDisable(!config.isMcpTokenEditable());
+        newMcpTokenButton.setDisable(!config.mcp().isMcpTokenEditable());
     }
 
     /*  applies the MCP settings in the background and shows the status once it is known  */
@@ -918,19 +923,19 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
     @FXML
     private void onCopyMcpToken() {
-        copyToClipboard(config.getMcpToken());
+        copyToClipboard(config.mcp().getMcpToken());
     }
 
     @FXML
     private void onCopyMcpCommand() {
-        String token = config.getMcpToken();
-        copyToClipboard(token != null ? McpService.command(config.getMcpPort(), token) : null);
+        String token = config.mcp().getMcpToken();
+        copyToClipboard(token != null ? McpService.command(config.mcp().getMcpPort(), token) : null);
     }
 
     /*  A new token locks out the clients with the old one, the server starts anew  */
     @FXML
     private void onNewMcpToken() {
-        config.setMcpToken(McpService.newToken());
+        config.mcp().setMcpToken(McpService.newToken());
         showMcpToken();
         applyMcp();
     }
@@ -949,8 +954,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void loadCurrentSettings() {
         try {
             // Load API settings - handle different sources
-            String apiKeySource = config.getApiKeySource();
-            String apiKey = config.getApiKey();
+            String apiKeySource = config.accounts().getApiKeySource(ApiProvider.BFL);
+            String apiKey = config.accounts().getApiKey(ApiProvider.BFL);
 
             if (apiKey != null && !apiKey.trim().isEmpty()) {
                 apiKeyInputControl.setText(apiKey);
@@ -964,13 +969,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 bflProviderEnabledCheckBox.setDisable(true);
                 bflProviderEnabledCheckBox.setSelected(false);
                 // Also update config to ensure consistency
-                if (config.isBflProviderEnabled()) {
-                    config.setBflProviderEnabled(false);
+                if (config.accounts().isEnabled(ApiProvider.BFL)) {
+                    config.accounts().setEnabled(ApiProvider.BFL, false);
                 }
             }
 
             // Update UI based on API key source
-            boolean isEditable = config.isApiKeyEditable();
+            boolean isEditable = config.accounts().isApiKeyEditable(ApiProvider.BFL);
             apiKeyInputControl.setDisable(!isEditable);
             showApiKeyButton.setDisable(!isEditable);
             testConnectionButton.setDisable(!isEditable);
@@ -998,15 +1003,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 });
             }
 
-            timeoutSpinner.getValueFactory().setValue(config.getApiTimeoutSeconds());
+            timeoutSpinner.getValueFactory().setValue(config.accounts().getApiTimeoutSeconds());
 
             // Load region settings
-            String currentRegion = config.getApiRegion();
+            String currentRegion = config.accounts().getApiRegion();
             regionComboBox.setValue(currentRegion);
 
             // Load Gemini API settings
-            String geminiApiKeySource = config.getGeminiApiKeySource();
-            String geminiApiKey = config.getGeminiApiKey();
+            String geminiApiKeySource = config.accounts().getApiKeySource(ApiProvider.GOOGLE_GEMINI);
+            String geminiApiKey = config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI);
 
             if (geminiApiKey != null && !geminiApiKey.trim().isEmpty()) {
                 geminiApiKeyInputControl.setText(geminiApiKey);
@@ -1017,13 +1022,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 geminiProviderEnabledCheckBox.setDisable(true);
                 geminiProviderEnabledCheckBox.setSelected(false);
                 // Also update config to ensure consistency
-                if (config.isGeminiProviderEnabled()) {
-                    config.setGeminiProviderEnabled(false);
+                if (config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)) {
+                    config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, false);
                 }
             }
 
             // Update Gemini UI based on API key source
-            boolean geminiIsEditable = config.isGeminiApiKeyEditable();
+            boolean geminiIsEditable = config.accounts().isApiKeyEditable(ApiProvider.GOOGLE_GEMINI);
             geminiApiKeyInputControl.setDisable(!geminiIsEditable);
             showGeminiApiKeyButton.setDisable(!geminiIsEditable);
             testGeminiConnectionButton.setDisable(!geminiIsEditable);
@@ -1055,24 +1060,24 @@ public class SettingsController implements Initializable, I18nChangeListener {
             }
 
             // Load OpenAI API settings
-            String openaiApiKeySource = config.getOpenAiApiKeySource();
-            String openaiApiKey = config.getOpenAiApiKey();
-            openaiBaseUrlField.setText(config.getOpenAiBaseUrl());
+            String openaiApiKeySource = config.accounts().getApiKeySource(ApiProvider.OPENAI);
+            String openaiApiKey = config.accounts().getApiKey(ApiProvider.OPENAI);
+            openaiBaseUrlField.setText(config.accounts().getOpenAiBaseUrl());
 
             if (openaiApiKey != null && !openaiApiKey.trim().isEmpty()) {
                 openaiApiKeyInputControl.setText(openaiApiKey);
                 openaiApiKeyValidated = true;
                 validatedOpenaiApiKey = openaiApiKey;
-                validatedOpenaiBaseUrl = config.getOpenAiBaseUrl();
+                validatedOpenaiBaseUrl = config.accounts().getOpenAiBaseUrl();
             } else {
                 openaiProviderEnabledCheckBox.setDisable(true);
                 openaiProviderEnabledCheckBox.setSelected(false);
-                if (config.isOpenAiProviderEnabled()) {
-                    config.setOpenAiProviderEnabled(false);
+                if (config.accounts().isEnabled(ApiProvider.OPENAI)) {
+                    config.accounts().setEnabled(ApiProvider.OPENAI, false);
                 }
             }
 
-            boolean openaiIsEditable = config.isOpenAiApiKeyEditable();
+            boolean openaiIsEditable = config.accounts().isApiKeyEditable(ApiProvider.OPENAI);
             openaiApiKeyInputControl.setDisable(!openaiIsEditable);
             showOpenaiApiKeyButton.setDisable(!openaiIsEditable);
 
@@ -1085,8 +1090,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 showOpenaiConnectionStatus("info", sourceText);
             } else if (openaiApiKeyValidated) {
                 showOpenaiConnectionStatus("success", java.text.MessageFormat.format(
-                        I18nManager.getText("settings.openai.validated.ready"), config.getOpenAiModels().size()));
-                showOpenaiModels(config.getOpenAiAvailableModels(), config.getOpenAiModels());
+                        I18nManager.getText("settings.openai.validated.ready"),
+                        config.accounts().getOpenAiModels().size()));
+                showOpenaiModels(config.accounts().getOpenAiAvailableModels(), config.accounts().getOpenAiModels());
             }
 
             /*  A changed token or base URL needs a new connection test  */
@@ -1100,7 +1106,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             enableLoggingCheckBox.setSelected(config.getLoggingEnabled());
 
             // Load theme settings
-            String currentTheme = config.getUiTheme();
+            String currentTheme = config.ui().getUiTheme();
             for (Toggle toggle : themeToggleGroup.getToggles()) {
                 if (toggle.getUserData().equals(currentTheme)) {
                     toggle.setSelected(true);
@@ -1109,7 +1115,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             }
 
             // Load language settings and apply to I18nManager
-            String currentLanguage = config.getUiLanguage();
+            String currentLanguage = config.ui().getUiLanguage();
             if ("de".equals(currentLanguage)) {
                 germanRadio.setSelected(true);
                 I18nManager.setLocale(java.util.Locale.GERMAN);
@@ -1133,29 +1139,29 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void loadProxySettings() {
         try {
             // Load proxy enable state
-            enableProxyCheckBox.setSelected(config.isProxyEnabled());
+            enableProxyCheckBox.setSelected(config.proxy().isProxyEnabled());
 
             // Load proxy host and port
-            String proxyHost = config.getProxyHost();
+            String proxyHost = config.proxy().getProxyHost();
             if (proxyHost != null) {
                 proxyHostField.setText(proxyHost);
             }
 
-            proxyPortSpinner.getValueFactory().setValue(config.getProxyPort());
+            proxyPortSpinner.getValueFactory().setValue(config.proxy().getProxyPort());
 
             // Load proxy credentials
-            String proxyUsername = config.getProxyUsername();
+            String proxyUsername = config.proxy().getProxyUsername();
             if (proxyUsername != null) {
                 proxyUsernameField.setText(proxyUsername);
             }
 
-            String proxyPassword = config.getProxyPassword();
+            String proxyPassword = config.proxy().getProxyPassword();
             if (proxyPassword != null) {
                 proxyPasswordField.setText(proxyPassword);
             }
 
             // Load certificate path (auto-detected)
-            String certPath = config.getCertificatePath();
+            String certPath = config.proxy().getCertificatePath();
             certificatePathLabel.setText(certPath);
 
             // Update field enabled states
@@ -1181,7 +1187,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             certificatesList.clear();
 
             // Use auto-detected certificate path
-            String certPathStr = config.getCertificatePath();
+            String certPathStr = config.proxy().getCertificatePath();
 
             Path certDirectory = Paths.get(certPathStr.trim());
             if (Files.exists(certDirectory) && Files.isDirectory(certDirectory)) {
@@ -1332,15 +1338,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
             apiService.setApiKey(apiKey);
 
             /*  The test runs against the selected region, the saved one comes back afterwards  */
-            String currentRegion = config.getApiRegion();
+            String currentRegion = config.accounts().getApiRegion();
             boolean otherRegion = selectedRegion != null && !selectedRegion.equals(currentRegion);
             if (otherRegion)
-                config.setApiRegion(selectedRegion);
+                config.accounts().setApiRegion(selectedRegion);
             try {
                 return apiService.testConnection().get();
             } finally {
                 if (otherRegion)
-                    config.setApiRegion(currentRegion);
+                    config.accounts().setApiRegion(currentRegion);
             }
         }, (success) -> {
             String testedRegion = regionComboBox.getValue();
@@ -1351,9 +1357,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
                 /*  A successful test unlocks the provider, like for Gemini and OpenAI  */
                 bflProviderEnabledCheckBox.setDisable(false);
-                if (!config.isBflProviderEnabled()) {
+                if (!config.accounts().isEnabled(ApiProvider.BFL)) {
                     bflProviderEnabledCheckBox.setSelected(true);
-                    config.setBflProviderEnabled(true);
+                    config.accounts().setEnabled(ApiProvider.BFL, true);
                 }
                 connectionTested(art.moodframe.model.ApiProvider.BFL, true);
             } else {
@@ -1376,11 +1382,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
         if (validator != null)
             validator.connectionTested(provider, works);
         else if (provider == art.moodframe.model.ApiProvider.BFL)
-            config.setBflProviderValidated(works);
+            config.accounts().setValidated(ApiProvider.BFL, works);
         else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI)
-            config.setGeminiProviderValidated(works);
+            config.accounts().setValidated(ApiProvider.GOOGLE_GEMINI, works);
         else
-            config.setOpenAiProviderValidated(works);
+            config.accounts().setValidated(ApiProvider.OPENAI, works);
     }
 
     /** The message for a BFL connection test that ended with an exception. */
@@ -1496,9 +1502,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
                 /*  A failed test disables the provider, so re-enable it after a successful one  */
                 geminiProviderEnabledCheckBox.setDisable(false);
-                if (!config.isGeminiProviderEnabled()) {
+                if (!config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)) {
                     geminiProviderEnabledCheckBox.setSelected(true);
-                    config.setGeminiProviderEnabled(true);
+                    config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, true);
                 }
                 connectionTested(art.moodframe.model.ApiProvider.GOOGLE_GEMINI, true);
                 checkGeminiBrainstorm();
@@ -1557,7 +1563,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         geminiProviderEnabledCheckBox.setDisable(true);
         geminiProviderEnabledCheckBox.setSelected(false);
         connectionTested(art.moodframe.model.ApiProvider.GOOGLE_GEMINI, false);
-        config.setGeminiProviderEnabled(false);
+        config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, false);
     }
 
     /**
@@ -1638,17 +1644,17 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 validatedOpenaiBaseUrl = testedService.getBaseUrl();
                 openaiBaseUrlField.setText(validatedOpenaiBaseUrl);
             }
-            java.util.List<String> available = config.getOpenAiAvailableModels();
+            java.util.List<String> available = config.accounts().getOpenAiAvailableModels();
             showOpenaiConnectionStatus("success", available.isEmpty()
                     ? I18nManager.getText("settings.openai.test.success.nomodels")
                     : java.text.MessageFormat.format(I18nManager.getText("settings.openai.test.success"),
                             available.size()));
-            showOpenaiModels(available, config.getOpenAiModels());
+            showOpenaiModels(available, config.accounts().getOpenAiModels());
 
             openaiProviderEnabledCheckBox.setDisable(false);
-            if (!config.isOpenAiProviderEnabled()) {
+            if (!config.accounts().isEnabled(ApiProvider.OPENAI)) {
                 openaiProviderEnabledCheckBox.setSelected(true);
-                config.setOpenAiProviderEnabled(true);
+                config.accounts().setEnabled(ApiProvider.OPENAI, true);
             }
             connectionTested(art.moodframe.model.ApiProvider.OPENAI, true);
 
@@ -1676,7 +1682,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         openaiProviderEnabledCheckBox.setDisable(true);
         openaiProviderEnabledCheckBox.setSelected(false);
         connectionTested(art.moodframe.model.ApiProvider.OPENAI, false);
-        config.setOpenAiProviderEnabled(false);
+        config.accounts().setEnabled(ApiProvider.OPENAI, false);
     }
 
     /**
@@ -1691,18 +1697,18 @@ public class SettingsController implements Initializable, I18nChangeListener {
             case "bfl" -> {
                 BflApiService service = factory.getService(BflApiService.class);
                 if (service != null)
-                    service.setApiKey(config.getApiKey());
+                    service.setApiKey(config.accounts().getApiKey(ApiProvider.BFL));
             }
             case "gemini" -> {
                 art.moodframe.service.provider.GeminiApiService service = factory.getService(art.moodframe.service.provider.GeminiApiService.class);
                 if (service != null)
-                    service.setApiKey(config.getGeminiApiKey());
+                    service.setApiKey(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
             }
             default -> {
                 art.moodframe.service.provider.OpenAiApiService service = factory.getService(art.moodframe.service.provider.OpenAiApiService.class);
                 if (service != null) {
-                    service.setApiKey(config.getOpenAiApiKey());
-                    service.setBaseUrl(config.getOpenAiBaseUrl());
+                    service.setApiKey(config.accounts().getApiKey(ApiProvider.OPENAI));
+                    service.setBaseUrl(config.accounts().getOpenAiBaseUrl());
                 }
             }
         }
@@ -1714,11 +1720,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onOpenaiProviderToggle() {
         boolean enabled = openaiProviderEnabledCheckBox.isSelected();
-        config.setOpenAiProviderEnabled(enabled);
+        config.accounts().setEnabled(ApiProvider.OPENAI, enabled);
         logger.info("OpenAI provider " + (enabled ? "enabled" : "disabled"));
 
         /*  A disabled provider was not checked at the start: switched on, its language model is checked now  */
-        if (enabled && config.isOpenAiProviderValidated())
+        if (enabled && config.accounts().isValidated(ApiProvider.OPENAI))
             onOpenaiChatModelChosen(openaiChatModelBox.getValue());
     }
 
@@ -1803,7 +1809,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         /*  The first entry is "none", the chosen language model stays selected if the API still lists it  */
         String none = I18nManager.getText("settings.openai.chat.none");
         String chatModel = openaiChatModelBox.getValue() == null || openaiChatModelBox.getValue().equals(none)
-                ? config.getOpenAiChatModel() : openaiChatModelBox.getValue();
+                ? config.accounts().getOpenAiChatModel() : openaiChatModelBox.getValue();
         openaiChatModelUpdating = true;
         openaiChatModelBox.getItems().setAll(none);
         openaiChatModelBox.getItems().addAll(available);
@@ -1826,7 +1832,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onBflProviderToggle() {
         boolean enabled = bflProviderEnabledCheckBox.isSelected();
-        config.setBflProviderEnabled(enabled);
+        config.accounts().setEnabled(ApiProvider.BFL, enabled);
         logger.info("BFL provider " + (enabled ? "enabled" : "disabled"));
     }
 
@@ -1836,11 +1842,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onGeminiProviderToggle() {
         boolean enabled = geminiProviderEnabledCheckBox.isSelected();
-        config.setGeminiProviderEnabled(enabled);
+        config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, enabled);
         logger.info("Gemini provider " + (enabled ? "enabled" : "disabled"));
 
         /*  A disabled provider was not checked at the start: switched on, its language model is checked now  */
-        if (enabled && config.isGeminiProviderValidated())
+        if (enabled && config.accounts().isValidated(ApiProvider.GOOGLE_GEMINI))
             checkGeminiBrainstorm();
     }
 
@@ -2009,7 +2015,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void onUploadCertificate() {
 
         // Use auto-detected certificate directory
-        String certPathStr = config.getCertificatePath();
+        String certPathStr = config.proxy().getCertificatePath();
 
         Path certDirectory = Paths.get(certPathStr.trim());
         try {
@@ -2111,7 +2117,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ok) {
                 try {
-                    String certPathStr = config.getCertificatePath();
+                    String certPathStr = config.proxy().getCertificatePath();
                     Path certificatePath = Paths.get(certPathStr, selectedCertificate);
 
                     if (Files.exists(certificatePath)) {
@@ -2205,11 +2211,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
             if (response == ok) {
                 try {
                     // Clear proxy settings
-                    config.setProxyHost(null);
-                    config.setProxyPort(8080);
-                    config.setProxyUsername(null);
-                    config.setProxyPassword(null);
-                    config.setProxyEnabled(false);
+                    config.proxy().setProxyHost(null);
+                    config.proxy().setProxyPort(8080);
+                    config.proxy().setProxyUsername(null);
+                    config.proxy().setProxyPassword(null);
+                    config.proxy().setProxyEnabled(false);
                     // Note: Certificate path is auto-detected, no reset needed
 
                     // Reload proxy settings in UI
@@ -2341,12 +2347,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
     private void refreshSettingsFromConfig() {
         try {
             // Refresh API settings
-            regionComboBox.setValue(config.getApiRegion());
-            timeoutSpinner.getValueFactory().setValue(config.getApiTimeoutSeconds());
+            regionComboBox.setValue(config.accounts().getApiRegion());
+            timeoutSpinner.getValueFactory().setValue(config.accounts().getApiTimeoutSeconds());
 
             // Refresh UI settings (theme and language)
             // Theme: Reset to default theme
-            String defaultTheme = config.getUiTheme();
+            String defaultTheme = config.ui().getUiTheme();
             ThemeManager.applyTheme(defaultTheme); // Apply the reset theme
 
             // Update theme radio button selection
@@ -2358,7 +2364,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             }
 
             // Language: Update radio buttons based on reset language
-            String defaultLanguage = config.getUiLanguage();
+            String defaultLanguage = config.ui().getUiLanguage();
             if ("de".equals(defaultLanguage)) {
                 germanRadio.setSelected(true);
                 englishRadio.setSelected(false);
@@ -2369,18 +2375,18 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             // Refresh proxy settings (but not password - it's preserved)
             // Load current proxy settings from config (may be defaults after reset)
-            enableProxyCheckBox.setSelected(config.isProxyEnabled());
+            enableProxyCheckBox.setSelected(config.proxy().isProxyEnabled());
 
-            String proxyHost = config.getProxyHost();
+            String proxyHost = config.proxy().getProxyHost();
             if (proxyHost != null) {
                 proxyHostField.setText(proxyHost);
             } else {
                 proxyHostField.clear();
             }
 
-            proxyPortSpinner.getValueFactory().setValue(config.getProxyPort());
+            proxyPortSpinner.getValueFactory().setValue(config.proxy().getProxyPort());
 
-            String proxyUsername = config.getProxyUsername();
+            String proxyUsername = config.proxy().getProxyUsername();
             if (proxyUsername != null) {
                 proxyUsernameField.setText(proxyUsername);
             } else {
@@ -2391,14 +2397,14 @@ public class SettingsController implements Initializable, I18nChangeListener {
             updateProxyFieldsEnabledState();
 
             // Refresh certificate path (auto-detected)
-            certificatePathLabel.setText(config.getCertificatePath());
+            certificatePathLabel.setText(config.proxy().getCertificatePath());
 
             // Refresh advanced settings
             enableLoggingCheckBox.setSelected(config.getLoggingEnabled());
 
             /*  The reset disables the MCP server and removes its token  */
-            mcpEnabledCheckBox.setSelected(config.isMcpEnabled());
-            mcpPortSpinner.getValueFactory().setValue(config.getMcpPort());
+            mcpEnabledCheckBox.setSelected(config.mcp().isMcpEnabled());
+            mcpPortSpinner.getValueFactory().setValue(config.mcp().getMcpPort());
             showMcpToken();
             applyMcp();
 
@@ -2415,7 +2421,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         try {
 
             // Apply API settings (only if editable and validated)
-            if (config.isApiKeyEditable()) {
+            if (config.accounts().isApiKeyEditable(ApiProvider.BFL)) {
                 String currentApiKey = apiKeyInputControl.getText();
                 if (currentApiKey != null && !currentApiKey.trim().isEmpty()) {
 
@@ -2426,12 +2432,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
                                         "Click the 'Test' button to validate your API key.");
                         logger.warn("Attempted to save unvalidated API key");
                     } else {
-                        config.setApiKey(currentApiKey.trim());
+                        config.accounts().setApiKey(ApiProvider.BFL, currentApiKey.trim());
                         logger.debug("Validated API key saved to configuration");
                     }
-                } else if (config.hasApiKey() && "configuration".equals(config.getApiKeySource())) {
+                } else if (config.accounts().hasApiKey(ApiProvider.BFL)
+                        && "configuration".equals(config.accounts().getApiKeySource(ApiProvider.BFL))) {
                     // User cleared the API key field - remove from config
-                    config.setApiKey("");
+                    config.accounts().setApiKey(ApiProvider.BFL, "");
                     apiKeyValidated = false;
                     validatedApiKey = null;
                     logger.debug("API key removed from configuration");
@@ -2439,7 +2446,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             }
 
             // Save Gemini API key (only if editable)
-            if (config.isGeminiApiKeyEditable()) {
+            if (config.accounts().isApiKeyEditable(ApiProvider.GOOGLE_GEMINI)) {
                 String currentGeminiApiKey = geminiApiKeyInputControl.getText();
 
                 if (currentGeminiApiKey != null && !currentGeminiApiKey.trim().isEmpty()) {
@@ -2447,12 +2454,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     if (!geminiApiKeyValidated || !currentGeminiApiKey.equals(validatedGeminiApiKey)) {
                         logger.warn("Attempted to save unvalidated Gemini API key");
                     } else {
-                        config.setGeminiApiKey(currentGeminiApiKey.trim());
+                        config.accounts().setApiKey(ApiProvider.GOOGLE_GEMINI, currentGeminiApiKey.trim());
                         logger.debug("Validated Gemini API key saved to configuration");
                     }
-                } else if (config.hasGeminiApiKey() && "configuration".equals(config.getGeminiApiKeySource())) {
+                } else if (config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)
+                        && "configuration".equals(config.accounts().getApiKeySource(ApiProvider.GOOGLE_GEMINI))) {
                     // User cleared the Gemini API key field - remove from config
-                    config.setGeminiApiKey("");
+                    config.accounts().setApiKey(ApiProvider.GOOGLE_GEMINI, "");
                     geminiApiKeyValidated = false;
                     validatedGeminiApiKey = null;
                     logger.debug("Gemini API key removed from configuration");
@@ -2460,12 +2468,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
             }
 
             // Save OpenAI base URL and bearer token (the token only if editable)
-            config.setOpenAiBaseUrl(openaiBaseUrlField.getText());
+            config.accounts().setOpenAiBaseUrl(openaiBaseUrlField.getText());
             if (!openaiModelChecks.isEmpty()) {
                 String chatModel = openaiChatModelBox.getValue();
                 boolean noChatModel = chatModel == null || chatModel.equals(I18nManager.getText("settings.openai.chat.none"));
-                boolean chatModelChanged = !(noChatModel ? "" : chatModel).equals(config.getOpenAiChatModel());
-                config.setOpenAiChatModel(noChatModel ? "" : chatModel);
+                boolean chatModelChanged = !(noChatModel ? "" : chatModel)
+                        .equals(config.accounts().getOpenAiChatModel());
+                config.accounts().setOpenAiChatModel(noChatModel ? "" : chatModel);
 
                 /*  The flags follow the saved model; a running check and that of an unchanged model store them  */
                 ApiProviderValidator validator = ServiceFactory.getInstance().getService(ApiProviderValidator.class);
@@ -2473,9 +2482,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     validator.storeOpenAiModelCheck(noChatModel ? "" : chatModel);
             }
             if (!openaiModelChecks.isEmpty())
-                config.setOpenAiModels(openaiModelChecks.entrySet().stream()
+                config.accounts().setOpenAiModels(openaiModelChecks.entrySet().stream()
                         .filter((e) -> e.getValue().get()).map(java.util.Map.Entry::getKey).toList());
-            if (config.isOpenAiApiKeyEditable()) {
+            if (config.accounts().isApiKeyEditable(ApiProvider.OPENAI)) {
                 String currentOpenaiApiKey = openaiApiKeyInputControl.getText();
 
                 if (currentOpenaiApiKey != null && !currentOpenaiApiKey.trim().isEmpty()) {
@@ -2483,14 +2492,15 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     if (!openaiApiKeyValidated || !currentOpenaiApiKey.equals(validatedOpenaiApiKey)) {
                         logger.warn("Attempted to save unvalidated OpenAI API key");
                     } else {
-                        config.setOpenAiApiKey(currentOpenaiApiKey.trim());
+                        config.accounts().setApiKey(ApiProvider.OPENAI, currentOpenaiApiKey.trim());
                         logger.info("Validated OpenAI API key saved to configuration");
                     }
-                } else if (config.hasOpenAiApiKey() && "configuration".equals(config.getOpenAiApiKeySource())) {
+                } else if (config.accounts().hasApiKey(ApiProvider.OPENAI)
+                        && "configuration".equals(config.accounts().getApiKeySource(ApiProvider.OPENAI))) {
                     // User cleared the OpenAI API key field - remove from config
-                    config.setOpenAiApiKey("");
-                    config.setOpenAiProviderEnabled(false);
-                    config.setOpenAiProviderValidated(false);
+                    config.accounts().setApiKey(ApiProvider.OPENAI, "");
+                    config.accounts().setEnabled(ApiProvider.OPENAI, false);
+                    config.accounts().setValidated(ApiProvider.OPENAI, false);
                     openaiApiKeyValidated = false;
                     validatedOpenaiApiKey = null;
                     logger.info("OpenAI API key removed from configuration");
@@ -2500,7 +2510,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             config.setProperty("api.timeout_seconds", timeoutSpinner.getValue().toString());
 
             // Save region settings
-            config.setApiRegion(regionComboBox.getValue());
+            config.accounts().setApiRegion(regionComboBox.getValue());
 
             // Save logging settings
             config.setLoggingEnabled(enableLoggingCheckBox.isSelected());
@@ -2509,13 +2519,13 @@ public class SettingsController implements Initializable, I18nChangeListener {
             RadioButton selectedTheme = (RadioButton) themeToggleGroup.getSelectedToggle();
             if (selectedTheme != null) {
                 String themeName = (String) selectedTheme.getUserData();
-                config.setUiTheme(themeName);
+                config.ui().setUiTheme(themeName);
                 // Theme already applied through live preview
             }
 
             // Save current language settings
             String language = germanRadio.isSelected() ? "de" : "en";
-            config.setUiLanguage(language);
+            config.ui().setUiLanguage(language);
 
             // Save proxy settings (only if editable)
             saveProxySettings();
@@ -2542,33 +2552,33 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void saveProxySettings() {
         try {
-            if (config.isProxyConfigurationEditable()) {
+            if (config.proxy().isProxyConfigurationEditable()) {
                 // Save proxy enable state
-                config.setProxyEnabled(enableProxyCheckBox.isSelected());
+                config.proxy().setProxyEnabled(enableProxyCheckBox.isSelected());
 
                 // Save proxy host and port
                 String proxyHost = proxyHostField.getText();
                 if (proxyHost != null && !proxyHost.trim().isEmpty()) {
-                    config.setProxyHost(proxyHost.trim());
+                    config.proxy().setProxyHost(proxyHost.trim());
                 } else {
-                    config.setProxyHost(null);
+                    config.proxy().setProxyHost(null);
                 }
 
-                config.setProxyPort(proxyPortSpinner.getValue());
+                config.proxy().setProxyPort(proxyPortSpinner.getValue());
 
                 // Save proxy credentials
                 String proxyUsername = proxyUsernameField.getText();
                 if (proxyUsername != null && !proxyUsername.trim().isEmpty()) {
-                    config.setProxyUsername(proxyUsername.trim());
+                    config.proxy().setProxyUsername(proxyUsername.trim());
                 } else {
-                    config.setProxyUsername(null);
+                    config.proxy().setProxyUsername(null);
                 }
 
                 String proxyPassword = proxyPasswordField.getText();
                 if (proxyPassword != null && !proxyPassword.trim().isEmpty()) {
-                    config.setProxyPassword(proxyPassword.trim());
+                    config.proxy().setProxyPassword(proxyPassword.trim());
                 } else {
-                    config.setProxyPassword(null);
+                    config.proxy().setProxyPassword(null);
                 }
 
                 // Note: Certificate path is auto-detected, no saving needed
@@ -2664,7 +2674,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
             I18nManager.setLocale(newLocale);
 
             // Save to configuration for persistence
-            config.setUiLanguage(languageCode);
+            config.ui().setUiLanguage(languageCode);
 
             logger.debug("Language changed to: {} ({})", languageCode, newLocale.getDisplayName());
 

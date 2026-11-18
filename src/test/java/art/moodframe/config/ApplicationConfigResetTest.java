@@ -1,5 +1,6 @@
 package art.moodframe.config;
 
+import art.moodframe.model.ApiProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,35 +19,35 @@ class ApplicationConfigResetTest {
     void keepsEveryKeyAndTokenAndThePassword() {
         LibraryPaths paths = LibraryPaths.under(home);
         ApplicationConfig config = new ApplicationConfig(paths);
-        config.setApiKey("bfl-key");
-        config.setGeminiApiKey("gemini-key");
-        config.setOpenAiApiKey("openai-key");
-        config.setMcpToken("mcp-token");
-        config.setProxyPassword("proxy-password");
-        config.setUiLanguage("en");
+        config.accounts().setApiKey(ApiProvider.BFL, "bfl-key");
+        config.accounts().setApiKey(ApiProvider.GOOGLE_GEMINI, "gemini-key");
+        config.accounts().setApiKey(ApiProvider.OPENAI, "openai-key");
+        config.mcp().setMcpToken("mcp-token");
+        config.proxy().setProxyPassword("proxy-password");
+        config.ui().setUiLanguage("en");
 
         config.resetToDefaults();
 
         /*  read back from the file, as after a restart  */
         ApplicationConfig stored = new ApplicationConfig(paths);
-        assertEquals("bfl-key", stored.getApiKey());
-        assertEquals("gemini-key", stored.getGeminiApiKey());
-        assertEquals("openai-key", stored.getOpenAiApiKey());
-        assertEquals("mcp-token", stored.getMcpToken());
-        assertEquals("proxy-password", stored.getProxyPassword());
-        assertEquals("de", stored.getUiLanguage());
+        assertEquals("bfl-key", stored.accounts().getApiKey(ApiProvider.BFL));
+        assertEquals("gemini-key", stored.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
+        assertEquals("openai-key", stored.accounts().getApiKey(ApiProvider.OPENAI));
+        assertEquals("mcp-token", stored.mcp().getMcpToken());
+        assertEquals("proxy-password", stored.proxy().getProxyPassword());
+        assertEquals("de", stored.ui().getUiLanguage());
     }
 
     @Test
     void keepsNoSecretThatWasNotThere() {
         ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
-        config.setApiKey("bfl-key");
+        config.accounts().setApiKey(ApiProvider.BFL, "bfl-key");
 
         config.resetToDefaults();
 
-        assertEquals("bfl-key", config.getApiKey());
-        assertNull(config.getGeminiApiKey());
+        assertEquals("bfl-key", config.accounts().getApiKey(ApiProvider.BFL));
+        assertNull(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
         assertNull(config.getProperty("gemini.api.key"));
-        assertNull(config.getMcpToken());
+        assertNull(config.mcp().getMcpToken());
     }
 }

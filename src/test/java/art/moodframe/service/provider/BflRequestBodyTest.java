@@ -12,7 +12,6 @@ import java.lang.reflect.Method;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** Checks the FLUX.2 and FLUX 3 request bodies against the BFL OpenAPI schemas (unknown fields give HTTP 422). */
 class BflRequestBodyTest {
@@ -22,8 +21,7 @@ class BflRequestBodyTest {
 
     @BeforeAll
     static void setUp() throws Exception {
-        ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
+        ApplicationConfig config = art.moodframe.config.ConfigMocks.withEmptyTexts();
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         service = new BflApiServiceImpl();
         build = BflApiServiceImpl.class.getDeclaredMethod("buildModelSpecificRequestBody", ImageGenerationRequest.class);

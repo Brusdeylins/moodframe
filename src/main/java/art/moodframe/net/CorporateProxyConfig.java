@@ -77,14 +77,14 @@ public class CorporateProxyConfig {
         logger.debug("Loading corporate proxy configuration from multiple sources");
         
         // Load proxy settings from ApplicationConfig (which handles priority)
-        this.proxyHost = applicationConfig.getProxyHost();
-        this.proxyPort = applicationConfig.getProxyPort();
-        this.proxyUsername = applicationConfig.getProxyUsername();
-        this.proxyPassword = applicationConfig.getProxyPassword();
-        this.proxyEnabled = applicationConfig.isProxyEnabled();
+        this.proxyHost = applicationConfig.proxy().getProxyHost();
+        this.proxyPort = applicationConfig.proxy().getProxyPort();
+        this.proxyUsername = applicationConfig.proxy().getProxyUsername();
+        this.proxyPassword = applicationConfig.proxy().getProxyPassword();
+        this.proxyEnabled = applicationConfig.proxy().isProxyEnabled();
         
         // Log configuration source for debugging
-        String configSource = applicationConfig.getProxyConfigurationSource();
+        String configSource = applicationConfig.proxy().getProxyConfigurationSource();
         if (!"none".equals(configSource)) {
             logger.debug("Corporate proxy configured from source: {} ({}:{})",
                 configSource, proxyHost, proxyPort);
@@ -106,7 +106,7 @@ public class CorporateProxyConfig {
         certificatePaths.clear();
         
         // Get certificate path from configuration
-        String certPath = applicationConfig.getCertificatePath();
+        String certPath = applicationConfig.proxy().getCertificatePath();
         if (certPath == null) {
             return;
         }
@@ -217,7 +217,7 @@ public class CorporateProxyConfig {
     
     public void setProxyHost(String proxyHost) {
         this.proxyHost = proxyHost;
-        applicationConfig.setProxyHost(proxyHost);
+        applicationConfig.proxy().setProxyHost(proxyHost);
     }
     
     public int getProxyPort() {
@@ -226,7 +226,7 @@ public class CorporateProxyConfig {
     
     public void setProxyPort(int proxyPort) {
         this.proxyPort = proxyPort;
-        applicationConfig.setProxyPort(proxyPort);
+        applicationConfig.proxy().setProxyPort(proxyPort);
     }
     
     public String getProxyUsername() {
@@ -235,7 +235,7 @@ public class CorporateProxyConfig {
     
     public void setProxyUsername(String proxyUsername) {
         this.proxyUsername = proxyUsername;
-        applicationConfig.setProxyUsername(proxyUsername);
+        applicationConfig.proxy().setProxyUsername(proxyUsername);
     }
     
     public String getProxyPassword() {
@@ -244,7 +244,7 @@ public class CorporateProxyConfig {
     
     public void setProxyPassword(String proxyPassword) {
         this.proxyPassword = proxyPassword;
-        applicationConfig.setProxyPassword(proxyPassword);
+        applicationConfig.proxy().setProxyPassword(proxyPassword);
     }
     
     public boolean isProxyEnabled() {
@@ -253,7 +253,7 @@ public class CorporateProxyConfig {
     
     public void setProxyEnabled(boolean proxyEnabled) {
         this.proxyEnabled = proxyEnabled;
-        applicationConfig.setProxyEnabled(proxyEnabled);
+        applicationConfig.proxy().setProxyEnabled(proxyEnabled);
     }
     
     public boolean isAutoDetectProxy() {
@@ -288,21 +288,21 @@ public class CorporateProxyConfig {
      * Checks if proxy authentication is configured.
      */
     public boolean hasProxyAuthentication() {
-        return applicationConfig.hasProxyCredentials();
+        return applicationConfig.proxy().hasProxyCredentials();
     }
     
     /**
      * Gets the source of the current proxy configuration.
      */
     public String getConfigurationSource() {
-        return applicationConfig.getProxyConfigurationSource();
+        return applicationConfig.proxy().getProxyConfigurationSource();
     }
     
     /**
      * Checks if proxy configuration can be edited through UI.
      */
     public boolean isConfigurationEditable() {
-        return applicationConfig.isProxyConfigurationEditable();
+        return applicationConfig.proxy().isProxyConfigurationEditable();
     }
     
     /**

@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,29 +17,43 @@ class ApplicationConfigDelayedSaveTest {
     @TempDir
     Path home;
 
-    /*  a configuration that counts its saves after it was read  */
-    private static final class CountingConfig extends ApplicationConfig {
+    /*  a store that counts its saves after it was read  */
+    private static final class CountingStore extends ConfigStore {
         final AtomicInteger saves = new AtomicInteger();
 
-        CountingConfig(LibraryPaths paths) {
+        CountingStore(LibraryPaths paths) {
             super(paths);
         }
 
         @Override
-        public synchronized void saveConfiguration() {
-            super.saveConfiguration();
+        public synchronized void save() {
+            super.save();
             if (saves != null)
                 saves.incrementAndGet();
+        }
+    }
+
+    /*  a configuration on a counting store  */
+    private static final class CountingConfig extends ApplicationConfig {
+        final AtomicInteger saves;
+
+        CountingConfig(LibraryPaths paths) {
+            this(new CountingStore(paths));
+        }
+
+        private CountingConfig(CountingStore store) {
+            super(store);
+            saves = store.saves;
         }
     }
 
     /*  every value a drag changes pixel by pixel  */
     private static void drag(ApplicationConfig config) {
         for (int i = 0; i < 50; i++) {
-            config.setSplitterPosition(0.2 + i / 1000.0);
-            config.setWindowBounds(10 + i, 20, 1200 + i, 800, false);
-            config.setImageTileSize(180 + i);
-            config.setChatInputHeight(100 + i);
+            config.ui().setSplitterPosition(0.2 + i / 1000.0);
+            config.ui().setWindowBounds(10 + i, 20, 1200 + i, 800, false);
+            config.ui().setImageTileSize(180 + i);
+            config.ui().setChatInputHeight(100 + i);
         }
     }
 
@@ -63,11 +76,11 @@ class ApplicationConfigDelayedSaveTest {
 
         /*  what is stored stays the same, only the moment of writing changes  */
         ApplicationConfig stored = new ApplicationConfig(LibraryPaths.under(home));
-        assertEquals(0.249, stored.getSplitterPosition());
-        assertEquals(59.0, stored.getWindowX());
-        assertEquals(1249, stored.getWindowWidth());
-        assertEquals(229.0, stored.getImageTileSize());
-        assertEquals(149.0, stored.getChatInputHeight());
+        assertEquals(0.249, stored.ui().getSplitterPosition());
+        assertEquals(59.0, stored.ui().getWindowX());
+        assertEquals(1249, stored.ui().getWindowWidth());
+        assertEquals(229.0, stored.ui().getImageTileSize());
+        assertEquals(149.0, stored.ui().getChatInputHeight());
     }
 
     @Test
@@ -75,10 +88,10 @@ class ApplicationConfigDelayedSaveTest {
         CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
         drag(config);
-        config.setSplitterPosition(0.3);
+        config.ui().setSplitterPosition(0.3);
         config.flushConfiguration();
         assertEquals(1, config.saves.get());
-        assertEquals(0.3, new ApplicationConfig(LibraryPaths.under(home)).getSplitterPosition());
+        assertEquals(0.3, new ApplicationConfig(LibraryPaths.under(home)).ui().getSplitterPosition());
 
         /*  the delayed save is gone, nothing is written twice  */
         Thread.sleep(ApplicationConfig.SAVE_DELAY_MILLIS * 2);
@@ -97,7 +110,7 @@ class ApplicationConfigDelayedSaveTest {
     void otherSettingsAreWrittenAtOnce() {
         CountingConfig config = new CountingConfig(LibraryPaths.under(home));
 
-        config.setOpenPanelGroup("frame");
+        config.ui().setOpenPanelGroup("frame");
         assertEquals(1, config.saves.get());
     }
 }

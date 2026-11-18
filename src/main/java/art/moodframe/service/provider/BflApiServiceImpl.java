@@ -98,7 +98,7 @@ public class BflApiServiceImpl implements BflApiService {
         if (cachedApiKey != null && !cachedApiKey.trim().isEmpty()) {
             return cachedApiKey;
         }
-        return config.getApiKey();
+        return config.accounts().getApiKey(ApiProvider.BFL);
     }
     
     @Override
@@ -390,7 +390,7 @@ public class BflApiServiceImpl implements BflApiService {
         // Also update in config if available
         if (config != null) {
             try {
-                config.setApiKey(apiKey);
+                config.accounts().setApiKey(ApiProvider.BFL, apiKey);
             } catch (Exception e) {
                 logger.error("Failed to encrypt and store API key", e);
             }

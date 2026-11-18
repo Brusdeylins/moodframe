@@ -1,5 +1,6 @@
 package art.moodframe.ui.dialog;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.CameraSettings;
@@ -253,12 +254,12 @@ class BrainstormDialogTest {
 
     @Test
     void offersOnlyTheAccountsWithLanguageModelAndWebSearch() throws Exception {
-        art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
-        when(config.hasGeminiApiKey()).thenReturn(true);
-        when(config.isGeminiProviderEnabled()).thenReturn(true);
-        when(config.isGeminiBrainstormAvailable()).thenReturn(false);
-        when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
-        when(config.getOpenAiChatModel()).thenReturn("gpt-x");
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(false);
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("gpt-x");
         BrainstormRepository repository = mock(BrainstormRepository.class);
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),

@@ -242,9 +242,9 @@ public class SplashScreen {
     private Rectangle2D savedWindowBounds() {
         try {
             ApplicationConfig config = new ApplicationConfig(paths);
-            return config.getWindowX() >= 0 && config.getWindowY() >= 0
-                    ? new Rectangle2D(config.getWindowX(), config.getWindowY(),
-                            config.getWindowWidth(), config.getWindowHeight())
+            return config.ui().getWindowX() >= 0 && config.ui().getWindowY() >= 0
+                    ? new Rectangle2D(config.ui().getWindowX(), config.ui().getWindowY(),
+                            config.ui().getWindowWidth(), config.ui().getWindowHeight())
                     : null;
         }
         catch (Exception e) {

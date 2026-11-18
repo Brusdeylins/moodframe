@@ -854,7 +854,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     /*  JavaFX 23 does not tell whether the system reduces motion, so the user decides in the settings  */
     private static boolean isFrameAnimated() {
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        return config == null || config.isPreviewFrameAnimated();
+        return config == null || config.ui().isPreviewFrameAnimated();
     }
 
     /*  The safe area of image and video keeps the same gap to the buttons on all four sides, which frame and glow

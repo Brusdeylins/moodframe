@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,7 +43,7 @@ class UpdateCheckServiceTest {
             windows.site-base-url=https\\://moodframe.art/download/
             """;
 
-    private final ApplicationConfig config = mock(ApplicationConfig.class);
+    private final ApplicationConfig config = ConfigMocks.config();
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private HttpServer server;
@@ -53,7 +53,7 @@ class UpdateCheckServiceTest {
 
     @BeforeEach
     void start(@TempDir Path certificates) throws Exception {
-        when(config.getCertificatePath()).thenReturn(certificates.toString());
+        when(config.proxy().getCertificatePath()).thenReturn(certificates.toString());
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", (exchange) -> {
             requests.add(exchange.getRequestURI().getPath());

@@ -1,6 +1,7 @@
 package art.moodframe.net;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import okhttp3.Credentials;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -28,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -40,14 +40,14 @@ class HttpClientsTest {
 
     private static final URI API = URI.create("https://api.openai.com/v1/models");
 
-    private final ApplicationConfig config = mock(ApplicationConfig.class);
+    private final ApplicationConfig config = ConfigMocks.config();
 
     @BeforeEach
     void setUp(@TempDir Path certificates) {
-        when(config.getCertificatePath()).thenReturn(certificates.toString());
-        when(config.getProxyHost()).thenReturn("10.0.0.1");
-        when(config.getProxyPort()).thenReturn(8080);
-        when(config.isProxyEnabled()).thenReturn(true);
+        when(config.proxy().getCertificatePath()).thenReturn(certificates.toString());
+        when(config.proxy().getProxyHost()).thenReturn("10.0.0.1");
+        when(config.proxy().getProxyPort()).thenReturn(8080);
+        when(config.proxy().isProxyEnabled()).thenReturn(true);
     }
 
     private HttpClients clients(String nonProxyHosts) {
@@ -70,7 +70,7 @@ class HttpClientsTest {
 
     @Test
     void theDisabledProxyLeavesTheDefaultRoute() {
-        when(config.isProxyEnabled()).thenReturn(false);
+        when(config.proxy().isProxyEnabled()).thenReturn(false);
         HttpClients clients = clients(null);
 
         assertFalse(viaProxy(clients.okHttp().build().proxySelector(), API.toString()));
@@ -94,9 +94,9 @@ class HttpClientsTest {
 
     @Test
     void theCredentialsAuthenticateAtTheProxyOfTheClientOnly() throws Exception {
-        when(config.hasProxyCredentials()).thenReturn(true);
-        when(config.getProxyUsername()).thenReturn("user");
-        when(config.getProxyPassword()).thenReturn("secret");
+        when(config.proxy().hasProxyCredentials()).thenReturn(true);
+        when(config.proxy().getProxyUsername()).thenReturn("user");
+        when(config.proxy().getProxyPassword()).thenReturn("secret");
         HttpClients clients = clients(null);
 
         OkHttpClient okHttp = clients.okHttp().build();
@@ -122,7 +122,7 @@ class HttpClientsTest {
         assertSame(first, client.get());
         assertTrue(first.proxy().isPresent());
 
-        when(config.isProxyEnabled()).thenReturn(false);
+        when(config.proxy().isProxyEnabled()).thenReturn(false);
         HttpClients.settingsChanged();
 
         HttpClient second = client.get();

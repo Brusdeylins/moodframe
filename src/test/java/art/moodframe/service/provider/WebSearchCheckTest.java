@@ -1,5 +1,6 @@
 package art.moodframe.service.provider;
 
+import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import com.sun.net.httpserver.HttpServer;
@@ -26,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -59,10 +59,9 @@ class WebSearchCheckTest {
 
         /*  With a path, the OpenAI service does not try ".../v1" after a 404  */
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
-        config = mock(ApplicationConfig.class, (invocation) ->
-                invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
-        when(config.getGeminiApiKey()).thenReturn("key");
-        when(config.getOpenAiApiKey()).thenReturn("key");
+        config = art.moodframe.config.ConfigMocks.withEmptyTexts();
+        when(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn("key");
+        when(config.accounts().getApiKey(ApiProvider.OPENAI)).thenReturn("key");
         when(config.getOpenAiBaseUrl()).thenReturn(baseUrl);
     }
 

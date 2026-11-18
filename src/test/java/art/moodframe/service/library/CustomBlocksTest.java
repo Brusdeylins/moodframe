@@ -1,6 +1,7 @@
 package art.moodframe.service.library;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
@@ -25,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** The building blocks and palettes of the user as the main window maintains them, in a fresh SQLite database. */
 class CustomBlocksTest {
@@ -228,7 +228,7 @@ class CustomBlocksTest {
         ColorStyle palette = new ColorStyle("My Palette", List.of("#112233", "#445566"), false);
         assertTrue(palettes.addCustomStyle(palette));
 
-        ApplicationConfig config = mock(ApplicationConfig.class);
+        ApplicationConfig config = ConfigMocks.config();
         File file = tempDir.resolve("backup.json").toFile();
         new ConfigurationExporter().exportConfiguration(config, file,
                 Set.of(ConfigurationExporter.ConfigCategory.CUSTOM_STYLES));
