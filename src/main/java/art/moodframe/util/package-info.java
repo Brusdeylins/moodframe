@@ -1,18 +1,17 @@
 /**
- * General helpers used by all layers: internationalization, themes, images and videos, opening files and web pages,
- * listener cleanup.
+ * General helpers used by all layers, free of JavaFX: internationalization, images, secrets, the version, YouTube
+ * links, the downloads folder.
  *
  * <p>Main classes:</p>
  * <ul>
  * <li>{@link I18nManager}: localized texts and the change of the language, with {@link I18nChangeListener}</li>
- * <li>{@link ThemeManager}: the AtlantaFX themes, with {@link SystemThemeDetector}</li>
  * <li>{@link ImageEncoder}: resizing and Base64 encoding of attached images</li>
+ * <li>{@link ImageSize}: the pixel size of an image file, read from its header</li>
  * <li>{@link PaletteExtractor}: the main colors of an image by median cut</li>
- * <li>{@link SystemOpen}: opens files and web pages in the default application</li>
  * <li>{@link Secrets}: keeps keys and tokens out of logs and messages</li>
  * <li>{@link VersionManager}: the version of the application</li>
- * <li>{@link Subscription}: removable listeners, collected in {@link CompositeDisposable}</li>
- * <li>{@link VideoPoster}: poster images of videos, with {@link MediaSupport} and {@link VideoRemedy}</li>
+ * <li>{@link YouTubeClip}: a YouTube video linked in a chat message, with its time range</li>
+ * <li>{@link DownloadsFolder}: copies a generated image or video into the Downloads folder</li>
  * </ul>
  */
 package art.moodframe.util;

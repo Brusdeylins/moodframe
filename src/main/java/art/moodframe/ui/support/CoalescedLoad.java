@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.support;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  *
  * @since 2.1.3
  */
-final class CoalescedLoad {
+public final class CoalescedLoad {
 
     private static final Logger logger = LoggerFactory.getLogger(CoalescedLoad.class);
 
@@ -38,7 +38,7 @@ final class CoalescedLoad {
      * @param fxThread where its result is applied, {@code Platform::runLater}
      * @param prepare  prepares a load from the current view, null if there is nothing to load
      */
-    CoalescedLoad(String what, Executor worker, Executor fxThread, Supplier<Callable<Runnable>> prepare) {
+    public CoalescedLoad(String what, Executor worker, Executor fxThread, Supplier<Callable<Runnable>> prepare) {
         this.what = what;
         this.worker = worker;
         this.fxThread = fxThread;
@@ -46,7 +46,7 @@ final class CoalescedLoad {
     }
 
     /** Loads anew; while a load runs, once more after it. */
-    void request() {
+    public void request() {
         if (running) {
             again = true;
             return;

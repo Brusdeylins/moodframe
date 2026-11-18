@@ -7,7 +7,7 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.VideoPoster;
+import art.moodframe.ui.support.VideoPoster;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;

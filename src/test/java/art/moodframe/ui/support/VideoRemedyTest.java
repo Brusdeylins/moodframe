@@ -1,7 +1,7 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
-import art.moodframe.util.VideoRemedy.Kind;
-import art.moodframe.util.VideoRemedy.Remedy;
+import art.moodframe.ui.support.VideoRemedy.Kind;
+import art.moodframe.ui.support.VideoRemedy.Remedy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

@@ -1,8 +1,8 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
-import art.moodframe.util.SystemThemeDetector.CommandResult;
-import art.moodframe.util.SystemThemeDetector.CommandRunner;
-import art.moodframe.util.SystemThemeDetector.Preference;
+import art.moodframe.ui.support.SystemThemeDetector.CommandResult;
+import art.moodframe.ui.support.SystemThemeDetector.CommandRunner;
+import art.moodframe.ui.support.SystemThemeDetector.Preference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;

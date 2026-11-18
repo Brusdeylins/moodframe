@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
 import javafx.scene.media.MediaException;
 import org.slf4j.Logger;

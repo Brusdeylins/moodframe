@@ -24,7 +24,7 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
 import art.moodframe.model.ModelFamilies;
-import art.moodframe.util.SystemOpen;
+import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.YouTubeClip;
 import javafx.application.Platform;
 import javafx.geometry.Insets;

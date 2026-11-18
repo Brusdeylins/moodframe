@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

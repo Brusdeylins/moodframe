@@ -14,7 +14,7 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.Subscription;
+import art.moodframe.ui.support.Subscription;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;
@@ -1376,7 +1376,7 @@ public class ChatEntryCard extends ManagedComponent {
         // The poster (a frame of the video) replaces the drawn placeholder as soon as it exists
         String videoPath = getActualImagePath(generatedImage, false);
         if (videoPath != null) {
-            art.moodframe.util.VideoPoster.load(java.nio.file.Path.of(videoPath))
+            art.moodframe.ui.support.VideoPoster.load(java.nio.file.Path.of(videoPath))
                     .thenAccept((javafx.scene.image.Image poster) -> Platform.runLater(() ->
                             setImageWithHandlers(imageView, withPlayOverlay(poster, generatedImage), imageIndex)))
                     .exceptionally(error -> {

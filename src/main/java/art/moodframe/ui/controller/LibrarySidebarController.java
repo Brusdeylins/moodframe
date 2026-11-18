@@ -13,6 +13,7 @@ import art.moodframe.ui.cell.ChatListCell;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
+import art.moodframe.ui.support.CoalescedLoad;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;

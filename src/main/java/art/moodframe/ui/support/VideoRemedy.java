@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

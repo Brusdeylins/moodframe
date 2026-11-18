@@ -20,7 +20,7 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.SplashScreen;
 import art.moodframe.config.LibraryPaths;
 import art.moodframe.util.Secrets;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 
 /**
  * Main JavaFX Application class for MoodFrame.

@@ -14,7 +14,7 @@ import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;

@@ -2,7 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.StylePresetItem;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.css.PseudoClass;

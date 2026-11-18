@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
 /**
  * Interface for objects that require explicit cleanup of resources.

@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.ui.support;
 
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
