@@ -52,7 +52,7 @@ import java.util.Collections;
  * 
  * @since 1.0.0
  */
-public class ThumbnailManager implements ThumbnailService {
+public class ThumbnailManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ThumbnailManager.class);
 
@@ -227,7 +227,6 @@ public class ThumbnailManager implements ThumbnailService {
      * @param originalImagePath the path to the original image file
      * @return CompletableFuture that resolves to the thumbnail file
      */
-    @Override
     public CompletableFuture<File> getThumbnail(File originalImageFile) {
         return getThumbnail(originalImageFile.getAbsolutePath());
     }
@@ -514,7 +513,6 @@ public class ThumbnailManager implements ThumbnailService {
      * 
      * @return formatted statistics string
      */
-    @Override
     public String getStatistics() {
         long totalGenerated = totalThumbnailsGenerated.get();
         long totalOriginal = totalOriginalSize.get();
@@ -539,7 +537,6 @@ public class ThumbnailManager implements ThumbnailService {
      * 
      * @return CompletableFuture that resolves when all thumbnails are generated
      */
-    @Override
     public CompletableFuture<Integer> generateThumbnailsForExistingImages() {
         return CompletableFuture.supplyAsync(() -> {
 
@@ -626,7 +623,6 @@ public class ThumbnailManager implements ThumbnailService {
      * @return CompletableFuture that resolves to the number of orphaned thumbnails
      *         deleted
      */
-    @Override
     public CompletableFuture<Integer> cleanupOrphanedThumbnails() {
         return CompletableFuture.supplyAsync(() -> {
 
@@ -711,7 +707,9 @@ public class ThumbnailManager implements ThumbnailService {
         return activeTasks.get();
     }
 
-    @Override
+    /**
+     * Shuts down the thumbnail generation service.
+     */
     public void shutdown() {
         thumbnailExecutor.shutdown();
         thumbnailCache.clear();

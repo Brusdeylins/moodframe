@@ -1,7 +1,5 @@
 package art.moodframe.util;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -83,11 +81,7 @@ public class ImageEncoder {
         // Convert to Base64
         String base64 = convertToBase64(processedImage, getOutputFormat(imageFile));
         
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Image encoded successfully: {} -> {} characters", 
-                imageFile.getName(), base64.length());
-        }
+        logger.debug("Image encoded successfully: {} -> {} characters", imageFile.getName(), base64.length());
         
         return base64;
     }
@@ -143,11 +137,8 @@ public class ImageEncoder {
         newWidth = (newWidth / 32) * 32;
         newHeight = (newHeight / 32) * 32;
         
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Resizing image: {}x{} -> {}x{} (scale: {:.2f})", 
-                width, height, newWidth, newHeight, scale);
-        }
+        logger.debug("Resizing image: {}x{} -> {}x{} (scale: {})", width, height, newWidth, newHeight,
+                String.format("%.2f", scale));
         
         // Create resized image with high quality
         BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);

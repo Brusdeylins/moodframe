@@ -21,7 +21,7 @@ import java.util.List;
  * 
  * @since 1.0.0
  */
-public class FileManagerService implements FileManager {
+public class FileManagerService {
     
     private static final Logger logger = LoggerFactory.getLogger(FileManagerService.class);
     
@@ -81,7 +81,6 @@ public class FileManagerService implements FileManager {
      * @param fileExtension the file extension (e.g., "png")
      * @return the recommended file path
      */
-    @Override
     public Path getImageFilePath(String chatId, String entryId, String imageId, String fileExtension) {
         // Organize images in subdirectories: images/chatId/entryId/imageId.ext
         Path chatDir = baseImageDirectory.resolve(sanitizeFileName(chatId));
@@ -110,7 +109,6 @@ public class FileManagerService implements FileManager {
      * @param imagePath the image file path
      * @return true if the directory was created successfully
      */
-    @Override
     public boolean ensureImageDirectoryExists(Path imagePath) {
         try {
             Path parentDir = imagePath.getParent();
@@ -131,7 +129,6 @@ public class FileManagerService implements FileManager {
      * @param image the generated image to delete
      * @return true if the file was deleted successfully or didn't exist
      */
-    @Override
     public boolean deleteImageFile(GeneratedImage image) {
         String localFilePath = image.getLocalFilePath();
         if (localFilePath == null || localFilePath.trim().isEmpty()) {
@@ -208,7 +205,6 @@ public class FileManagerService implements FileManager {
      * @param chatId the chat ID
      * @param allImagesForChat list of all images belonging to the chat
      */
-    @Override
     public void deleteAllThumbnailsForChat(String chatId, java.util.List<GeneratedImage> allImagesForChat) {
         logger.info("Deleting all thumbnails for chat: {}", chatId);
         
@@ -232,7 +228,6 @@ public class FileManagerService implements FileManager {
      * @param images the list of images to delete
      * @return the number of files successfully deleted
      */
-    @Override
     public int deleteImageFiles(List<GeneratedImage> images) {
         int deletedCount = 0;
         
@@ -253,7 +248,6 @@ public class FileManagerService implements FileManager {
      * @param entryId the entry ID
      * @return true if all files were deleted successfully
      */
-    @Override
     public boolean deleteEntryImages(String chatId, String entryId) {
         try {
             Path entryDir = baseImageDirectory.resolve(sanitizeFileName(chatId))
@@ -295,7 +289,6 @@ public class FileManagerService implements FileManager {
      * @param chatId the chat ID
      * @return true if all files were deleted successfully
      */
-    @Override
     public boolean deleteChatImages(String chatId) {
         try {
             Path chatDir = baseImageDirectory.resolve(sanitizeFileName(chatId));
@@ -351,7 +344,6 @@ public class FileManagerService implements FileManager {
      * 
      * @return the base directory path
      */
-    @Override
     public Path getBaseImageDirectory() {
         return baseImageDirectory;
     }
@@ -361,7 +353,6 @@ public class FileManagerService implements FileManager {
      * 
      * @return the total size in bytes
      */
-    @Override
     public long getTotalImageSize() {
         try {
             return Files.walk(baseImageDirectory)
@@ -385,7 +376,6 @@ public class FileManagerService implements FileManager {
      * 
      * @return the number of image files
      */
-    @Override
     public long getImageFileCount() {
         try {
             return Files.walk(baseImageDirectory)

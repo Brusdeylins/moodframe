@@ -23,6 +23,7 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.util.I18nManager;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.util.SystemOpen;
 import art.moodframe.util.YouTubeClip;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -780,7 +781,7 @@ public class BrainstormDialog extends Stage {
         /*  Every linked video gets a card under the message, its range belongs to this message  */
         for (YouTubeClip clip : YouTubeClip.findAll(text)) {
             BrainstormVideoCard card = new BrainstormVideoCard(clip, service,
-                    (BrainstormVideoCard clicked) -> changeRange(target, clicked, text), this::openInBrowser);
+                    (BrainstormVideoCard clicked) -> changeRange(target, clicked, text), SystemOpen::browse);
             target.videoCards.add(card);
             HBox cardRow = new HBox(card);
             cardRow.setAlignment(Pos.CENTER_RIGHT);
@@ -896,7 +897,7 @@ public class BrainstormDialog extends Stage {
             watched.getStyleClass().addAll("text-muted", "text-small");
             Hyperlink link = new Hyperlink(shorten(note.query(), 90));
             link.setStyle("-fx-font-size: 11px;");
-            link.setOnAction(event -> openInBrowser(note.sources().get(0).url()));
+            link.setOnAction(event -> SystemOpen.browse(note.sources().get(0).url()));
             HBox row = new HBox(4.0, watched, link);
             row.setAlignment(Pos.CENTER);
             appendToChat(target, row, false);
@@ -914,30 +915,13 @@ public class BrainstormDialog extends Stage {
         byDomain.forEach((String domain, String url) -> {
             Hyperlink link = new Hyperlink(domain);
             link.setStyle("-fx-font-size: 11px;");
-            link.setOnAction(event -> openInBrowser(url));
+            link.setOnAction(event -> SystemOpen.browse(url));
             links.getChildren().add(link);
         });
 
         VBox box = new VBox(2.0, head, links);
         box.setAlignment(Pos.CENTER);
         appendToChat(target, box, false);
-    }
-
-    /** Opens an http or https URL in the default browser; anything else is ignored. */
-    private void openInBrowser(String url) {
-        if (!(url.startsWith("https://") || url.startsWith("http://"))) {
-            return;
-        }
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (java.awt.Desktop.isDesktopSupported()
-                        && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
-                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
-                }
-            } catch (java.io.IOException | RuntimeException e) {
-                logger.warn("Could not open {} in the browser", url, e);
-            }
-        });
     }
 
     private static String shorten(String text, int maxLength) {
@@ -1312,7 +1296,7 @@ public class BrainstormDialog extends Stage {
                 Hyperlink link = new Hyperlink(fact.getDomain()
                         + (timed ? " · " + YouTubeClip.formatTime(seconds) : ""));
                 link.setStyle("-fx-font-size: 11px; -fx-padding: 0;");
-                link.setOnAction(event -> openInBrowser(timed ? video.watchUrlAt(seconds)
+                link.setOnAction(event -> SystemOpen.browse(timed ? video.watchUrlAt(seconds)
                         : fact.getUrl().isEmpty() ? "https://" + fact.getDomain() : fact.getUrl()));
                 origin.getChildren().add(link);
                 if (!fact.isVerified()) {

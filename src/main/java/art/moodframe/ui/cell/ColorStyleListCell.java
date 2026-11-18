@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.cell;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,6 +11,9 @@ import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import art.moodframe.model.ColorStyleItem;
+import art.moodframe.ui.component.ColorBox;
+import art.moodframe.ui.component.DropdownBounds;
+import art.moodframe.ui.component.FavoriteStar;
 
 /**
  * Custom ListCell for displaying color styles with a two-line layout.

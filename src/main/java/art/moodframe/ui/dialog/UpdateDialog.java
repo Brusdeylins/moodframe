@@ -3,6 +3,7 @@ package art.moodframe.ui.dialog;
 import art.moodframe.service.UpdateCheckService;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
+import art.moodframe.util.SystemOpen;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;
@@ -13,10 +14,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -28,8 +26,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 2.1.0
  */
 public final class UpdateDialog {
-
-    private static final Logger logger = LoggerFactory.getLogger(UpdateDialog.class);
 
     private static final double WIDTH = 480;
 
@@ -101,7 +97,7 @@ public final class UpdateDialog {
     static VBox steps(UpdateCheckService.Package kind) {
         if (kind == null) {
             Hyperlink link = new Hyperlink(UpdateCheckService.INSTALL_URL);
-            link.setOnAction((event) -> openInBrowser(UpdateCheckService.INSTALL_URL));
+            link.setOnAction((event) -> SystemOpen.browse(UpdateCheckService.INSTALL_URL));
             return new VBox(6, wrapped(I18nManager.getText("update.conveyor")), link);
         }
         else if (kind == UpdateCheckService.Package.DEB) {
@@ -118,7 +114,7 @@ public final class UpdateDialog {
         }
         else {
             Hyperlink link = new Hyperlink(UpdateCheckService.INSTALL_URL);
-            link.setOnAction((event) -> openInBrowser(UpdateCheckService.INSTALL_URL));
+            link.setOnAction((event) -> SystemOpen.browse(UpdateCheckService.INSTALL_URL));
             return new VBox(6, wrapped(I18nManager.getText("update.tarball")), link);
         }
     }
@@ -128,21 +124,5 @@ public final class UpdateDialog {
         label.setWrapText(true);
         label.setMaxWidth(WIDTH - 40);
         return label;
-    }
-
-    /*  The default browser; without the AWT desktop support, which many Linux desktops lack, via xdg-open  */
-    private static void openInBrowser(String url) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (java.awt.Desktop.isDesktopSupported()
-                        && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE))
-                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
-                else
-                    new ProcessBuilder("xdg-open", url).start();
-            }
-            catch (IOException | RuntimeException e) {
-                logger.warn("Could not open {}: {}", url, e.getMessage());
-            }
-        });
     }
 }

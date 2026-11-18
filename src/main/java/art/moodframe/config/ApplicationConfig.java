@@ -856,9 +856,15 @@ public class ApplicationConfig {
         return Boolean.parseBoolean(properties.getProperty("logging.detailed", "false"));
     }
     
+    /**
+     * Enables or disables detailed logging, which sets the log level of the application to DEBUG or back.
+     *
+     * @param enabled true for detailed logging
+     */
     public void setLoggingEnabled(boolean enabled) {
         properties.setProperty("logging.detailed", String.valueOf(enabled));
         saveConfiguration();
+        DetailedLogging.apply(enabled);
     }
     
     public void setDefaultModel(String model) {

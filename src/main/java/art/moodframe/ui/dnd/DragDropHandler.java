@@ -1,6 +1,7 @@
-package art.moodframe.service;
+package art.moodframe.ui.dnd;
 
 import art.moodframe.model.AttachedImage;
+import art.moodframe.service.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -30,13 +31,32 @@ import java.util.function.Supplier;
  * Handles drag and drop operations for image attachments.
  * Provides visual feedback and integrates with ImageAttachmentService.
  */
-public class DragDropHandler implements DragDrop {
+public class DragDropHandler {
     private static final Logger logger = LoggerFactory.getLogger(DragDropHandler.class);
+
+    /**
+     * Drag states for visual feedback.
+     */
+    public enum DragState {
+        IDLE("drag-idle"),
+        DRAG_OVER_VALID("drag-over-valid"),
+        DRAG_OVER_INVALID("drag-over-invalid"),
+        SUCCESS("drag-success");
+
+        private final String cssClass;
+
+        DragState(String cssClass) {
+            this.cssClass = cssClass;
+        }
+
+        public String getCssClass() {
+            return cssClass;
+        }
+    }
     
     // Supported image formats
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of(".png", ".jpg", ".jpeg", ".webp");
 
-    // Use DragState from interface
     private volatile DragState currentState = DragState.IDLE;
 
     private final ImageAttachmentService attachmentService;
@@ -73,7 +93,6 @@ public class DragDropHandler implements DragDrop {
     /**
      * Initializes drag and drop event handlers on the target node.
      */
-    @Override
     public void initializeDragAndDrop() {
         if (dropTarget == null) {
             logger.warn("Cannot initialize drag and drop: drop target is null");
@@ -93,7 +112,6 @@ public class DragDropHandler implements DragDrop {
      * 
      * @param onStateChanged callback for state changes
      */
-    @Override
     public void setOnStateChanged(Consumer<DragState> onStateChanged) {
         this.onStateChanged = onStateChanged;
     }
@@ -339,7 +357,6 @@ public class DragDropHandler implements DragDrop {
     /**
      * Gets the current drag state.
      */
-    @Override
     public DragState getCurrentState() {
         return currentState;
     }
@@ -347,7 +364,6 @@ public class DragDropHandler implements DragDrop {
     /**
      * Checks if drag is currently over the target.
      */
-    @Override
     public boolean isDragOver() {
         return isDragOver.get();
     }
@@ -355,7 +371,6 @@ public class DragDropHandler implements DragDrop {
     /**
      * Gets the drag over property for binding.
      */
-    @Override
     public BooleanProperty dragOverProperty() {
         return isDragOver;
     }
@@ -363,7 +378,6 @@ public class DragDropHandler implements DragDrop {
     /**
      * Cleans up resources.
      */
-    @Override
     public void cleanup() {
         if (dropTarget != null) {
             dropTarget.setOnDragOver(null);

@@ -25,15 +25,15 @@ import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
-import art.moodframe.ui.component.FrameListCell;
 import art.moodframe.ui.component.ImageGrid;
 import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MoodChoice;
-import art.moodframe.ui.component.MoodListCell;
 import art.moodframe.ui.cell.ChatListCell;
 import art.moodframe.ui.cell.FrameGroupListCell;
+import art.moodframe.ui.cell.FrameListCell;
 import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
+import art.moodframe.ui.cell.MoodListCell;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
@@ -475,7 +475,7 @@ public class MainWindowController implements I18nChangeListener {
     private File attachedImageFile;
 
     // Drag and drop handler for image attachments
-    private art.moodframe.service.DragDropHandler dragDropHandler;
+    private art.moodframe.ui.dnd.DragDropHandler dragDropHandler;
 
     // Image attachment service (shared between DragDropHandler and MultiImagePanel)
     private art.moodframe.service.ImageAttachmentService imageAttachmentService;
@@ -588,7 +588,7 @@ public class MainWindowController implements I18nChangeListener {
         imageAttachmentService = new art.moodframe.service.ImageAttachmentService();
 
         // Create drag and drop handler
-        dragDropHandler = new art.moodframe.service.DragDropHandler(
+        dragDropHandler = new art.moodframe.ui.dnd.DragDropHandler(
                 imageAttachmentService,
                 imagePreviewContainer,
                 this::handleDroppedImage,
@@ -1742,9 +1742,9 @@ public class MainWindowController implements I18nChangeListener {
                             });
             FavoriteStar.Favorites<art.moodframe.model.StylePresetItem> favorites = favorites(comboBox,
                     FavoriteService.Kind.of(type), MainWindowController::blockId);
-            comboBox.setCellFactory((listView) -> new art.moodframe.ui.component.StylePresetListCell(choice,
+            comboBox.setCellFactory((listView) -> new art.moodframe.ui.cell.StylePresetListCell(choice,
                     favorites));
-            comboBox.setButtonCell(new art.moodframe.ui.component.StylePresetListCell());
+            comboBox.setButtonCell(new art.moodframe.ui.cell.StylePresetListCell());
             blockChoices.put(type, choice);
             fillBlockChoice(type, null);
         });
@@ -1770,9 +1770,9 @@ public class MainWindowController implements I18nChangeListener {
                 });
         FavoriteStar.Favorites<art.moodframe.model.ColorStyleItem> paletteFavorites = favorites(colorStyleComboBox,
                 FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId);
-        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.component.ColorStyleListCell(
+        colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.cell.ColorStyleListCell(
                 paletteFavorites));
-        colorStyleComboBox.setButtonCell(new art.moodframe.ui.component.ColorStyleListCell());
+        colorStyleComboBox.setButtonCell(new art.moodframe.ui.cell.ColorStyleListCell());
         fillColorChoice(null);
     }
 
@@ -1942,11 +1942,11 @@ public class MainWindowController implements I18nChangeListener {
         if (type == art.moodframe.model.PromptBlock.Type.CAMERA)
             return editCamera(service, block);
 
-        art.moodframe.ui.component.BlockEditDialog dialog = new art.moodframe.ui.component.BlockEditDialog(type, block);
+        art.moodframe.ui.dialog.BlockEditDialog dialog = new art.moodframe.ui.dialog.BlockEditDialog(type, block);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
-            boolean inPlace = block != null && result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
             art.moodframe.model.PromptBlock stored = new art.moodframe.model.PromptBlock(
                     inPlace ? block.getId() : null, type, result.name(), result.text(),
                     block != null ? block.getGroup() : null, result.photographic());
@@ -1955,7 +1955,7 @@ public class MainWindowController implements I18nChangeListener {
                 stored.setSortOrder(block.getSortOrder());
             }
             boolean saved = inPlace ? service.updateCustom(stored)
-                    : result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
+                    : result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
                     : service.addCopy(stored);
             if (saved) {
                 fillBlockChoice(type, stored.getName());
@@ -1975,17 +1975,17 @@ public class MainWindowController implements I18nChangeListener {
      * @param block   the camera to edit, null for a new one
      */
     private String editCamera(art.moodframe.service.PromptBlockService service, art.moodframe.model.PromptBlock block) {
-        art.moodframe.ui.component.CameraEditDialog dialog = new art.moodframe.ui.component.CameraEditDialog(block);
+        art.moodframe.ui.dialog.CameraEditDialog dialog = new art.moodframe.ui.dialog.CameraEditDialog(block);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
-            boolean inPlace = block != null && result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
             art.moodframe.model.PromptBlock stored = art.moodframe.service.PromptBlockService.camera(
                     inPlace ? block.getId() : null, result.name(), result.settings());
             if (block != null)
                 stored.setSortOrder(block.getSortOrder());
             boolean saved = inPlace ? service.updateCustom(stored)
-                    : result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
+                    : result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
                     : service.addCopy(stored);
             if (saved) {
                 fillBlockChoice(art.moodframe.model.PromptBlock.Type.CAMERA, stored.getName());
@@ -2013,14 +2013,14 @@ public class MainWindowController implements I18nChangeListener {
             return null;
 
         art.moodframe.model.ColorStyle palette = item != null ? service.getStyleByName(item.getName()) : null;
-        art.moodframe.ui.component.ColorStyleEditDialog dialog =
-                new art.moodframe.ui.component.ColorStyleEditDialog(palette);
+        art.moodframe.ui.dialog.ColorStyleEditDialog dialog =
+                new art.moodframe.ui.dialog.ColorStyleEditDialog(palette);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
             art.moodframe.model.ColorStyle stored = new art.moodframe.model.ColorStyle(result.name(), result.colors(),
                     false);
-            boolean save = result.save() == art.moodframe.ui.component.BlockEditDialog.Save.SAVE;
+            boolean save = result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
             boolean saved = palette != null && save ? service.updateCustomStyle(palette.getName(), stored)
                     : save ? service.addCustomStyle(stored) : service.addCopy(stored);
             if (saved) {
@@ -2104,7 +2104,7 @@ public class MainWindowController implements I18nChangeListener {
                     public boolean editable() {
                         return true;
                     }
-                }, (listView) -> new art.moodframe.ui.component.StylePresetListCell(null, favorites(null,
+                }, (listView) -> new art.moodframe.ui.cell.StylePresetListCell(null, favorites(null,
                         FavoriteService.Kind.of(type), MainWindowController::blockId)))
                 .showAndWait();
     }
@@ -2173,7 +2173,7 @@ public class MainWindowController implements I18nChangeListener {
                     public boolean editable() {
                         return true;
                     }
-                }, (listView) -> new art.moodframe.ui.component.ColorStyleListCell(favorites(null,
+                }, (listView) -> new art.moodframe.ui.cell.ColorStyleListCell(favorites(null,
                         FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId)))
                 .showAndWait();
     }

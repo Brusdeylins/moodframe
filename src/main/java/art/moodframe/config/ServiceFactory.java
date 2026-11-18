@@ -8,8 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * <p>This factory provides a centralized registry for services and supports
  * both eager and lazy initialization through service providers. The factory
- * maintains thread-safe access to registered services and provides test mode
- * support for unit testing scenarios.</p>
+ * maintains thread-safe access to registered services.</p>
  * 
  * <p><strong>Thread Safety:</strong> Service registration uses concurrent maps. Creating a service
  * from its provider is synchronized, so a provider runs at most once per service even if
@@ -36,8 +35,6 @@ public class ServiceFactory {
     private static ServiceFactory instance;
     private final Map<Class<?>, Object> services = new ConcurrentHashMap<>();
     private final Map<Class<?>, ServiceProvider<?>> providers = new ConcurrentHashMap<>();
-    private final Map<Class<?>, Class<?>> interfaceImplementations = new ConcurrentHashMap<>();
-    private boolean testMode = false;
     
     private ServiceFactory() {
         // Private constructor for Singleton
@@ -126,29 +123,6 @@ public class ServiceFactory {
     }
     
     /**
-     * Sets the test mode flag.
-     * 
-     * <p>When test mode is enabled, services can behave differently to support
-     * unit testing scenarios (e.g., using in-memory databases, mock services).</p>
-     * 
-     * @param testMode true to enable test mode, false to disable
-     * @since 1.0.0
-     */
-    public void setTestMode(boolean testMode) {
-        this.testMode = testMode;
-    }
-    
-    /**
-     * Returns whether test mode is currently active.
-     * 
-     * @return true if test mode is enabled, false otherwise
-     * @since 1.0.0
-     */
-    public boolean isTestMode() {
-        return testMode;
-    }
-    
-    /**
      * Clears all registered services and providers.
      * 
      * <p><strong>Warning:</strong> This method is intended for testing purposes only.
@@ -160,7 +134,6 @@ public class ServiceFactory {
     public void clearServices() {
         services.clear();
         providers.clear();
-        interfaceImplementations.clear();
     }
     
     /**
