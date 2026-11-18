@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Advanced: detailed logging, backup and reset of the settings, about -->
+<VBox fx:id="advancedPane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AdvancedSettingsPane">
+    <padding>
+        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+    </padding>
+
+    <!-- Performance Settings -->
+    <VBox spacing="8.0">
+        <Label fx:id="performanceTitleLabel" styleClass="text-bold" text="%settings.performance.title" />
+
+        <CheckBox fx:id="enableLoggingCheckBox" selected="false" text="%settings.performance.logging" />
+    </VBox>
+
+    <Separator />
+
+    <!-- Data Management -->
+    <VBox spacing="8.0">
+        <Label fx:id="dataTitleLabel" styleClass="text-bold" text="%settings.data.title" />
+
+        <Button fx:id="exportSettingsButton" onAction="#onExportSettings" text="%settings.data.export" />
+        <Button fx:id="importSettingsButton" onAction="#onImportSettings" text="%settings.data.import" />
+        <Button fx:id="resetSettingsButton" onAction="#onResetSettings" styleClass="danger" text="%settings.data.reset" />
+    </VBox>
+
+    <Separator />
+
+    <!-- About Section -->
+    <VBox spacing="5.0">
+        <Label fx:id="aboutTitleLabel" styleClass="text-bold" text="%settings.about.title" />
+        <Label fx:id="versionLabel" text="%settings.about.version" />
+        <Label fx:id="configPathTitleLabel" text="%settings.about.config.path" />
+        <HBox alignment="CENTER_LEFT" spacing="10.0">
+            <Label fx:id="configPathLabel" HBox.hgrow="ALWAYS" />
+            <Button fx:id="openConfigDirectoryButton" onAction="#onOpenConfigDirectory" text="%settings.about.config.open">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2f-folder-open" iconSize="16" styleClass="ikonli-font-icon" />
+                </graphic>
+            </Button>
+        </HBox>
+    </VBox>
+</VBox>

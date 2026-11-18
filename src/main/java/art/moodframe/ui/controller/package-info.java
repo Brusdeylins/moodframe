@@ -5,7 +5,8 @@
  * <p>Main classes:</p>
  * <ul>
  * <li>{@link MainWindowController}: the main window ({@code MainWindow.fxml})</li>
- * <li>{@link SettingsController}: the settings dialog ({@code SettingsDialog.fxml})</li>
+ * <li>{@link SettingsController}: the settings dialog ({@code SettingsDialog.fxml}), coordinator of its sections in
+ * {@code ui.controller.settings}</li>
  * </ul>
  */
 package art.moodframe.ui.controller;

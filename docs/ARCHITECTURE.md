@@ -103,6 +103,21 @@ takes the registered library services, so an import reaches the main window; `Th
 The plan is to move step by step to constructor injection with `MoodframeApplication` as the composition root, so
 that dependencies become visible in signatures and the locator can shrink to the startup code.
 
+## Settings dialog
+
+`SettingsDialog.fxml` holds only the list of sections and includes one FXML per section from `fxml/settings`
+(`fx:include`): the BFL, Gemini and OpenAI tabs, proxy and certificates, appearance, language, advanced (logging,
+backup, reset) and MCP. Each has a controller in `ui.controller.settings` that implements `SettingsSection`: it
+prepares its controls, loads its values (at the opening and after an import), shows them after a reset, saves them
+on "Save" and relabels its texts. `ui.controller.SettingsController` is the coordinator: it looks up the services once
+in the `ServiceFactory` and hands them to every section as `SettingsServices` (configuration, `ProviderRegistry`,
+`ApiProviderValidator`, `McpService`, `ConfigurationExporter`, building blocks, `SettingsPrompts`), switches the
+sections, and passes "Save", reload, reset and a change of the language on to all of them; the main window calls
+`applySettings()` when the dialog closes. Every connection test runs through `ConnectionTest.run` on a worker and
+tests a typed key with a copy of the live client (`ImageProvider.testConnection(apiKey, endpoint)`), so neither the
+live client nor the saved key changes until "Save". `SettingsPrompts` wraps the message boxes and file choosers, so
+`SettingsDialogTest` clicks through the dialog off-screen.
+
 ## Folders and settings
 
 - **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with

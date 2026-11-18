@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Appearance: theme, background image, preview frame -->
+<VBox fx:id="appearancePane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AppearanceSettingsPane">
+    <padding>
+        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+    </padding>
+
+    <!-- Theme Selection -->
+    <VBox spacing="8.0">
+        <Label fx:id="themeTitleLabel" styleClass="text-bold" text="%settings.theme.title" />
+        <Label fx:id="themeDescLabel" text="%settings.theme.description" />
+
+        <VBox fx:id="themeSelectionContainer" spacing="5.0">
+            <!-- Theme radio buttons will be populated by controller -->
+        </VBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="10.0">
+            <Label fx:id="themeChangesLabel" text="%settings.theme.changes" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Button fx:id="resetThemeButton" onAction="#onResetToSystemTheme" text="%settings.theme.reset" />
+        </HBox>
+    </VBox>
+
+    <Separator />
+
+    <!-- Background image of the main window -->
+    <VBox spacing="4.0">
+        <CheckBox fx:id="backgroundImageCheckBox" text="%settings.background.image" />
+        <Label fx:id="backgroundImageDescLabel" styleClass="text-muted, text-small" text="%settings.background.image.description" wrapText="true" />
+    </VBox>
+
+    <!-- Turning frame of the large preview -->
+    <VBox spacing="4.0">
+        <CheckBox fx:id="previewFrameAnimatedCheckBox" text="%settings.preview.frame.animated" />
+        <Label fx:id="previewFrameAnimatedDescLabel" styleClass="text-muted, text-small" text="%settings.preview.frame.animated.description" wrapText="true" />
+    </VBox>
+
+    <Separator />
+
+    <!-- Preview Area -->
+    <VBox spacing="8.0">
+        <Label fx:id="themePreviewLabel" styleClass="text-bold" text="%settings.theme.preview" />
+        <HBox fx:id="themePreviewContainer" alignment="CENTER_LEFT" minHeight="60.0" spacing="10.0" styleClass="bg-inset">
+            <padding>
+                <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+            </padding>
+
+            <Button styleClass="accent" text="%settings.theme.button" />
+            <Button styleClass="button-outlined" text="%settings.theme.outlined" />
+            <Label fx:id="themeSampleLabel" text="%settings.theme.sample" />
+            <FontIcon iconLiteral="mdi2s-star" iconSize="20" styleClass="ikonli-font-icon" />
+        </HBox>
+    </VBox>
+</VBox>

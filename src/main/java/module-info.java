@@ -49,6 +49,7 @@ module art.moodframe {
     // Open for reflection (required for FXML, Jackson)
     opens art.moodframe to javafx.fxml, com.fasterxml.jackson.databind;
     opens art.moodframe.ui.controller to javafx.fxml;
+    opens art.moodframe.ui.controller.settings to javafx.fxml;
     opens art.moodframe.ui.component to javafx.fxml;
     opens art.moodframe.ui.dialog to javafx.fxml;
     opens art.moodframe.model to com.fasterxml.jackson.databind;
