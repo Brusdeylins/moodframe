@@ -28,7 +28,6 @@ import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
@@ -413,8 +412,7 @@ public class RequestResponseManager implements RequestResponseService {
         CompletableFuture.runAsync(() -> {
             try {
                 // Create images directory (videos stored alongside images)
-                String imagesPath = config.getImagesPath();
-                Path imagesDir = Paths.get(imagesPath);
+                Path imagesDir = config.paths().images();
                 Files.createDirectories(imagesDir);
 
                 // Generate filename for the video

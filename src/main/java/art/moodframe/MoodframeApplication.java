@@ -166,6 +166,9 @@ public class MoodframeApplication extends Application {
             /*  Start the MCP server if it is enabled  */
             startMcpServer();
 
+            /*  Tell once that the settings file could not be read and where its copy is  */
+            warnOfUnreadableConfig(primaryStage);
+
         } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
@@ -187,7 +190,7 @@ public class MoodframeApplication extends Application {
             DetailedLogging.apply(config.getLoggingEnabled());
 
             /*  Earlier versions wrote the Gemini key into the log files  */
-            Secrets.redactLogs(java.nio.file.Paths.get(config.getLogsPath()));
+            Secrets.redactLogs(paths.logs());
 
             // Create the directory of the corporate certificates at the start
             new art.moodframe.net.CorporateProxyConfig(config);
@@ -198,7 +201,7 @@ public class MoodframeApplication extends Application {
             art.moodframe.util.I18nManager.setLocale(appLocale);
 
             /*  The one database of the library, every repository gets its connections here  */
-            art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
+            art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
 
             /*  The services report every change of the library here, the main window shows what others changed  */
             art.moodframe.service.library.LibraryEvents events = new art.moodframe.service.library.LibraryEvents();
@@ -554,6 +557,26 @@ public class MoodframeApplication extends Application {
             // Don't let thumbnail generation failure prevent app startup
             logger.error("Failed to start retroactive thumbnail generation", e);
         }
+    }
+
+    /**
+     * Tells the user that the settings file could not be read, so the defaults apply, and where the copy of the
+     * unreadable file lies, with its stored keys.
+     *
+     * @param owner the main window
+     */
+    private void warnOfUnreadableConfig(Stage owner) {
+        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        if (config == null || !config.wasConfigUnreadable())
+            return;
+        java.nio.file.Path copy = config.unreadableConfigCopy();
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING,
+                copy != null ? art.moodframe.util.I18nManager.getText("config.unreadable.copied", copy)
+                        : art.moodframe.util.I18nManager.getText("config.unreadable.kept"));
+        alert.initOwner(owner);
+        alert.setTitle("MoodFrame");
+        alert.setHeaderText(art.moodframe.util.I18nManager.getText("config.unreadable.title"));
+        alert.show();
     }
 
     /**

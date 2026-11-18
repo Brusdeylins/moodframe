@@ -285,7 +285,7 @@ class MainWindowFlowsTest {
         register(LibraryPaths.class, paths);
         if (!realServices.containsKey(DatabaseManager.class))
             realServices.put(DatabaseManager.class, services().get(DatabaseManager.class));
-        DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
+        DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
 
         LibraryEvents events = new LibraryEvents();
         PromptBlockService blocks = new PromptBlockService(database, events);
