@@ -1515,7 +1515,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
         /*  The key the dialog validated, which may not be saved yet  */
         showGeminiConnectionStatus("testing", I18nManager.getText("settings.gemini.check.testing"));
-        validator.checkGeminiModel(validatedGeminiApiKey).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+        validator.checkGeminiModel(validatedGeminiApiKey).whenComplete(
+                (ApiProviderValidator.ModelCheck check, Throwable error) ->
                 javafx.application.Platform.runLater(() -> {
             /*  A decided failure goes before an undecided one, as it is what the validator just stored  */
             ApiProviderValidator.Outcome failed = check == null ? null
@@ -1700,7 +1701,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
         openaiChatModelBox.setDisable(true);
         showOpenaiConnectionStatus("testing", I18nManager.getText("settings.openai.chat.testing", chosen));
         /*  With the token and URL the dialog validated, which may not be saved yet  */
-        validator.checkOpenAiModel(chosen, validatedOpenaiApiKey, validatedOpenaiBaseUrl).whenComplete((ApiProviderValidator.ModelCheck check, Throwable error) ->
+        validator.checkOpenAiModel(chosen, validatedOpenaiApiKey, validatedOpenaiBaseUrl).whenComplete(
+                (ApiProviderValidator.ModelCheck check, Throwable error) ->
                 javafx.application.Platform.runLater(() -> {
             openaiChatModelBox.setDisable(false);
             OpenaiModelStatus status = openaiModelStatus(chosen, check, error);

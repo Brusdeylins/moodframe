@@ -4,7 +4,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
-import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.BflApiException;
 import org.junit.jupiter.api.Test;

@@ -2,7 +2,6 @@ package art.moodframe.service.brainstorm;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;

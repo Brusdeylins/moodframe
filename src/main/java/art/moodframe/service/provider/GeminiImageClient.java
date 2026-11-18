@@ -100,7 +100,8 @@ final class GeminiImageClient {
                             logResponseStructure(responseBody);
 
                         // Check for content blocking before extracting image
-                        String blockingReason = checkForContentBlocking(responseBody, request.hasInputImage(), request.hasVideoSource());
+                        String blockingReason = checkForContentBlocking(responseBody, request.hasInputImage(),
+                                request.hasVideoSource());
                         if (blockingReason != null) {
                             logger.info("Gemini content blocked: {}", blockingReason);
                             return new GenerationJobInfo.Builder()
