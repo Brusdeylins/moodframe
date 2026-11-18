@@ -283,6 +283,11 @@ public class ApplicationConfig {
             "OpenAI API key");
     private static final TokenSource MCP = new TokenSource("MOODFRAME_MCP_TOKEN", "moodframe.mcp.token", "mcp.token",
             "MCP token");
+    private static final TokenSource PROXY = new TokenSource("PROXY_PASSWORD", "proxy.password", "proxy.password",
+            "Proxy password");
+
+    /** Every secret stored encrypted; a reset keeps them all. */
+    private static final java.util.List<TokenSource> SECRETS = java.util.List.of(BFL, GEMINI, OPENAI, MCP, PROXY);
 
     /** Reads a token: environment, then system property, then the decrypted configuration value; null if none. */
     private String readKey(TokenSource source) {
@@ -1218,11 +1223,8 @@ public class ApplicationConfig {
     /**
      * Resets all configuration settings to default values.
      * 
-     * <p><strong>Preserved Settings:</strong></p>
-     * <ul>
-     * <li>API Key ({@code api.key}) - User authentication preserved</li>
-     * <li>Proxy Password ({@code proxy.password}) - Corporate authentication preserved</li>
-     * </ul>
+     * <p><strong>Preserved Settings:</strong> every encrypted secret: the API keys of all providers, the MCP token
+     * and the proxy password.</p>
      * 
      * <p>All other settings including UI preferences, model defaults, 
      * and non-sensitive proxy settings are reset to defaults.</p>
@@ -1230,10 +1232,14 @@ public class ApplicationConfig {
      * @since 1.0.0
      */
     public void resetToDefaults() {
-        // Preserve sensitive data
-        String preservedApiKey = properties.getProperty("api.key");
-        String preservedProxyPassword = properties.getProperty("proxy.password");
-        
+        /*  Keep every secret: API keys, MCP token, proxy password  */
+        java.util.Map<String, String> secrets = new java.util.HashMap<>();
+        for (TokenSource secret : SECRETS) {
+            String value = properties.getProperty(secret.key());
+            if (value != null && !value.isBlank())
+                secrets.put(secret.key(), value);
+        }
+
         // Clear all properties
         properties.clear();
         
@@ -1244,19 +1250,12 @@ public class ApplicationConfig {
         properties.setProperty("api.region", "Global");
         properties.setProperty("generation.default_prompt_upsampling", "false");
         
-        // Restore preserved sensitive data
-        if (preservedApiKey != null && !preservedApiKey.trim().isEmpty()) {
-            properties.setProperty("api.key", preservedApiKey);
-        }
-        
-        if (preservedProxyPassword != null && !preservedProxyPassword.trim().isEmpty()) {
-            properties.setProperty("proxy.password", preservedProxyPassword);
-        }
-        
+        secrets.forEach(properties::setProperty);
+
         // Save the reset configuration
         saveConfiguration();
         
-        logger.info("Configuration reset to defaults (API key and proxy password preserved)");
+        logger.info("Configuration reset to defaults (API keys, MCP token and proxy password preserved)");
     }
     
     // Corporate Proxy and Certificate Management
@@ -1404,31 +1403,7 @@ public class ApplicationConfig {
      * @since 1.0.0
      */
     public String getProxyPassword() {
-        // Environment variable (highest priority)
-        String envPassword = System.getenv("PROXY_PASSWORD");
-        if (envPassword != null && !envPassword.trim().isEmpty()) {
-            return envPassword.trim();
-        }
-        
-        // System property
-        String sysPassword = System.getProperty("proxy.password");
-        if (sysPassword != null && !sysPassword.trim().isEmpty()) {
-            return sysPassword.trim();
-        }
-        
-        // Configuration file (encrypted)
-        String encryptedPassword = properties.getProperty("proxy.password");
-        if (encryptedPassword == null || encryptedPassword.trim().isEmpty()) {
-            return null;
-        }
-        
-        try {
-            String decryptedPassword = encryption.decrypt(encryptedPassword);
-            return decryptedPassword;
-        } catch (Exception e) {
-            logger.error("Failed to decrypt proxy password from configuration", e);
-            return null;
-        }
+        return readKey(PROXY);
     }
     
     /**
@@ -1438,20 +1413,7 @@ public class ApplicationConfig {
      * @since 1.0.0
      */
     public void setProxyPassword(String proxyPassword) {
-        if (proxyPassword == null || proxyPassword.trim().isEmpty()) {
-            properties.remove("proxy.password");
-            logger.info("Proxy password removed from configuration");
-        } else {
-            try {
-                String encryptedPassword = encryption.encrypt(proxyPassword.trim());
-                properties.setProperty("proxy.password", encryptedPassword);
-                logger.info("Proxy password encrypted and stored in configuration");
-            } catch (Exception e) {
-                logger.error("Failed to encrypt proxy password", e);
-                throw new RuntimeException("Failed to store proxy password", e);
-            }
-        }
-        saveConfiguration();
+        storeKey(PROXY, proxyPassword);
     }
     
     /**

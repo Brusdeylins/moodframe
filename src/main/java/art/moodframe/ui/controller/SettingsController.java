@@ -2305,12 +2305,12 @@ public class SettingsController implements Initializable, I18nChangeListener {
         confirmation.setTitle("Reset Settings");
         confirmation.setHeaderText("Reset all settings to defaults?");
         confirmation.setContentText(
-                "This will reset all settings except API key and proxy password. Custom styles will be deleted. This action cannot be undone.");
+                "This will reset all settings except the API keys, the MCP token and the proxy password. Custom styles will be deleted. This action cannot be undone.");
 
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ok) {
                 try {
-                    // Reset configuration to defaults (preserves API key and proxy password)
+                    // Reset configuration to defaults (keeps the API keys, the MCP token and the proxy password)
                     config.resetToDefaults();
 
                     // Delete all custom styles
