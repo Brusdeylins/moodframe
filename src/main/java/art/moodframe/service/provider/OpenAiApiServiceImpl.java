@@ -247,7 +247,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     public CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             if (!isConfigured())
-                throw new IllegalStateException("OpenAI API key not configured");
+                throw ProviderException.noKey("OpenAI");
 
             try {
                 String model = request.getModel();
@@ -596,7 +596,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
      */
     private JSONObject postChat(JSONObject body) {
         if (!isConfigured())
-            throw new IllegalStateException("OpenAI API key not configured");
+            throw ProviderException.noKey("OpenAI");
 
         try {
             for (int attempt = 0; ; attempt++) {
@@ -634,7 +634,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
      */
     private String postResponses(JSONObject body) {
         if (!isConfigured())
-            throw new IllegalStateException("OpenAI API key not configured");
+            throw ProviderException.noKey("OpenAI");
 
         try (Response response = post(researchClient.get(), "/responses",
                 () -> RequestBody.create(body.toString(), JSON))) {

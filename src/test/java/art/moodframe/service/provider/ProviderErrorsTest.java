@@ -64,4 +64,15 @@ class ProviderErrorsTest {
         assertEquals(failure.getMessage(), ProviderException.messageOf(wrapped, false));
         assertEquals("plain", ProviderException.messageOf(new IllegalStateException("plain"), true));
     }
+
+    @Test
+    void theMessageComesFromAProviderFailureWrappedAnyDeep() {
+        ProviderException noKey = ProviderException.noKey("OpenAI");
+        RuntimeException wrapped = new CompletionException(new RuntimeException("Failed to submit", noKey));
+        assertEquals("OpenAI: no API key configured. Please enter it in the settings.",
+                ProviderException.messageOf(wrapped, true));
+        assertEquals(noKey.getMessage(), ProviderException.messageOf(wrapped, false));
+        assertEquals("Failed to submit", ProviderException.messageOf(
+                new CompletionException(new RuntimeException("Failed to submit")), true));
+    }
 }

@@ -131,8 +131,7 @@ public class BflApiServiceImpl implements BflApiService {
     public CompletableFuture<Boolean> testConnectionWithProxy() {
         
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         if (!httpClients.getProxyConfig().isProxyConfigured()) {
@@ -209,8 +208,7 @@ public class BflApiServiceImpl implements BflApiService {
     @Override
     public CompletableFuture<Boolean> testConnection() {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         HttpRequest request = HttpRequest.newBuilder()
@@ -242,8 +240,7 @@ public class BflApiServiceImpl implements BflApiService {
     @Override
     public CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request) {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         // Validate request
@@ -289,26 +286,23 @@ public class BflApiServiceImpl implements BflApiService {
                         GenerationJobInfo jobInfo = objectMapper.readValue(body, GenerationJobInfo.class);
                         return jobInfo;
                     } catch (Exception e) {
-                        throw new RuntimeException("Failed to parse generation job response", e);
+                        throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                     }
                 });
                 
         } catch (Exception e) {
-            return CompletableFuture.failedFuture(
-                new RuntimeException("Failed to serialize generation request", e));
+            return CompletableFuture.failedFuture(ProviderException.localized(e, "bfl.error.request", e.getMessage()));
         }
     }
     
     @Override
     public CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         if (jobId == null || jobId.trim().isEmpty()) {
-            return CompletableFuture.failedFuture(
-                new IllegalArgumentException("Job ID cannot be null or empty"));
+            return CompletableFuture.failedFuture(ProviderException.localized("bfl.error.no.job"));
         }
         
         // CRITICAL: We need the polling_url from the original request, not a constructed URL
@@ -335,7 +329,7 @@ public class BflApiServiceImpl implements BflApiService {
                     GenerationJobResult result = objectMapper.readValue(body, GenerationJobResult.class);
                     return result;
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse job status response", e);
+                    throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                 }
             });
     }
@@ -402,8 +396,7 @@ public class BflApiServiceImpl implements BflApiService {
     @Override
     public CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl) {
         if (pollingUrl == null || pollingUrl.trim().isEmpty()) {
-            return CompletableFuture.failedFuture(
-                new IllegalArgumentException("Polling URL cannot be null or empty"));
+            return CompletableFuture.failedFuture(ProviderException.localized("bfl.error.no.job"));
         }
         
         logger.debug("Polling job status using correct polling URL: {}", pollingUrl);
@@ -424,12 +417,8 @@ public class BflApiServiceImpl implements BflApiService {
                     GenerationJobResult result = objectMapper.readValue(body, GenerationJobResult.class);
                     return result;
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse job status response", e);
+                    throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                 }
-            })
-            .exceptionally(throwable -> {
-                logger.debug("Failed to get job result using polling URL: {}", pollingUrl, throwable);
-                throw new RuntimeException("Failed to get job result", throwable);
             });
     }
     
@@ -454,14 +443,10 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
 
-        // All error responses (including 404) are failures - no synthetic "not_found" status
+        // All error responses (including 404) are failures - no synthetic "not_found" status; BflGenerationFlow
+        // logs them: a 404 is normal until the job is registered
         String errorMessage = extractErrorMessage(body, statusCode);
-        
-        if (statusCode == 404) {
-            logger.warn("Job not found (HTTP 404) - job may not be registered yet or has expired");
-        } else {
-            logger.error("BFL API error [{}]: {}", statusCode, errorMessage);
-        }
+        logger.debug("BFL polling error [{}]: {}", statusCode, errorMessage);
         
         return CompletableFuture.failedFuture(
             new BflApiException(statusCode, errorMessage, body));
@@ -482,9 +467,9 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
         
-        // Handle error responses
+        // Handle error responses; the caller logs the failure
         String errorMessage = extractErrorMessage(body, statusCode);
-        logger.error("BFL API error [{}]: {}", statusCode, errorMessage);
+        logger.debug("BFL API error [{}]: {}", statusCode, errorMessage);
         
         return CompletableFuture.failedFuture(
             new BflApiException(statusCode, errorMessage, body));

@@ -9,6 +9,7 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.ApiHttpException;
 import art.moodframe.service.provider.BflApiException;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -161,7 +161,7 @@ public class BflGenerationFlow {
                 .exceptionallyCompose((throwable) -> {
                     /*  An account without approval for the safety tolerance gets one retry with its approved
                         maximum, which also becomes the value of the FLUX.2 slider  */
-                    Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
+                    Throwable cause = ProviderException.unwrap(throwable);
                     Integer approved = cause instanceof BflApiException bflError
                             ? bflError.getMaximumApprovedSafetyTolerance() : null;
                     if (approved == null)
@@ -179,7 +179,7 @@ public class BflGenerationFlow {
                     handleSubmissionSuccess(jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
                 })
                 .exceptionally(throwable -> {
-                    if (throwable instanceof java.util.concurrent.TimeoutException) {
+                    if (ProviderException.unwrap(throwable) instanceof java.util.concurrent.TimeoutException) {
                         logger.error("Timeout submitting generation request for image {}", imageIndex);
                         tracker.markFailed(chatEntry, "Request timeout after 30 seconds");
                     } else {
@@ -327,7 +327,8 @@ public class BflGenerationFlow {
                 .exceptionally(throwable -> {
                     // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
                     // This is expected behavior, not an error condition
-                    if (throwable.getCause() instanceof ApiHttpException http && http.getStatusCode() == 404) {
+                    if (ProviderException.unwrap(throwable) instanceof ApiHttpException http
+                            && http.getStatusCode() == 404) {
                         
                         logger.debug("Job {} status check returned 404 (attempt {}/{}) - job still processing", 
                             jobId.substring(0, Math.min(8, jobId.length())), 
