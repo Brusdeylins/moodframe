@@ -8,6 +8,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +53,20 @@ public class ApplicationConfig {
     private static final String LOGS_DIR = CONFIG_DIR + "/logs";
     private static final String IMAGES_DIR = CONFIG_DIR + "/images";
     
+    /** Quiet time after the last change of a dragged value (divider, window, slider) before it is written. */
+    static final long SAVE_DELAY_MILLIS = 500;
+
+    /*  One writer thread for the delayed saves, created on the first one; static, so mocks in tests have it too  */
+    private static final ScheduledExecutorService WRITER = Executors.newSingleThreadScheduledExecutor((runnable) -> {
+        Thread thread = new Thread(runnable, "config-writer");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final Object PENDING_LOCK = new Object();
+
     private final Properties properties = new Properties();
     private final Path configPath;
+    private ScheduledFuture<?> pendingSave;
     
     public ApplicationConfig() {
         this.configPath = Paths.get(CONFIG_DIR, CONFIG_FILE);
@@ -187,6 +204,46 @@ public class ApplicationConfig {
             fos.getFD().sync();
             Files.move(temp, configPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
+            logger.error("Failed to save the configuration to {}", configPath, e);
+        }
+    }
+
+    /**
+     * Saves the configuration on the writer thread once no further change came for {@link #SAVE_DELAY_MILLIS}.
+     *
+     * <p>For values that change with every pixel of a drag, so that a drag writes the file once and the JavaFX
+     * thread never waits for the disk.</p>
+     */
+    private void saveConfigurationSoon() {
+        synchronized (PENDING_LOCK) {
+            if (pendingSave != null)
+                pendingSave.cancel(false);
+            pendingSave = WRITER.schedule(this::saveConfiguration, SAVE_DELAY_MILLIS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /**
+     * Writes a delayed save now instead of later; called on shutdown, so no change of the last moments gets lost.
+     */
+    public void flushConfiguration() {
+        ScheduledFuture<?> pending;
+        synchronized (PENDING_LOCK) {
+            pending = pendingSave;
+            pendingSave = null;
+        }
+        if (pending == null)
+            return;
+        if (pending.cancel(false)) {
+            saveConfiguration();
+            return;
+        }
+
+        /*  The writer has already started it: wait until the file is written  */
+        try {
+            pending.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
             logger.error("Failed to save the configuration to {}", configPath, e);
         }
     }
@@ -479,7 +536,7 @@ public class ApplicationConfig {
      */
     public void setSplitterPosition(double position) {
         properties.setProperty("ui.splitter_position", String.valueOf(position));
-        saveConfiguration();
+        saveConfigurationSoon();
     }
 
     /**
@@ -499,7 +556,7 @@ public class ApplicationConfig {
 
         /*  The former divider position as a share of the height does not count any more  */
         properties.remove("ui.chat_input_splitter_position");
-        saveConfiguration();
+        saveConfigurationSoon();
     }
 
     public String getDefaultStyle() {
@@ -721,7 +778,7 @@ public class ApplicationConfig {
      */
     public void setImageTileSize(double size) {
         properties.setProperty("chat.image.size", String.valueOf(Math.round(size)));
-        saveConfiguration();
+        saveConfigurationSoon();
     }
 
     /**
@@ -826,7 +883,7 @@ public class ApplicationConfig {
         properties.setProperty("ui.window.width", String.valueOf((int)width));
         properties.setProperty("ui.window.height", String.valueOf((int)height));
         properties.setProperty("ui.window.maximized", String.valueOf(maximized));
-        saveConfiguration();
+        saveConfigurationSoon();
     }
     
     // API Region Settings

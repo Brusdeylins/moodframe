@@ -483,19 +483,19 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             return;
         }
 
-        /*  A missing thumbnail is created first  */
-        CompletableFuture.supplyAsync(() -> {
-            Image loaded = thumbnails.getCachedImage(thumbnailPath);
-            return loaded != null ? loaded
-                    : thumbnails.getCachedImage(thumbnails.getThumbnail(path).join().getAbsolutePath());
-        }).whenComplete((loaded, error) -> Platform.runLater(() -> {
-            if (loaded != null)
-                view.setImage(loaded);
-            else {
-                logger.debug("No thumbnail for {}", path, error);
-                missing.run();
-            }
-        }));
+        /*  A missing thumbnail is created first; the next stage follows the creation, no thread waits for it  */
+        CompletableFuture.supplyAsync(() -> thumbnails.getCachedImage(thumbnailPath))
+                .thenCompose((loaded) -> loaded != null ? CompletableFuture.completedFuture(loaded)
+                        : thumbnails.getThumbnail(path)
+                                .thenApplyAsync((file) -> thumbnails.getCachedImage(file.getAbsolutePath())))
+                .whenComplete((loaded, error) -> Platform.runLater(() -> {
+                    if (loaded != null)
+                        view.setImage(loaded);
+                    else {
+                        logger.debug("No thumbnail for {}", path, error);
+                        missing.run();
+                    }
+                }));
     }
 
     /**

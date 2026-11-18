@@ -691,11 +691,25 @@ public class MoodframeApplication extends Application {
                 thumbnailManager.shutdown();
             }
 
+            /*  Stop the workers of the trash and the size check, if they were started at all  */
+            art.moodframe.service.TrashManager trashManager = ServiceFactory.getInstance()
+                    .getCreatedService(art.moodframe.service.TrashManager.class);
+            if (trashManager != null)
+                trashManager.shutdown();
+            art.moodframe.service.ImageSizeCheck sizeCheck = ServiceFactory.getInstance()
+                    .getCreatedService(art.moodframe.service.ImageSizeCheck.class);
+            if (sizeCheck != null)
+                sizeCheck.shutdown();
+
             /*  The MCP server stops before the database closes  */
             art.moodframe.mcp.McpService mcp = ServiceFactory.getInstance()
                     .getService(art.moodframe.mcp.McpService.class);
             if (mcp != null)
                 mcp.stop();
+
+            /*  Write the window bounds and divider positions of the last moments, which wait for a quiet time  */
+            if (config != null)
+                config.flushConfiguration();
 
             // Clear service factory
             ServiceFactory.getInstance().clearServices();

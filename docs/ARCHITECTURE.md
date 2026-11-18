@@ -49,7 +49,10 @@ Known deviations: some services use `Platform.runLater` to hand results to the J
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
 - **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
   thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
-  main window shows changes made by the MCP server.
+  main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
+  a burst of events gives one query.
+- **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
+  writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
 - **MCP server**: its tools run on the threads of the `jdk.httpserver`, never on the JavaFX thread.
 
 ## Dependency injection

@@ -67,6 +67,13 @@ public class ImageSizeCheck {
     }
 
     /**
+     * Stops the worker; checks already queued still run. Called on application shutdown.
+     */
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    /**
      * Reads the size of the file of an image and stores it if the known size is missing or differs. Runs on a worker.
      *
      * @param imageId the image ID
