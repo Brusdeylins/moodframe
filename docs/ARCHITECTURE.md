@@ -89,12 +89,19 @@ that dependencies become visible in signatures and the locator can shrink to the
 
 - **SQLite** in `~/.moodframe/db`, accessed with **plain JDBC** (`java.sql`), no ORM. The repositories get their
   connections from `database.DatabaseManager`, with foreign keys on and a busy timeout.
+- **Transactions** begin IMMEDIATE (`DatabaseManager.inTransaction`): a write that depends on a read reads inside
+  the transaction, guards its update (`AND deleted_at IS NULL`) and moves files only after the commit.
+- **Time columns** (`created_at`, `deleted_at`, `chats.updated_at`) hold epoch milliseconds of the local time
+  (`setTimestamp`), never `CURRENT_TIMESTAMP`; `ChatRepository` still reads the older text values of `deleted_at`.
 - **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
   apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,
   empty) through `service.library.RepositoryAccess`.
 - **Migrations** are SQL files `V###__description.sql` in `src/main/resources/db/migration`, applied in order at
   startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`, `DeletedCostCorrection`) runs in
-  the same sequence.
+  the same sequence. A migration runs only when it is listed in `MigrationRunner.MIGRATIONS`; it is applied and
+  recorded in one transaction.
+- **Triggers**: only the favorites cleanup of V027. V031 dropped V001's triggers on `chats.updated_at`, which never
+  ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
   (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
 - **Files**: images and videos live under `~/.moodframe/images`, thumbnails under `~/.moodframe/thumbnails`; the
@@ -108,7 +115,9 @@ that dependencies become visible in signatures and the locator can shrink to the
 The MCP server writes to the library while the UI reads and writes it. In the default rollback journal a writer
 blocks readers and parallel writers fail with `SQLITE_BUSY`. `DatabaseManager` switches the database to WAL once
 (the mode stays with the file) and opens every connection with a busy timeout, so readers and a writer do not wait
-for each other and concurrent writers queue up instead of failing (`ParallelWritesTest`).
+for each other and concurrent writers queue up instead of failing (`ParallelWritesTest`). Transactions begin
+IMMEDIATE (`transaction_mode`): a deferred transaction that reads first cannot wait for the write lock later and
+fails with `SQLITE_BUSY_SNAPSHOT`. Reads in auto-commit mode take no write lock and are not serialized.
 
 ### D2: MCP server on 127.0.0.1 with a bearer token, off by default
 
