@@ -2,8 +2,11 @@ package art.moodframe;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -35,11 +38,10 @@ import art.moodframe.ui.support.ThemeManager;
  * <strong>Application Flow:</strong>
  * </p>
  * <ol>
- * <li>Initialize application configuration</li>
- * <li>Initialize database schema</li>
- * <li>Load MainWindow FXML with controller</li>
- * <li>Apply CSS styling</li>
- * <li>Display the primary stage</li>
+ * <li>Show the splash screen (JavaFX thread)</li>
+ * <li>On the startup thread meanwhile: configuration, database schema, services, trash cleanup, then the chats</li>
+ * <li>Once both are done, at least one second after the splash showed: load MainWindow FXML with controller, apply
+ * the theme and display the primary stage (JavaFX thread)</li>
  * </ol>
  * 
  * @since 1.0.0
@@ -64,40 +66,87 @@ public class MoodframeApplication extends Application {
                         window.getScene().getStylesheets().add(iconButtonCss);
         });
 
-        // Show splash screen first
-        SplashScreen splash = new SplashScreen(() -> {
-            // This callback runs after splash screen closes
-            initializeAndShowMainWindow(primaryStage);
-        }, homePaths);
-
+        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: configuration,
+            database and migrations, services, the trash cleanup and the chats. The splash stays until it is done,
+            at least one second; the splash reads the saved window bounds before the work begins  */
+        CompletableFuture<Void> prepared = new CompletableFuture<>();
+        SplashScreen splash = new SplashScreen(prepared, () -> prepared.whenComplete((Void done, Throwable failure) ->
+                Platform.runLater(() -> showMainWindow(primaryStage, failure))), homePaths);
         splash.show();
+        Thread startup = new Thread(() -> {
+            try {
+                prepare();
+                prepared.complete(null);
+            }
+            catch (Throwable e) {
+                prepared.completeExceptionally(e);
+            }
+        }, "MoodFrame-startup");
+        startup.setDaemon(true);
+        startup.start();
     }
 
     /**
-     * Initializes the application and shows the main window.
-     * This is called after the splash screen closes.
-     * 
-     * @param primaryStage the primary stage to display
+     * Prepares the application off the JavaFX thread, while the splash shows: configuration, database, services,
+     * the trash cleanup, then the chats, the thumbnails of older images and the check of the accounts.
      */
-    private void initializeAndShowMainWindow(Stage primaryStage) {
+    private void prepare() {
+        initializeApplication();
+        ServiceFactory services = ServiceFactory.getInstance();
+        cleanUpAndLoad(createTrashCleanup(), services.getService(art.moodframe.service.chat.ChatLibrary.class));
+        performRetroactiveThumbnailGeneration();
+        validateApiProviders();
+        createWindowServices();
+    }
+
+    /**
+     * Cleans up the trash and loads the chats, in this order, so the chats hold nothing the cleanup removes and the
+     * main window gets them loaded. A failed cleanup does not stop the start.
+     *
+     * @param cleanup the trash cleanup, null if it could not be created
+     * @param chats   the chats, null if they are not available
+     */
+    static void cleanUpAndLoad(art.moodframe.service.trash.TrashCleanupService cleanup,
+                               art.moodframe.service.chat.ChatLibrary chats) {
+        if (cleanup != null) {
+            try {
+                cleanup.performAutoCleanup();
+            } catch (Exception e) {
+                logger.error("Failed to perform trash cleanup", e);
+            }
+        }
+        if (chats != null)
+            chats.load();
+    }
+
+    /**
+     * Creates the services the main window looks up, so their construction (database, folders, threads) does not
+     * run on the JavaFX thread.
+     */
+    private void createWindowServices() {
+        ServiceFactory services = ServiceFactory.getInstance();
+        for (Class<?> type : java.util.List.of(art.moodframe.service.library.PromptBlockService.class,
+                art.moodframe.service.library.ColorStyleService.class, art.moodframe.service.library.MoodService.class,
+                art.moodframe.service.library.FrameService.class, art.moodframe.service.library.FavoriteService.class,
+                art.moodframe.service.chat.ChatHistoryService.class,
+                art.moodframe.service.generation.GenerationService.class,
+                art.moodframe.service.UpdateCheckService.class, art.moodframe.service.chat.ImageSizeCheck.class,
+                art.moodframe.mcp.McpService.class))
+            services.getService(type);
+    }
+
+    /**
+     * Shows the main window once the preparation is done, on the JavaFX thread: the FXML layout, the theme and the
+     * stage; then the MCP server starts if it is enabled. A failed preparation ends the application.
+     *
+     * @param primaryStage the primary stage to display
+     * @param failure      why the preparation failed, null if it succeeded
+     */
+    private void showMainWindow(Stage primaryStage, Throwable failure) {
         try {
-            // Initialize application systems
-            initializeApplication();
-
-            // Perform trash cleanup on startup
-            performTrashCleanup();
-
-            /*  The chats, after the cleanup and before the window that shows them  */
-            art.moodframe.service.chat.ChatLibrary chats = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.chat.ChatLibrary.class);
-            if (chats != null)
-                chats.load();
-
-            // Perform retroactive thumbnail generation
-            performRetroactiveThumbnailGeneration();
-
-            // Validate API providers (BFL, Gemini and OpenAI)
-            validateApiProviders();
+            if (failure != null)
+                throw failure instanceof CompletionException && failure.getCause() != null
+                        ? failure.getCause() : failure;
 
             // Load the main FXML layout
             Parent root = loadMainWindow();
@@ -117,7 +166,7 @@ public class MoodframeApplication extends Application {
             /*  Start the MCP server if it is enabled  */
             startMcpServer();
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
             showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
@@ -418,27 +467,23 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Initializes and starts the background trash cleanup service.
-     * This runs initial cleanup on application startup and then continues
-     * to run automatic cleanup every 6 hours during application runtime.
+     * Creates the trash cleanup, which also cleans up every 6 hours while the application runs.
+     *
+     * @return the cleanup, null if it cannot be created
      */
-    private void performTrashCleanup() {
+    private art.moodframe.service.trash.TrashCleanupService createTrashCleanup() {
         try {
-
-            // Create and register TrashCleanupService in ServiceFactory
             art.moodframe.service.trash.TrashCleanupService cleanupService =
                     new art.moodframe.service.trash.TrashCleanupService(
                             ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashCenter.class));
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.trash.TrashCleanupService.class,
                     () -> cleanupService);
-
-            // Perform initial cleanup
-            cleanupService.performAutoCleanup();
-
+            return cleanupService;
         } catch (Exception e) {
             // Don't let cleanup failure prevent app startup
             logger.error("Failed to perform trash cleanup", e);
+            return null;
         }
     }
 

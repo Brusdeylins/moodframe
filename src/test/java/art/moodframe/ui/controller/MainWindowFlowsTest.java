@@ -165,6 +165,7 @@ class MainWindowFlowsTest {
     private RequestResponseManager requests;
     private ExecutorService io;
     private final AtomicInteger generations = new AtomicInteger();
+    private final AtomicInteger loads = new AtomicInteger();
     private final List<String> deletions = new CopyOnWriteArrayList<>();
 
     /*  the window of a test  */
@@ -228,9 +229,16 @@ class MainWindowFlowsTest {
         return (List<Consumer<String>>) listeners.get(null);
     }
 
-    /*  the chats of the library, which note the thread every deletion runs on  */
-    private static ChatLibrary recording(ChatHistoryService history, LibraryEvents events, List<String> deletions) {
+    /*  the chats of the library, which note the thread every deletion runs on and count their loads  */
+    private static ChatLibrary recording(ChatHistoryService history, LibraryEvents events, List<String> deletions,
+                                         AtomicInteger loads) {
         return new ChatLibrary(history, events) {
+            @Override
+            public void load() {
+                loads.incrementAndGet();
+                super.load();
+            }
+
             @Override
             public void deleteEntry(ChatEntry entry) throws SQLException {
                 deletions.add(Thread.currentThread().getName());
@@ -287,7 +295,7 @@ class MainWindowFlowsTest {
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
         ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
-        chats = recording(history, events, deletions);
+        chats = recording(history, events, deletions, loads);
         trash.addListener(chats);
 
         /*  the start loads the chats before the window opens  */
@@ -675,6 +683,13 @@ class MainWindowFlowsTest {
      * in place and the header follows, moved with Alt+Down, moved to the trash, where it leaves the list and closes,
      * and comes back from the trash at its place.
      */
+    @Test
+    void theListShowsTheChatsLoadedAtTheStart() throws Exception {
+        assertEquals(1, loads.get(), "the window loads the chats no more");
+        assertEquals(chats.chats(), chatList().getItems());
+        assertEquals("Welcome to MoodFrame", chatList().getItems().get(0).getName());
+    }
+
     @Test
     void chatsAreCreatedOpenedRenamedMovedTrashedAndRestored() throws Exception {
         Chat full = createChat("Full chat");
