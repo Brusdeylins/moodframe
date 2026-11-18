@@ -14,10 +14,12 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Brings the schema of a database up to date: applies the migrations not yet recorded in
- * {@code schema_migrations}, each in its own transaction.
+ * {@code schema_migrations}, each in its own transaction together with its record. A new migration must be listed in
+ * {@link #MIGRATIONS}, a file alone is not applied.
  *
  * <p>The SQL files lie in {@code /db/migration}, a migration with data from the model runs as code. An applied
  * migration is never changed, a new one gets the next version.</p>
@@ -29,6 +31,9 @@ final class MigrationRunner {
     private static final Logger logger = LoggerFactory.getLogger(MigrationRunner.class);
 
     private static final String MIGRATIONS_PATH = "/db/migration";
+
+    /*  the last line of a trigger, trimmed  */
+    private static final Pattern TRIGGER_END = Pattern.compile("(?i)END\\s*;?");
 
     /** All migrations in the order of their versions. */
     private static final List<Migration> MIGRATIONS = List.of(
@@ -60,7 +65,8 @@ final class MigrationRunner {
             new Migration("027", "Add_favorites"),
             new Migration("028", "Add_source_to_chat_entries"),
             new Migration("029", "Backfill_flux_costs", "FluxCostBackfill.java", FluxCostBackfill::apply),
-            new Migration("030", "Correct_deleted_costs", "DeletedCostCorrection.java", DeletedCostCorrection::apply));
+            new Migration("030", "Correct_deleted_costs", "DeletedCostCorrection.java", DeletedCostCorrection::apply),
+            new Migration("031", "Drop_chat_timestamp_triggers"));
 
     private MigrationRunner() {
     }
@@ -91,8 +97,9 @@ final class MigrationRunner {
 
                     logger.info("Migration {} already reflected in schema (legacy): {}",
                             migration.version(), e.getMessage());
+                    /*  its transaction was rolled back with its record, the schema has it anyway  */
+                    recordMigration(connection, migration);
                 }
-                recordMigration(connection, migration);
             }
             return;
         }
@@ -108,7 +115,6 @@ final class MigrationRunner {
             if (!appliedMigrations.contains(migration.version())) {
                 logger.info("Applying migration: {}", migration.fileName());
                 applyMigration(connection, migration);
-                recordMigration(connection, migration);
                 logger.info("Migration {} applied successfully", migration.version());
             }
         }
@@ -269,7 +275,8 @@ final class MigrationRunner {
     }
 
     /**
-     * Applies a single migration.
+     * Applies a single migration and records it in the same transaction, so a migration is never applied without its
+     * record or recorded without its changes.
      *
      * @param connection the database connection
      * @param migration  the migration to apply
@@ -286,6 +293,7 @@ final class MigrationRunner {
             }
             if (migration.step() != null)
                 migration.step().apply(connection);
+            recordMigration(connection, migration);
             connection.commit();
         } catch (SQLException e) {
             connection.rollback();
@@ -299,8 +307,8 @@ final class MigrationRunner {
      * Splits the content of a migration file into its statements, without the {@code --} comments.
      *
      * <p>The lines of a statement are trimmed and joined, so the schema keeps the text it always had. A trigger
-     * starts with a line {@code CREATE TRIGGER} and ends on a bare {@code END} line; {@code END;} does not end it,
-     * so V001 runs its three triggers as one statement, of which SQLite executes only the first.</p>
+     * starts with a line {@code CREATE TRIGGER} and ends on a line {@code END} or {@code END;}, in any case; the
+     * statements of its body end with {@code ;} and stay inside it.</p>
      *
      * @param migrationSql the complete migration SQL
      * @return the statements, none empty
@@ -320,8 +328,8 @@ final class MigrationRunner {
             if (line.toUpperCase().startsWith("CREATE TRIGGER")) {
                 inTrigger = true;
                 currentStatement.append(line).append("\n");
-            } else if (inTrigger && line.equalsIgnoreCase("END")) {
-                currentStatement.append(line).append(";");
+            } else if (inTrigger && TRIGGER_END.matcher(line).matches()) {
+                currentStatement.append("END;");
                 statements.add(currentStatement.toString().trim());
                 currentStatement.setLength(0);
                 inTrigger = false;
