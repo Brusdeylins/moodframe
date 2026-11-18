@@ -3,7 +3,6 @@ package art.moodframe.service.provider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.*;
-import art.moodframe.config.EncryptionUtil;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,7 +63,10 @@ public class BflApiServiceImpl implements BflApiService {
     private final ApplicationConfig config;
     private final HttpClients httpClients;
     private final Executor io;
-    private String cachedApiKey;
+
+    /*  the key and region of a client of withCredentials(), null for the configured ones  */
+    private final String fixedKey;
+    private final String fixedRegion;
     
     /**
      * Creates a new BFL API service implementation with corporate proxy support.
@@ -86,6 +88,8 @@ public class BflApiServiceImpl implements BflApiService {
         this.io = io;
         this.objectMapper = new ObjectMapper();
         this.httpClients = new HttpClients(config);
+        this.fixedKey = null;
+        this.fixedRegion = null;
 
         // HTTP client with corporate proxy support, built again when the proxy settings change
         this.httpClient = httpClients.rebuilding(clients -> clients.javaHttp()
@@ -94,12 +98,27 @@ public class BflApiServiceImpl implements BflApiService {
             .build());
     }
 
+    /*  a client with its own key and region, sharing the HTTP client and the executor of the origin  */
+    private BflApiServiceImpl(BflApiServiceImpl origin, String apiKey, String region) {
+        this.config = origin.config;
+        this.io = origin.io;
+        this.objectMapper = origin.objectMapper;
+        this.httpClients = origin.httpClients;
+        this.httpClient = origin.httpClient;
+        this.fixedKey = apiKey;
+        this.fixedRegion = region;
+    }
+
+    @Override
+    public BflApiService withCredentials(String apiKey, String endpoint) {
+        return new BflApiServiceImpl(this, apiKey, endpoint);
+    }
+
     @Override
     public String getApiKey() {
-        if (cachedApiKey != null && !cachedApiKey.trim().isEmpty()) {
-            return cachedApiKey;
-        }
-        return config.getApiKey();
+        if (fixedKey != null)
+            return fixedKey;
+        return config != null ? config.getApiKey() : null;
     }
     
     @Override
@@ -366,7 +385,7 @@ public class BflApiServiceImpl implements BflApiService {
     public String getApiBaseUrl() {
         if (config != null) {
             // Use API region to determine the correct endpoint
-            String region = config.getApiRegion();
+            String region = fixedRegion != null ? fixedRegion : config.getApiRegion();
             switch (region) {
                 case "EU":
                     return "https://api.eu.bfl.ai";
@@ -379,27 +398,6 @@ public class BflApiServiceImpl implements BflApiService {
         }
         return DEFAULT_BASE_URL;
     }
-    
-    @Override
-    public void setApiKey(String apiKey) {
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            throw new IllegalArgumentException("API key cannot be null or empty");
-        }
-        
-        this.cachedApiKey = apiKey;
-        
-        // Also update in config if available
-        if (config != null) {
-            try {
-                String encrypted = EncryptionUtil.encrypt(apiKey);
-                config.setProperty("api.key", encrypted);
-            } catch (Exception e) {
-                logger.error("Failed to encrypt and store API key", e);
-            }
-        }
-        
-    }
-    
     
     /**
      * Gets the configured timeout duration.
@@ -437,6 +435,7 @@ public class BflApiServiceImpl implements BflApiService {
      * @param pollingUrl the polling URL returned from the original generation request
      * @return CompletableFuture with GenerationJobResult
      */
+    @Override
     public CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl) {
         if (pollingUrl == null || pollingUrl.trim().isEmpty()) {
             return CompletableFuture.failedFuture(
@@ -718,47 +717,5 @@ public class BflApiServiceImpl implements BflApiService {
         }
 
         throw new IllegalArgumentException("Unsupported BFL model: " + model);
-    }
-
-    /**
-     * Custom exception for BFL API errors.
-     */
-    public static class BflApiException extends ApiHttpException {
-        private final String responseBody;
-        
-        public BflApiException(int statusCode, String message, String responseBody) {
-            super(statusCode, message);
-            this.responseBody = responseBody;
-        }
-        
-        public String getResponseBody() {
-            return responseBody;
-        }
-
-        /**
-         * The highest safety tolerance BFL approved for the account, from an HTTP 422 with the code
-         * {@code safety_tolerance_not_approved}.
-         *
-         * @return the approved maximum, or null for any other error or without the value
-         */
-        public Integer getMaximumApprovedSafetyTolerance() {
-            if (getStatusCode() != 422 || responseBody == null)
-                return null;
-            try {
-                var detail = new ObjectMapper().readTree(responseBody).path("detail");
-                var maximum = detail.path("maximum_approved_safety_tolerance");
-                if ("safety_tolerance_not_approved".equals(detail.path("code").asText()) && maximum.isIntegralNumber())
-                    return maximum.asInt();
-            } catch (Exception e) {
-                /*  no JSON body: no approved maximum  */
-            }
-            return null;
-        }
-        
-        @Override
-        public String toString() {
-            return String.format("BflApiException{statusCode=%d, message='%s'}", 
-                getStatusCode(), getMessage());
-        }
     }
 }

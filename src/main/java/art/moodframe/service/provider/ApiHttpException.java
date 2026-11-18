@@ -6,7 +6,7 @@ package art.moodframe.service.provider;
  *
  * @since 2.1.2
  */
-public class ApiHttpException extends RuntimeException {
+public class ApiHttpException extends ProviderException {
 
     private final int statusCode;
 
@@ -17,8 +17,33 @@ public class ApiHttpException extends RuntimeException {
      * @param message    the user-friendly message
      */
     public ApiHttpException(int statusCode, String message) {
-        super(message);
+        super(message, null);
         this.statusCode = statusCode;
+    }
+
+    /**
+     * Creates the exception with a message from the i18n resources.
+     *
+     * @param statusCode the HTTP status code
+     * @param key        the key of the message
+     * @param arguments  the arguments of the message
+     */
+    protected ApiHttpException(int statusCode, String key, Object... arguments) {
+        super(null, key, arguments);
+        this.statusCode = statusCode;
+    }
+
+    /**
+     * Creates the exception with a message from the i18n resources.
+     *
+     * @param statusCode the HTTP status code
+     * @param key        the key of the message
+     * @param arguments  the arguments of the message
+     * @return the exception
+     * @since 2.1.3
+     */
+    public static ApiHttpException localized(int statusCode, String key, Object... arguments) {
+        return new ApiHttpException(statusCode, key, arguments);
     }
 
     /**

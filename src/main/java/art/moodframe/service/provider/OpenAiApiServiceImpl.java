@@ -9,7 +9,6 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
-import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -55,8 +54,14 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     private final Supplier<OkHttpClient> httpClient;
     private final Supplier<OkHttpClient> researchClient;
     private final Executor io;
-    private String apiKey;
-    private String baseUrl;
+
+    /*  set for a client of withCredentials(), which neither reads nor writes the configuration  */
+    private final String fixedKey;
+    private volatile String fixedBaseUrl;
+    private final boolean detached;
+
+    /*  the configured base URL without path and the one with "/v1" a test found the API at  */
+    private volatile String[] versioned = {null, null};
 
     /**
      * Creates the service with the token and base URL of the configuration, sending on the {@link IoExecutor}.
@@ -76,8 +81,9 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     public OpenAiApiServiceImpl(ApplicationConfig config, Executor io) {
         this.config = config;
         this.io = io;
-        this.apiKey = config.getOpenAiApiKey();
-        this.baseUrl = config.getOpenAiBaseUrl();
+        this.fixedKey = null;
+        this.fixedBaseUrl = null;
+        this.detached = false;
 
         /*  Built again when the proxy or certificate settings change  */
         HttpClients clients = new HttpClients(config);
@@ -91,23 +97,58 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 .build());
     }
 
+    /*  a client with its own token and base URL, sharing the HTTP clients and the executor of the origin  */
+    private OpenAiApiServiceImpl(OpenAiApiServiceImpl origin, String apiKey, String baseUrl) {
+        this.config = origin.config;
+        this.io = origin.io;
+        this.httpClient = origin.httpClient;
+        this.researchClient = origin.researchClient;
+        this.fixedKey = apiKey;
+        this.fixedBaseUrl = normalized(baseUrl != null ? baseUrl : origin.getBaseUrl());
+        this.detached = true;
+    }
+
+    @Override
+    public OpenAiApiService withCredentials(String apiKey, String endpoint) {
+        return new OpenAiApiServiceImpl(this, apiKey, endpoint);
+    }
+
     @Override
     public CompletableFuture<Boolean> testConnection() {
+        return testAccount().thenApply((Account account) -> {
+            if (account.works() && !detached) {
+                if (!account.baseUrl().equals(getBaseUrl()))
+                    versioned = new String[] {config.getOpenAiBaseUrl(), account.baseUrl()};
+                config.setOpenAiAvailableModels(account.models());
+                config.setOpenAiModels(account.selected());
+            }
+            return account.works();
+        });
+    }
+
+    @Override
+    public CompletableFuture<Account> testAccount(String apiKey, String baseUrl) {
+        return new OpenAiApiServiceImpl(this, apiKey, baseUrl).testAccount();
+    }
+
+    /*  lists the models with the token and base URL of this client, without storing anything  */
+    private CompletableFuture<Account> testAccount() {
         return CompletableFuture.supplyAsync(() -> {
+            String base = getBaseUrl();
             if (!isConfigured()) {
                 logger.warn("Cannot test OpenAI API connection: no bearer token configured");
-                return false;
+                return new Account(false, base, List.of(), List.of());
             }
 
             /*  A URL without a path is usually meant as ".../v1": if that answers too, the other endpoints are there  */
-            if (java.net.URI.create(baseUrl).getPath().isEmpty() && answersModels(baseUrl + "/v1")) {
-                logger.info("OpenAI base URL {} answers under /v1, using {}/v1", baseUrl, baseUrl);
-                baseUrl = baseUrl + "/v1";
+            if (java.net.URI.create(base).getPath().isEmpty() && answersModels(base + "/v1")) {
+                logger.info("OpenAI base URL {} answers under /v1, using {}/v1", base, base);
+                base = base + "/v1";
             }
 
             Request request = new Request.Builder()
-                    .url(baseUrl + "/models")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .url(base + "/models")
+                    .header("Authorization", "Bearer " + getApiKey())
                     .get()
                     .build();
 
@@ -118,20 +159,18 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
 
                     /*  Only a definite answer (HTTP 400, 401, 403, 404) decides, any other failure is transient  */
                     if (!ApiHttpException.isDefinite(response.code()))
-                        throw new ApiHttpException(response.code(), extractError(response.code(), body));
-                    return false;
+                        throw httpError(response.code(), body);
+                    return new Account(false, base, List.of(), List.of());
                 }
 
                 List<String> ids = parseModelIds(body);
-                config.setOpenAiAvailableModels(ids);
 
                 /*  Keep the user's selection, preselect the known image names only the first time  */
                 List<String> selected = config.hasOpenAiModelSelection()
                         ? config.getOpenAiModels().stream().filter(ids::contains).toList()
                         : imageModelsOf(ids);
-                config.setOpenAiModels(selected);
                 logger.info("OpenAI API connection test successful, {} model(s), selected: {}", ids.size(), selected);
-                return true;
+                return new Account(true, base, ids, selected);
             } catch (java.io.IOException e) {
                 logger.error("OpenAI API connection test failed with exception", e);
                 throw new java.io.UncheckedIOException(e);
@@ -139,9 +178,14 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
         }, io);
     }
 
+    private static String normalized(String baseUrl) {
+        return baseUrl == null || baseUrl.isBlank() ? ApplicationConfig.OPENAI_DEFAULT_BASE_URL
+                : baseUrl.trim().replaceAll("/+$", "");
+    }
+
     private boolean answersModels(String base) {
         Request request = new Request.Builder().url(base + "/models")
-                .header("Authorization", "Bearer " + apiKey).get().build();
+                .header("Authorization", "Bearer " + getApiKey()).get().build();
         try (Response response = httpClient.get().newCall(request).execute()) {
             return response.isSuccessful();
         } catch (java.io.IOException e) {
@@ -226,7 +270,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                     String responseBody = response.body() != null ? response.body().string() : "";
                     if (!response.isSuccessful()) {
                         logger.error("OpenAI API request failed: HTTP {} - {}", response.code(), responseBody);
-                        throw new RuntimeException(extractError(response.code(), responseBody));
+                        throw httpError(response.code(), responseBody);
                     }
 
                     String base64Image = extractBase64(responseBody);
@@ -239,12 +283,12 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                             .build();
                 }
             } catch (java.net.SocketTimeoutException e) {
-                throw new RuntimeException("OpenAI image generation took too long. Please try again.", e);
+                throw ProviderException.localized(e, "openai.error.timeout");
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
                 logger.error("Failed to submit OpenAI generation request", e);
-                throw new RuntimeException("OpenAI generation failed: " + e.getMessage(), e);
+                throw ProviderException.localized(e, "openai.error.failed", e.getMessage());
             }
         }, io);
     }
@@ -275,7 +319,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 calls.add(new BrainstormTurn.Call(function.optString("name"), args));
             }
             if (text.isEmpty() && calls.isEmpty())
-                throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
+                throw ProviderException.localized("brainstorm.error.no.response");
             return new BrainstormTurn(text, parts, calls);
         }, io);
     }
@@ -332,7 +376,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 return problem;
             } catch (java.io.IOException e) {
                 logger.warn("OpenAI web search check failed for {}: {}", model, e.getMessage());
-                throw new RuntimeException("OpenAI web search check failed: " + e.getMessage(), e);
+                throw ProviderException.localized(e, "openai.error.search.failed", e.getMessage());
             }
         }, io);
     }
@@ -350,8 +394,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     static String webSearchProblem(int code, String responseBody) {
         if (code < 200 || code >= 300) {
             if (!ApiHttpException.isDefinite(code))
-                throw new ApiHttpException(code, extractError(code, responseBody));
-            return extractError(code, responseBody);
+                throw httpError(code, responseBody);
+            return httpError(code, responseBody).getMessage();
         }
         JSONArray output = new JSONObject(responseBody).optJSONArray("output");
         for (int i = 0; output != null && i < output.length(); i++)
@@ -415,7 +459,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             }
         }
         if (text.toString().isBlank())
-            throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
+            throw ProviderException.localized("brainstorm.error.no.response");
         return new ResearchNote(query, text.toString().trim(), sources);
     }
 
@@ -501,8 +545,8 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                 .put("response_format", new JSONObject().put("type", "json_object"));
         if (withTools) {
             JSONArray tools = new JSONArray();
-            for (int i = 0; i < GeminiApiServiceImpl.BRAINSTORM_TOOLS.length(); i++) {
-                JSONObject declaration = GeminiApiServiceImpl.BRAINSTORM_TOOLS.getJSONObject(i);
+            for (int i = 0; i < GeminiChatClient.BRAINSTORM_TOOLS.length(); i++) {
+                JSONObject declaration = GeminiChatClient.BRAINSTORM_TOOLS.getJSONObject(i);
                 if (!videoTool && "analyze_video".equals(declaration.optString("name")))
                     continue;
                 tools.put(new JSONObject().put("type", "function").put("function", declaration));
@@ -518,27 +562,30 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
 
     private Response post(OkHttpClient client, String path, java.util.function.Supplier<RequestBody> body)
             throws java.io.IOException {
+        String baseUrl = getBaseUrl();
         Response response = client.newCall(request(baseUrl, path, body)).execute();
         if (response.code() != 404 || !java.net.URI.create(baseUrl).getPath().isEmpty())
             return response;
 
         /*  A base URL without a path is often meant as ".../v1"; the model list answers there, the rest does not  */
-        String versioned = baseUrl + "/v1";
-        Response retry = client.newCall(request(versioned, path, body)).execute();
+        String withVersion = baseUrl + "/v1";
+        Response retry = client.newCall(request(withVersion, path, body)).execute();
         response.close();
         if (retry.code() == 404)
             return retry;
 
-        logger.info("OpenAI base URL {} has no endpoint {}, using {}", baseUrl, path, versioned);
-        baseUrl = versioned;
-        config.setOpenAiBaseUrl(versioned);
+        logger.info("OpenAI base URL {} has no endpoint {}, using {}", baseUrl, path, withVersion);
+        if (detached)
+            fixedBaseUrl = withVersion;
+        else
+            config.setOpenAiBaseUrl(withVersion);
         return retry;
     }
 
     private Request request(String base, String path, java.util.function.Supplier<RequestBody> body) {
         return new Request.Builder()
                 .url(base + path)
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + getApiKey())
                 .post(body.get())
                 .build();
     }
@@ -558,7 +605,7 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                     if (response.isSuccessful()) {
                         JSONArray choices = new JSONObject(responseBody).optJSONArray("choices");
                         if (choices == null || choices.isEmpty() || choices.getJSONObject(0).optJSONObject("message") == null)
-                            throw new RuntimeException(I18nManager.getText("brainstorm.error.no.response"));
+                            throw ProviderException.localized("brainstorm.error.no.response");
                         return choices.getJSONObject(0).getJSONObject("message");
                     }
                     if (attempt == 0 && response.code() == 400 && body.has("response_format")
@@ -568,14 +615,14 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
                         continue;
                     }
                     logger.error("OpenAI chat request failed: HTTP {} - {}", response.code(), responseBody);
-                    throw new ApiHttpException(response.code(), extractError(response.code(), responseBody));
+                    throw httpError(response.code(), responseBody);
                 }
             }
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
             logger.error("OpenAI chat request failed", e);
-            throw new RuntimeException("OpenAI chat failed: " + e.getMessage(), e);
+            throw ProviderException.localized(e, "openai.error.chat.failed", e.getMessage());
         }
     }
 
@@ -594,12 +641,12 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             String responseBody = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) {
                 logger.warn("OpenAI responses request failed: HTTP {} - {}", response.code(), responseBody);
-                throw new ApiHttpException(response.code(), extractError(response.code(), responseBody));
+                throw httpError(response.code(), responseBody);
             }
             return responseBody;
         } catch (java.io.IOException e) {
             logger.error("OpenAI responses request failed", e);
-            throw new RuntimeException("OpenAI web search failed: " + e.getMessage(), e);
+            throw ProviderException.localized(e, "openai.error.search.failed", e.getMessage());
         }
     }
 
@@ -720,11 +767,19 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     private static String extractBase64(String responseBody) {
         JSONArray data = new JSONObject(responseBody).optJSONArray("data");
         if (data == null || data.isEmpty() || data.getJSONObject(0).optString("b64_json", "").isEmpty())
-            throw new RuntimeException("OpenAI response contains no image");
+            throw ProviderException.localized("openai.error.no.image");
         return data.getJSONObject(0).getString("b64_json");
     }
 
-    private static String extractError(int code, String body) {
+    /**
+     * Maps an error answer of the API to an exception with its status and a message for the user, the one error
+     * mapping of the OpenAI client.
+     *
+     * @param code the HTTP status code
+     * @param body the answer body
+     * @return the exception to throw
+     */
+    static ApiHttpException httpError(int code, String body) {
         String message = null;
         try {
             message = new JSONObject(body).getJSONObject("error").optString("message", null);
@@ -732,35 +787,30 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
             /* no JSON error object, the status text below is enough */
         }
         return switch (code) {
-            case 401 -> "OpenAI: invalid bearer token (401)";
-            case 429 -> "OpenAI: rate limit or quota exceeded (429)" + (message != null ? " - " + message : "");
-            default -> "OpenAI error " + code + (message != null ? ": " + message : "");
+            case 401 -> ApiHttpException.localized(code, "openai.error.auth");
+            case 429 -> ApiHttpException.localized(code, "openai.error.quota", message != null ? " - " + message : "");
+            default -> ApiHttpException.localized(code, "openai.error.http", String.valueOf(code),
+                    message != null ? ": " + message : "");
         };
     }
 
     @Override
     public String getApiKey() {
-        return apiKey;
-    }
-
-    @Override
-    public void setApiKey(String apiKey) {
-        this.apiKey = apiKey;
+        return detached ? fixedKey : config.getOpenAiApiKey();
     }
 
     @Override
     public String getBaseUrl() {
-        return baseUrl;
-    }
-
-    @Override
-    public void setBaseUrl(String baseUrl) {
-        this.baseUrl = baseUrl == null || baseUrl.isBlank() ? ApplicationConfig.OPENAI_DEFAULT_BASE_URL
-                : baseUrl.trim().replaceAll("/+$", "");
+        if (detached)
+            return fixedBaseUrl;
+        String configured = config.getOpenAiBaseUrl();
+        String[] found = versioned;
+        return configured.equals(found[0]) ? found[1] : configured;
     }
 
     @Override
     public boolean isConfigured() {
+        String apiKey = getApiKey();
         return apiKey != null && !apiKey.trim().isEmpty();
     }
 }

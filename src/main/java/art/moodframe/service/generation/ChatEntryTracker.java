@@ -4,6 +4,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.provider.ProviderException;
 import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,8 @@ import java.util.function.Consumer;
 /**
  * Keeps a chat entry in step with its images while a request runs: tells the UI about changes, marks an entry
  * failed, settles its status and cost once all images are finished, and stores the result. The change of the
- * entry itself happens on the FX thread, the database writes on a worker.
+ * entry itself happens on the FX thread (see {@link FxModel}), the database writes on a worker of their own, in the
+ * order they were asked for, after the change they store.
  *
  * @since 1.9.1
  */
@@ -38,8 +40,8 @@ public class ChatEntryTracker {
     /**
      * Creates the tracker.
      *
-     * @param chatRepository where entries are stored
-     * @param executor       runs the database writes
+     * @param chatRepository where entries and images are stored
+     * @param executor       runs the database writes; a single thread keeps them in their order
      */
     public ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
         this.chatRepository = chatRepository;
@@ -94,30 +96,69 @@ public class ChatEntryTracker {
     }
 
     /**
+     * Stores an image on the worker of the database writes. Call it after the change it stores, e.g. at the end of a
+     * {@link FxModel#change(Runnable) change}: the write sees the change and keeps its place after the writes before.
+     *
+     * @param image the image
+     * @return completes once it is stored, exceptionally if that failed (which is logged)
+     */
+    public CompletableFuture<Void> saveImage(GeneratedImage image) {
+        return CompletableFuture.runAsync(() -> {
+            if (chatRepository == null)
+                return;
+            try {
+                chatRepository.saveGeneratedImage(image);
+            } catch (Exception e) {
+                logger.error("Failed to save the image {}", image.getId(), e);
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        }, executor);
+    }
+
+    /**
+     * Stores a chat entry on the worker of the database writes, like {@link #saveImage(GeneratedImage)}.
+     *
+     * @param chatEntry the entry
+     * @return completes once it is stored, exceptionally if that failed (which is logged)
+     */
+    public CompletableFuture<Void> saveEntry(ChatEntry chatEntry) {
+        return CompletableFuture.runAsync(() -> {
+            if (chatRepository == null)
+                return;
+            try {
+                chatRepository.saveChatEntry(chatEntry);
+            } catch (Exception e) {
+                logger.error("Failed to save the chat entry {}", chatEntry.getId(), e);
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        }, executor);
+    }
+
+    /**
+     * Gets the message of a failure for an entry: in English for an entry of the MCP server, whose client reads it,
+     * else in the language of the user interface.
+     *
+     * @param failure   the failure
+     * @param chatEntry the entry
+     * @return the message
+     */
+    public static String errorText(Throwable failure, ChatEntry chatEntry) {
+        return ProviderException.messageOf(failure,
+                chatEntry != null && chatEntry.getSource() == ChatEntry.Source.MCP);
+    }
+
+    /**
      * Marks a chat entry as failed with the given message, shows it and stores it.
      */
     public void markFailed(ChatEntry chatEntry, String errorMessage) {
-        Platform.runLater(() -> {
+        FxModel.change(() -> {
             if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
                 return;
             chatEntry.setStatus(ChatEntry.Status.FAILED);
             chatEntry.setErrorMessage(errorMessage);
-
-            // Notify UI immediately
             notifyEntryUpdated(chatEntry);
+            saveEntry(chatEntry);
         });
-
-        // Persist failed status to database asynchronously (don't block calling thread)
-        CompletableFuture.runAsync(() -> {
-            if (chatRepository != null) {
-                try {
-                    chatRepository.saveChatEntry(chatEntry);
-                    // ChatEntry status updated to FAILED in database
-                } catch (Exception e) {
-                    logger.error("Failed to update ChatEntry failed status in database: {}", chatEntry.getId(), e);
-                }
-            }
-        }, executor);
     }
 
     /**
@@ -139,25 +180,16 @@ public class ChatEntryTracker {
         });
         chatEntry.setStatus(ChatEntry.Status.CANCELLED);
         chatEntry.setCompletedAt(LocalDateTime.now());
-        CompletableFuture.runAsync(() -> {
-            try {
-                chatRepository.saveChatEntry(chatEntry);
-                for (GeneratedImage image : stopped)
-                    chatRepository.saveGeneratedImage(image);
-            } catch (Exception e) {
-                logger.error("Failed to store the cancelled entry {}", chatEntry.getId(), e);
-            }
-        }, executor);
+        saveEntry(chatEntry);
+        stopped.forEach(this::saveImage);
         notifyEntryUpdated(chatEntry);
         return true;
     }
 
     /**
-     * Checks if all images in a ChatEntry are finished (either CACHED or FAILED).
-     * If all images are finished, updates the ChatEntry status and completion time.
-     *
-     * This method should be called whenever an individual image status changes to ensure
-     * the parent ChatEntry status stays synchronized with its images.
+     * Checks if all images in a ChatEntry are finished (either CACHED or FAILED). If so, the entry gets the cost of
+     * its images (a blocked image costs nothing), its final status and completion time, in a change queued after
+     * the current one, and is stored. Call it on the FX thread whenever the status of an image changed.
      *
      * @param chatEntry the ChatEntry to check and potentially update
      */
@@ -166,14 +198,11 @@ public class ChatEntryTracker {
             return;
         }
 
-        // Check if ALL images are finished (either CACHED or FAILED)
         int cachedCount = 0;
         int failedCount = 0;
         int totalCount = chatEntry.getImages().size();
-
         for (GeneratedImage img : chatEntry.getImages()) {
             GeneratedImage.DownloadStatus status = img.getDownloadStatus();
-
             if (status == GeneratedImage.DownloadStatus.CACHED) {
                 cachedCount++;
             } else if (status == GeneratedImage.DownloadStatus.FAILED) {
@@ -181,98 +210,53 @@ public class ChatEntryTracker {
             }
         }
 
-        // Only update ChatEntry status if ALL images are finished
-        final boolean allFinished = (cachedCount + failedCount) == totalCount;
+        /*  Only an entry whose images are all finished is settled  */
+        if (cachedCount + failedCount != totalCount)
+            return;
         final boolean hasCached = cachedCount > 0;
         final boolean allFailed = failedCount == totalCount;
 
-        if (allFinished) {
-            // First, recalculate total cost from all images (handles $0.00 for blocked images)
-            recalculateCost(chatEntry);
+        FxModel.change(() -> {
+            double totalCost = totalCost(chatEntry);
+            chatEntry.setCost(totalCost);
+            logger.info("Recalculated ChatEntry total cost: ${} ({} images)", String.format("%.4f", totalCost),
+                    chatEntry.getImages().size());
 
-            Platform.runLater(() -> {
-                /*  A cancelled entry keeps its state, also if an image still arrives  */
-                if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
-                    return;
-                if (hasCached) {
-                    // At least one image succeeded - mark as COMPLETED
-                    chatEntry.setStatus(ChatEntry.Status.COMPLETED);
-                } else if (allFailed) {
-                    // All images failed - mark as FAILED
-                    chatEntry.setStatus(ChatEntry.Status.FAILED);
+            /*  A cancelled entry keeps its state, also if an image still arrives; its cost is stored  */
+            if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED) {
+                saveEntry(chatEntry);
+                return;
+            }
+            if (hasCached) {
+                chatEntry.setStatus(ChatEntry.Status.COMPLETED);
+            } else if (allFailed) {
+                chatEntry.setStatus(ChatEntry.Status.FAILED);
 
-                    /*  The entry tells why, with the distinct reasons of its images (the provider's answer)  */
-                    if (chatEntry.getErrorMessage() == null || chatEntry.getErrorMessage().isBlank())
-                        chatEntry.setErrorMessage(chatEntry.getImages().stream().map(GeneratedImage::getErrorMessage)
-                                .filter((String message) -> message != null && !message.isBlank()).distinct()
-                                .reduce((String first, String next) -> first + "; " + next).orElse(null));
-                }
-
-                chatEntry.setCompletedAt(LocalDateTime.now());
-
-                // Save to database
-                try {
-                    chatRepository.saveChatEntry(chatEntry);
-                    logger.info("Updated ChatEntry status to {} (all images finished)", chatEntry.getStatus());
-                } catch (Exception e) {
-                    logger.error("Failed to save ChatEntry status update", e);
-                }
-
-                notifyEntryUpdated(chatEntry);
-            });
-        }
+                /*  The entry tells why, with the distinct reasons of its images (the provider's answer)  */
+                if (chatEntry.getErrorMessage() == null || chatEntry.getErrorMessage().isBlank())
+                    chatEntry.setErrorMessage(chatEntry.getImages().stream().map(GeneratedImage::getErrorMessage)
+                            .filter((String message) -> message != null && !message.isBlank()).distinct()
+                            .reduce((String first, String next) -> first + "; " + next).orElse(null));
+            }
+            chatEntry.setCompletedAt(LocalDateTime.now());
+            logger.info("Updated ChatEntry status to {} (all images finished)", chatEntry.getStatus());
+            saveEntry(chatEntry);
+            notifyEntryUpdated(chatEntry);
+        });
     }
 
-    /**
-     * Recalculates the total cost for a ChatEntry from all its images.
-     * This ensures accurate cost tracking when images have individual costs (Gemini)
-     * or when images fail (blocked content = $0.00).
-     *
-     * @param chatEntry the ChatEntry to update
-     */
-    private void recalculateCost(ChatEntry chatEntry) {
-        if (chatEntry.getImages() == null || chatEntry.getImages().isEmpty()) {
-            return;
-        }
-
+    /*  the sum of the base, Google Search and reasoning costs of the images of an entry  */
+    private static double totalCost(ChatEntry chatEntry) {
         double totalCost = 0.0;
-
         for (GeneratedImage img : chatEntry.getImages()) {
-            // Base generation cost
-            Double baseCost = img.getBaseCost();
-            if (baseCost != null) {
-                totalCost += baseCost;
-            }
-
-            // Google Search cost (Gemini feature)
-            Double searchCost = img.getSearchCost();
-            if (searchCost != null) {
-                totalCost += searchCost;
-            }
-
-            // Reasoning/thinking cost (Gemini feature)
-            Double reasoningCost = img.getReasoningCost();
-            if (reasoningCost != null) {
-                totalCost += reasoningCost;
-            }
+            if (img.getBaseCost() != null)
+                totalCost += img.getBaseCost();
+            if (img.getSearchCost() != null)
+                totalCost += img.getSearchCost();
+            if (img.getReasoningCost() != null)
+                totalCost += img.getReasoningCost();
         }
-
-        final double finalTotalCost = totalCost;
-
-        // Update ChatEntry cost
-        Platform.runLater(() -> {
-            chatEntry.setCost(finalTotalCost);
-
-            // Save to database
-            try {
-                chatRepository.saveChatEntry(chatEntry);
-                logger.info("Recalculated ChatEntry total cost: ${} ({} images)",
-                        String.format("%.4f", finalTotalCost),
-                        chatEntry.getImages().size());
-            } catch (Exception e) {
-                logger.error("Failed to save recalculated ChatEntry cost", e);
-            }
-        });
+        return totalCost;
     }
 
     /**

@@ -8,6 +8,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Frame;
+import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.Mood;
@@ -19,6 +20,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.util.I18nManager;
+import art.moodframe.service.provider.MockProviders;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +64,8 @@ class GenerationServiceTest {
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
-    private final GenerationService service = new GenerationService(config, chats, null, requests);
+    private final GenerationService service = new GenerationService(config, chats, null, requests,
+            MockProviders.preparing());
     private final Chat chat = new Chat.Builder().id("chat-1").name("Test").build();
 
     @BeforeAll
@@ -259,6 +262,23 @@ class GenerationServiceTest {
     }
 
     @Test
+    void previewAndEntryCountGoogleSearchLikeTheStoredImages() throws Exception {
+        GenerationOrder.Parameters search = new GenerationOrder.Parameters(null, 2, null, false, null, true, null,
+                null, null);
+        GenerationOrder order = new GenerationOrder(chat, "a harbor", null, null, false, WIDE_2K, "NANO_BANANA2_1K",
+                2, search, null, List.of(), ChatEntry.Source.UI);
+        double perImage = GenerationModel.NANO_BANANA2_1K.getPricePerImage() + GenerationCost.SEARCH_PER_IMAGE;
+
+        GenerationService.Preview preview = service.preview(order);
+        assertEquals(perImage, preview.costPerImage(), 1e-9);
+        assertEquals(2 * perImage, preview.cost(), 1e-9);
+        assertEquals(2 * perImage, service.submit(order).entry().getCost(), 1e-9);
+
+        /*  OpenAI has no known price  */
+        assertEquals(0.0, service.preview(order("gpt-image-1", WIDE_2K)).cost(), 1e-9);
+    }
+
+    @Test
     void namesTheModelByAnIdThatDoesNotDependOnTheLanguage() throws Exception {
         Locale before = I18nManager.getCurrentLocale();
         try {
@@ -287,7 +307,8 @@ class GenerationServiceTest {
         Mood mood = new Mood("mood-1", "Calm");
         EntryMood copy = new EntryMood("mood-1", "Calm", Map.of());
         when(moods.snapshot(eq(mood), eq(true), any())).thenReturn(copy);
-        GenerationService withMoods = new GenerationService(config, chats, moods, requests);
+        GenerationService withMoods = new GenerationService(config, chats, moods, requests,
+                MockProviders.preparing());
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,

@@ -1,6 +1,8 @@
 package art.moodframe.service.provider;
 
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -25,5 +27,16 @@ public final class MockProviders {
         ProviderRegistry registry = new ProviderRegistry(mocks);
         clearInvocations((Object[]) mocks);
         return registry;
+    }
+
+    /**
+     * Creates a registry of mocks of the three clients that answer the prompt limits and the preparation of a
+     * request with their real methods, for tests of the generation without a provider behind it.
+     *
+     * @return the registry
+     */
+    public static ProviderRegistry preparing() {
+        return new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS),
+                mock(GeminiApiService.class, CALLS_REAL_METHODS), mock(OpenAiApiService.class, CALLS_REAL_METHODS));
     }
 }

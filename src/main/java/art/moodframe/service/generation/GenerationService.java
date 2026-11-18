@@ -14,7 +14,10 @@ import art.moodframe.model.ModelFamilies;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.prompt.PromptComposer;
-import javafx.application.Platform;
+import art.moodframe.service.provider.BflApiService;
+import art.moodframe.service.provider.GeminiApiService;
+import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.RequestOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,7 +114,8 @@ public class GenerationService {
      * @param maxPromptLength the prompt limit of the model in characters
      * @param aspectRatio the aspect ratio the model makes of the target, null without target (then a square)
      * @param resolution the resolution the model makes, null for a model with a fixed size
-     * @param costPerImage the estimated cost of one image (video: of the video) in USD, 0 if unknown
+     * @param costPerImage the estimated cost of one image (video: of the video) in USD with Google Search, 0 if
+     *                     unknown, see {@link GenerationCost#quote}
      * @param cost the estimated cost of all images in USD, 0 if unknown
      */
     public record Preview(String prompt, int maxPromptLength, String aspectRatio, String resolution,
@@ -131,6 +135,7 @@ public class GenerationService {
     private final ChatLibrary chats;
     private final MoodService moodService;
     private final RequestResponseService requests;
+    private final ProviderRegistry providers;
 
     /**
      * Creates the service.
@@ -139,18 +144,33 @@ public class GenerationService {
      * @param chats       adds the entries to their chats and stores them
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
+     * @param providers   the providers, which know the prompt limits and the parameters of their models
      */
     public GenerationService(ApplicationConfig config, ChatLibrary chats, MoodService moodService,
-            RequestResponseService requests) {
+            RequestResponseService requests, ProviderRegistry providers) {
         this.config = config;
         this.chats = chats;
         this.moodService = moodService;
         this.requests = requests;
+        this.providers = providers;
     }
 
     /**
-     * Gets the prompt limit of a model in characters: BFL FLUX 512 tokens ≈ 2,000 characters, Google Gemini 65,536
-     * tokens ≈ 250,000 characters, OpenAI depending on the model.
+     * Gets the prompt limit of a model in characters, as its provider tells it.
+     *
+     * @param modelId the fixed id of the model (may be null)
+     * @return the limit, that of BFL without model
+     */
+    public int promptLimit(String modelId) {
+        GenerationModel model = GenerationModel.fromId(modelId);
+        if (model == null)
+            return providers.get(ApiProvider.BFL).maxPromptLength(null);
+        return providers.get(model.getProvider()).maxPromptLength(apiModelId(model, modelId));
+    }
+
+    /**
+     * Gets the prompt limit of a model without the providers at hand, for the main window: the same limits as
+     * {@link #promptLimit(String)} gets from the providers.
      *
      * @param modelId the fixed id of the model (may be null)
      * @return the limit, that of BFL without model
@@ -159,7 +179,13 @@ public class GenerationService {
         GenerationModel model = GenerationModel.fromId(modelId);
         if (model == GenerationModel.OPENAI_IMAGE)
             return GenerationModel.openAiMaxPromptLength(modelId);
-        return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI ? 250000 : 2000;
+        return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI ? GeminiApiService.MAX_PROMPT_LENGTH
+                : BflApiService.MAX_PROMPT_LENGTH;
+    }
+
+    /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
+    private static String apiModelId(GenerationModel model, String modelId) {
+        return model == GenerationModel.OPENAI_IMAGE ? modelId : model.getApiModelId();
     }
 
     /**
@@ -194,7 +220,7 @@ public class GenerationService {
      */
     public Preview preview(GenerationOrder order) {
         String item = GenerationModel.itemOf(order.modelId());
-        int maxLength = maxPromptLength(order.modelId());
+        int maxLength = promptLimit(order.modelId());
         String prompt = new PromptComposer(maxLength).compose(order.prompt(),
                 order.blocks() != null ? order.blocks() : NO_BLOCKS, order.hasReference());
 
@@ -205,10 +231,14 @@ public class GenerationService {
         List<String> free = ModelFamilies.freeResolutions(item);
         String resolution = free != null ? ModelFamilies.nearest(target.resolution(), free)
                 : ModelFamilies.resolutionOf(item);
-        double costPerImage = GenerationCost.estimate(GenerationModel.fromId(order.modelId()),
-                order.parameters().videoSeconds());
-        return new Preview(prompt, maxLength, aspectRatio, resolution, costPerImage,
-                costPerImage * order.imageCount());
+        GenerationCost.Quote quote = quote(GenerationModel.fromId(order.modelId()), order);
+        return new Preview(prompt, maxLength, aspectRatio, resolution, quote.perImage(), quote.total());
+    }
+
+    /*  the estimated price of an order, as the preview and the first cost of its entry show it  */
+    private static GenerationCost.Quote quote(GenerationModel model, GenerationOrder order) {
+        return GenerationCost.quote(model, order.parameters().videoSeconds(), order.parameters().googleSearch(),
+                order.imageCount());
     }
 
     /**
@@ -234,7 +264,7 @@ public class GenerationService {
             throw new GenerationException(Failure.EMPTY_PROMPT, "The prompt is empty");
 
         /*  The final prompt includes the building blocks  */
-        int maxLength = maxPromptLength(order.modelId());
+        int maxLength = promptLimit(order.modelId());
         PromptComposer composer = new PromptComposer(maxLength);
         PromptComposer.Selection blocks = order.blocks() != null ? order.blocks() : NO_BLOCKS;
         String prompt = composer.compose(userPrompt, blocks, order.hasReference());
@@ -266,7 +296,7 @@ public class GenerationService {
         GenerationOrder.Parameters parameters = order.parameters();
         String aspectRatio = target.aspectRatio() != null
                 ? AspectRatios.nearestForItem(target.aspectRatio(), item) : null;
-        double totalCost = GenerationCost.estimate(model, parameters.videoSeconds()) * order.imageCount();
+        double totalCost = quote(model, order).total();
 
         /*  The entry keeps the prompt of the user (for the copy button), the English display name of the model and
             the item of an OpenAI model; the request gets the prompt with the building blocks  */
@@ -310,7 +340,7 @@ public class GenerationService {
                         return;
                     }
                     logger.error("Failed to submit API request", throwable);
-                    Platform.runLater(() -> {
+                    FxModel.change(() -> {
                         entry.setStatus(ChatEntry.Status.FAILED);
                         entry.setErrorMessage(throwable.getMessage());
                         finished.complete(ChatEntry.Status.FAILED);
@@ -320,14 +350,15 @@ public class GenerationService {
     }
 
     /**
-     * Creates the request: the dimensions of the aspect ratio, the parameters the model knows and the price per
-     * image once the size is known.
+     * Creates the request: the dimensions of the aspect ratio, the general parameters, what the provider of the model
+     * takes besides (see {@link art.moodframe.service.provider.ImageProvider#prepare}) and the price per image once the
+     * size is known.
      */
     private ImageGenerationRequest createRequest(String prompt, GenerationModel model, String item,
             String aspectRatio, GenerationOrder order) {
         GenerationOrder.Parameters parameters = order.parameters();
         List<String> referenceImages = order.referenceImages() != null ? order.referenceImages() : List.of();
-        String apiModelId = model == GenerationModel.OPENAI_IMAGE ? order.modelId() : model.getApiModelId();
+        String apiModelId = apiModelId(model, order.modelId());
         logger.debug("Creating request with model id: '{}' -> API ID: '{}'", order.modelId(), apiModelId);
 
         ImageGenerationRequest request = new ImageGenerationRequest(prompt, apiModelId);
@@ -337,16 +368,8 @@ public class GenerationService {
         request.setPromptUpsampling(parameters.promptUpsampling());
         request.setSeed(parameters.seed());
 
-        /*  FLUX.2 and FLUX 3 take their own safety tolerance (0-5), the others the standard one  */
-        int safetyTolerance;
-        if (model.isFlux2Model() || model.isFlux3Model()) {
-            safetyTolerance = parameters.flux2SafetyTolerance() != null ? parameters.flux2SafetyTolerance()
-                    : config.getFlux2SafetyTolerance();
-            logger.debug("Using FLUX.2 safety tolerance: {} for model: {}", safetyTolerance, model.getApiModelId());
-        } else {
-            safetyTolerance = parameters.safetyTolerance();
-        }
-        request.setSafetyTolerance(safetyTolerance);
+        /*  The standard safety tolerance; FLUX.2 and FLUX 3 take their own (0-5) in the preparation of BFL  */
+        request.setSafetyTolerance(parameters.safetyTolerance());
 
         /*  The style preset if one is applied  */
         if (order.blocks() != null && order.blocks().style() != null)
@@ -364,70 +387,17 @@ public class GenerationService {
             request.setAspectRatio("1:1");
         }
 
-        /*  A model of an OpenAI-compatible gateway takes the free size closest to the target resolution  */
-        List<String> freeResolutions = ModelFamilies.freeResolutions(item);
-        if (model == GenerationModel.OPENAI_IMAGE && freeResolutions != null)
-            request.setImageSize(ModelFamilies.nearest(order.target().resolution(), freeResolutions));
-
-        /*  Gemini: image size of the variant, Google Search grounding, thinking level, up to 14 images  */
-        if (apiModelId.toLowerCase().contains("gemini")) {
-            String imageSize = determineGeminiImageSize(model);
-            request.setImageSize(imageSize);
-            logger.debug("Setting Gemini imageSize parameter: {} for model: {}", imageSize, apiModelId);
-
-            if (parameters.googleSearch() != null)
-                request.setEnableGoogleSearch(parameters.googleSearch());
-
-            /*  Only Nano Banana 2 and Lite take a thinking level, Nano Banana Pro always thinks  */
-            request.setThinkingMode(model.supportsThinkingLevel() && parameters.thinkingLevel() != null
-                    ? parameters.thinkingLevel().toLowerCase() : null);
-
-            logger.debug("Gemini Phase 2 features - Search: {}, Thinking: always enabled (not controllable)",
-                    Boolean.TRUE.equals(parameters.googleSearch()));
-
-            if (model.supportsMultiImage() && !referenceImages.isEmpty()) {
-                request.setInputImages(referenceImages);
-                logger.debug("Gemini Multi-Image: attached {} images to request", referenceImages.size());
-            }
-        }
-
-        /*  OpenAI: the images are sent to /images/edits  */
-        if (model == GenerationModel.OPENAI_IMAGE && !referenceImages.isEmpty())
-            request.setInputImages(referenceImages);
-
-        /*  FLUX 3: resolution tier of the variant and up to 10 reference images  */
-        if (model.isFlux3Model()) {
-            request.setImageSize(model.getFlux3Resolution());
-            if (!referenceImages.isEmpty())
-                request.setInputImages(referenceImages);
-        }
-
-        /*  FLUX.2: guidance and steps of [flex], up to 8 images; [max] grounds on its own by the prompt  */
-        if (model.isFlux2Model()) {
-            if (model.isFlux2Flex()) {
-                if (parameters.guidance() != null)
-                    request.setGuidance(parameters.guidance());
-                if (parameters.steps() != null)
-                    request.setSteps(parameters.steps());
-                logger.debug("FLUX.2 [flex] parameters - Guidance: {}, Steps: {}",
-                        request.getGuidance(), request.getSteps());
-            }
-            if (model.supportsMultiImage() && !referenceImages.isEmpty()) {
-                request.setInputImages(referenceImages);
-                logger.debug("FLUX.2 Multi-Image: set {} images to request", referenceImages.size());
-            }
-        }
-
-        /*  Video (Gemini Omni): resolution of the model, 8 seconds without choice, always with audio, one video  */
-        if (model.isVideoModel()) {
-            request.setVideoResolution(model.getVideoResolution());
-            request.setVideoDuration(parameters.videoSeconds() != null ? parameters.videoSeconds() : 8);
-            request.setGenerateAudio(true);
-            request.setImageCount(1);
-            logger.debug("Video params - resolution: {}, duration: {}s, audio: {}, negPrompt: {}",
-                    request.getVideoResolution(), request.getVideoDuration(),
-                    request.getGenerateAudio(), request.getNegativePrompt() != null);
-        }
+        /*  What the model of the provider takes: resolution tier, references, search, thinking, FLUX, video  */
+        int fluxSafetyTolerance = parameters.flux2SafetyTolerance() != null ? parameters.flux2SafetyTolerance()
+                : config.getFlux2SafetyTolerance();
+        providers.get(model.getProvider()).prepare(request, model, new RequestOptions(item,
+                order.target().resolution(), fluxSafetyTolerance, parameters.googleSearch(),
+                parameters.thinkingLevel(), parameters.guidance(), parameters.steps(), parameters.videoSeconds(),
+                referenceImages));
+        if (logger.isDebugEnabled())
+            logger.debug("Request of {}: imageSize={}, search={}, thinking={}, safety={}, images={}, video={}s",
+                    apiModelId, request.getImageSize(), request.getEnableGoogleSearch(), request.getThinkingMode(),
+                    request.getSafetyTolerance(), request.getInputImageCount(), request.getVideoDuration());
 
         /*  The price per image, now that all dimensions are known  */
         double costPerImage = GenerationCost.perImage(model, request.getWidth(), request.getHeight(),
@@ -438,16 +408,6 @@ public class GenerationService {
                     model.getApiModelId(), request.getWidth(), request.getHeight());
 
         return request;
-    }
-
-    /*  The imageSize parameter of the Gemini API for a variant: 512, 1K, 2K or 4K; Lite is capped at 1K  */
-    private static String determineGeminiImageSize(GenerationModel model) {
-        return switch (model) {
-            case GEMINI_PRO_2K, NANO_BANANA2_2K -> "2K";
-            case GEMINI_PRO_4K, NANO_BANANA2_4K -> "4K";
-            case NANO_BANANA2_512 -> "512";
-            default -> "1K";
-        };
     }
 
     /*  Width and height of an aspect ratio within the resolution limit of the model, multiples of 16 (FLUX.2) or 32  */

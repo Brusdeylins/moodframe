@@ -125,15 +125,15 @@ class LibraryTools {
             List<String> free = ModelFamilies.freeResolutions(item);
             List<String> resolutions = free != null ? free
                     : model.getResolutionLabel() != null ? List.of(model.getResolutionLabel()) : List.of();
-            double cost = GenerationCost.estimate(model, model.isVideoModel() ? 8 : null);
+            GenerationCost.Quote cost = GenerationCost.quote(model, model.isVideoModel() ? 8 : null, null, 1);
             ObjectNode node = list.addObject().put("id", id).put("name", item)
                     .put("family", ModelFamilies.familyOf(item)).put("provider", model.getProvider().getDisplayName())
                     .put("video", model.isVideoModel());
             node.set("aspectRatios", McpTools.JSON.valueToTree(AspectRatios.forItem(item)));
             node.set("resolutions", McpTools.JSON.valueToTree(resolutions));
             node.put("maxReferenceImages", model.getMaxInputImages());
-            if (cost > 0)
-                node.put("cost", McpTools.usd(cost));
+            if (cost.known() && cost.perImage() > 0)
+                node.put("cost", McpTools.usd(cost.perImage()));
             else
                 node.putNull("cost");
             node.put("maxPromptLength", GenerationService.maxPromptLength(id));

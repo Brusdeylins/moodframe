@@ -5,14 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 
 /**
  * Service for managing the trash directory and moving/deleting files.
@@ -28,7 +20,6 @@ public class TrashManager {
     private final Path activeImagesDirectory;
     private final Path activeThumbnailsDirectory;
     
-    private final ExecutorService executorService;
     private final int trashRetentionDays;
     
     /**
@@ -36,110 +27,9 @@ public class TrashManager {
      * 
      * <p>Uses a default retention period of 60 days for items in trash
      * before automatic deletion.</p>
-     * 
-     * <p><strong>Thread-safety:</strong> This class is thread-safe and uses
-     * an internal executor service for asynchronous operations.</p>
      */
     public TrashManager() {
         this(60); // Default 60 days retention
-    }
-    
-    /**
-     * Moves multiple files to the trash directory asynchronously.
-     * 
-     * @param imagePaths list of image file paths to move to trash
-     * @param thumbnailPaths list of corresponding thumbnail paths (can be shorter than imagePaths)
-     * @return CompletableFuture that completes when all files are moved
-     * @throws RuntimeException if any move operation fails
-     */
-    public CompletableFuture<Void> moveToTrash(List<String> imagePaths, List<String> thumbnailPaths) {
-        return CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < imagePaths.size(); i++) {
-                String imagePath = imagePaths.get(i);
-                String thumbnailPath = i < thumbnailPaths.size() ? thumbnailPaths.get(i) : null;
-                moveToTrash(imagePath, thumbnailPath);
-            }
-        }, executorService);
-    }
-    
-    /**
-     * Restores multiple files from trash back to their original locations.
-     * 
-     * @param imagePaths list of image file paths in trash to restore
-     * @param thumbnailPaths list of corresponding thumbnail paths to restore
-     * @return CompletableFuture that completes when all files are restored
-     * @throws RuntimeException if any restore operation fails
-     */
-    public CompletableFuture<Void> restoreFromTrash(List<String> imagePaths, List<String> thumbnailPaths) {
-        return CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < imagePaths.size(); i++) {
-                String imagePath = imagePaths.get(i);
-                String thumbnailPath = i < thumbnailPaths.size() ? thumbnailPaths.get(i) : null;
-                restoreFromTrash(imagePath, thumbnailPath);
-            }
-        }, executorService);
-    }
-    
-    /**
-     * Permanently deletes files from trash.
-     * 
-     * <p><strong>Warning:</strong> This operation cannot be undone. Files will be
-     * permanently removed from the file system.</p>
-     * 
-     * @param imagePaths list of image file paths in trash to delete
-     * @param thumbnailPaths list of corresponding thumbnail paths to delete
-     * @return CompletableFuture that completes when all files are deleted
-     * @throws RuntimeException if any delete operation fails
-     */
-    public CompletableFuture<Void> permanentlyDelete(List<String> imagePaths, List<String> thumbnailPaths) {
-        return CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < imagePaths.size(); i++) {
-                String imagePath = imagePaths.get(i);
-                String thumbnailPath = i < thumbnailPaths.size() ? thumbnailPaths.get(i) : null;
-                permanentlyDelete(imagePath, thumbnailPath);
-            }
-        }, executorService);
-    }
-    
-    /**
-     * Empties the entire trash directory.
-     * 
-     * <p><strong>Warning:</strong> This operation permanently deletes all files
-     * in the trash directory and cannot be undone.</p>
-     * 
-     * <p><strong>Performance:</strong> This operation walks the entire trash
-     * directory tree, so performance depends on the number of files.</p>
-     * 
-     * @return CompletableFuture with the number of files deleted
-     * @throws RuntimeException if the operation fails
-     */
-    public CompletableFuture<Integer> emptyTrash() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return (int) Files.walk(trashDirectory)
-                    .filter(Files::isRegularFile)
-                    .peek(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            logger.error("Failed to delete: {}", path, e);
-                        }
-                    })
-                    .count();
-            } catch (IOException e) {
-                logger.error("Failed to empty trash", e);
-                return 0;
-            }
-        }, executorService);
-    }
-    
-    /**
-     * Gets the retention period for items in trash.
-     * 
-     * @return retention period in days
-     */
-    public int getRetentionPeriod() {
-        return trashRetentionDays;
     }
     
     /**
@@ -161,15 +51,6 @@ public class TrashManager {
         this.activeImagesDirectory = baseDirectory.resolve("images");
         this.activeThumbnailsDirectory = baseDirectory.resolve("thumbnails");
         this.trashRetentionDays = trashRetentionDays;
-        
-        // Create thread pool for async operations
-        this.executorService = Executors.newFixedThreadPool(2,
-            r -> {
-                Thread t = new Thread(r);
-                t.setDaemon(true);
-                t.setName("TrashManager-" + System.currentTimeMillis());
-                return t;
-            });
         
         // Ensure directories exist
         try {
@@ -269,31 +150,6 @@ public class TrashManager {
         }
         
         return success;
-    }
-    
-    /**
-     * Moves all images for a chat to trash.
-     * 
-     * @param chatId the chat ID
-     * @param images list of image paths
-     * @param thumbnails list of thumbnail paths
-     * @return number of files successfully moved
-     */
-    public int moveChatToTrash(String chatId, List<String> images, List<String> thumbnails) {
-        int movedCount = 0;
-        
-        // Move all images
-        for (int i = 0; i < images.size(); i++) {
-            String imagePath = images.get(i);
-            String thumbnailPath = (i < thumbnails.size()) ? thumbnails.get(i) : null;
-            
-            if (moveToTrash(imagePath, thumbnailPath)) {
-                movedCount++;
-            }
-        }
-        
-        logger.info("Moved {} files to trash for chat: {}", movedCount, chatId);
-        return movedCount;
     }
     
     /**
@@ -423,101 +279,6 @@ public class TrashManager {
     }
     
     /**
-     * Cleans up old items in trash that exceed retention period.
-     * This should be called periodically (e.g., on app startup).
-     * 
-     * @return CompletableFuture with number of files deleted
-     */
-    public CompletableFuture<Integer> cleanupOldTrashItems() {
-        return CompletableFuture.supplyAsync(() -> {
-            int deletedCount = 0;
-            LocalDateTime cutoffDate = LocalDateTime.now().minus(trashRetentionDays, ChronoUnit.DAYS);
-            
-            try {
-                // Clean up old images
-                deletedCount += cleanupDirectory(trashImagesDirectory, cutoffDate);
-                
-                // Clean up old thumbnails
-                deletedCount += cleanupDirectory(trashThumbnailsDirectory, cutoffDate);
-                
-                logger.info("Cleanup completed: {} old files removed from trash", deletedCount);
-            } catch (IOException e) {
-                logger.error("Failed to cleanup old trash items", e);
-            }
-            
-            return deletedCount;
-        }, executorService);
-    }
-    
-    /**
-     * Cleans up old files in a directory.
-     */
-    private int cleanupDirectory(Path directory, LocalDateTime cutoffDate) throws IOException {
-        int deletedCount = 0;
-        
-        if (!Files.exists(directory)) {
-            return 0;
-        }
-        
-        try (Stream<Path> paths = Files.walk(directory)) {
-            List<Path> filesToDelete = paths
-                .filter(Files::isRegularFile)
-                .filter(path -> {
-                    try {
-                        BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
-                        LocalDateTime lastModified = LocalDateTime.ofInstant(
-                            attrs.lastModifiedTime().toInstant(),
-                            java.time.ZoneId.systemDefault()
-                        );
-                        return lastModified.isBefore(cutoffDate);
-                    } catch (IOException e) {
-                        logger.warn("Could not read attributes for: {}", path, e);
-                        return false;
-                    }
-                })
-                .toList();
-            
-            for (Path file : filesToDelete) {
-                try {
-                    Files.delete(file);
-                    deletedCount++;
-                    logger.trace("Deleted old trash file: {}", file);
-                } catch (IOException e) {
-                    logger.warn("Failed to delete old trash file: {}", file, e);
-                }
-            }
-        }
-        
-        return deletedCount;
-    }
-    
-    /**
-     * Migrates existing deleted chats to trash directory.
-     * This is called once after the migration to move already-deleted items.
-     * 
-     * @param imagePaths list of image paths to migrate
-     * @param thumbnailPaths list of thumbnail paths to migrate
-     * @return number of files migrated
-     */
-    public int migrateDeletedChatsToTrash(List<String> imagePaths, List<String> thumbnailPaths) {
-        int migratedCount = 0;
-        
-        logger.info("Starting migration of {} deleted items to trash", imagePaths.size());
-        
-        for (int i = 0; i < imagePaths.size(); i++) {
-            String imagePath = imagePaths.get(i);
-            String thumbnailPath = (i < thumbnailPaths.size()) ? thumbnailPaths.get(i) : null;
-            
-            if (moveToTrash(imagePath, thumbnailPath)) {
-                migratedCount++;
-            }
-        }
-        
-        logger.info("Migration complete: {} files moved to trash", migratedCount);
-        return migratedCount;
-    }
-    
-    /**
      * Gets the trash path for a given active file path.
      */
     public String getTrashPath(String activePath, boolean isThumbnail) {
@@ -549,16 +310,4 @@ public class TrashManager {
         }
     }
     
-    /**
-     * Shuts down the executor service.
-     * 
-     * <p>This method should be called during application shutdown to ensure
-     * all pending async operations are completed gracefully.</p>
-     * 
-     * <p><strong>Thread-safety:</strong> This method is thread-safe but should
-     * only be called once during application shutdown.</p>
-     */
-    public void shutdown() {
-        executorService.shutdown();
-    }
 }

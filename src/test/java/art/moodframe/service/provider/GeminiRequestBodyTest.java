@@ -25,7 +25,7 @@ class GeminiRequestBodyTest {
         ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
                 invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
         service = new GeminiApiServiceImpl(config);
-        build = GeminiApiServiceImpl.class.getDeclaredMethod("buildGeminiRequestBody", ImageGenerationRequest.class);
+        build = GeminiImageClient.class.getDeclaredMethod("buildRequestBody", ImageGenerationRequest.class);
         build.setAccessible(true);
     }
 
@@ -78,7 +78,7 @@ class GeminiRequestBodyTest {
         JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
                 .put("parts", new JSONArray().put(imagePart).put(new JSONObject().put("text", "Find the blocks."))));
 
-        JSONObject body = GeminiApiServiceImpl.buildChatBody("sys", contents, false, false);
+        JSONObject body = GeminiChatClient.buildChatBody("sys", contents, false, false);
 
         JSONObject sent = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts").getJSONObject(0);
         assertEquals("image/jpeg", sent.getJSONObject("inlineData").getString("mimeType"));

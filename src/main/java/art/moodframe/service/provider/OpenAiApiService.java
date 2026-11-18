@@ -3,6 +3,8 @@ package art.moodframe.service.provider;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
@@ -33,14 +35,64 @@ public interface OpenAiApiService extends ImageProvider {
     }
 
     /**
-     * Tests the connection by listing the models ({@code GET /models}). A successful test stores the image
-     * models, see {@link #getImageModels()}.
+     * Tests the connection by listing the models ({@code GET /models}). A successful test stores the models of the
+     * API and the image models, see {@link #getImageModels()}; a client of {@link #withCredentials(String, String)}
+     * stores nothing.
      *
      * @return a future with true if the API accepted the bearer token, false on a definite refusal (HTTP 400, 401, 403
      *         or 404); it fails on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
     @Override
     CompletableFuture<Boolean> testConnection();
+
+    @Override
+    OpenAiApiService withCredentials(String apiKey, String endpoint);
+
+    /** The prompt limit of the model: 1,000 to 32,000 characters. */
+    @Override
+    default int maxPromptLength(String apiModelId) {
+        return GenerationModel.openAiMaxPromptLength(apiModelId);
+    }
+
+    /**
+     * Sets the size of a model of an OpenAI-compatible gateway, the free size closest to the target resolution, and
+     * the reference images, which go to {@code /images/edits}.
+     */
+    @Override
+    default void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options) {
+        if (model != GenerationModel.OPENAI_IMAGE)
+            return;
+        List<String> freeResolutions = ModelFamilies.freeResolutions(options.item());
+        if (freeResolutions != null)
+            request.setImageSize(ModelFamilies.nearest(options.targetResolution(), freeResolutions));
+        if (!options.referenceImages().isEmpty())
+            request.setInputImages(options.referenceImages());
+    }
+
+    /**
+     * What a test of a token and a base URL found.
+     *
+     * @param works    true if the API accepted the token
+     * @param baseUrl  the base URL that answered, with {@code /v1} added if the given one has no path and answers
+     *                 there
+     * @param models   the model ids of the API, sorted
+     * @param selected the image models to preselect: the ones selected so far that the API has, else those with a
+     *                 known image name
+     * @since 2.1.3
+     */
+    record Account(boolean works, String baseUrl, List<String> models, List<String> selected) {
+    }
+
+    /**
+     * Tests a token and a base URL that are not saved yet, without changing this client or the configuration.
+     *
+     * @param apiKey  the bearer token
+     * @param baseUrl the base URL, null for the configured one
+     * @return a future with what the test found; it fails on a transient failure (no network, timeout, HTTP 429 or
+     *         5xx)
+     * @since 2.1.3
+     */
+    CompletableFuture<Account> testAccount(String apiKey, String baseUrl);
 
     /**
      * Gets the image models (for example {@code gpt-image-1}, {@code dall-e-3}) of the last successful connection test.
@@ -105,16 +157,9 @@ public interface OpenAiApiService extends ImageProvider {
     CompletableFuture<String> complete(String model, String prompt);
 
     /**
-     * Gets the base URL.
+     * Gets the base URL: the configured one, with {@code /v1} if a test or request found the API there.
      *
      * @return the base URL without trailing slash
      */
     String getBaseUrl();
-
-    /**
-     * Sets the base URL, for example to test a URL that is not saved yet.
-     *
-     * @param baseUrl the base URL, for example {@code https://api.openai.com/v1}
-     */
-    void setBaseUrl(String baseUrl);
 }

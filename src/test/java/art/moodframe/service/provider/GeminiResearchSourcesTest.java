@@ -23,7 +23,7 @@ class GeminiResearchSourcesTest {
         ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
                 invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
         service = new GeminiApiServiceImpl(config);
-        extract = GeminiApiServiceImpl.class.getDeclaredMethod("extractSources", JSONObject.class);
+        extract = GeminiChatClient.class.getDeclaredMethod("extractSources", JSONObject.class);
         extract.setAccessible(true);
     }
 

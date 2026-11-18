@@ -27,9 +27,9 @@ class GeminiOmniRequestBodyTest {
         ApplicationConfig config = mock(ApplicationConfig.class, invocation ->
                 invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation));
         service = new GeminiApiServiceImpl(config);
-        build = GeminiApiServiceImpl.class.getDeclaredMethod("buildOmniRequestBody", ImageGenerationRequest.class);
-        extractUri = GeminiApiServiceImpl.class.getDeclaredMethod("extractOmniVideoUri", JSONObject.class);
-        extractError = GeminiApiServiceImpl.class.getDeclaredMethod("extractOmniError", JSONObject.class);
+        build = GeminiOmniClient.class.getDeclaredMethod("buildOmniRequestBody", ImageGenerationRequest.class);
+        extractUri = GeminiOmniClient.class.getDeclaredMethod("extractOmniVideoUri", JSONObject.class);
+        extractError = GeminiOmniClient.class.getDeclaredMethod("extractOmniError", JSONObject.class);
         build.setAccessible(true);
         extractUri.setAccessible(true);
         extractError.setAccessible(true);

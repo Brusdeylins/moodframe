@@ -33,6 +33,7 @@ import art.moodframe.service.library.MoodTrashGroup;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.provider.MockProviders;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -136,7 +137,8 @@ class McpEditToolsTest {
         when(config.getFlux2FlexSteps()).thenReturn(50);
 
         provider = new Provider(repository);
-        GenerationService generation = new GenerationService(config, chats, moods, provider);
+        GenerationService generation = new GenerationService(config, chats, moods, provider,
+                MockProviders.preparing());
         tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                 new MoodAnalysisService(null, null, config));
     }
@@ -510,11 +512,6 @@ class McpEditToolsTest {
         }
 
         @Override
-        public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry) {
-            return submitImageGeneration(request, chatEntry, null);
-        }
-
-        @Override
         public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
                 File attachedImageFile) {
             sent.add(request);
@@ -564,16 +561,6 @@ class McpEditToolsTest {
                 cancelled.complete(running);
             });
             return cancelled;
-        }
-
-        @Override
-        public boolean cancelGeneration(String jobId) {
-            return false;
-        }
-
-        @Override
-        public boolean isGenerationActive(String jobId) {
-            return false;
         }
 
         @Override

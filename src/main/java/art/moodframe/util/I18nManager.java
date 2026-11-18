@@ -173,6 +173,32 @@ public class I18nManager {
     }
     
     /**
+     * Retrieves a text in a given language, independent of the language of the user interface, e.g. the English text
+     * of an error for the MCP clients.
+     *
+     * @param locale     the language
+     * @param key        the resource key (must not be null or empty)
+     * @param parameters the parameters to substitute (can be empty)
+     * @return the text in that language, else in English
+     * @since 2.1.3
+     */
+    public static String getTextIn(Locale locale, String key, Object... parameters) {
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("Key cannot be null or empty");
+        }
+        String rawText = getTextInternal(key, locale);
+        if (parameters == null || parameters.length == 0) {
+            return rawText;
+        }
+        try {
+            return new MessageFormat(rawText, locale).format(parameters);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to format message for key '{}' in {}", key, locale, e);
+            return rawText;
+        }
+    }
+
+    /**
      * Gets the current ResourceBundle for use with JavaFX FXML loading.
      * 
      * @return the ResourceBundle for the current locale

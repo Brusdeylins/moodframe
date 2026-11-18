@@ -4,6 +4,7 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
@@ -30,27 +31,27 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
-import javafx.application.Platform;
 
 /**
- * Central manager for handling BFL API requests and responses.
- * 
- * <p>
- * This service manages the complete lifecycle of image generation requests:
- * - Request submission to BFL API
- * - Progress tracking with polling
- * - Error handling and retry logic
- * - Image download and storage
- * - UI notification events
- * </p>
- * 
+ * Central manager for handling the requests of a generation and their answers: submission to the provider of the
+ * model, the polling of BFL jobs (see {@link BflGenerationFlow}), download and storage of the images and videos, and
+ * the events for the user interface.
+ *
+ * <p><strong>Threading:</strong> requests, downloads and files run on the I/O executor, the chat entry and its
+ * images are changed on the FX thread through {@link FxModel}, and the database writes run on a worker of their own
+ * after the change they store ({@link ChatEntryTracker#saveImage}), so a generation of the MCP server needs the FX
+ * thread only for the change of the objects the user interface is bound to.</p>
+ *
  * @since 1.0.0
  */
 public class RequestResponseManager implements RequestResponseService {
@@ -59,10 +60,10 @@ public class RequestResponseManager implements RequestResponseService {
 
     private final ApplicationConfig config;
     private final ScheduledExecutorService scheduler;
+    private final ExecutorService store;
     private final BflGenerationFlow bflFlow;
     private final ProviderRegistry providers;
     private final Executor io;
-    private final ChatRepository chatRepository;
     private final Supplier<HttpClient> downloadClient;  // Simple client for downloading images from CDN
     private final ImageFileStore imageFiles;
 
@@ -79,7 +80,6 @@ public class RequestResponseManager implements RequestResponseService {
     public RequestResponseManager(ApplicationConfig config, ChatRepository chatRepository, ProviderRegistry providers,
             Executor io) {
         this.config = config;
-        this.chatRepository = chatRepository;
         this.providers = providers;
         this.io = io;
 
@@ -89,13 +89,26 @@ public class RequestResponseManager implements RequestResponseService {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build());
         this.imageFiles = new ImageFileStore(config, downloadClient);
-        this.scheduler = Executors.newScheduledThreadPool(2);
-        this.tracker = new ChatEntryTracker(chatRepository, scheduler);
+        this.scheduler = Executors.newScheduledThreadPool(2, daemonThreads("generation-poll"));
+
+        /*  One thread for the database writes keeps them in the order of the changes they store  */
+        this.store = Executors.newSingleThreadExecutor(daemonThreads("generation-store"));
+        this.tracker = new ChatEntryTracker(chatRepository, store);
         this.bflFlow = new BflGenerationFlow(config, providers.get(ApiProvider.BFL, BflApiService.class),
-                chatRepository, tracker, imageFiles, scheduler, io);
+                tracker, imageFiles, scheduler, io);
 
         logger.debug("RequestResponseManager initialized with timeout: {}s, proxy: {}",
                 config.getApiTimeoutSeconds(), config.isProxyEnabled() ? "enabled" : "disabled");
+    }
+
+    /*  named daemon threads, so the workers never keep the application alive  */
+    private static ThreadFactory daemonThreads(String name) {
+        AtomicInteger count = new AtomicInteger();
+        return (Runnable runnable) -> {
+            Thread thread = new Thread(runnable, name + "-" + count.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 
     @Override
@@ -127,18 +140,6 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Submits an image generation request to the BFL API.
-     * 
-     * @param request   the generation request
-     * @param chatEntry the chat entry to update with results
-     * @return CompletableFuture that completes when the request is submitted
-     */
-    @Override
-    public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry) {
-        return submitImageGeneration(request, chatEntry, null);
-    }
-
-    /**
      * Submits an image generation request to the appropriate provider (BFL or Gemini)
      * with optional image attachment.
      *
@@ -165,7 +166,7 @@ public class RequestResponseManager implements RequestResponseService {
                 ImageProvider provider = providers.forModel(request.getModel());
 
                 // Update chat entry status and create placeholder images (ensure on FX thread)
-                Platform.runLater(() -> {
+                FxModel.change(() -> {
                     chatEntry.setStatus(ChatEntry.Status.PROCESSING);
 
                     // Create placeholder images for immediate UI feedback with pre-generated seeds
@@ -223,9 +224,10 @@ public class RequestResponseManager implements RequestResponseService {
 
             } catch (Exception e) {
                 logger.error("Failed to submit image generation request", e);
-                Platform.runLater(() -> {
+                String error = ChatEntryTracker.errorText(e, chatEntry);
+                FxModel.change(() -> {
                     chatEntry.setStatus(ChatEntry.Status.FAILED);
-                    chatEntry.setErrorMessage(e.getMessage());
+                    chatEntry.setErrorMessage(error);
                     tracker.notifyEntryUpdated(chatEntry);
                 });
             }
@@ -233,38 +235,32 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     @Override
-    public boolean cancelGeneration(String jobId) {
-        return bflFlow.cancel(jobId);
-    }
-
-    @Override
     public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
-        CompletableFuture<Boolean> cancelled = new CompletableFuture<>();
-        Platform.runLater(() -> {
+        return FxModel.read(() -> {
             boolean running = tracker.cancel(chatEntry);
             if (running)
                 bflFlow.cancelEntry(chatEntry.getId());
-            cancelled.complete(running);
+            return running;
         });
-        return cancelled;
-    }
-
-    @Override
-    public boolean isGenerationActive(String jobId) {
-        return bflFlow.isActive(jobId);
     }
 
     @Override
     public void shutdown() {
         bflFlow.cancelAll();
         scheduler.shutdown();
+        store.shutdown();
 
+        /*  The polling stops, the database writes asked for still end  */
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
+            if (!store.awaitTermination(5, TimeUnit.SECONDS)) {
+                store.shutdownNow();
+            }
         } catch (InterruptedException e) {
             scheduler.shutdownNow();
+            store.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }
@@ -283,62 +279,39 @@ public class RequestResponseManager implements RequestResponseService {
         submission
             .thenAccept(jobInfo -> {
                 if (jobInfo.isSynchronous() && jobInfo.isFailed()) {
-                    // Content was blocked - mark placeholder as failed with error message
-                    Platform.runLater(() -> {
-                        for (GeneratedImage img : chatEntry.getImages()) {
-                            if (img.getSortOrder() == imageIndex) {
-                                img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                                img.setErrorMessage(jobInfo.getErrorMessage());
-                                img.setBaseCost(0.0); // No cost for blocked images
-
-                                // Save to database
-                                try {
-                                    chatRepository.saveGeneratedImage(img);
-                                    logger.info("Saved blocked image to database with error message");
-                                } catch (Exception e) {
-                                    logger.error("Failed to save blocked image to database", e);
-                                }
-                                break;
-                            }
-                        }
-
-                        // Check if all images are finished and update ChatEntry status
-                        tracker.refresh(chatEntry);
-                    });
+                    // Content was blocked - the placeholder fails with the reason, a blocked image costs nothing
+                    logger.info("{} image {} blocked, stored with its error message", provider, imageIndex);
+                    failImage(chatEntry, imageIndex, jobInfo.getErrorMessage(), true);
                 } else if (jobInfo.isSynchronous() && jobInfo.getBase64Image() != null) {
                     // NO POLLING NEEDED - Image is already ready!
-
                     storeSynchronousImage(jobInfo, request, chatEntry, imageIndex);
                 }
             })
             .exceptionally(throwable -> {
                 logger.error("{} generation failed for image index {}", provider, imageIndex, throwable);
-
-                // Mark placeholder as failed at the correct index
-                Platform.runLater(() -> {
-                    // Find placeholder by sortOrder (not list position) to handle parallel async completions
-                    for (GeneratedImage img : chatEntry.getImages()) {
-                        if (img.getSortOrder() == imageIndex) {
-                            img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                            Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                            img.setErrorMessage(cause.getMessage());
-
-                            // Save to database
-                            try {
-                                chatRepository.saveGeneratedImage(img);
-                            } catch (Exception e) {
-                                logger.error("Failed to save failed image to database", e);
-                            }
-                            break;
-                        }
-                    }
-
-                    // Check if all images are finished and update ChatEntry status
-                    tracker.refresh(chatEntry);
-                });
-
+                failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry), false);
                 return null;
             });
+    }
+
+    /**
+     * Marks the placeholder of an image as failed (found by its sort order, as the answers arrive in any order),
+     * stores it and settles the entry once all its images are finished.
+     *
+     * @param free true if the image costs nothing (blocked content)
+     */
+    private void failImage(ChatEntry chatEntry, int imageIndex, String errorMessage, boolean free) {
+        FxModel.change(() -> {
+            GeneratedImage img = placeholder(chatEntry, imageIndex);
+            if (img != null) {
+                img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+                img.setErrorMessage(errorMessage);
+                if (free)
+                    img.setBaseCost(0.0);
+                tracker.saveImage(img);
+            }
+            tracker.refresh(chatEntry);
+        });
     }
 
     /**
@@ -355,8 +328,8 @@ public class RequestResponseManager implements RequestResponseService {
                 request.getModel(), request.getVideoResolution(), request.getVideoDuration());
 
         // Queued behind the placeholder creation of submitImageGeneration()
-        Platform.runLater(() -> {
-            GeneratedImage placeholder = findOmniPlaceholder(chatEntry, imageIndex);
+        FxModel.change(() -> {
+            GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
             if (placeholder == null) {
                 logger.error("No placeholder found for Omni video at index {}", imageIndex);
                 return;
@@ -380,8 +353,8 @@ public class RequestResponseManager implements RequestResponseService {
                     return;
                 }
 
-                Platform.runLater(() -> {
-                    GeneratedImage placeholder = findOmniPlaceholder(chatEntry, imageIndex);
+                FxModel.change(() -> {
+                    GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
                     if (placeholder == null) {
                         logger.error("No placeholder found for Omni video at index {}", imageIndex);
                         return;
@@ -395,12 +368,13 @@ public class RequestResponseManager implements RequestResponseService {
             })
             .exceptionally(throwable -> {
                 logger.error("Omni generation failed", throwable);
-                failOmniVideo(chatEntry, imageIndex, throwable.getMessage());
+                failOmniVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                 return null;
             });
     }
 
-    private GeneratedImage findOmniPlaceholder(ChatEntry chatEntry, int imageIndex) {
+    /*  the placeholder of an image by its sort order (not its list position); call on the FX thread  */
+    private static GeneratedImage placeholder(ChatEntry chatEntry, int imageIndex) {
         for (GeneratedImage img : chatEntry.getImages()) {
             if (img.getSortOrder() == imageIndex) {
                 return img;
@@ -413,17 +387,13 @@ public class RequestResponseManager implements RequestResponseService {
      * Marks the placeholder of an Omni video as failed and stores it, so the error stays visible.
      */
     private void failOmniVideo(ChatEntry chatEntry, int imageIndex, String errorMessage) {
-        Platform.runLater(() -> {
-            GeneratedImage img = findOmniPlaceholder(chatEntry, imageIndex);
+        FxModel.change(() -> {
+            GeneratedImage img = placeholder(chatEntry, imageIndex);
             if (img != null) {
                 img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
                 img.setErrorMessage(errorMessage);
                 img.setBaseCost(0.0);
-                try {
-                    chatRepository.saveGeneratedImage(img);
-                } catch (Exception e) {
-                    logger.error("Failed to save failed Omni video to database", e);
-                }
+                tracker.saveImage(img);
                 tracker.notifyImageUpdated(img);
             }
             tracker.refresh(chatEntry);
@@ -454,16 +424,11 @@ public class RequestResponseManager implements RequestResponseService {
 
                 logger.info("Downloading video from: {} to: {}", videoUrl, videoPath);
 
-                // Download video file. The Google file URL answers HTTP 403 without the API key, which is
-                // sent as a header so that it does not show up in the URL or the log.
+                // Download video file, with the headers the provider needs for its files (e.g. its key)
                 HttpRequest.Builder downloadBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(videoUrl))
                         .timeout(Duration.ofSeconds(120)); // Longer timeout for video download
-                String geminiKey = config.getGeminiApiKey();
-                if (videoUrl.startsWith("https://generativelanguage.googleapis.com/")
-                        && geminiKey != null && !geminiKey.isBlank()) {
-                    downloadBuilder.header("x-goog-api-key", geminiKey);
-                }
+                providers.forModel(request.getModel()).downloadHeaders(videoUrl).forEach(downloadBuilder::header);
                 HttpRequest downloadRequest = downloadBuilder.GET().build();
 
                 HttpResponse<InputStream> downloadResponse = downloadClient.get().send(
@@ -478,8 +443,8 @@ public class RequestResponseManager implements RequestResponseService {
 
                     long fileSize = Files.size(videoPath);
 
-                    /*  The video is bound to the UI, so it is changed on the FX thread  */
-                    Platform.runLater(() -> {
+                    /*  The video is bound to the UI, so it is changed on the FX thread, then stored  */
+                    FxModel.change(() -> {
                         generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
                         generatedImage.setLocalFilePath(videoPath.toString());
                         generatedImage.setFileName(filename);
@@ -491,13 +456,7 @@ public class RequestResponseManager implements RequestResponseService {
                         generatedImage.setBaseCost(request.getBaseCostPerImage() != null
                                 ? request.getBaseCostPerImage() : 0.0);
 
-                        try {
-                            if (chatRepository != null)
-                                chatRepository.saveGeneratedImage(generatedImage);
-                        } catch (Exception e) {
-                            logger.error("Failed to save video to database", e);
-                        }
-
+                        tracker.saveImage(generatedImage);
                         logger.info("Video saved: {} ({} bytes, {}s, audio={})",
                                 filename, fileSize,
                                 generatedImage.getVideoDurationSeconds(),
@@ -510,14 +469,10 @@ public class RequestResponseManager implements RequestResponseService {
 
                 } else {
                     logger.error("Failed to download video: HTTP {}", downloadResponse.statusCode());
-                    Platform.runLater(() -> {
+                    FxModel.change(() -> {
                         generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
                         generatedImage.setErrorMessage("Video download failed: HTTP " + downloadResponse.statusCode());
-                        try {
-                            chatRepository.saveGeneratedImage(generatedImage);
-                        } catch (Exception e) {
-                            logger.error("Failed to save failed video to database", e);
-                        }
+                        tracker.saveImage(generatedImage);
                         tracker.notifyImageUpdated(generatedImage);
                         tracker.refresh(chatEntry);
                     });
@@ -525,14 +480,10 @@ public class RequestResponseManager implements RequestResponseService {
 
             } catch (Exception e) {
                 logger.error("Failed to download video", e);
-                Platform.runLater(() -> {
+                FxModel.change(() -> {
                     generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
                     generatedImage.setErrorMessage("Video download error: " + e.getMessage());
-                    try {
-                        chatRepository.saveGeneratedImage(generatedImage);
-                    } catch (Exception ex) {
-                        logger.error("Failed to save failed video to database", ex);
-                    }
+                    tracker.saveImage(generatedImage);
                     tracker.notifyImageUpdated(generatedImage);
                     tracker.refresh(chatEntry);
                 });
@@ -547,15 +498,8 @@ public class RequestResponseManager implements RequestResponseService {
      */
     private void storeSynchronousImage(GenerationJobInfo jobInfo, ImageGenerationRequest request,
                                        ChatEntry chatEntry, int imageIndex) {
-        CompletableFuture<GeneratedImage> prepared = new CompletableFuture<>();
-        Platform.runLater(() -> {
-            GeneratedImage placeholder = null;
-            for (GeneratedImage img : chatEntry.getImages()) {
-                if (img.getSortOrder() == imageIndex) {
-                    placeholder = img;
-                    break;
-                }
-            }
+        CompletableFuture<GeneratedImage> prepared = FxModel.read(() -> {
+            GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
             if (placeholder != null) {
                 placeholder.setGenerationJobId(jobInfo.getJobId());
                 placeholder.setPrompt(request.getPrompt());
@@ -564,7 +508,7 @@ public class RequestResponseManager implements RequestResponseService {
                 placeholder.setAspectRatio(request.getAspectRatio() != null ? request.getAspectRatio() : "1:1");
                 placeholder.setBaseCost(request.getBaseCostPerImage() != null ? request.getBaseCostPerImage() : 0.0);
             }
-            prepared.complete(placeholder);
+            return placeholder;
         });
 
         prepared.thenAcceptAsync((GeneratedImage placeholder) -> {
@@ -585,7 +529,7 @@ public class RequestResponseManager implements RequestResponseService {
             ImageFileStore.StoredImage result = stored;
             if (error != null)
                 tracker.markFailed(chatEntry, error);
-            Platform.runLater(() -> {
+            FxModel.change(() -> {
                 if (result != null)
                     applyStoredImage(placeholder, result, jobInfo, request, chatEntry);
                 else
@@ -598,8 +542,8 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Applies a written image file to its placeholder and stores it, including the costs of Google Search
-     * grounding and thinking tokens. Runs on the FX thread.
+     * Applies a written image file to its placeholder, including the costs of Google Search grounding and thinking
+     * tokens, and has it stored. Runs on the FX thread; an image that cannot be stored fails.
      */
     private void applyStoredImage(GeneratedImage generatedImage, ImageFileStore.StoredImage stored, GenerationJobInfo jobInfo,
                                   ImageGenerationRequest request, ChatEntry chatEntry) {
@@ -607,14 +551,10 @@ public class RequestResponseManager implements RequestResponseService {
         generatedImage.setSeed(0); // Gemini doesn't use seeds - clear any placeholder value
 
         double baseCost = request.getBaseCostPerImage() != null ? request.getBaseCostPerImage() : 0.0;
-        double searchCost = Boolean.TRUE.equals(request.getEnableGoogleSearch()) ? 0.03 : 0.0;
-        double reasoningCost = 0.0;
-
         Integer thinkingTokens = jobInfo.getThinkingTokens();
-        if (thinkingTokens != null && thinkingTokens > 0) {
-            // Reasoning cost: (tokens / 1,000,000) * $12 per 1M tokens
-            reasoningCost = (thinkingTokens / 1_000_000.0) * 12.0;
-        }
+        double searchCost = GenerationCost.search(GenerationModel.fromApiModelId(request.getModel()),
+                request.getEnableGoogleSearch());
+        double reasoningCost = GenerationCost.reasoning(thinkingTokens);
 
         generatedImage.setBaseCost(baseCost);
         generatedImage.setSearchCost(searchCost);
@@ -626,17 +566,14 @@ public class RequestResponseManager implements RequestResponseService {
                 String.format("%.4f", baseCost), String.format("%.4f", searchCost),
                 String.format("%.4f", reasoningCost), thinkingTokens != null ? thinkingTokens : 0);
 
-        try {
-            if (chatRepository != null)
-                chatRepository.saveGeneratedImage(generatedImage);
-        } catch (Exception e) {
-            logger.error("Failed to save Gemini image", e);
-            generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-            tracker.markFailed(chatEntry, "Failed to save image: " + e.getMessage());
-            return;
-        }
+        tracker.saveImage(generatedImage).exceptionally((Throwable failure) -> {
+            Throwable cause = failure.getCause() != null ? failure.getCause() : failure;
+            FxModel.change(() -> generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED));
+            tracker.markFailed(chatEntry, "Failed to save image: " + cause.getMessage());
+            return null;
+        });
 
-        logger.info("Gemini image saved: {} ({}x{}, {}, {} bytes)", stored.filename(), generatedImage.getWidth(),
+        logger.info("Gemini image stored: {} ({}x{}, {}, {} bytes)", stored.filename(), generatedImage.getWidth(),
                 generatedImage.getHeight(), generatedImage.getFormat(), generatedImage.getFileSizeBytes());
     }
 

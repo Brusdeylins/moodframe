@@ -2,8 +2,10 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -42,19 +44,64 @@ public interface ImageProvider {
     String getApiKey();
 
     /**
-     * Sets the key the client sends, e.g. to test a key that is not saved yet.
-     *
-     * @param apiKey the key
-     */
-    void setApiKey(String apiKey);
-
-    /**
      * Tests the connection and the key with a lightweight request.
      *
      * @return a future with true if the key works, false on a definite refusal (HTTP 400, 401, 403 or 404); it fails
      *         on a transient failure (no network, timeout, HTTP 429 or 5xx)
      */
     CompletableFuture<Boolean> testConnection();
+
+    /**
+     * Gets a client like this one that sends another key, e.g. to test a key that is not saved yet. This client keeps
+     * its own key and endpoint, so generation and brainstorm are not affected.
+     *
+     * @param apiKey   the key
+     * @param endpoint where the copy sends to: the region of BFL ({@code Global}, {@code EU}, {@code US}), the base
+     *                 URL of OpenAI; null for the configured one; Gemini has a single endpoint and ignores it
+     * @return the copy
+     */
+    ImageProvider withCredentials(String apiKey, String endpoint);
+
+    /**
+     * Tests a key that is not saved yet, without changing this client: see {@link #withCredentials(String, String)}
+     * and {@link #testConnection()}.
+     *
+     * @param apiKey   the key to test
+     * @param endpoint the region of BFL or the base URL of OpenAI, null for the configured one
+     * @return a future with true if the key works, false on a definite refusal; it fails on a transient failure
+     */
+    default CompletableFuture<Boolean> testConnection(String apiKey, String endpoint) {
+        return withCredentials(apiKey, endpoint).testConnection();
+    }
+
+    /**
+     * Gets the prompt limit of a model in characters.
+     *
+     * @param apiModelId the API model id (may be null)
+     * @return the limit
+     */
+    int maxPromptLength(String apiModelId);
+
+    /**
+     * Sets what the model of this provider takes on a request whose prompt, size and general parameters are set:
+     * resolution tier, reference images, Google Search, thinking level, FLUX settings, video parameters.
+     *
+     * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
+     * @param model   the model
+     * @param options what the order asks for
+     */
+    void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options);
+
+    /**
+     * Gets the headers a download of a file of this provider needs, e.g. the key for a file of the provider's API.
+     * The key goes as a header, so it does not show up in the URL or the log.
+     *
+     * @param url the URL of the file
+     * @return the headers, empty if none
+     */
+    default Map<String, String> downloadHeaders(String url) {
+        return Map.of();
+    }
 
     /**
      * Submits one generation request. A provider that {@link #answersWithImage() answers with the image} completes

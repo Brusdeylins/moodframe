@@ -2,7 +2,6 @@ package art.moodframe.service.brainstorm;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
@@ -117,12 +116,14 @@ public class MoodAnalysisService {
     }
 
     /**
-     * The OpenAI language model if the analysis talks to OpenAI (the brainstorm does, or Gemini is not usable),
-     * else null for Gemini; as in the brainstorm.
+     * The language model of the analysis: OpenAI if the brainstorm talks to it or Gemini is not usable, as in the
+     * brainstorm, else Gemini; null if neither is usable.
      */
-    private String openAiModel() {
-        return openAiService != null && config.isOpenAiChatAvailable()
-                && ("openai".equals(config.getBrainstormEngine()) || !geminiUsable()) ? config.getOpenAiChatModel() : null;
+    private ChatModel chatModel() {
+        boolean geminiUsable = geminiUsable();
+        ChatModel model = ChatModel.choose(geminiService, openAiService, config,
+                "openai".equals(config.getBrainstormEngine()), geminiUsable);
+        return model.watchesVideos() && !geminiUsable ? null : model;
     }
 
     /**
@@ -131,7 +132,7 @@ public class MoodAnalysisService {
      * @return true if Gemini or an OpenAI language model can answer
      */
     public boolean hasLanguageModel() {
-        return openAiModel() != null || geminiUsable();
+        return chatModel() != null;
     }
 
     /**
@@ -162,11 +163,7 @@ public class MoodAnalysisService {
 
     /** Sends the image to the language model of the brainstorm, without tools, and returns its JSON text. */
     private String ask(String systemPrompt, JSONArray contents) {
-        String openAiModel = openAiModel();
-        BrainstormTurn turn = (openAiModel != null
-                ? openAiService.chatTurn(openAiModel, systemPrompt, contents, false, false, false)
-                : geminiService.chatTurn(systemPrompt, contents, false, false)).join();
-        return turn.text();
+        return chatModel().chatTurn(systemPrompt, contents, false, false).join().text();
     }
 
     /**
@@ -202,14 +199,13 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Scales the image down to at most {@value #MAX_SIDE} pixels per side and encodes it as JPEG; transparent parts
-     * become white.
+     * Scales the image down to at most {@value #MAX_SIDE} pixels per side, the size the analysis takes; transparent
+     * parts become white.
      *
      * @param image the image
-     * @return the JPEG bytes
-     * @throws IOException if the image cannot be encoded
+     * @return an RGB copy of the image, scaled down if it is larger
      */
-    static byte[] encodeScaled(BufferedImage image) throws IOException {
+    public static BufferedImage scaledDown(BufferedImage image) {
         double scale = Math.min(1.0, MAX_SIDE / (double) Math.max(image.getWidth(), image.getHeight()));
         int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
         int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
@@ -218,7 +214,18 @@ public class MoodAnalysisService {
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         graphics.drawImage(image, 0, 0, width, height, Color.WHITE, null);
         graphics.dispose();
+        return rgb;
+    }
 
+    /**
+     * Scales the image down like {@link #scaledDown(BufferedImage)} and encodes it as JPEG.
+     *
+     * @param image the image
+     * @return the JPEG bytes
+     * @throws IOException if the image cannot be encoded
+     */
+    static byte[] encodeScaled(BufferedImage image) throws IOException {
+        BufferedImage rgb = scaledDown(image);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         if (!ImageIO.write(rgb, "jpg", out))
             throw new IOException("No JPEG encoder");

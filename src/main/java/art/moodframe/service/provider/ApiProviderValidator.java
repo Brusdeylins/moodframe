@@ -223,8 +223,21 @@ public class ApiProviderValidator {
      * @since 2.1.2
      */
     public CompletableFuture<ModelCheck> checkGeminiModel() {
-        return geminiApiService.checkChatModel().handle(Outcome::of)
-                .thenCombine(geminiApiService.checkWebSearch().handle(Outcome::of), ModelCheck::new)
+        return checkGeminiModel(null);
+    }
+
+    /**
+     * Checks the brainstorm language model of Gemini like {@link #checkGeminiModel()}, with a key the settings dialog
+     * validated but did not save yet.
+     *
+     * @param apiKey the key, null for the saved one
+     * @return the outcomes of the checks
+     * @since 2.1.3
+     */
+    public CompletableFuture<ModelCheck> checkGeminiModel(String apiKey) {
+        GeminiApiService gemini = apiKey != null ? geminiApiService.withCredentials(apiKey, null) : geminiApiService;
+        return gemini.checkChatModel().handle(Outcome::of)
+                .thenCombine(gemini.checkWebSearch().handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
                     storeModelCheck(ApiProvider.GOOGLE_GEMINI, check, config::setGeminiChatOk,
                             config::setGeminiWebSearch);
@@ -312,8 +325,24 @@ public class ApiProviderValidator {
      * @since 2.1.2
      */
     public CompletableFuture<ModelCheck> checkOpenAiModel(String model) {
-        return openAiApiService.checkChatModel(model).handle(Outcome::of)
-                .thenCombine(openAiApiService.checkWebSearch(model).handle(Outcome::of), ModelCheck::new)
+        return checkOpenAiModel(model, null, null);
+    }
+
+    /**
+     * Checks an OpenAI language model like {@link #checkOpenAiModel(String)}, with a token and base URL the settings
+     * dialog validated but did not save yet.
+     *
+     * @param model   the model id
+     * @param apiKey  the token, null for the saved one (and the saved base URL)
+     * @param baseUrl the base URL, null for the saved one
+     * @return the outcomes of the checks
+     * @since 2.1.3
+     */
+    public CompletableFuture<ModelCheck> checkOpenAiModel(String model, String apiKey, String baseUrl) {
+        OpenAiApiService openAi = apiKey != null ? openAiApiService.withCredentials(apiKey, baseUrl)
+                : openAiApiService;
+        return openAi.checkChatModel(model).handle(Outcome::of)
+                .thenCombine(openAi.checkWebSearch(model).handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
                     synchronized (this) {
                         lastOpenAiChecks.put(model, check);
