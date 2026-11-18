@@ -71,19 +71,6 @@ public class MoodAnalysisService {
     private final String template;
 
     /**
-     * Creates the service the application uses: the Gemini and OpenAI services of the application and its
-     * configuration.
-     *
-     * @param config the application configuration
-     * @return the service
-     */
-    public static MoodAnalysisService create(ApplicationConfig config) {
-        art.moodframe.config.ServiceFactory services = art.moodframe.config.ServiceFactory.getInstance();
-        return new MoodAnalysisService(services.getService(GeminiApiService.class),
-                services.getService(OpenAiApiService.class), config);
-    }
-
-    /**
      * Creates the service. The language model follows the choice of the brainstorm in the configuration, read for
      * every analysis.
      *

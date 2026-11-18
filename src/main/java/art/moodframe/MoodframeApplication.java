@@ -262,7 +262,7 @@ public class MoodframeApplication extends Application {
             // Initialize BFL API Service
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.provider.BflApiService.class,
-                    () -> new art.moodframe.service.provider.BflApiServiceImpl(io));
+                    () -> new art.moodframe.service.provider.BflApiServiceImpl(config, io));
 
             // Initialize Google Gemini API Service
             ServiceFactory.getInstance().registerProvider(
@@ -288,10 +288,14 @@ public class MoodframeApplication extends Application {
             // Moves the files of chats, entries and images to the trash and back
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.chat.ChatFileService.class,
-                    () -> new art.moodframe.service.chat.ChatFileService(
-                            ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashManager.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.chat.ThumbnailManager.class),
-                            new art.moodframe.service.chat.FileManagerService(paths.images())));
+                    () -> {
+                        art.moodframe.service.chat.ThumbnailManager thumbnails = ServiceFactory.getInstance()
+                                .getService(art.moodframe.service.chat.ThumbnailManager.class);
+                        return new art.moodframe.service.chat.ChatFileService(
+                                ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashManager.class),
+                                thumbnails, new art.moodframe.service.chat.FileManagerService(paths.images(),
+                                        thumbnails));
+                    });
 
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
@@ -437,10 +441,33 @@ public class MoodframeApplication extends Application {
                                 art.moodframe.service.generation.GenerationService.class);
                         return new art.moodframe.mcp.McpService(config, generation != null
                                 ? art.moodframe.mcp.McpTools.all(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash, events, generation,
-                                        art.moodframe.service.brainstorm.MoodAnalysisService.create(config))
+                                        favorites, trash, events, generation, services.getService(
+                                                art.moodframe.service.brainstorm.MoodAnalysisService.class))
                                 : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
                                         favorites, trash, events));
+                    });
+
+            /*  The analysis of an image into a mood, for the panel of the main window and the MCP tools  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.brainstorm.MoodAnalysisService.class,
+                    () -> new art.moodframe.service.brainstorm.MoodAnalysisService(
+                            ServiceFactory.getInstance().getService(
+                                    art.moodframe.service.provider.GeminiApiService.class),
+                            ServiceFactory.getInstance().getService(
+                                    art.moodframe.service.provider.OpenAiApiService.class),
+                            config));
+
+            /*  A brainstorm service for each brainstorm window, on the stored sessions and the language models  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.service.brainstorm.BrainstormService.Factory.class,
+                    () -> {
+                        ServiceFactory services = ServiceFactory.getInstance();
+                        art.moodframe.service.provider.GeminiApiService gemini = services.getService(
+                                art.moodframe.service.provider.GeminiApiService.class);
+                        art.moodframe.service.provider.OpenAiApiService openAi = services.getService(
+                                art.moodframe.service.provider.OpenAiApiService.class);
+                        return () -> new art.moodframe.service.brainstorm.BrainstormService(
+                                new art.moodframe.repository.BrainstormRepository(database), gemini, openAi, config);
                     });
 
             /*  A newer version on the update site: hint behind the version in the header, checked at the start  */

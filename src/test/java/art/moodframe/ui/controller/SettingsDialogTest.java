@@ -3,7 +3,6 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.LibraryPaths;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
@@ -62,7 +61,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -130,8 +128,7 @@ class SettingsDialogTest {
         config.ui().setUiLanguage("en");
 
         /*  The live clients read their keys from the configuration; only the tests of a typed key are answered  */
-        BflApiService live = withConfig(BflApiServiceImpl::new);
-        bfl = spy(live);
+        bfl = spy(new BflApiServiceImpl(config));
         doReturn(CompletableFuture.completedFuture(true)).when(bfl).testConnection(anyString(), anyString());
         gemini = spy(new GeminiApiServiceImpl(config));
         doReturn(CompletableFuture.completedFuture(true)).when(gemini).testConnection(anyString(), any());
@@ -491,24 +488,6 @@ class SettingsDialogTest {
         if (failure.get() != null)
             throw failure.get();
         return result.get();
-    }
-
-    /*  creates a client that takes the configuration from the service locator  */
-    private <T> T withConfig(Callable<T> create) throws Exception {
-        Field field = ServiceFactory.class.getDeclaredField("services");
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<Class<?>, Object> services = (Map<Class<?>, Object>) field.get(ServiceFactory.getInstance());
-        Object former = services.put(ApplicationConfig.class, config);
-        try {
-            return create.call();
-        }
-        finally {
-            if (former != null)
-                services.put(ApplicationConfig.class, former);
-            else
-                services.remove(ApplicationConfig.class);
-        }
     }
 
     /** Answers the message boxes and file choosers of the dialog and records what they said. */

@@ -16,7 +16,10 @@ import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
+import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.chat.ChatFileService;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
@@ -299,7 +302,8 @@ class MainWindowFlowsTest {
         /*  chats, their files and the trash  */
         TrashManager trashManager = new TrashManager(paths, 60);
         thumbnails = new ThumbnailManager(paths);
-        ChatFileService files = new ChatFileService(trashManager, thumbnails, new FileManagerService(paths.images()));
+        ChatFileService files = new ChatFileService(trashManager, thumbnails,
+                new FileManagerService(paths.images(), thumbnails));
         repository = slowImageWrites(database, files);
         trash = new TrashCenter();
         trash.register(new ChatTrashGroup(repository));
@@ -346,6 +350,12 @@ class MainWindowFlowsTest {
         requests = new RequestResponseManager(config, repository, providers, io);
         register(RequestResponseManager.class, requests);
         register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers));
+
+        /*  the brainstorm and the analysis of an image, on the mocked language models  */
+        ApplicationConfig brainstormConfig = config;
+        register(BrainstormService.Factory.class, () -> new BrainstormService(new BrainstormRepository(database),
+                gemini, openAi, brainstormConfig));
+        register(MoodAnalysisService.class, new MoodAnalysisService(gemini, openAi, config));
 
         languageListeners = I18nManager.getChangeListenerCount();
         themeListeners = ThemeManager.getThemeListenerCount();

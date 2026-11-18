@@ -3,18 +3,15 @@ package art.moodframe.service.provider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ProviderAccounts;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ApiProvider;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -102,33 +99,15 @@ class StatelessConnectionTestTest {
 
     @Test
     void bflTestsTheTypedKeyInTheChosenRegion() throws Exception {
-        Map<Class<?>, Object> services = services();
-        Object former = services.get(ApplicationConfig.class);
-        services.put(ApplicationConfig.class, config);
-        try {
-            BflApiService bfl = new BflApiServiceImpl();
-            BflApiService typed = bfl.withCredentials("typed", "EU");
+        BflApiService bfl = new BflApiServiceImpl(config);
+        BflApiService typed = bfl.withCredentials("typed", "EU");
 
-            assertEquals("typed", typed.getApiKey());
-            assertEquals("https://api.eu.bfl.ai", typed.getApiBaseUrl());
-            assertEquals("saved", bfl.getApiKey());
-            assertEquals("https://api.bfl.ai", bfl.getApiBaseUrl());
-            assertFalse(typed == bfl);
-            verify(config.accounts(), never()).setApiRegion(any());
-            verify(config, never()).setProperty(any(), any());
-        }
-        finally {
-            if (former != null)
-                services.put(ApplicationConfig.class, former);
-            else
-                services.remove(ApplicationConfig.class);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<Class<?>, Object> services() throws Exception {
-        Field services = ServiceFactory.class.getDeclaredField("services");
-        services.setAccessible(true);
-        return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
+        assertEquals("typed", typed.getApiKey());
+        assertEquals("https://api.eu.bfl.ai", typed.getApiBaseUrl());
+        assertEquals("saved", bfl.getApiKey());
+        assertEquals("https://api.bfl.ai", bfl.getApiBaseUrl());
+        assertFalse(typed == bfl);
+        verify(config.accounts(), never()).setApiRegion(any());
+        verify(config, never()).setProperty(any(), any());
     }
 }

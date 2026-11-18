@@ -141,6 +141,7 @@ public class MainWindowController implements I18nChangeListener {
     private PromptBlockService blockService;
     private ColorStyleService colorService;
     private MoodService moodService;
+    private art.moodframe.service.brainstorm.BrainstormService.Factory brainstorms;
 
     /*  Whether all parts are set up: until then, a change in one part does not update the others  */
     private boolean ready;
@@ -179,6 +180,7 @@ public class MainWindowController implements I18nChangeListener {
         blockService = services.getService(PromptBlockService.class);
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
+        brainstorms = services.getService(art.moodframe.service.brainstorm.BrainstormService.Factory.class);
         ChatLibrary chatLibrary = services.getService(ChatLibrary.class);
         validator = services.getService(ApiProviderValidator.class);
         updates = services.getService(art.moodframe.service.UpdateCheckService.class);
@@ -206,7 +208,8 @@ public class MainWindowController implements I18nChangeListener {
         generationPanelController.init(config, generationService, services.getService(ImageAttachmentService.class),
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
-                moodService, services.getService(FrameService.class), services.getService(FavoriteService.class)),
+                moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
+                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class)),
                 statusBarController, this::updateUIState);
         inputBar.init(generationPanelController.costTextProperty(), inputListener());
         statusBarController.ready();
@@ -691,8 +694,7 @@ public class MainWindowController implements I18nChangeListener {
                             blockService.getAll(PromptBlock.Type.LIGHT), blockService.getAll(PromptBlock.Type.CAMERA),
                             colorService.getAllStyles(), moodService != null ? moodService.getAll() : List.of(),
                             models, currentState, modelNames, locked);
-            art.moodframe.service.brainstorm.BrainstormService brainstormService =
-                    art.moodframe.service.brainstorm.BrainstormService.create(config);
+            art.moodframe.service.brainstorm.BrainstormService brainstormService = brainstorms.create();
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
             new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, brainstormService, brainstormContext,

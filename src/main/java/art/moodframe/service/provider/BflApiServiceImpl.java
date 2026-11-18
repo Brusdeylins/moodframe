@@ -1,7 +1,6 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.*;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
@@ -73,18 +72,21 @@ public class BflApiServiceImpl implements BflApiService {
      * 
      * <p>This constructor initializes the HTTP client with full corporate proxy
      * support including ZScaler certificates and proxy authentication.</p>
+     *
+     * @param config the application configuration (key, region, timeouts, proxy)
      */
-    public BflApiServiceImpl() {
-        this(IoExecutor.get());
+    public BflApiServiceImpl(ApplicationConfig config) {
+        this(config, IoExecutor.get());
     }
 
     /**
      * Creates a new BFL API service implementation with corporate proxy support.
      *
-     * @param io runs the blocking requests; the asynchronous ones run on the threads of the HTTP client
+     * @param config the application configuration (key, region, timeouts, proxy)
+     * @param io     runs the blocking requests; the asynchronous ones run on the threads of the HTTP client
      */
-    public BflApiServiceImpl(Executor io) {
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+    public BflApiServiceImpl(ApplicationConfig config, Executor io) {
+        this.config = config;
         this.io = io;
         this.objectMapper = new ObjectMapper();
         this.httpClients = new HttpClients(config);
