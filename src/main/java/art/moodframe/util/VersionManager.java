@@ -1,7 +1,5 @@
 package art.moodframe.util;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,28 +146,19 @@ public class VersionManager {
         // 1. Try to get version from JAR manifest (production builds)
         String manifestVersion = getVersionFromManifest();
         if (manifestVersion != null && !manifestVersion.trim().isEmpty()) {
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Version detected from JAR manifest: {}", manifestVersion);
-            }
+            logger.debug("Version detected from JAR manifest: {}", manifestVersion);
             return manifestVersion;
         }
         
         // 2. Try to get version from build properties file
         String buildVersion = getVersionFromBuildProperties();
         if (buildVersion != null && !buildVersion.trim().isEmpty()) {
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Version detected from build properties: {}", buildVersion);
-            }
+            logger.debug("Version detected from build properties: {}", buildVersion);
             return buildVersion;
         }
         
         // 3. Development fallback
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("No version found in manifest or build properties, using development fallback");
-        }
+        logger.debug("No version found in manifest or build properties, using development fallback");
         return DEV_BUILD_VERSION;
     }
     

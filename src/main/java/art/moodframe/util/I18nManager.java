@@ -1,7 +1,5 @@
 package art.moodframe.util;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,19 +89,13 @@ public class I18nManager {
             throw new IllegalArgumentException("Locale cannot be null");
         }
         
-        // Only log if logging is enabled
-        ApplicationConfig appConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (appConfig != null && appConfig.getLoggingEnabled()) {
-            logger.info("Changing application locale from {} to {}", currentLocale, locale);
-        }
+        logger.debug("Changing application locale from {} to {}", currentLocale, locale);
         currentLocale = locale;
         
         // Pre-load the resource bundle for the new locale to detect any issues early
         try {
             getResourceBundle(locale);
-            if (appConfig != null && appConfig.getLoggingEnabled()) {
-                logger.info("Successfully loaded resource bundle for locale: {}", locale);
-            }
+            logger.debug("Successfully loaded resource bundle for locale: {}", locale);
             
             // Notify all registered listeners about the language change
             notifyLanguageChanged();
@@ -355,10 +347,7 @@ public class I18nManager {
             return;
         }
         
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Notifying {} I18n change listeners about language change", changeListeners.size());
-        }
+        logger.debug("Notifying {} I18n change listeners about language change", changeListeners.size());
         
         // Ensure UI updates happen on the JavaFX Application Thread
         if (Platform.isFxApplicationThread()) {
