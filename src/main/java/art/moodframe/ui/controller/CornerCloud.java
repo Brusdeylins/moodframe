@@ -37,6 +37,9 @@ final class CornerCloud {
     private final ApplicationConfig config;
     private final ImageView cornerCloud;
 
+    /*  follows a theme change at once, not only when the settings close; removed with the window  */
+    private final java.util.function.Consumer<String> themeListener = this::update;
+
     /*  the cloud for dark themes, and a deeper, more saturated one that stays visible on light themes  */
     private Image cloudDark;
     private Image cloudLight;
@@ -59,8 +62,7 @@ final class CornerCloud {
         stack.layoutBoundsProperty().addListener((obs, old, bounds) -> place(bounds));
         place(stack.getLayoutBounds());
 
-        /*  follow a theme change at once, not only when the settings close  */
-        ThemeManager.addThemeListener(this::update);
+        ThemeManager.addThemeListener(themeListener);
 
         /*  the theme colors resolve only once the window has its scene  */
         if (stack.getScene() != null)
@@ -84,6 +86,11 @@ final class CornerCloud {
 
     private void place(Bounds bounds) {
         cornerCloud.relocate(bounds.getWidth() - CLOUD_WIDTH, bounds.getHeight() - CLOUD_HEIGHT);
+    }
+
+    /** Stops following the theme, once the window closes. */
+    void dispose() {
+        ThemeManager.removeThemeListener(themeListener);
     }
 
     /** Matches the strength of the cloud to the current theme, or hides it with the background image off. */

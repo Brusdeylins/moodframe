@@ -48,7 +48,6 @@ import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.ImagePreviewOverlay;
 import art.moodframe.ui.component.InPlaceEditableLabel;
-import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.ui.brainstorm.BrainstormDialog;
 import art.moodframe.util.I18nManager;
@@ -115,7 +114,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -170,7 +168,7 @@ class MainWindowFlowsTest {
 
     /*  the window of a test  */
     private int languageListeners;
-    private List<Consumer<String>> themeListeners;
+    private int themeListeners;
     private Stage stage;
     private Parent root;
     private MainWindowController controller;
@@ -219,14 +217,6 @@ class MainWindowFlowsTest {
         Field services = ServiceFactory.class.getDeclaredField("services");
         services.setAccessible(true);
         return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
-    }
-
-    /*  the listeners of the theme, of which the cloud of a window never leaves  */
-    @SuppressWarnings("unchecked")
-    private static List<Consumer<String>> themeListeners() throws Exception {
-        Field listeners = ThemeManager.class.getDeclaredField("listeners");
-        listeners.setAccessible(true);
-        return (List<Consumer<String>>) listeners.get(null);
     }
 
     /*  the chats of the library, which note the thread every deletion runs on and count their loads  */
@@ -358,7 +348,7 @@ class MainWindowFlowsTest {
         register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers));
 
         languageListeners = I18nManager.getChangeListenerCount();
-        themeListeners = List.copyOf(themeListeners());
+        themeListeners = ThemeManager.getThemeListenerCount();
         onFxThread(() -> {
             FXMLLoader loader = new FXMLLoader(MainWindowFlowsTest.class.getResource("/fxml/MainWindow.fxml"));
             root = loader.load();
@@ -372,8 +362,8 @@ class MainWindowFlowsTest {
     }
 
     /**
-     * Closes the dialogs and the window and releases what would keep it alive: the listeners of the language and the
-     * theme, the clipboard watch, the timeline of the memory display and the threads of the work.
+     * Closes the dialogs and the window, which lets go of what would keep it alive: the listeners of the language and
+     * the theme, the clipboard watch, the timeline of the memory display; then the threads of the work end.
      */
     @AfterEach
     void closeTheWindow() throws Exception {
@@ -383,20 +373,8 @@ class MainWindowFlowsTest {
             for (Window window : List.copyOf(Window.getWindows()))
                 if (window != stage && window.isShowing())
                     window.hide();
-
-            /*  the cards of the entries listen to the language until their cell lets them go  */
-            entryList().setItems(null);
         });
-        onFxThread(() -> {
-            stage.hide();
-            controller.generationPanel().dispose();
-
-            /*  its timeline would keep the whole window alive  */
-            find(root, MemoryStatusComponent.class).shutdown();
-        });
-        I18nManager.removeChangeListener(controller);
-        I18nManager.removeChangeListener(overlay());
-        themeListeners().retainAll(themeListeners);
+        onFxThread(stage::hide);
         I18nManager.setLocale(Locale.ENGLISH);
         requests.shutdown();
         io.shutdownNow();
@@ -404,6 +382,7 @@ class MainWindowFlowsTest {
         sizeCheck.shutdown();
         stage = null;
         assertEquals(languageListeners, I18nManager.getChangeListenerCount(), "the window leaves no listener behind");
+        assertEquals(themeListeners, ThemeManager.getThemeListenerCount(), "nor a listener of the theme");
     }
 
     // ===== Steps on the JavaFX thread =====
@@ -698,11 +677,7 @@ class MainWindowFlowsTest {
 
     // ===== 2. The list of the chats =====
 
-    /**
-     * A new chat comes on top of the list and opens; a chat opens scrolled towards its latest entry; a chat is renamed
-     * in place and the header follows, moved with Alt+Down, moved to the trash, where it leaves the list and closes,
-     * and comes back from the trash at its place.
-     */
+    /** The start loaded the chats before the window opened, the window shows them without loading them again. */
     @Test
     void theListShowsTheChatsLoadedAtTheStart() throws Exception {
         assertEquals(1, loads.get(), "the window loads the chats no more");
@@ -710,6 +685,35 @@ class MainWindowFlowsTest {
         assertEquals("Welcome to MoodFrame", chatList().getItems().get(0).getName());
     }
 
+    /**
+     * Closing the window lets go of what it registered beyond itself: the listeners of the language (its own and those
+     * of the cards) and of the theme, and the listener of the library changes.
+     */
+    @Test
+    void aClosedWindowLetsGoOfWhatItRegistered() throws Exception {
+        Chat chat = createChat("Before closing");
+        open(chat);
+        chooseGemini();
+        send(chat, "a lighthouse");
+        assertTrue(I18nManager.getChangeListenerCount() > languageListeners, "the window and its cards listen");
+        assertEquals(themeListeners + 1, ThemeManager.getThemeListenerCount(), "the cloud follows the theme");
+
+        onFxThread(stage::hide);
+        assertEquals(languageListeners, I18nManager.getChangeListenerCount());
+        assertEquals(themeListeners, ThemeManager.getThemeListenerCount());
+
+        /*  the changes of the library reach the closed window no more  */
+        int listed = onFx(() -> chatList().getItems().size());
+        fromAnotherThread(() -> chats.createChat("After closing"));
+        onFx(() -> null);
+        assertEquals(listed, onFx(() -> chatList().getItems().size()));
+    }
+
+    /**
+     * A new chat comes on top of the list and opens; a chat opens scrolled towards its latest entry; a chat is renamed
+     * in place and the header follows, moved with Alt+Down, moved to the trash, where it leaves the list and closes,
+     * and comes back from the trash at its place.
+     */
     @Test
     void chatsAreCreatedOpenedRenamedMovedTrashedAndRestored() throws Exception {
         Chat full = createChat("Full chat");

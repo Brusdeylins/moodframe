@@ -51,6 +51,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,6 +145,19 @@ public class MainWindowController implements I18nChangeListener {
     /*  Whether all parts are set up: until then, a change in one part does not update the others  */
     private boolean ready;
 
+    /*  What the window registered with the services of the application, removed when it closes  */
+    private RequestResponseManager requests;
+    private LibraryEvents events;
+    private TrashCenter trashCenter;
+    private ApiProviderValidator validator;
+    private final java.util.function.Consumer<ChatEntry> entryListener = this::entryUpdated;
+    private final java.util.function.Consumer<art.moodframe.model.GeneratedImage> imageListener =
+            (image) -> Platform.runLater(() -> chatViewController.imageUpdated(image));
+    private final LibraryEvents.Listener libraryListener = this::onLibraryChanged;
+    private final Runnable validationListener = () -> Platform.runLater(this::refreshApiKeyStatus);
+    private TrashCenter.Listener trashListener;
+    private boolean disposed;
+
     /*  A worker for the blocking work of the window (queries of the groups, copies into the Downloads folder,
         deletes), off the FX thread and off the common pool; its thread ends when idle  */
     private final ExecutorService worker = new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS,
@@ -166,7 +180,7 @@ public class MainWindowController implements I18nChangeListener {
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
         ChatLibrary chatLibrary = services.getService(ChatLibrary.class);
-        ApiProviderValidator validator = services.getService(ApiProviderValidator.class);
+        validator = services.getService(ApiProviderValidator.class);
         updates = services.getService(art.moodframe.service.UpdateCheckService.class);
         logger.debug("Initializing MainWindow controller");
 
@@ -205,7 +219,7 @@ public class MainWindowController implements I18nChangeListener {
 
         /*  The check of the accounts runs in the background since the start: its end refreshes button and status bar  */
         if (validator != null)
-            validator.addCompletionListener(() -> Platform.runLater(this::refreshApiKeyStatus));
+            validator.addCompletionListener(validationListener);
         statusBarController.checkApiKeys();
         ready = true;
         updateUIState();
@@ -218,7 +232,56 @@ public class MainWindowController implements I18nChangeListener {
 
         // Apply initial localization
         onLanguageChanged();
+        disposeOnClose();
         logger.debug("MainWindow controller initialization complete");
+    }
+
+    /*  The window lets go of what it registered beyond itself once it is closed  */
+    private void disposeOnClose() {
+        mainBorderPane.sceneProperty().addListener((obs, oldScene, scene) -> {
+            if (scene != null)
+                scene.windowProperty().addListener((winObs, oldWindow, window) -> {
+                    if (window != null)
+                        window.addEventHandler(WindowEvent.WINDOW_HIDDEN, (event) -> dispose());
+                });
+        });
+    }
+
+    /**
+     * Lets go of what the window registered beyond itself, so a closed window stays reachable from nowhere: its
+     * listeners of the language, the theme, the generations, the library, the trash and the checks of the accounts,
+     * the timelines of its parts and its worker. Runs once, when the window is closed.
+     */
+    public void dispose() {
+        if (disposed)
+            return;
+        disposed = true;
+        I18nManager.removeChangeListener(this);
+        if (requests != null) {
+            requests.removeEntryListener(entryListener);
+            requests.removeImageListener(imageListener);
+            requests.setOnSafetyToleranceLowered((value) -> { });
+        }
+        if (events != null)
+            events.removeListener(libraryListener);
+        if (trashCenter != null && trashListener != null)
+            trashCenter.removeListener(trashListener);
+        if (validator != null)
+            validator.removeCompletionListener(validationListener);
+        chatViewController.dispose();
+        generationPanelController.dispose();
+        statusBarController.dispose();
+        cornerCloud.dispose();
+        worker.shutdown();
+    }
+
+    /*  A change of an entry during its generation; a finished entry changes the image counts of the groups  */
+    private void entryUpdated(ChatEntry entry) {
+        Platform.runLater(() -> {
+            chatViewController.entryUpdated(entry);
+            if (entry.getStatus() != ChatEntry.Status.PENDING && entry.getStatus() != ChatEntry.Status.PROCESSING)
+                librarySidebarController.refreshGroups();
+        });
     }
 
     /** The selection of the sidebar opens a group or shows the chat or the group anew. */
@@ -394,15 +457,12 @@ public class MainWindowController implements I18nChangeListener {
      * change of the library made here or by another caller (the MCP server), what leaves the trash.
      */
     private void setupServices(RequestResponseManager requests, LibraryEvents events, TrashCenter trashCenter) {
+        this.requests = requests;
+        this.events = events;
+        this.trashCenter = trashCenter;
         if (requests != null) {
-            requests.addEntryListener((entry) -> Platform.runLater(() -> {
-                chatViewController.entryUpdated(entry);
-
-                /*  A finished entry changes the image counts of the groups  */
-                if (entry.getStatus() != ChatEntry.Status.PENDING && entry.getStatus() != ChatEntry.Status.PROCESSING)
-                    librarySidebarController.refreshGroups();
-            }));
-            requests.addImageListener((image) -> Platform.runLater(() -> chatViewController.imageUpdated(image)));
+            requests.addEntryListener(entryListener);
+            requests.addImageListener(imageListener);
             requests.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
                 generationPanelController.setFlux2Safety(value);
                 statusBarController.status(I18nManager.getText("status.bfl.safety.lowered", value));
@@ -411,14 +471,14 @@ public class MainWindowController implements I18nChangeListener {
             logger.warn("RequestResponseManager not available - using mock mode");
 
         if (events != null)
-            events.addListener(this::onLibraryChanged);
+            events.addListener(libraryListener);
         else
             logger.warn("LibraryEvents not available - no automatic UI refresh");
 
         /*  What leaves the trash shows by the changes of the library; the trash adds the status and the moods that
             lost their last block  */
-        if (trashCenter != null)
-            trashCenter.addListener(new TrashCenter.Listener() {
+        if (trashCenter != null) {
+            trashListener = new TrashCenter.Listener() {
                 @Override
                 public void restored(TrashGroup.Kind kind, String id) {
                     if (kind == TrashGroup.Kind.CHATS)
@@ -433,7 +493,9 @@ public class MainWindowController implements I18nChangeListener {
                     if (kind == TrashGroup.Kind.BLOCKS)
                         Platform.runLater(moodFramePanelController::askToDeleteEmptiedMoods);
                 }
-            });
+            };
+            trashCenter.addListener(trashListener);
+        }
         else
             logger.warn("TrashCenter not available - no automatic UI refresh");
     }

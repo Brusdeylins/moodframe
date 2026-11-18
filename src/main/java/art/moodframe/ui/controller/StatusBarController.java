@@ -39,6 +39,9 @@ public class StatusBarController implements StatusSink {
     private Label apiKeyStatusLabel;
     private Tooltip apiKeyStatusTooltip;
 
+    /*  the memory display, whose timeline runs until the window closes  */
+    private MemoryStatusComponent memoryStatus;
+
     /** The status of the API keys the bar shows. */
     enum KeyStatus {
         /** every enabled provider has a key */
@@ -68,7 +71,13 @@ public class StatusBarController implements StatusSink {
         Tooltip.install(apiKeyStatusGroup, apiKeyStatusTooltip);
 
         /*  the memory display in front of the API key status  */
-        statusBar.getChildren().add(statusBar.getChildren().indexOf(apiKeyStatusGroup), new MemoryStatusComponent());
+        memoryStatus = new MemoryStatusComponent();
+        statusBar.getChildren().add(statusBar.getChildren().indexOf(apiKeyStatusGroup), memoryStatus);
+    }
+
+    /** Stops the memory display, once the window closes. */
+    public void dispose() {
+        memoryStatus.shutdown();
     }
 
     /**

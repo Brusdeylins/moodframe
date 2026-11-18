@@ -437,6 +437,15 @@ public class ApiProviderValidator {
     }
 
     /**
+     * Removes a listener, for example that of a window that closes.
+     *
+     * @param listener the listener
+     */
+    public void removeCompletionListener(Runnable listener) {
+        completionListeners.remove(listener);
+    }
+
+    /**
      * Gets the reason of a failed check of the last run, kept in memory only. A check that could not decide (no
      * network, timeout, HTTP 429 or 5xx) says so, as its stored result stays.
      *

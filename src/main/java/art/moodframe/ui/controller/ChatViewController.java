@@ -189,6 +189,10 @@ public class ChatViewController {
     // Image Preview Overlay
     private art.moodframe.ui.component.ImagePreviewOverlay imagePreviewOverlay;
 
+    /*  the cards the cells show now, which listen to the language until they are disposed  */
+    private final java.util.Set<ChatEntryCard> shownCards =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
     // Track the currently displayed chat entry for navigation
     private ChatEntry currentlyDisplayedChatEntry;
 
@@ -277,6 +281,19 @@ public class ChatViewController {
     public void closePreview() {
         if (imagePreviewOverlay != null && imagePreviewOverlay.isVisible())
             imagePreviewOverlay.setVisible(false);
+    }
+
+    /**
+     * Lets go of what the chat area registered beyond the window, once it closes: the cards of the entries leave their
+     * cells and stop listening to the language, the full view closes and stops listening as well.
+     */
+    public void dispose() {
+        shownCards.forEach(ChatEntryCard::dispose);
+        shownCards.clear();
+        chatEntriesListView.setItems(null);
+        closePreview();
+        if (imagePreviewOverlay != null)
+            I18nManager.removeChangeListener(imagePreviewOverlay);
     }
 
     /** Shows the texts of the chat area in the current language. */
@@ -635,6 +652,7 @@ public class ChatViewController {
                 // Dispose previous card to prevent memory leaks
                 if (currentCard != null) {
                     currentCard.dispose();
+                    shownCards.remove(currentCard);
                     currentCard = null;
                 }
 
@@ -646,6 +664,7 @@ public class ChatViewController {
                     // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
                     boolean isChatDeleted = group.get() == null && chat.get() != null && chat.get().isDeleted();
                     currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory);
+                    shownCards.add(currentCard);
 
                     // CRITICAL: Card must also fill width
                     currentCard.setMaxWidth(Double.MAX_VALUE);
