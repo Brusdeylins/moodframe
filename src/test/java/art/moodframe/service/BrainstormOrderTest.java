@@ -33,13 +33,13 @@ class BrainstormOrderTest {
 
     /*  A fresh database per test with the sessions A, B, C and D in this order, each new one created on top  */
     @BeforeEach
-    void createSessions() {
+    void createSessions() throws Exception {
         databasePath = tempDir.resolve("db").resolve("test.db");
         DatabaseConfig.initialize(databasePath.toString());
         repository = new BrainstormRepository(DatabaseConfig.getDatabase());
         service = new BrainstormService(repository, null);
         for (String title : List.of("D", "C", "B", "A"))
-            repository.createSession(title).orElseThrow();
+            repository.createSession(title);
         sessions = repository.findAllSessions();
     }
 
@@ -47,7 +47,7 @@ class BrainstormOrderTest {
     void putsANewSessionOnTop() throws Exception {
         assertEquals("ABCD", titles(sessions));
         service.moveSession(sessions, session("D"), session("A"));
-        repository.createSession("E").orElseThrow();
+        repository.createSession("E");
 
         assertEquals("EDABC", titles(repository.findAllSessions()));
     }
@@ -71,7 +71,7 @@ class BrainstormOrderTest {
     }
 
     @Test
-    void keepsItsPlaceWhenChanged() {
+    void keepsItsPlaceWhenChanged() throws Exception {
         repository.addMessage(session("C").getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "a harbor"));
         repository.updateTitle(session("D").getId(), "D");
 
@@ -79,7 +79,7 @@ class BrainstormOrderTest {
     }
 
     @Test
-    void loadsTheSessionsInTheStoredOrderAfterARestart() {
+    void loadsTheSessionsInTheStoredOrderAfterARestart() throws Exception {
         service.moveSession(sessions, session("D"), session("B"));
         DatabaseConfig.initialize(databasePath.toString());
 

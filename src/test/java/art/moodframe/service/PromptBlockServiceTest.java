@@ -1,6 +1,7 @@
 package art.moodframe.service;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
@@ -10,15 +11,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Standard blocks and palettes, the blocks of the user in a fresh SQLite database. */
@@ -230,7 +236,7 @@ class PromptBlockServiceTest {
     }
 
     @Test
-    void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() {
+    void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() throws Exception {
         PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
@@ -280,7 +286,7 @@ class PromptBlockServiceTest {
     }
 
     @Test
-    void renamesAStyleOfTheUserThatIsNamedLikeAStandardStyleAndKeepsItsText() {
+    void renamesAStyleOfTheUserThatIsNamedLikeAStandardStyleAndKeepsItsText() throws Exception {
         PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.STYLE, "Infographic Flat", "my own flat look", null,
                 true);
@@ -334,5 +340,34 @@ class PromptBlockServiceTest {
         ColorStyle renamed = service.getStyleByName("Silver Screen (1)");
         assertNotNull(renamed);
         assertEquals(List.of("#112233", "#445566"), renamed.getColors());
+    }
+
+    @Test
+    void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
+        database.initialize();
+        PromptBlockService service = new PromptBlockService(database, new LibraryEvents());
+        PromptBlock own = new PromptBlock(null, PromptBlock.Type.STYLE, "Own Style", "own", null, true);
+        assertTrue(service.addCustom(own));
+
+        try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE prompt_blocks");
+        }
+
+        assertThrows(SQLException.class, () -> new PromptBlockRepository(database).findAll(PromptBlock.Type.STYLE));
+        assertEquals(service.getDefaults(PromptBlock.Type.STYLE).size(), service.getAll(PromptBlock.Type.STYLE).size(),
+                "the standard styles only");
+        assertTrue(service.getCustom(PromptBlock.Type.STYLE).isEmpty());
+        assertTrue(service.getDeleted().isEmpty());
+        assertNull(service.find(PromptBlock.Type.STYLE, own.getId()));
+        assertNull(service.findInTrash(own.getId()));
+        assertFalse(service.exists(PromptBlock.Type.STYLE, "Own Style"));
+        assertFalse(service.addCustom(new PromptBlock(null, PromptBlock.Type.STYLE, "Another", "x", null, true)));
+        assertFalse(service.updateCustom(own));
+        assertFalse(service.deleteCustom(own.getId()));
+        assertFalse(service.restore(own.getId()));
+        assertFalse(service.deletePermanently(own.getId()));
+        assertEquals(0, service.importCustom(PromptBlock.Type.STYLE, List.of(Map.of("name", "Imported", "text", "x"))));
+        assertEquals(0, service.resetToDefaults(PromptBlock.Type.STYLE));
     }
 }

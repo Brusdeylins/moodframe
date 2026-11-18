@@ -1,5 +1,6 @@
 package art.moodframe.service;
 
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormReply;
@@ -14,8 +15,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +31,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -57,7 +64,7 @@ class BrainstormServiceTest {
     private List<BrainstormMessage> stored;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         repository = mock(BrainstormRepository.class);
         gemini = mock(GeminiApiService.class);
         stored = new ArrayList<>();
@@ -94,7 +101,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void storesUserMessageReplyAndDraftAndUsesFirstMessageAsTitle() {
+    void storesUserMessageReplyAndDraftAndUsesFirstMessageAsTitle() throws Exception {
         answers(text(VALID_REPLY));
 
         BrainstormReply reply = service.sendUserMessage(session, "Ein Logo", context).join();
@@ -163,7 +170,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void failsWithoutStoringAnAssistantMessageOnUnusableReply() {
+    void failsWithoutStoringAnAssistantMessageOnUnusableReply() throws Exception {
         answers(text("not json"));
 
         CompletionException error = assertThrows(CompletionException.class,
@@ -175,7 +182,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void renamesASession() {
+    void renamesASession() throws Exception {
         service.renameSession("s1", "Neuer Name");
 
         verify(repository).updateTitle("s1", "Neuer Name");
@@ -290,7 +297,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void eachSessionTalksToItsOwnLanguageModel() {
+    void eachSessionTalksToItsOwnLanguageModel() throws Exception {
         art.moodframe.config.ApplicationConfig config = mock(art.moodframe.config.ApplicationConfig.class);
         when(config.getBrainstormEngine()).thenReturn("openai");
         when(config.isOpenAiBrainstormAvailable()).thenReturn(true);
@@ -451,7 +458,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void marksFactsWithAnUnresearchedSourceAsUnverified() {
+    void marksFactsWithAnUnresearchedSourceAsUnverified() throws Exception {
         researchFinds("found");
         String withFacts = "{\"step\": 5, \"message\": \"Prüfe die Fakten\", \"draft\": {\"prompt\": \"p\", \"facts\": ["
                 + "{\"text\": \"A\", \"domain\": \"www.ai.google.dev\", \"url\": \"u\", \"origin\": \"source\"},"
@@ -542,7 +549,7 @@ class BrainstormServiceTest {
     }
 
     @Test
-    void keepsTheFirstSentenceIfTheNameCannotBeMade() {
+    void keepsTheFirstSentenceIfTheNameCannotBeMade() throws Exception {
         when(gemini.suggestTitle(anyString(), anyString()))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("HTTP 500")));
         answers(text(STEP_TWO_REPLY));
@@ -660,5 +667,32 @@ class BrainstormServiceTest {
         assertInstanceOf(java.util.concurrent.CancellationException.class, ended.getCause());
         Thread.sleep(300);
         verify(gemini, times(1)).chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean());
+    }
+
+    @Test
+    void answersADatabaseErrorWithNothingStored(@TempDir Path tempDir) throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
+        database.initialize();
+        BrainstormRepository broken = new BrainstormRepository(database);
+        BrainstormService service = new BrainstormService(broken, gemini);
+        BrainstormSession own = service.startSession().orElseThrow();
+        service.noteAdopted(own);
+
+        try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE brainstorm_drafts");
+            stmt.execute("DROP TABLE brainstorm_messages");
+            stmt.execute("DROP TABLE brainstorm_sessions");
+        }
+
+        assertThrows(SQLException.class, broken::findAllSessions);
+        assertTrue(service.startSession().isEmpty());
+        assertTrue(service.listSessions().isEmpty());
+        assertTrue(service.loadMessages(own.getId()).isEmpty());
+        assertTrue(service.latestDraft(own.getId()).isEmpty());
+        assertFalse(service.deleteSession(own.getId()));
+        assertDoesNotThrow(() -> service.renameSession(own.getId(), "Renamed"));
+        assertDoesNotThrow(() -> service.setEngine(own, "openai"));
+        assertDoesNotThrow(() -> service.noteAdopted(own));
+        assertEquals(List.of(own), service.moveSession(List.of(own), own, null));
     }
 }

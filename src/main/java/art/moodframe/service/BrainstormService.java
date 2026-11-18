@@ -68,6 +68,7 @@ public class BrainstormService {
             + "Write in %s, at most 300 words.";
 
     private final BrainstormRepository repository;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
     private final GeminiApiService geminiService;
     private final OpenAiApiService openAiService;
     private final YouTubeInfoService youTube;
@@ -166,6 +167,27 @@ public class BrainstormService {
         this.onTitleChanged = onTitleChanged;
     }
 
+    /*  reads and writes of the repository; a database error is logged and gives nothing  */
+    private void addMessage(String sessionId, BrainstormMessage message) {
+        access.run(() -> repository.addMessage(sessionId, message),
+                "Failed to store brainstorm message for session: " + sessionId);
+    }
+
+    private List<BrainstormMessage> findMessages(String sessionId) {
+        return access.call(() -> repository.findMessages(sessionId), new ArrayList<>(),
+                "Failed to load brainstorm messages for session: " + sessionId);
+    }
+
+    private void updateTitle(String sessionId, String title) {
+        access.run(() -> repository.updateTitle(sessionId, title),
+                "Failed to update brainstorm session title: " + sessionId);
+    }
+
+    private Optional<BrainstormDraft> findLatestDraft(String sessionId) {
+        return access.call(() -> repository.findLatestDraft(sessionId), Optional.empty(),
+                "Failed to load latest brainstorm draft for session: " + sessionId);
+    }
+
     /** Creates a new empty session. */
     public Optional<BrainstormSession> startSession() {
         return startSession(null);
@@ -178,7 +200,9 @@ public class BrainstormService {
      * @return the session, empty if it could not be stored
      */
     public Optional<BrainstormSession> startSession(String engine) {
-        return repository.createSession(I18nManager.getText("brainstorm.session.new"), engine);
+        String title = I18nManager.getText("brainstorm.session.new");
+        return access.call(() -> Optional.of(repository.createSession(title, engine)), Optional.empty(),
+                "Failed to create brainstorm session");
     }
 
     /**
@@ -189,11 +213,12 @@ public class BrainstormService {
      */
     public void setEngine(BrainstormSession session, String engine) {
         session.setEngine(engine);
-        repository.updateEngine(session.getId(), engine);
+        access.run(() -> repository.updateEngine(session.getId(), engine),
+                "Failed to update brainstorm session engine: " + session.getId());
     }
 
     public List<BrainstormSession> listSessions() {
-        return repository.findAllSessions();
+        return access.call(repository::findAllSessions, new ArrayList<>(), "Failed to load brainstorm sessions");
     }
 
     /**
@@ -213,7 +238,7 @@ public class BrainstormService {
         }
         order.remove(session);
         order.add(before != null ? order.indexOf(before) : order.size(), session);
-        repository.updateSortOrders(order);
+        access.run(() -> repository.updateSortOrders(order), "Failed to store the order of the brainstorm sessions");
         return order;
     }
 
@@ -230,7 +255,8 @@ public class BrainstormService {
         if (running != null) {
             running.cancel(true);
         }
-        return repository.deleteSession(sessionId);
+        return access.call(() -> repository.deleteSession(sessionId), false,
+                "Failed to delete brainstorm session: " + sessionId);
     }
 
     /** Throws if the session was deleted, so a running request ends without any further call or write. */
@@ -247,15 +273,15 @@ public class BrainstormService {
      * @param title the new, non-empty title
      */
     public void renameSession(String sessionId, String title) {
-        repository.updateTitle(sessionId, title);
+        updateTitle(sessionId, title);
     }
 
     public List<BrainstormMessage> loadMessages(String sessionId) {
-        return repository.findMessages(sessionId);
+        return findMessages(sessionId);
     }
 
     public Optional<BrainstormDraft> latestDraft(String sessionId) {
-        return repository.findLatestDraft(sessionId);
+        return findLatestDraft(sessionId);
     }
 
     /**
@@ -290,9 +316,9 @@ public class BrainstormService {
      */
     public CompletableFuture<BrainstormReply> sendUserMessage(
             BrainstormSession session, String text, BrainstormContext context) {
-        if (repository.findMessages(session.getId()).isEmpty()) {
+        if (findMessages(session.getId()).isEmpty()) {
             session.setTitle(firstMessageTitle(text));
-            repository.updateTitle(session.getId(), session.getTitle());
+            updateTitle(session.getId(), session.getTitle());
         }
         return send(session, new BrainstormMessage(BrainstormMessage.ROLE_USER, text), context);
     }
@@ -331,7 +357,7 @@ public class BrainstormService {
      * @param session the session
      */
     public void noteAdopted(BrainstormSession session) {
-        repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
+        addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
                 EVENT_PREFIX + new JSONObject().put("event", "draft_adopted")));
     }
 
@@ -353,9 +379,9 @@ public class BrainstormService {
     private BrainstormReply process(BrainstormSession session, BrainstormMessage message, BrainstormContext context) {
         String sessionId = session.getId();
         ensureNotDeleted(sessionId);
-        repository.addMessage(sessionId, message);
-        List<BrainstormMessage> history = repository.findMessages(sessionId);
-        String currentDraft = repository.findLatestDraft(sessionId)
+        addMessage(sessionId, message);
+        List<BrainstormMessage> history = findMessages(sessionId);
+        String currentDraft = findLatestDraft(sessionId)
                 .map((BrainstormDraft draft) -> draft.toJson().toString()).orElse("");
         String systemPrompt = BrainstormPromptBuilder.build(template, language(), context, currentDraft);
         List<ResearchNote> notes = new ArrayList<>();
@@ -376,11 +402,12 @@ public class BrainstormService {
         // The session may have been deleted while the AI was answering: then nothing is stored any more
         ensureNotDeleted(sessionId);
         for (ResearchNote note : notes) {
-            repository.addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
+            addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
                     EVENT_PREFIX + note.toEventJson(STORED_RESULT_MAX_LENGTH)));
         }
-        repository.addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, raw));
-        repository.addDraft(sessionId, reply.getDraft());
+        addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, raw));
+        access.run(() -> repository.addDraft(sessionId, reply.getDraft()),
+                "Failed to store brainstorm draft for session: " + sessionId);
         nameSessionOnce(session, history, reply);
         return reply;
     }
@@ -414,7 +441,7 @@ public class BrainstormService {
                 }
                 title = title.length() > SHORT_TITLE_MAX_LENGTH ? title.substring(0, SHORT_TITLE_MAX_LENGTH).trim() : title;
                 session.setTitle(title);
-                repository.updateTitle(session.getId(), title);
+                updateTitle(session.getId(), title);
                 onTitleChanged.accept(session);
             } catch (RuntimeException e) {
                 logger.warn("Could not name the brainstorm session: {}", e.getMessage());

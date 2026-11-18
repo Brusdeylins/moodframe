@@ -2,6 +2,10 @@
  * Data access with plain JDBC on SQLite, one repository per aggregate. Deleting usually sets {@code deleted_at}, so
  * the central trash can restore an item; the finders skip deleted rows.
  *
+ * <p>Error contract: a repository never swallows a database error but throws it as {@link java.sql.SQLException}, so
+ * "not found" (null, false, empty) stays apart from "the database failed". The calling service decides what follows,
+ * usually it logs the error and answers with a fallback.</p>
+ *
  * <p>Main classes:</p>
  * <ul>
  * <li>{@link ChatRepository}: chats with their entries and generated images</li>

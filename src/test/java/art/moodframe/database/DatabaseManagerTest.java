@@ -68,7 +68,7 @@ class DatabaseManagerTest {
     @Test
     void deletingABrainstormSessionCascadesToItsMessagesAndDrafts() throws Exception {
         BrainstormRepository repository = new BrainstormRepository(database);
-        BrainstormSession session = repository.createSession("Weg").orElseThrow();
+        BrainstormSession session = repository.createSession("Weg");
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "x"));
         assertEquals(1, repository.addDraft(session.getId(), new BrainstormDraft()));
 
@@ -84,9 +84,10 @@ class DatabaseManagerTest {
     void storesNoMessageOrDraftOfABrainstormSessionThatDoesNotExist() throws Exception {
         BrainstormRepository repository = new BrainstormRepository(database);
 
-        repository.addMessage("deleted-session", new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, "late"));
+        assertThrows(SQLException.class, () -> repository.addMessage("deleted-session",
+                new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, "late")));
+        assertThrows(SQLException.class, () -> repository.addDraft("deleted-session", new BrainstormDraft()));
 
-        assertEquals(0, repository.addDraft("deleted-session", new BrainstormDraft()));
         try (Connection connection = database.getConnection(); Statement stmt = connection.createStatement()) {
             assertEquals(0, count(stmt, "SELECT COUNT(*) FROM brainstorm_messages"));
             assertEquals(0, count(stmt, "SELECT COUNT(*) FROM brainstorm_drafts"));

@@ -37,6 +37,7 @@ public class FrameService {
     private final FrameRepository repository;
     private final List<Frame> defaultFrames;
     private final LibraryEvents events;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
      * Creates the service, which reports its writes to nobody.
@@ -73,6 +74,31 @@ public class FrameService {
         return success;
     }
 
+    /*  reads and writes of the repository; a database error is logged and gives no frames, null or false  */
+    private List<Frame> findAll() {
+        return access.call(repository::findAll, new ArrayList<>(), "Failed to load frames");
+    }
+
+    private List<Frame> findDeleted() {
+        return access.call(repository::findDeleted, new ArrayList<>(), "Failed to load frames");
+    }
+
+    private Frame findById(String id) {
+        return access.call(() -> repository.findById(id), null, "Failed to load frames");
+    }
+
+    private Frame findByName(String name) {
+        return access.call(() -> repository.findByName(name), null, "Failed to load frames");
+    }
+
+    private boolean save(Frame frame) {
+        return access.call(() -> repository.save(frame), false, "Failed to save frame: " + frame.getName());
+    }
+
+    private boolean updateStored(Frame frame) {
+        return access.call(() -> repository.update(frame), false, "Failed to update frame: " + frame.getName());
+    }
+
     private static List<Frame> defaultFrames() {
         List<Frame> frames = new ArrayList<>();
 
@@ -104,7 +130,7 @@ public class FrameService {
      */
     public List<Frame> getAll() {
         List<Frame> frames = getDefaults();
-        frames.addAll(repository.findAll());
+        frames.addAll(findAll());
         return frames;
     }
 
@@ -123,7 +149,7 @@ public class FrameService {
      * @return the frames
      */
     public List<Frame> getCustom() {
-        return repository.findAll();
+        return findAll();
     }
 
     /**
@@ -132,7 +158,7 @@ public class FrameService {
      * @return the frames, the latest deletion first
      */
     public List<Frame> getDeleted() {
-        return repository.findDeleted();
+        return findDeleted();
     }
 
     /**
@@ -148,7 +174,7 @@ public class FrameService {
             if (frame.getId().equals(id))
                 return frame;
         }
-        return repository.findById(id);
+        return findById(id);
     }
 
     /**
@@ -159,7 +185,7 @@ public class FrameService {
      */
     public boolean exists(String name) {
         return defaultFrames.stream().anyMatch((Frame frame) -> frame.getName().equals(name))
-                || repository.findByName(name) != null;
+                || findByName(name) != null;
     }
 
     /**
@@ -192,9 +218,9 @@ public class FrameService {
         }
 
         /*  Frames of the user follow the standard frames, from 1000 on  */
-        frame.setSortOrder(Math.max(1000, repository.findAll().stream()
+        frame.setSortOrder(Math.max(1000, findAll().stream()
                 .mapToInt((Frame existing) -> existing.getSortOrder() + 1).max().orElse(1000)));
-        return changed(repository.save(frame), frame.getId());
+        return changed(save(frame), frame.getId());
     }
 
     /**
@@ -204,7 +230,7 @@ public class FrameService {
      * @return true if it was updated, false for a standard frame, an unknown id, a taken name or a missing aspect ratio
      */
     public synchronized boolean update(Frame frame) {
-        Frame existing = frame.isDefault() ? null : repository.findById(frame.getId());
+        Frame existing = frame.isDefault() ? null : findById(frame.getId());
         if (existing == null || frame.getAspectRatio() == null) {
             logger.warn("Cannot update frame '{}' - no frame of the user, or aspect ratio is missing", frame.getName());
             return false;
@@ -215,7 +241,7 @@ public class FrameService {
             return false;
         }
         frame.setSortOrder(existing.getSortOrder());
-        return changed(repository.update(frame), frame.getId());
+        return changed(updateStored(frame), frame.getId());
     }
 
     /**
@@ -225,10 +251,10 @@ public class FrameService {
      */
     public synchronized void reorder(List<String> ids) {
         for (int i = 0; i < ids.size(); i++) {
-            Frame frame = repository.findById(ids.get(i));
+            Frame frame = findById(ids.get(i));
             if (frame != null) {
                 frame.setSortOrder(1000 + i);
-                repository.update(frame);
+                updateStored(frame);
             }
         }
         changed(true, null);
@@ -241,7 +267,9 @@ public class FrameService {
      * @return true if it is in the trash now
      */
     public synchronized boolean moveToTrash(String id) {
-        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.moveToTrash(id), id);
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)
+                && access.call(() -> repository.moveToTrash(id), false, "Failed to move frame to the trash: " + id),
+                id);
     }
 
     /**
@@ -251,15 +279,15 @@ public class FrameService {
      * @return true if it is in use again
      */
     public synchronized boolean restore(String id) {
-        Frame frame = repository.findDeleted().stream().filter((Frame deleted) -> deleted.getId().equals(id))
+        Frame frame = findDeleted().stream().filter((Frame deleted) -> deleted.getId().equals(id))
                 .findFirst().orElse(null);
         if (frame == null)
             return false;
         if (exists(frame.getName())) {
             frame.setName(freeName(frame.getName()));
-            repository.update(frame);
+            updateStored(frame);
         }
-        return changed(repository.restore(id), id);
+        return changed(access.call(() -> repository.restore(id), false, "Failed to change frames for " + id), id);
     }
 
     /**
@@ -269,7 +297,8 @@ public class FrameService {
      * @return true if it is gone
      */
     public synchronized boolean deletePermanently(String id) {
-        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX) && repository.delete(id), id);
+        return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)
+                && access.call(() -> repository.delete(id), false, "Failed to change frames for " + id), id);
     }
 
     /**
@@ -327,8 +356,9 @@ public class FrameService {
             if (name.isEmpty())
                 continue;
             String id = entry.get("id") instanceof String text ? text : "";
-            Frame frame = new Frame(id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX) || repository.exists(id)
-                    ? null : id, freeName(name));
+            boolean taken = id.isEmpty() || id.startsWith(PromptBlock.STANDARD_PREFIX)
+                    || access.call(() -> repository.exists(id), false, "Failed to load frames");
+            Frame frame = new Frame(taken ? null : id, freeName(name));
             frame.setAspectRatio(entry.get("aspectRatio") instanceof String ratio ? ratio : null);
             frame.setResolution(entry.get("resolution") instanceof String resolution
                     && ModelFamilies.RESOLUTIONS.contains(resolution) ? resolution : null);
