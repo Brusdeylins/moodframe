@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Frame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +27,17 @@ public class FrameRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(FrameRepository.class);
 
+    private final DatabaseManager database;
+
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the frames
+     */
+    public FrameRepository(DatabaseManager database) {
+        this.database = database;
+    }
+
     /**
      * Stores a new frame; a frame without id gets a random one.
      *
@@ -41,7 +52,7 @@ public class FrameRepository {
         if (frame.getId() == null || frame.getId().isEmpty())
             frame.setId(UUID.randomUUID().toString());
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             bind(stmt, frame);
             return stmt.executeUpdate() > 0;
@@ -64,7 +75,7 @@ public class FrameRepository {
             WHERE id = ?
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             bind(stmt, frame);
             return stmt.executeUpdate() > 0;
@@ -91,7 +102,7 @@ public class FrameRepository {
      * @return true if it was in use and is in the trash now
      */
     public boolean moveToTrash(String id) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "UPDATE frames SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")) {
             stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
@@ -173,7 +184,7 @@ public class FrameRepository {
     }
 
     private int execute(String sql, String value) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, value);
             return stmt.executeUpdate();
@@ -186,7 +197,7 @@ public class FrameRepository {
     private List<Frame> query(String sql, String... values) {
         List<Frame> frames = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             for (int i = 0; i < values.length; i++)
                 stmt.setString(i + 1, values[i]);

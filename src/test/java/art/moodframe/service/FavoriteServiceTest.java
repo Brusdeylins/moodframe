@@ -79,16 +79,16 @@ class FavoriteServiceTest {
     }
 
     @Test
-    void dropsTheFavoriteOfAnEntryOfTheUserDeletedForGood() {
+    void dropsTheFavoriteOfAnEntryOfTheUserDeletedForGood() throws Exception {
         Mood mood = new Mood(null, "Favorite Mood");
         Frame frame = new Frame(null, "Favorite Frame");
         frame.setAspectRatio("1:1");
         PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Favorite Light", "soft light", null, true);
         ColorStyle palette = new ColorStyle("Favorite Palette", List.of("#000000"));
-        MoodRepository moods = new MoodRepository();
-        FrameRepository frames = new FrameRepository();
-        PromptBlockRepository blocks = new PromptBlockRepository();
-        ColorStyleRepository palettes = new ColorStyleRepository();
+        MoodRepository moods = new MoodRepository(DatabaseConfig.getDatabase());
+        FrameRepository frames = new FrameRepository(DatabaseConfig.getDatabase());
+        PromptBlockRepository blocks = new PromptBlockRepository(DatabaseConfig.getDatabase());
+        ColorStyleRepository palettes = new ColorStyleRepository(DatabaseConfig.getDatabase());
         assertTrue(moods.save(mood));
         assertTrue(frames.save(frame));
         assertTrue(blocks.save(light));

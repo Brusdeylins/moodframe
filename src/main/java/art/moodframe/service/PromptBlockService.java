@@ -1,5 +1,7 @@
 package art.moodframe.service;
 
+import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Body;
@@ -88,7 +90,17 @@ public class PromptBlockService {
      * @param events where the writes are reported
      */
     public PromptBlockService(LibraryEvents events) {
-        this.repository = new PromptBlockRepository();
+        this(DatabaseConfig.getDatabase(), events);
+    }
+
+    /**
+     * Creates the service on the given database.
+     *
+     * @param database the database of the building blocks of the user
+     * @param events   where the writes are reported
+     */
+    public PromptBlockService(DatabaseManager database, LibraryEvents events) {
+        this.repository = new PromptBlockRepository(database);
         this.events = events;
         this.defaultStyles = defaultStyles();
         this.defaultAtmospheres = defaultAtmospheres();

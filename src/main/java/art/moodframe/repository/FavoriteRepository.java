@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +22,17 @@ public class FavoriteRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(FavoriteRepository.class);
 
+    private final DatabaseManager database;
+
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the favorites
+     */
+    public FavoriteRepository(DatabaseManager database) {
+        this.database = database;
+    }
+
     /**
      * Returns the ids of the favorites of a kind.
      *
@@ -31,7 +42,7 @@ public class FavoriteRepository {
     public Set<String> findIds(String kind) {
         Set<String> ids = new HashSet<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement("SELECT entry_id FROM favorites WHERE kind = ?")) {
             stmt.setString(1, kind);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -67,7 +78,7 @@ public class FavoriteRepository {
     }
 
     private boolean execute(String sql, String kind, String id) {
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, kind);
             stmt.setString(2, id);

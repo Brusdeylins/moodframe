@@ -20,7 +20,7 @@ class MoodRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final MoodRepository repository = new MoodRepository();
+    private final MoodRepository repository = new MoodRepository(DatabaseConfig.getDatabase());
 
     @BeforeAll
     static void createDatabase() {

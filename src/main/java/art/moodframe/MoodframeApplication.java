@@ -136,21 +136,8 @@ public class MoodframeApplication extends Application {
             java.util.Locale appLocale = "de".equals(userLanguage) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
             art.moodframe.util.I18nManager.setLocale(appLocale);
 
-            // Initialize database
-            DatabaseConfig.initialize(config.getDatabasePath());
-
-            // Register DatabaseManager in service factory for dependency injection
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.database.DatabaseManager.class,
-                    () -> {
-                        try {
-                            return new art.moodframe.database.DatabaseManager(
-                                    java.nio.file.Paths.get(config.getDatabasePath()));
-                        } catch (Exception e) {
-                            logger.error("Failed to create DatabaseManager", e);
-                            return null;
-                        }
-                    });
+            /*  The one database of the library, every repository gets its connections here  */
+            art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
 
             /*  The services report every change of the library here, the main window shows what others changed  */
             art.moodframe.service.LibraryEvents events = new art.moodframe.service.LibraryEvents();
@@ -159,17 +146,17 @@ public class MoodframeApplication extends Application {
             // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.PromptBlockService.class,
-                    () -> new art.moodframe.service.PromptBlockService(events));
+                    () -> new art.moodframe.service.PromptBlockService(database, events));
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.ColorStyleService.class,
-                    () -> new art.moodframe.service.ColorStyleService(events));
+                    () -> new art.moodframe.service.ColorStyleService(database, events));
 
             // Initialize MoodService for the moods, the saved combinations of building blocks
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.MoodService.class,
-                    () -> new art.moodframe.service.MoodService(
+                    () -> new art.moodframe.service.MoodService(database,
                             ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
                             ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
                             events));
@@ -177,12 +164,12 @@ public class MoodframeApplication extends Application {
             /*  The frames, the saved settings of model, aspect ratio and image count  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.FrameService.class,
-                    () -> new art.moodframe.service.FrameService(events));
+                    () -> new art.moodframe.service.FrameService(database, events));
 
             /*  The favorites among moods, frames and building blocks, shown first in their lists  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.FavoriteService.class,
-                    () -> new art.moodframe.service.FavoriteService(events));
+                    () -> new art.moodframe.service.FavoriteService(database, events));
 
             /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
             ServiceFactory.getInstance().registerProvider(
@@ -220,15 +207,8 @@ public class MoodframeApplication extends Application {
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.repository.ChatRepository.class,
-                    () -> {
-                        art.moodframe.database.DatabaseManager dbManager = ServiceFactory.getInstance()
-                                .getService(art.moodframe.database.DatabaseManager.class);
-                        if (dbManager == null)
-                            return null;
-
-                        return new art.moodframe.repository.ChatRepository(dbManager,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class));
-                    });
+                    () -> new art.moodframe.repository.ChatRepository(database,
+                            ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class)));
 
             // The central trash: chats first, the other kinds of items dock in with their own group
             ServiceFactory.getInstance().registerProvider(
@@ -716,9 +696,6 @@ public class MoodframeApplication extends Application {
                     .getService(art.moodframe.mcp.McpService.class);
             if (mcp != null)
                 mcp.stop();
-
-            // Close database connections
-            DatabaseConfig.close();
 
             // Clear service factory
             ServiceFactory.getInstance().clearServices();

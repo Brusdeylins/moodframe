@@ -26,7 +26,7 @@ class PromptBlockRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final PromptBlockRepository repository = new PromptBlockRepository();
+    private final PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
 
     @BeforeAll
     static void createDatabase() {
@@ -109,7 +109,7 @@ class PromptBlockRepositoryTest {
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = DatabaseConfig.getDatabase().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }

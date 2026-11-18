@@ -231,7 +231,7 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() {
-        PromptBlockRepository repository = new PromptBlockRepository();
+        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
 
@@ -281,7 +281,7 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAStyleOfTheUserThatIsNamedLikeAStandardStyleAndKeepsItsText() {
-        PromptBlockRepository repository = new PromptBlockRepository();
+        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.STYLE, "Infographic Flat", "my own flat look", null,
                 true);
         repository.save(clash);
@@ -323,11 +323,11 @@ class PromptBlockServiceTest {
     }
 
     @Test
-    void aPaletteOfTheUserNamedLikeANewStandardPaletteIsRenamed() {
+    void aPaletteOfTheUserNamedLikeANewStandardPaletteIsRenamed() throws Exception {
         ColorStyle own = new ColorStyle("Silver Screen", List.of("#112233", "#445566"), false);
         own.setId("own-silver-screen");
         own.setSortOrder(150);
-        assertTrue(new art.moodframe.repository.ColorStyleRepository().save(own));
+        assertTrue(new art.moodframe.repository.ColorStyleRepository(DatabaseConfig.getDatabase()).save(own));
 
         ColorStyleService service = new ColorStyleService();
         assertTrue(service.isDefaultStyle("Silver Screen"));

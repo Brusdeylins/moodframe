@@ -1,5 +1,7 @@
 package art.moodframe.service;
 
+import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Frame;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.PromptBlock;
@@ -49,7 +51,17 @@ public class FrameService {
      * @param events where the writes are reported
      */
     public FrameService(LibraryEvents events) {
-        this.repository = new FrameRepository();
+        this(DatabaseConfig.getDatabase(), events);
+    }
+
+    /**
+     * Creates the service on the given database.
+     *
+     * @param database the database of the frames of the user
+     * @param events   where the writes are reported
+     */
+    public FrameService(DatabaseManager database, LibraryEvents events) {
+        this.repository = new FrameRepository(database);
         this.defaultFrames = defaultFrames();
         this.events = events;
     }

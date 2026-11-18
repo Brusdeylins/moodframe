@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
@@ -23,14 +23,25 @@ import java.util.UUID;
 /**
  * Repository for brainstorm sessions, their messages and draft versions in SQLite.
  *
- * <p>Deleting a session removes its messages and drafts explicitly, so it does not depend
- * on the foreign key setting of the connection.</p>
+ * <p>Deleting a session removes its messages and drafts through {@code ON DELETE CASCADE}; a message or draft of
+ * a session that does not exist is refused.</p>
  *
  * @since 1.7.0
  */
 public class BrainstormRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(BrainstormRepository.class);
+
+    private final DatabaseManager database;
+
+    /**
+     * Creates the repository.
+     *
+     * @param database the database of the brainstorm sessions
+     */
+    public BrainstormRepository(DatabaseManager database) {
+        this.database = database;
+    }
 
     /**
      * Creates and stores a new empty session.
@@ -59,7 +70,7 @@ public class BrainstormRepository {
             VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MIN(sort_order), 1) - 1 FROM brainstorm_sessions))
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, session.getId());
             stmt.setString(2, title);
@@ -84,7 +95,7 @@ public class BrainstormRepository {
                 + "ORDER BY sort_order, updated_at DESC";
         List<BrainstormSession> sessions = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
@@ -109,7 +120,7 @@ public class BrainstormRepository {
     public void updateSortOrders(List<BrainstormSession> sessions) {
         String sql = "UPDATE brainstorm_sessions SET sort_order = ? WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             conn.setAutoCommit(false);
             try {
@@ -138,7 +149,7 @@ public class BrainstormRepository {
     public void updateTitle(String sessionId, String title) {
         String sql = "UPDATE brainstorm_sessions SET title = ?, updated_at = ? WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, title);
             stmt.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
@@ -159,7 +170,7 @@ public class BrainstormRepository {
     public void updateEngine(String sessionId, String engine) {
         String sql = "UPDATE brainstorm_sessions SET engine = ? WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, engine);
             stmt.setString(2, sessionId);
@@ -170,23 +181,16 @@ public class BrainstormRepository {
     }
 
     /**
-     * Deletes a session with all its messages and drafts, immediately and permanently.
+     * Deletes a session with all its messages and drafts (cascade), immediately and permanently.
      *
      * @param sessionId the session id
      * @return true if the session was deleted
      */
     public boolean deleteSession(String sessionId) {
-        try (Connection conn = DatabaseConfig.getConnection()) {
-            for (String table : new String[] {"brainstorm_messages", "brainstorm_drafts"}) {
-                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM " + table + " WHERE session_id = ?")) {
-                    stmt.setString(1, sessionId);
-                    stmt.executeUpdate();
-                }
-            }
-            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM brainstorm_sessions WHERE id = ?")) {
-                stmt.setString(1, sessionId);
-                return stmt.executeUpdate() > 0;
-            }
+        try (Connection conn = database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM brainstorm_sessions WHERE id = ?")) {
+            stmt.setString(1, sessionId);
+            return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             logger.error("Failed to delete brainstorm session: {}", sessionId, e);
             return false;
@@ -204,7 +208,7 @@ public class BrainstormRepository {
         String touch = "UPDATE brainstorm_sessions SET updated_at = ? WHERE id = ?";
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(insert);
              PreparedStatement touchStmt = conn.prepareStatement(touch)) {
             stmt.setString(1, sessionId);
@@ -231,7 +235,7 @@ public class BrainstormRepository {
         String sql = "SELECT role, content FROM brainstorm_messages WHERE session_id = ? ORDER BY id";
         List<BrainstormMessage> messages = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -258,7 +262,7 @@ public class BrainstormRepository {
             VALUES (?, (SELECT COALESCE(MAX(version), 0) + 1 FROM brainstorm_drafts WHERE session_id = ?), ?, ?)
             """;
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             stmt.setString(2, sessionId);
@@ -281,7 +285,7 @@ public class BrainstormRepository {
     public int countDrafts(String sessionId) {
         String sql = "SELECT COUNT(*) FROM brainstorm_drafts WHERE session_id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -302,7 +306,7 @@ public class BrainstormRepository {
     public Optional<BrainstormDraft> findLatestDraft(String sessionId) {
         String sql = "SELECT draft_json FROM brainstorm_drafts WHERE session_id = ? ORDER BY version DESC LIMIT 1";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             try (ResultSet rs = stmt.executeQuery()) {
