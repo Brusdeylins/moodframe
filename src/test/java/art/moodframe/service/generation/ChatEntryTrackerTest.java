@@ -8,7 +8,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
@@ -18,6 +20,8 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 /** Tells several listeners about an entry on the JavaFX thread, as the main window and later callers listen at once. */
@@ -101,6 +105,38 @@ class ChatEntryTrackerTest {
         drainFxThread();
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
         assertFalse(onFxThread(() -> tracker.cancel(entry)));
+    }
+
+    @Test
+    void anEntryThatEndedIsToldOnceItIsStoredWithItsImages() throws Exception {
+        List<String> stored = new CopyOnWriteArrayList<>();
+        ChatRepository repository = mock(ChatRepository.class);
+        doAnswer((invocation) -> stored.add("image")).when(repository).saveGeneratedImage(any());
+        doAnswer((invocation) -> stored.add("entry")).when(repository).saveChatEntry(any());
+        Queue<Runnable> writes = new ConcurrentLinkedQueue<>();
+        ChatEntryTracker tracker = new ChatEntryTracker(repository, writes::add);
+        List<String> told = new CopyOnWriteArrayList<>();
+        tracker.addEntryListener((ChatEntry updated) -> told.add(updated.getStatus().name() + " after " + stored));
+
+        GeneratedImage image = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .baseCost(0.04).build();
+        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
+        entry.getImages().add(image);
+        onFxThread(() -> {
+            tracker.saveImage(image);
+            tracker.refresh(entry);
+            return null;
+        });
+        drainFxThread();
+        drainFxThread();
+        assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus());
+        assertEquals(List.of(), told, "nobody learns of the end while its writes wait");
+
+        /*  the worker of the writes runs them in order, the listeners learn of the end after the last one  */
+        while (!writes.isEmpty())
+            writes.poll().run();
+        drainFxThread();
+        assertEquals(List.of("COMPLETED after [image, entry]"), told);
     }
 
     @Test

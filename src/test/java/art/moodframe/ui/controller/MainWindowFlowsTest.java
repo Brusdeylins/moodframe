@@ -253,6 +253,26 @@ class MainWindowFlowsTest {
         };
     }
 
+    /*  the chats in the database, whose writes of finished images by a generation take a while, as on a slow disk:
+        what a generation stores must be done before the window queries it  */
+    private static ChatRepository slowImageWrites(DatabaseManager database, ChatFileService files) {
+        return new ChatRepository(database, files) {
+            @Override
+            public void saveGeneratedImage(GeneratedImage image) throws SQLException {
+                if (Thread.currentThread().getName().startsWith("generation-store")
+                        && image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED) {
+                    try {
+                        Thread.sleep(150);
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                super.saveGeneratedImage(image);
+            }
+        };
+    }
+
     private static <T> void register(Class<T> type, T service) throws Exception {
         if (!realServices.containsKey(type))
             realServices.put(type, services().get(type));
@@ -290,7 +310,7 @@ class MainWindowFlowsTest {
         TrashManager trashManager = new TrashManager(paths, 60);
         thumbnails = new ThumbnailManager(paths);
         ChatFileService files = new ChatFileService(trashManager, thumbnails, new FileManagerService(paths.images()));
-        repository = new ChatRepository(database, files);
+        repository = slowImageWrites(database, files);
         trash = new TrashCenter();
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
@@ -794,12 +814,15 @@ class MainWindowFlowsTest {
         ChatEntry second = send(chat, "a quiet harbour at night");
         assertTrue(entryList().getItems().contains(second), "the open group shows the new entry");
 
-        /*  the refresh at the end of the generation may query before the image is stored, so the count follows
-            with the next change of the library, here one of another caller  */
-        fromAnotherThread(() -> chats.renameChat(chat, "Grouped harbour"));
+        /*  the end of the generation refreshes the count once its image is stored, without another change  */
         waitUntil("the mood counts two images", () -> moodGroup(mood).imageCount() == 2);
         assertEquals(name, header().getText(), "the group stays open");
-        assertEquals(I18nManager.getText("sidebar.group.target", "Grouped harbour"), cost().getText());
+
+        /*  another caller renames the chat that takes the new prompts: the open group names it anew  */
+        fromAnotherThread(() -> chats.renameChat(chat, "Grouped harbour"));
+        waitUntil("the group names the renamed chat", () -> I18nManager.getText("sidebar.group.target",
+                "Grouped harbour").equals(cost().getText()));
+        assertEquals(name, header().getText(), "the group stays open");
 
         /*  by frame: the group of the frame  */
         onFxThread(() -> sidebarMode("byFrameMenuItem").setSelected(true));
