@@ -5,7 +5,8 @@
  *
  * <p>Main classes:</p>
  * <ul>
- * <li>{@link MoodframeApplication}: the JavaFX application with startup, service registration, main window and
+ * <li>{@link MoodframeApplication}: the JavaFX application and composition root: the preparation on a startup
+ *     thread behind the splash (configuration, database, services, trash cleanup, chats), the main window and the
  *     shutdown</li>
  * </ul>
  */

@@ -21,8 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
- * checks which package uses which, that no packages depend on each other in a cycle and that model, util and
- * service.chat need no JavaFX.
+ * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
+ * service.chat need no JavaFX and that no service looks up the services it uses in the locator.
  */
 class ArchitectureTest {
 
@@ -61,6 +61,9 @@ class ArchitectureTest {
     /** The packages below {@code art.moodframe} with the classes that use JavaFX. */
     private static final Map<String, Set<String>> javaFx = new TreeMap<>();
 
+    /** The packages below {@code art.moodframe} with the classes that look up services in the locator. */
+    private static final Map<String, Set<String>> locator = new TreeMap<>();
+
     @BeforeAll
     static void readTheSources() throws IOException {
         List<Path> files;
@@ -80,6 +83,9 @@ class ArchitectureTest {
             }
             if (code.contains("javafx."))
                 javaFx.computeIfAbsent(pkg, (String key) -> new TreeSet<>())
+                        .add(file.getFileName().toString().replace(".java", ""));
+            if (code.contains("ServiceFactory"))
+                locator.computeIfAbsent(pkg, (String key) -> new TreeSet<>())
                         .add(file.getFileName().toString().replace(".java", ""));
         }
     }
@@ -157,6 +163,16 @@ class ArchitectureTest {
     void modelAndUtilNeedNoJavaFx() {
         assertEquals(Set.of(), javaFx.getOrDefault("util", Set.of()), "util");
         assertEquals(FX_MODELS, javaFx.getOrDefault("model", Set.of()), "model, besides the known deviation");
+    }
+
+    @Test
+    void theServicesAndTheMcpServerGetTheirDependenciesInjected() {
+        List<String> lookups = new ArrayList<>();
+        locator.forEach((String pkg, Set<String> classes) -> {
+            if (layerOf(pkg).equals("service") || layerOf(pkg).equals("mcp"))
+                classes.forEach((String name) -> lookups.add(pkg + "." + name));
+        });
+        assertEquals(List.of(), lookups, "no service looks up another in the ServiceFactory");
     }
 
     @Test

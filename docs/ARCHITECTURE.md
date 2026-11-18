@@ -25,7 +25,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
 |              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.support` the   |
 |              | helpers that need JavaFX or the desktop: themes, videos, opening files and web pages,   |
-|              | listener cleanup, `FxI18n`, `CoalescedLoad`)                                            |
+|              | listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`)    |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -55,8 +55,10 @@ Allowed dependency directions:
   with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
-- `ArchitectureTest` checks these directions, the order of the service subpackages below and that no packages
-  depend on each other in a cycle, from the imports and fully qualified names of `src/main/java`.
+- `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
+  depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
+  JavaFX and that no class of `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names
+  of `src/main/java`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -66,7 +68,8 @@ The subpackages of `service`, each using only those above it in the table (no cy
 | `service.prompt`     | the prompt text: `PromptComposer`, `CameraPromptBuilder`                             |
 | `service.trash`      | the central trash (`TrashCenter`, `TrashGroup`), its cleanup, the trash directory    |
 | `service.library`    | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
-| `service.chat`       | the chats with their entries, files, thumbnails, attachments, their trash groups     |
+| `service.chat`       | the chats with their entries, files, thumbnail files, attachments, their trash       |
+|                      | groups; no JavaFX                                                                    |
 | `service.generation` | carries out a generation order: entry, request, BFL job polling, image files         |
 | `service.brainstorm` | the brainstorm chat and the analysis of an image into a mood                         |
 | `service`            | `ConfigurationExporter` (settings and library backup), `UpdateCheckService`          |
@@ -74,15 +77,30 @@ The subpackages of `service`, each using only those above it in the table (no cy
 `service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
-Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (e.g.
-`LibraryEvents`), and some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`, `GeneratedImage`,
-`ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which carry such
-properties, only through `service.generation.FxModel`.
+Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (`LibraryEvents`,
+`service.generation`), and some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`,
+`GeneratedImage`, `ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which
+carry such properties, only through `service.generation.FxModel`. `service.chat` itself needs no JavaFX: the
+`ChatLibrary` changes these models on the calling thread (see "Threading").
 
 ## Threading
 
 - **JavaFX application thread**: all scene graph work, the controllers, dialogs and cells. Nothing blocking runs
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
+- **Start**: `MoodframeApplication.start` shows the splash and starts the thread `MoodFrame-startup`, which prepares
+  everything that needs no JavaFX thread: the configuration, the database with its migrations (the Java data
+  migrations included), the registration of the services, the trash cleanup, then the loading of the chats
+  (`ChatLibrary.load`, which checks every image file and repairs what a restart left behind), the thumbnails of older
+  images and the check of the accounts, and it creates the services the main window looks up. The cleanup runs before
+  the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
+  second; then the JavaFX thread loads the FXML of the main window, which finds the chats loaded, applies the theme,
+  shows the stage and starts the MCP server if enabled. A failed preparation ends the application as before.
+- **Chat models**: `ChatLibrary` keeps the chats in a plain list and changes it and the models of the chats on the
+  calling thread under `service.chat.ModelLock`, which `FxModel` holds for the changes of a generation as well; a
+  caller off the JavaFX thread reads them with `ChatLibrary.read` under the same lock. Only work in memory runs under
+  the lock. Nobody waits for the JavaFX thread: the views learn of a change through `LibraryEvents`, the sidebar keeps
+  a list of its own that follows the chats of the library, and the listeners the views put on the models hand their
+  work to the JavaFX thread.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
 - **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded
@@ -91,28 +109,37 @@ properties, only through `service.generation.FxModel`.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
-  executor, the BFL polling on named daemon threads.
+  executor, the BFL polling on named daemon threads. The listeners learn of an entry that ended (completed, failed,
+  cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
+  queries then include it.
 - **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
   thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
   a burst of events gives one query.
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
-- **MCP server**: its tools run on the threads of the `jdk.httpserver`, never on the JavaFX thread.
+- **MCP server**: its tools run on the threads of the `jdk.httpserver`, never on the JavaFX thread, and read and
+  change the chats without waiting for it (only `cancel_generation` waits for the change of the generation).
+- **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
+  the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
+  held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files.
 
 ## Dependency injection
 
-`config.ServiceFactory` is a singleton **service locator**, not a DI container. `MoodframeApplication` registers
-the instances and lazy providers at startup; classes fetch what they need with
-`ServiceFactory.getInstance().getService(Foo.class)`, often in their constructor. Many classes already take their
-dependencies as constructor parameters, which is how tests pass mocks: the provider clients take
+`config.ServiceFactory` is a singleton **service locator**, not a DI container. `MoodframeApplication` is the
+composition root: it registers the instances and lazy providers at startup and hands every service its
+dependencies in the constructor, which is also how tests pass mocks: the provider clients take
 `ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,
 `FrameService`, `FavoriteService`) take the `DatabaseManager` and the one `LibraryEvents`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
-`FileManagerService` and the MCP `ChatTools` take their folders from `LibraryPaths`.
+`FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
+`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
+No class of `service` or `mcp` uses the locator (`ArchitectureTest`).
 
-The plan is to move step by step to constructor injection with `MoodframeApplication` as the composition root, so
-that dependencies become visible in signatures and the locator can shrink to the startup code.
+The locator is left to the user interface: the coordinators `MainWindowController` and `SettingsController` look up
+the services once and hand them to their parts; some dialogs and components (the managers of moods, frames and
+blocks, the trash window, the entry cards and the images view, the full view, the brainstorm dialog, `ThemeManager`)
+still look up what they need themselves.
 
 The main window already works this way: its coordinator looks up the services once and hands them to its parts (see
 "The main window").
@@ -142,6 +169,13 @@ messages through `StatusSink`, where an error is told by the caller, not read fr
 out what spans parts: sending, the brainstorm, reusing and editing an entry, the changes of the library, the trash and
 the running generations. On a change of the language it calls `updateTexts()` of every part, which relabels itself.
 `PanelGroups` folds the three groups of the right panel, `CornerCloud` draws the cloud behind the window.
+
+The sidebar shows the chats from a list of its own, which follows `ChatLibrary.chats()` after its own changes and
+on every reported change of a chat, removing, inserting and sorting only what differs so the selection stays. When
+the window is hidden, `MainWindowController.dispose()` lets go of what it registered beyond itself: its listeners of
+the language (its own, the full view's and the cards'), of the theme, the generations, the library events, the trash
+and the account checks, the timelines of the memory display and the clipboard watch, and its worker; a closed window
+stays reachable from nowhere.
 
 `MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog) can show the same
 fields: it takes its services as `MoodFramePanelController.Services`, follows the chosen model with `followModel`,
