@@ -1,4 +1,4 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormDraft;

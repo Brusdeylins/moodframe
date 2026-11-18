@@ -1,4 +1,4 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
@@ -17,7 +17,6 @@ import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.ui.BoxInset;
-import art.moodframe.ui.cell.BrainstormSessionListCell;
 import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.ui.component.DialogButtons;

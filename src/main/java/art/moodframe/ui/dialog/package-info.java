@@ -9,7 +9,6 @@
  * <li>{@link BlockManageDialog}: manages the building blocks of the user; {@link MoodManageDialog} and
  *     {@link FrameManageDialog} the moods and frames</li>
  * <li>{@link MoodImageDialog}: derives a mood from an image</li>
- * <li>{@link BrainstormDialog}: the brainstorm assistant</li>
  * <li>{@link TrashWindow}: the central trash</li>
  * <li>{@link UpdateDialog}: the installed and the available version</li>
  * </ul>

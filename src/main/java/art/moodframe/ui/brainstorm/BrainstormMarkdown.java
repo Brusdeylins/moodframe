@@ -1,4 +1,4 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
 import javafx.beans.binding.Bindings;
 import javafx.scene.text.Text;

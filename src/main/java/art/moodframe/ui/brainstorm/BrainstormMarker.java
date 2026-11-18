@@ -1,11 +1,11 @@
-package art.moodframe.ui.cell;
+package art.moodframe.ui.brainstorm;
 
 /**
  * What the brainstorm history list shows next to a chat.
  *
  * @since 1.8.4
  */
-public enum BrainstormMarker {
+enum BrainstormMarker {
     /** Nothing to report. */
     IDLE,
     /** The AI is working on a request of this chat. */

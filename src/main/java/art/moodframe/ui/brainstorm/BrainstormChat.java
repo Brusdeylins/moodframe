@@ -1,10 +1,9 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.ui.BoxInset;
-import art.moodframe.ui.cell.BrainstormMarker;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
@@ -22,7 +21,7 @@ import java.util.Set;
  *
  * @since 1.8.4
  */
-public class BrainstormChat {
+class BrainstormChat {
 
     /** The state of a step in the stepper of the chat. */
     enum StepState { DONE, CURRENT, OPEN, SKIPPED }

@@ -1,6 +1,6 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
-import art.moodframe.ui.dialog.BrainstormMarkdown.Span;
+import art.moodframe.ui.brainstorm.BrainstormMarkdown.Span;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -633,7 +633,7 @@ public class MainWindowController implements I18nChangeListener {
                     art.moodframe.service.brainstorm.BrainstormService.create(config);
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-            new art.moodframe.ui.dialog.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
+            new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
                     generationPanelController.modelItem(), this::applyBrainstormResult).show();
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
@@ -646,7 +646,7 @@ public class MainWindowController implements I18nChangeListener {
      *
      * @param result the adopted values; a {@code null} value is left unchanged
      */
-    private void applyBrainstormResult(art.moodframe.ui.dialog.BrainstormDialog.Result result) {
+    private void applyBrainstormResult(art.moodframe.ui.brainstorm.BrainstormDialog.Result result) {
         generationPanelController.setModel(result.targetModel());
 
         /*  The adopted resolution (or the one of a model without resolution variants) as remembered choice of the

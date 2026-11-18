@@ -44,6 +44,7 @@ module art.moodframe {
     exports art.moodframe.ui.controller;
     exports art.moodframe.ui.component;
     exports art.moodframe.ui.dialog;
+    exports art.moodframe.ui.brainstorm;
     exports art.moodframe.model;
 
     // Open for reflection (required for FXML, Jackson)

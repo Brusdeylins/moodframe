@@ -1,8 +1,7 @@
-package art.moodframe.ui.dialog;
+package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.BrainstormReply;
-import art.moodframe.ui.cell.BrainstormMarker;
-import art.moodframe.ui.dialog.BrainstormChat.StepState;
+import art.moodframe.ui.brainstorm.BrainstormChat.StepState;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

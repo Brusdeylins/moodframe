@@ -1,7 +1,8 @@
-package art.moodframe.ui.cell;
+package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.cell.ListReorder;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.value.ChangeListener;
@@ -41,7 +42,7 @@ import java.util.function.Function;
  *
  * @since 1.7.0
  */
-public class BrainstormSessionListCell extends ListCell<BrainstormSession> {
+class BrainstormSessionListCell extends ListCell<BrainstormSession> {
 
     private final Label titleLabel = new Label();
     private final TextField renameField = new TextField();
