@@ -69,19 +69,19 @@ public class ChatHistoryService {
     }
 
     /**
-     * Moves the images of an entry to the trash and marks the entry as deleted.
+     * Marks an entry as deleted and then moves its images to the trash; if it cannot be marked, the files stay.
      *
      * @param entryId the entry
      * @param images  its images
      * @throws SQLException if the entry cannot be marked
      */
     public void deleteEntry(String entryId, List<GeneratedImage> images) throws SQLException {
-        chatFiles.moveToTrash(entryId, images);
         chatRepository.softDeleteChatEntry(entryId);
+        chatFiles.moveToTrash(entryId, images);
     }
 
     /**
-     * Moves an image to the trash and marks it as deleted; the entry is deleted too when it was its last image.
+     * Marks an image as deleted and then moves it to the trash; the entry is deleted too when it was its last image.
      *
      * @param entryId the entry of the image
      * @param image   the image
@@ -89,8 +89,8 @@ public class ChatHistoryService {
      * @throws SQLException if the database cannot be updated
      */
     public ImageDeletion deleteImage(String entryId, GeneratedImage image) throws SQLException {
-        chatFiles.moveToTrash(entryId, List.of(image));
         chatRepository.softDeleteImage(image.getId());
+        chatFiles.moveToTrash(entryId, List.of(image));
 
         boolean lastImage = chatRepository.findGeneratedImagesByEntry(entryId).stream()
                 .allMatch(GeneratedImage::isInTrash);
