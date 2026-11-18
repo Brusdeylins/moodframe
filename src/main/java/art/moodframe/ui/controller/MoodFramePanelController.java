@@ -357,11 +357,6 @@ public class MoodFramePanelController {
             resolutionChoiceBox.setValue(resolution);
     }
 
-    /** Whether aspect ratio or resolution differ from the chosen frame. */
-    public boolean isFrameChanged() {
-        return frameChanged;
-    }
-
     /**
      * Chooses a mood by its id, as the list by mood opens it; an unknown id changes nothing.
      *

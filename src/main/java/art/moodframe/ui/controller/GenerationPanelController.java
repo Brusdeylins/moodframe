@@ -415,12 +415,6 @@ public class GenerationPanelController {
         return model != null && model.getProvider() == ApiProvider.BFL;
     }
 
-    /** Whether a model of Google Gemini is chosen. */
-    public boolean isGeminiSelected() {
-        GenerationModel model = selectedModel();
-        return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI;
-    }
-
     /** The number of images to generate. */
     public int imageCount() {
         return (int) imageCountSlider.getValue();

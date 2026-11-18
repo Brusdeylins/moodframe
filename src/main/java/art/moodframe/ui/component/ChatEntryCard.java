@@ -341,62 +341,6 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Gets the ChatEntry associated with this card.
-     */
-    public ChatEntry getChatEntry() {
-        return chatEntry;
-    }
-
-    /**
-     * Updates this card with a new ChatEntry (used for object pool reuse).
-     * 
-     * <p>
-     * This method efficiently reconfigures the card for a different
-     * ChatEntry without recreating the entire UI hierarchy. It's used
-     * by the ChatEntryCardPool for performance optimization.
-     * </p>
-     * 
-     * @param newChatEntry the new ChatEntry to display (must not be null)
-     * @throws IllegalArgumentException if newChatEntry is null
-     */
-    public void updateChatEntry(ChatEntry newChatEntry) {
-        if (newChatEntry == null) {
-            throw new IllegalArgumentException("ChatEntry cannot be null");
-        }
-
-        checkNotDisposed();
-
-        logger.trace("Updating ChatEntryCard from entry {} to entry {}",
-                this.chatEntry != null ? this.chatEntry.getId() : "null",
-                newChatEntry.getId());
-
-        // Clear existing subscriptions to prevent leaks
-        // Note: This will clear all managed subscriptions but won't dispose the
-        // component
-        getSubscriptionCount(); // Just to log current count
-
-        // Note: chatEntry is final and cannot be updated.
-        // The card will continue to reference the original entry.
-        // This is acceptable as cards are typically recreated rather than reused.
-
-        // Re-setup bindings for the new entry
-        setupBindings();
-
-        // Update all displays
-        updateContent();
-    }
-
-    /**
-     * Manually refreshes the UI from the model data.
-     * Useful for triggering updates when the underlying data has changed.
-     */
-    public void refreshFromModel() {
-        Platform.runLater(() -> {
-            updateContent();
-        });
-    }
-
-    /**
      * Sets up bindings to automatically update the UI when ChatEntry changes.
      * All listeners are managed automatically and will be cleaned up on disposal.
      */
@@ -1658,28 +1602,6 @@ public class ChatEntryCard extends ManagedComponent {
         originLink.setTooltip(new Tooltip(I18nManager.getText("entry.origin.tooltip")));
         originLink.setOnAction((event) -> onOpen.run());
         getChildren().add(0, originLink);
-    }
-
-    /**
-     * Sets the supplier that checks if a FLUX model is currently selected.
-     * Used to show/hide seed copy button (only available when FLUX model selected).
-     *
-     * @param isFluxModelSelected supplier that returns true if FLUX model is selected
-     */
-    public void setIsFluxModelSelected(java.util.function.Supplier<Boolean> isFluxModelSelected) {
-        this.isFluxModelSelected = isFluxModelSelected;
-    }
-
-    /**
-     * Refreshes the images display after an image has been deleted.
-     * This method rebuilds the images container to reflect current state.
-     */
-    public void refreshImages() {
-        // Clear and rebuild the images container
-        imagesContainer.getChildren().clear();
-
-        // Rebuild the images display
-        updateImagesDisplay();
     }
 
     /**

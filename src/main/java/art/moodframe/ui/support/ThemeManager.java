@@ -208,16 +208,6 @@ public class ThemeManager {
     }
     
     /**
-     * Checks if a theme name is valid.
-     * 
-     * @param themeName the theme name to validate
-     * @return true if the theme exists
-     */
-    public static boolean isValidTheme(String themeName) {
-        return getAtlantaFXTheme(themeName) != null;
-    }
-    
-    /**
      * Gets a user-friendly display name for a theme.
      * 
      * @param themeName the theme name
@@ -290,51 +280,5 @@ public class ThemeManager {
         } else {
             return "primer-light"; // Default light theme
         }
-    }
-    
-    /**
-     * Applies theme based on system preference if not already applied.
-     * 
-     * @return true if theme was changed, false if already matching
-     */
-    public static boolean applySystemPreferredTheme() {
-        String preferredTheme = getSystemPreferredTheme();
-        String currentTheme = getCurrentTheme();
-        
-        if (!preferredTheme.equals(currentTheme)) {
-            logger.debug("Applying system-preferred theme: {} (was: {})", preferredTheme, currentTheme);
-            return changeTheme(preferredTheme);
-        }
-        
-        return false; // No change needed
-    }
-    
-    /**
-     * Demonstrates theme switching by cycling through all available themes.
-     * This method is useful for testing and demonstration purposes.
-     * 
-     * @return the name of the next theme that was applied
-     */
-    public static String cycleToNextTheme() {
-        String currentTheme = getCurrentTheme();
-        String[] themes = getAvailableThemes();
-        
-        // Find current theme index
-        int currentIndex = 0;
-        for (int i = 0; i < themes.length; i++) {
-            if (themes[i].equals(currentTheme)) {
-                currentIndex = i;
-                break;
-            }
-        }
-        
-        // Get next theme (cycle back to 0 if at end)
-        int nextIndex = (currentIndex + 1) % themes.length;
-        String nextTheme = themes[nextIndex];
-        
-        changeTheme(nextTheme);
-        logger.debug("Cycled from '{}' to '{}' theme", currentTheme, nextTheme);
-        
-        return nextTheme;
     }
 }

@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
  * <li>ESC key cancels editing</li>
  * <li>Focus-loss auto-saves changes</li>
  * <li>Visual feedback with CSS styling</li>
- * <li>Text validation support</li>
  * </ul>
  * 
  * @since 1.0.0
@@ -58,11 +57,6 @@ public class InPlaceEditableLabel extends StackPane {
     
     // Event handling
     private EventHandler<TextChangeEvent> onTextChanged;
-    private EventHandler<EditStartEvent> onEditStart;
-    private EventHandler<EditCancelEvent> onEditCancel;
-    
-    // Validation
-    private TextValidator validator;
     
     /**
      * Creates a new in-place editable label with empty text.
@@ -156,13 +150,7 @@ public class InPlaceEditableLabel extends StackPane {
      */
     private void setupBindings() {
         // Update visual state when edit mode changes
-        editMode.addListener((obs, oldVal, newVal) -> {
-            updateVisualState();
-            if (newVal) {
-                // Entering edit mode
-                fireEditStartEvent();
-            }
-        });
+        editMode.addListener((obs, oldVal, newVal) -> updateVisualState());
         
         // Disable editing when not editable
         editField.editableProperty().bind(editable);
@@ -239,20 +227,6 @@ public class InPlaceEditableLabel extends StackPane {
         String newText = editField.getText() != null ? editField.getText().trim() : "";
         String oldText = text.get();
         
-        // Validate text
-        if (validator != null) {
-            ValidationResult result = validator.validate(newText);
-            if (!result.isValid()) {
-                logger.warn("Text validation failed: {}", result.getMessage());
-                // Keep in edit mode and show error
-                editField.getStyleClass().add("error");
-                return;
-            }
-        }
-        
-        // Clear any error styling
-        editField.getStyleClass().remove("error");
-        
         // Update text if changed
         boolean textChanged = !newText.equals(oldText);
         if (textChanged) {
@@ -272,7 +246,6 @@ public class InPlaceEditableLabel extends StackPane {
         if (!editMode.get()) return;
         
         editMode.set(false);
-        fireEditCancelEvent();
     }
     
     // Property accessors
@@ -296,20 +269,6 @@ public class InPlaceEditableLabel extends StackPane {
      */
     public void setText(String text) {
         this.text.set(text != null ? text : "");
-    }
-    
-    /**
-     * Returns the edit mode property.
-     */
-    public ReadOnlyBooleanProperty editModeProperty() {
-        return editMode;
-    }
-    
-    /**
-     * Checks if currently in edit mode.
-     */
-    public boolean isInEditMode() {
-        return editMode.get();
     }
     
     /**
@@ -342,47 +301,12 @@ public class InPlaceEditableLabel extends StackPane {
         this.onTextChanged = handler;
     }
     
-    /**
-     * Sets the edit start event handler.
-     */
-    public void setOnEditStart(EventHandler<EditStartEvent> handler) {
-        this.onEditStart = handler;
-    }
-    
-    /**
-     * Sets the edit cancel event handler.
-     */
-    public void setOnEditCancel(EventHandler<EditCancelEvent> handler) {
-        this.onEditCancel = handler;
-    }
-    
-    /**
-     * Sets the text validator.
-     */
-    public void setValidator(TextValidator validator) {
-        this.validator = validator;
-    }
-    
     // Event firing methods
     
     private void fireTextChangeEvent(String oldText, String newText) {
         if (onTextChanged != null) {
             TextChangeEvent event = new TextChangeEvent(this, oldText, newText);
             onTextChanged.handle(event);
-        }
-    }
-    
-    private void fireEditStartEvent() {
-        if (onEditStart != null) {
-            EditStartEvent event = new EditStartEvent(this);
-            onEditStart.handle(event);
-        }
-    }
-    
-    private void fireEditCancelEvent() {
-        if (onEditCancel != null) {
-            EditCancelEvent event = new EditCancelEvent(this);
-            onEditCancel.handle(event);
         }
     }
     
@@ -405,61 +329,5 @@ public class InPlaceEditableLabel extends StackPane {
         
         public String getOldText() { return oldText; }
         public String getNewText() { return newText; }
-    }
-    
-    /**
-     * Event fired when edit mode starts.
-     */
-    public static class EditStartEvent extends Event {
-        public static final EventType<EditStartEvent> EDIT_START = new EventType<>("EDIT_START");
-        
-        public EditStartEvent(Object source) {
-            super(source, null, EDIT_START);
-        }
-    }
-    
-    /**
-     * Event fired when edit is cancelled.
-     */
-    public static class EditCancelEvent extends Event {
-        public static final EventType<EditCancelEvent> EDIT_CANCEL = new EventType<>("EDIT_CANCEL");
-        
-        public EditCancelEvent(Object source) {
-            super(source, null, EDIT_CANCEL);
-        }
-    }
-    
-    // Validation interfaces
-    
-    /**
-     * Interface for text validation.
-     */
-    @FunctionalInterface
-    public interface TextValidator {
-        ValidationResult validate(String text);
-    }
-    
-    /**
-     * Result of text validation.
-     */
-    public static class ValidationResult {
-        private final boolean valid;
-        private final String message;
-        
-        public ValidationResult(boolean valid, String message) {
-            this.valid = valid;
-            this.message = message;
-        }
-        
-        public static ValidationResult valid() {
-            return new ValidationResult(true, null);
-        }
-        
-        public static ValidationResult invalid(String message) {
-            return new ValidationResult(false, message);
-        }
-        
-        public boolean isValid() { return valid; }
-        public String getMessage() { return message; }
     }
 }
