@@ -95,12 +95,20 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
   second; then the JavaFX thread loads the FXML of the main window, which finds the chats loaded, applies the theme,
   shows the stage and starts the MCP server if enabled. A failed preparation ends the application as before.
-- **Chat models**: `ChatLibrary` keeps the chats in a plain list and changes it and the models of the chats on the
-  calling thread under `service.chat.ModelLock`, which `FxModel` holds for the changes of a generation as well; a
-  caller off the JavaFX thread reads them with `ChatLibrary.read` under the same lock. Only work in memory runs under
-  the lock. Nobody waits for the JavaFX thread: the views learn of a change through `LibraryEvents`, the sidebar keeps
-  a list of its own that follows the chats of the library, and the listeners the views put on the models hand their
-  work to the JavaFX thread.
+- **Chat models**: `ChatLibrary` keeps the chats in a plain list. The lists of the models (the chats, the entries of
+  a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
+  `service.chat.ModelLock`:
+  - they are changed only under the `ModelLock` (`change`, `changeAndGet`): by `ChatLibrary` on the calling thread
+    (an MCP thread, the worker of the window), by a generation on the JavaFX thread through `FxModel`;
+  - every other access reads them under the lock, the JavaFX thread included: `ChatLibrary.read` for the chats,
+    `ModelLock.read` for a value computed from them (e.g. the cost of a chat), and the snapshots
+    `ChatLibrary.entriesOf(chat)` and `ChatLibrary.imagesOf(entry)`, unmodifiable copies to iterate. Nobody iterates
+    a live list outside the lock.
+
+  Only work in memory runs under the lock, and nobody holding it waits for another thread, so the JavaFX thread
+  waits at most for such work and the MCP server never waits for the JavaFX thread. The views learn of a change
+  through `LibraryEvents`, the sidebar keeps a list of its own that follows the chats of the library, and the
+  listeners the views put on the models hand their work to the JavaFX thread.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
 - **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded

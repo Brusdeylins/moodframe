@@ -236,7 +236,7 @@ public class RequestResponseManager implements RequestResponseService {
 
     @Override
     public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
-        return FxModel.read(() -> {
+        return FxModel.changeAndGet(() -> {
             boolean running = tracker.cancel(chatEntry);
             if (running)
                 bflFlow.cancelEntry(chatEntry.getId());
@@ -498,7 +498,7 @@ public class RequestResponseManager implements RequestResponseService {
      */
     private void storeSynchronousImage(GenerationJobInfo jobInfo, ImageGenerationRequest request,
                                        ChatEntry chatEntry, int imageIndex) {
-        CompletableFuture<GeneratedImage> prepared = FxModel.read(() -> {
+        CompletableFuture<GeneratedImage> prepared = FxModel.changeAndGet(() -> {
             GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
             if (placeholder != null) {
                 placeholder.setGenerationJobId(jobInfo.getJobId());

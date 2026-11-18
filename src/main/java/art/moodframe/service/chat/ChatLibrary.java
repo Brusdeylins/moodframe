@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,10 @@ import java.util.function.Function;
  * calling thread and change the list and the models under the {@link ModelLock}, then report the change. The user
  * interface keeps a list of its own, which follows the reports (see {@link LibraryEvents}); the listeners the views
  * put on the models hand their work to the JavaFX thread.</p>
+ *
+ * <p>The lists of the models (the chats, the entries of a chat, the images of an entry) change on these threads, so
+ * every other thread, the JavaFX thread included, reads them under the lock: with {@link #read}, or as a snapshot
+ * with {@link #entriesOf} and {@link #imagesOf} (see {@link ModelLock}).</p>
  *
  * @since 2.1.0
  */
@@ -70,6 +75,31 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public <T> T read(Function<List<Chat>, T> reader) {
         return ModelLock.read(() -> reader.apply(chats));
+    }
+
+    /**
+     * The entries of a chat as they are now, a snapshot taken under the {@link ModelLock}: it does not follow later
+     * changes, and iterating it is safe while another thread changes the chat. Read the entries of a shared chat
+     * only this way (or within {@link #read}), also on the JavaFX thread.
+     *
+     * @param chat the chat, may be null
+     * @return the entries in their order, unmodifiable; empty for null
+     */
+    public static List<ChatEntry> entriesOf(Chat chat) {
+        return chat == null ? List.of()
+                : ModelLock.read(() -> Collections.unmodifiableList(new ArrayList<>(chat.getEntries())));
+    }
+
+    /**
+     * The images of an entry as they are now, a snapshot taken under the {@link ModelLock}, like
+     * {@link #entriesOf}.
+     *
+     * @param entry the entry, may be null
+     * @return the images in their order, unmodifiable; empty for null
+     */
+    public static List<GeneratedImage> imagesOf(ChatEntry entry) {
+        return entry == null || entry.getImages() == null ? List.of()
+                : ModelLock.read(() -> Collections.unmodifiableList(new ArrayList<>(entry.getImages())));
     }
 
     /**
@@ -200,7 +230,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public boolean moveToTrash(Chat chat) throws SQLException {
         boolean stored = history != null && history.softDeleteChat(chat.getId());
-        boolean gone = ModelLock.read(() -> {
+        boolean gone = ModelLock.changeAndGet(() -> {
             if (!stored && !chat.getEntries().isEmpty())
                 return false;
             chat.markAsDeleted();
@@ -223,7 +253,7 @@ public class ChatLibrary implements TrashCenter.Listener {
     public void moveChat(Chat chat, Chat before) throws SQLException {
         if (chat == before)
             return;
-        List<Chat> order = ModelLock.read(() -> {
+        List<Chat> order = ModelLock.changeAndGet(() -> {
             List<Chat> moved = ChatHistoryService.order(chats, chat, before);
             chats.sort(Comparator.comparingInt(Chat::getSortOrder));
             return moved;
@@ -364,7 +394,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         place in the order  */
     private void restoreChat(String chatId) throws SQLException {
         Chat stored = history != null ? history.findChat(chatId).orElse(null) : null;
-        boolean shown = ModelLock.read(() -> {
+        boolean shown = ModelLock.changeAndGet(() -> {
             Chat chat = chats.stream().filter((Chat listed) -> listed.getId().equals(chatId)).findFirst().orElse(null);
             if (chat != null)
                 chat.restore();
@@ -384,7 +414,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         if (restored == null)
             return;
         Optional<Double> deletedCost = history.findChat(restored.getChatId()).map(Chat::getDeletedCost);
-        ChatEntry shown = ModelLock.read(() -> {
+        ChatEntry shown = ModelLock.changeAndGet(() -> {
             Chat chat = chats.stream().filter((Chat listed) -> listed.getId().equals(restored.getChatId())).findFirst()
                     .orElse(null);
             if (chat == null)

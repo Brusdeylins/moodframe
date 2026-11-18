@@ -31,29 +31,39 @@ final class FxModel {
      * @return completes once the change ran, exceptionally if it failed (which is logged)
      */
     static CompletableFuture<Void> change(Runnable change) {
-        return read(() -> {
+        return changeAndGet(() -> {
             change.run();
             return null;
         });
     }
 
     /**
-     * Reads (and possibly changes) chat entries or images on the JavaFX thread, after the changes queued before.
+     * Changes chat entries or images on the JavaFX thread, after the changes queued before, and tells a result of the
+     * change.
      *
-     * @param read what to read
-     * @param <T>  the result
+     * @param change the change
+     * @param <T>    the result
      * @return completes with the result once it ran, exceptionally if it failed (which is logged)
      */
-    static <T> CompletableFuture<T> read(Supplier<T> read) {
+    static <T> CompletableFuture<T> changeAndGet(Supplier<T> change) {
         CompletableFuture<T> done = new CompletableFuture<>();
         Platform.runLater(() -> {
             try {
-                done.complete(ModelLock.read(read));
+                done.complete(ModelLock.changeAndGet(change));
             } catch (RuntimeException e) {
                 logger.error("Failed to update the chat entry of a generation", e);
                 done.completeExceptionally(e);
             }
         });
         return done;
+    }
+
+    /**
+     * Hands a notification of the listeners of a generation to the JavaFX thread, later in its queue.
+     *
+     * @param notification calls the listeners
+     */
+    static void later(Runnable notification) {
+        Platform.runLater(notification);
     }
 }
