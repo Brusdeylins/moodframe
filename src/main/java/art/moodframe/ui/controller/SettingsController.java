@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.net.CorporateProxyConfig;
+import art.moodframe.net.CertificateStore;
 import art.moodframe.net.HttpClients;
 import art.moodframe.mcp.McpService;
 import art.moodframe.ui.component.DialogButtons;
@@ -34,14 +34,11 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
-import java.util.stream.Collectors;
 
 /**
  * Controller for the Settings Dialog.
@@ -707,9 +704,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private void initializeCorporateProxyTab() {
         try {
-            // Initialize corporate proxy configuration
-            new CorporateProxyConfig(config);
-
             // Setup proxy port spinner
             proxyPortSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 65535, 8080));
 
@@ -1186,20 +1180,9 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             certificatesList.clear();
 
-            // Use auto-detected certificate path
-            String certPathStr = config.proxy().getCertificatePath();
-
-            Path certDirectory = Paths.get(certPathStr.trim());
-            if (Files.exists(certDirectory) && Files.isDirectory(certDirectory)) {
-                List<String> certFiles = Files.list(certDirectory)
-                        .filter(path -> Files.isRegularFile(path))
-                        .filter(path -> {
-                            String fileName = path.getFileName().toString().toLowerCase();
-                            return fileName.endsWith(".crt") || fileName.endsWith(".cer") || fileName.endsWith(".pem");
-                        })
-                        .map(path -> path.getFileName().toString())
-                        .sorted()
-                        .collect(Collectors.toList());
+            CertificateStore certificates = certificates();
+            if (certificates.exists()) {
+                List<String> certFiles = certificates.list();
 
                 certificatesList.addAll(certFiles);
 
@@ -1230,6 +1213,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
             certificateUploadStatus.setText("Error loading certificates");
             removeCertificateButton.setDisable(true);
         }
+    }
+
+    /*  the folder of the corporate certificates, as the settings say  */
+    private CertificateStore certificates() {
+        return new CertificateStore(Paths.get(config.proxy().getCertificatePath().trim()));
     }
 
     // Event Handlers
@@ -1858,15 +1846,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
     }
 
     /**
-     * Handles theme preview button click (now redundant due to live preview).
-     */
-    @FXML
-    private void onPreviewTheme() {
-        // This method is now redundant since theme changes apply immediately
-        // through the live preview listener, but kept for compatibility
-    }
-
-    /**
      * Handles reset to system theme button click.
      */
     @FXML
@@ -2014,16 +1993,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
     @FXML
     private void onUploadCertificate() {
 
-        // Use auto-detected certificate directory
-        String certPathStr = config.proxy().getCertificatePath();
-
-        Path certDirectory = Paths.get(certPathStr.trim());
+        CertificateStore certificates = certificates();
         try {
-            if (!Files.exists(certDirectory)) {
-                Files.createDirectories(certDirectory);
-            }
+            certificates.createDirectory();
         } catch (IOException e) {
-            logger.error("Failed to create certificate directory: {}", certDirectory, e);
+            logger.error("Failed to create certificate directory: {}", certificates.directory(), e);
             showError("Directory Error", "Failed to create certificate directory: " + e.getMessage());
             return;
         }
@@ -2047,10 +2021,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
 
             for (File sourceFile : selectedFiles) {
                 try {
-                    Path targetPath = certDirectory.resolve(sourceFile.getName());
-
                     // Check if file already exists
-                    if (Files.exists(targetPath)) {
+                    if (certificates.contains(sourceFile.getName())) {
                         Alert overwriteConfirm = new Alert(Alert.AlertType.CONFIRMATION);
                         ButtonType ok = DialogButtons.ok();
                         overwriteConfirm.getButtonTypes().setAll(ok, DialogButtons.cancel());
@@ -2067,7 +2039,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
                     }
 
                     // Copy file to certificate directory
-                    Files.copy(sourceFile.toPath(), targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    certificates.importFile(sourceFile.toPath());
                     successCount++;
 
                 } catch (IOException e) {
@@ -2117,11 +2089,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ok) {
                 try {
-                    String certPathStr = config.proxy().getCertificatePath();
-                    Path certificatePath = Paths.get(certPathStr, selectedCertificate);
-
-                    if (Files.exists(certificatePath)) {
-                        Files.delete(certificatePath);
+                    if (certificates().delete(selectedCertificate)) {
                         loadInstalledCertificates();
 
                         certificateUploadStatus.setText("Certificate removed: " + selectedCertificate);
@@ -2545,7 +2513,6 @@ public class SettingsController implements Initializable, I18nChangeListener {
             showError("Apply Settings Error", "Failed to save settings: " + e.getMessage());
         }
     }
-
 
     /**
      * Saves current proxy settings from UI controls to configuration.

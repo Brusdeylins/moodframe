@@ -141,12 +141,7 @@ public class CorporateProxyConfig {
      * Checks if a file is a supported certificate format.
      */
     private boolean isCertificateFile(Path path) {
-        if (path == null || !Files.isRegularFile(path)) {
-            return false;
-        }
-        
-        String filename = path.getFileName().toString().toLowerCase();
-        return filename.endsWith(".crt") || filename.endsWith(".cer") || filename.endsWith(".pem");
+        return CertificateStore.isCertificateFile(path);
     }
     
     /**

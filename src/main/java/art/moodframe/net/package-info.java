@@ -8,6 +8,7 @@
  * - HttpClients: factory of the HTTP clients
  * - CorporateProxyConfig: proxy and certificate settings
  * - TrustStoreManager: trust store with the corporate certificates
+ * - CertificateStore: the folder of the corporate certificates (list, import, delete)
  * - IoExecutor: the threads of the blocking network work
  */
 package art.moodframe.net;
