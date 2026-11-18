@@ -1,7 +1,6 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ImageGenerationRequest;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,8 +21,7 @@ class BflRequestBodyTest {
     @BeforeAll
     static void setUp() throws Exception {
         ApplicationConfig config = art.moodframe.config.ConfigMocks.withEmptyTexts();
-        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
-        service = new BflApiServiceImpl();
+        service = new BflApiServiceImpl(config);
         build = BflApiServiceImpl.class.getDeclaredMethod("buildModelSpecificRequestBody", ImageGenerationRequest.class);
         build.setAccessible(true);
     }

@@ -15,6 +15,7 @@ import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.Subscription;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -990,7 +991,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         // FAST PATH: Check if thumbnail is already in memory cache (no disk I/O!)
         if (thumbnailPath != null) {
-            javafx.scene.image.Image cachedImage = thumbnailManager.getFromCacheOnly(thumbnailPath);
+            javafx.scene.image.Image cachedImage = ImageCache.shared().getIfCached(thumbnailPath);
             if (cachedImage != null) {
                 // Image is in cache - set immediately, no disk access needed
                 setImageWithHandlers(imageView, cachedImage, imageIndex);
@@ -1007,7 +1008,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         // Load thumbnail async - the cache will handle whether file exists
         CompletableFuture.supplyAsync(() -> thumbnailPath != null
-                        ? thumbnailManager.getCachedImage(thumbnailPath) : null)
+                        ? ImageCache.shared().get(thumbnailPath) : null)
                 .whenComplete((image, error) -> {
                     if (image != null)
                         Platform.runLater(() -> setImageWithHandlers(imageView, image, imageIndex));
@@ -1025,7 +1026,7 @@ public class ChatEntryCard extends ManagedComponent {
             ProgressIndicator progressIndicator, int imageIndex, String localPath, ThumbnailManager thumbnailManager) {
         thumbnailManager.getThumbnail(localPath)
                 .thenApplyAsync((thumbnailFile) -> thumbnailFile != null && thumbnailFile.exists()
-                        ? thumbnailManager.getCachedImage(thumbnailFile.getAbsolutePath()) : null)
+                        ? ImageCache.shared().get(thumbnailFile.getAbsolutePath()) : null)
                 .whenComplete((image, error) -> {
                     if (image == null) {
                         showOriginalImage(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
@@ -1070,7 +1071,7 @@ public class ChatEntryCard extends ManagedComponent {
 
             // FAST PATH: Check cache first - no disk I/O, no thread switching
             javafx.scene.image.Image cachedImage = thumbnailManager != null
-                    ? thumbnailManager.getFromCacheOnly(imagePath) : null;
+                    ? ImageCache.shared().getIfCached(imagePath) : null;
 
             if (cachedImage != null) {
                 // Image is in cache - set immediately (no disk I/O, no blocking)
@@ -1092,7 +1093,7 @@ public class ChatEntryCard extends ManagedComponent {
                 }
 
                 javafx.scene.image.Image image = thumbnailManager != null
-                        ? thumbnailManager.getCachedImage(imagePath)
+                        ? ImageCache.shared().get(imagePath)
                         : new javafx.scene.image.Image(imageFile.toURI().toString(),
                                 ThumbnailManager.MAX_THUMBNAIL_SIZE, ThumbnailManager.MAX_THUMBNAIL_SIZE, true, true,
                                 false);

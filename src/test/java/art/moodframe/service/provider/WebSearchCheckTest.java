@@ -2,7 +2,6 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import com.sun.net.httpserver.HttpServer;
 import okhttp3.OkHttpClient;
 import org.json.JSONArray;
@@ -15,7 +14,6 @@ import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -158,42 +156,22 @@ class WebSearchCheckTest {
 
     @Test
     void aTransientBflConnectionTestDecidesNothingWhileADefiniteOneRefuses() throws Exception {
-        /*  The BFL service takes its configuration from the service factory, which gets back what it held  */
-        Map<Class<?>, Object> services = services();
-        Object former = services.get(ApplicationConfig.class);
         when(config.getApiTimeoutSeconds()).thenReturn(5);
-        services.put(ApplicationConfig.class, config);
-        try {
-            BflApiServiceImpl bfl = new BflApiServiceImpl() {
-                @Override
-                public String getApiBaseUrl() {
-                    return baseUrl;
-                }
+        BflApiServiceImpl bfl = new BflApiServiceImpl(config) {
+            @Override
+            public String getApiBaseUrl() {
+                return baseUrl;
+            }
 
-                @Override
-                public String getApiKey() {
-                    return "key";
-                }
-            };
-            answers.add(new Answer(503, "{}"));
-            assertThrows(CompletionException.class, () -> bfl.testConnection().join());
-            answers.add(new Answer(401, "{}"));
-            assertEquals(false, bfl.testConnection().join());
-        }
-        finally {
-            if (former != null)
-                services.put(ApplicationConfig.class, former);
-            else
-                services.remove(ApplicationConfig.class);
-        }
-    }
-
-    /*  the services the factory holds, of which this test takes out again what it put in  */
-    @SuppressWarnings("unchecked")
-    private static Map<Class<?>, Object> services() throws Exception {
-        Field services = ServiceFactory.class.getDeclaredField("services");
-        services.setAccessible(true);
-        return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
+            @Override
+            public String getApiKey() {
+                return "key";
+            }
+        };
+        answers.add(new Answer(503, "{}"));
+        assertThrows(CompletionException.class, () -> bfl.testConnection().join());
+        answers.add(new Answer(401, "{}"));
+        assertEquals(false, bfl.testConnection().join());
     }
 
     @Test

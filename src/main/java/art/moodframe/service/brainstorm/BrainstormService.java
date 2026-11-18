@@ -82,17 +82,16 @@ public class BrainstormService {
     private final Map<String, CompletableFuture<?>> tails = new ConcurrentHashMap<>();
     private final Set<String> deleted = ConcurrentHashMap.newKeySet();
 
-    /**
-     * Creates the service the application uses: the stored sessions, the Gemini and OpenAI services of the
-     * application, and its configuration.
-     *
-     * @param config the application configuration
-     * @return the service
-     */
-    public static BrainstormService create(art.moodframe.config.ApplicationConfig config) {
-        art.moodframe.config.ServiceFactory services = art.moodframe.config.ServiceFactory.getInstance();
-        return new BrainstormService(new BrainstormRepository(art.moodframe.database.DatabaseConfig.getDatabase()),
-                services.getService(GeminiApiService.class), services.getService(OpenAiApiService.class), config);
+    /** Creates a service for each brainstorm window, with the sessions and language models of the application. */
+    @FunctionalInterface
+    public interface Factory {
+
+        /**
+         * Creates a service.
+         *
+         * @return the service
+         */
+        BrainstormService create();
     }
 
     /**

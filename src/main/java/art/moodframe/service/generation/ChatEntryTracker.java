@@ -20,7 +20,8 @@ import java.util.function.Consumer;
  * Keeps a chat entry in step with its images while a request runs: tells the UI about changes, marks an entry
  * failed, settles its status and cost once all images are finished, and stores the result. The change of the
  * entry itself happens on the FX thread (see {@link FxModel}), the database writes on a worker of their own, in the
- * order they were asked for, after the change they store.
+ * order they were asked for, after the change they store. The listeners learn of an entry that ended once it is
+ * stored with its images, so a query of the library they start finds them.
  *
  * @since 1.9.1
  */
@@ -148,7 +149,7 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Marks a chat entry as failed with the given message, shows it and stores it.
+     * Marks a chat entry as failed with the given message, stores it and then shows it.
      */
     public void markFailed(ChatEntry chatEntry, String errorMessage) {
         FxModel.change(() -> {
@@ -156,14 +157,19 @@ public class ChatEntryTracker {
                 return;
             chatEntry.setStatus(ChatEntry.Status.FAILED);
             chatEntry.setErrorMessage(errorMessage);
-            notifyEntryUpdated(chatEntry);
-            saveEntry(chatEntry);
+            notifyWhenStored(saveEntry(chatEntry), chatEntry);
         });
+    }
+
+    /*  Tells the listeners of an entry that ended once the writes asked for before are done, failed or not: the
+        worker runs them in order, so the images of the entry are stored as well  */
+    private void notifyWhenStored(CompletableFuture<Void> stored, ChatEntry chatEntry) {
+        stored.whenComplete((Void done, Throwable failure) -> notifyEntryUpdated(chatEntry));
     }
 
     /**
      * Cancels a running entry on the FX thread: its images not finished yet fail, the entry ends as cancelled and is
-     * stored. It keeps its estimated cost, as the provider may have started already.
+     * stored, then shown. It keeps its estimated cost, as the provider may have started already.
      *
      * @param chatEntry the entry
      * @return true if it was pending or processing
@@ -180,16 +186,18 @@ public class ChatEntryTracker {
         });
         chatEntry.setStatus(ChatEntry.Status.CANCELLED);
         chatEntry.setCompletedAt(LocalDateTime.now());
-        saveEntry(chatEntry);
-        stopped.forEach(this::saveImage);
-        notifyEntryUpdated(chatEntry);
+        CompletableFuture<Void> stored = saveEntry(chatEntry);
+        for (GeneratedImage image : stopped)
+            stored = saveImage(image);
+        notifyWhenStored(stored, chatEntry);
         return true;
     }
 
     /**
      * Checks if all images in a ChatEntry are finished (either CACHED or FAILED). If so, the entry gets the cost of
      * its images (a blocked image costs nothing), its final status and completion time, in a change queued after
-     * the current one, and is stored. Call it on the FX thread whenever the status of an image changed.
+     * the current one, and is stored; the listeners learn of it once it is stored. Call it on the FX thread whenever
+     * the status of an image changed.
      *
      * @param chatEntry the ChatEntry to check and potentially update
      */
@@ -240,8 +248,7 @@ public class ChatEntryTracker {
             }
             chatEntry.setCompletedAt(LocalDateTime.now());
             logger.info("Updated ChatEntry status to {} (all images finished)", chatEntry.getStatus());
-            saveEntry(chatEntry);
-            notifyEntryUpdated(chatEntry);
+            notifyWhenStored(saveEntry(chatEntry), chatEntry);
         });
     }
 

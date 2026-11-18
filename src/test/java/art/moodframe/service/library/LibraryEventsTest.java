@@ -238,7 +238,7 @@ class LibraryEventsTest {
         Chat unsaved = library.newChat("Unsaved");
         assertEquals(once(LibraryEvents.Kind.CHAT, unsaved.getId()), reported());
         assertFalse(history.findChat(unsaved.getId()).isPresent());
-        assertEquals(unsaved, library.getChats().get(0));
+        assertEquals(unsaved, library.chats().get(0));
     }
 
     @Test

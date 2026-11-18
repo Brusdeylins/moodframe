@@ -72,9 +72,11 @@ public class MoodFramePanelController {
      * @param moods     the moods (may be null: no mood selection)
      * @param frames    the frames (may be null: no frame selection)
      * @param favorites the favorites, listed first (may be null)
+     * @param analysis  finds the building blocks of an image for "Mood from image" (may be null: none)
      */
     public record Services(ApplicationConfig config, PromptBlockService blocks, ColorStyleService colors,
-                           MoodService moods, FrameService frames, FavoriteService favorites) {
+                           MoodService moods, FrameService frames, FavoriteService favorites,
+                           art.moodframe.service.brainstorm.MoodAnalysisService analysis) {
     }
 
     /** Learns of the changes of the fields. */
@@ -209,6 +211,7 @@ public class MoodFramePanelController {
     /*  The frames: whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame
         selection sets them  */
     private FrameService frameService;
+    private art.moodframe.service.brainstorm.MoodAnalysisService moodAnalysis;
     private boolean frameChanged;
     private boolean updatingFrame;
 
@@ -254,6 +257,7 @@ public class MoodFramePanelController {
         this.favoriteService = services.favorites();
         this.moodService = services.moods();
         this.frameService = services.frames();
+        this.moodAnalysis = services.analysis();
         this.status = status;
 
         setupBlockChoices();
@@ -1508,8 +1512,7 @@ public class MoodFramePanelController {
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
                 blockService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                 List.of(), List.of(), "", List.of(), lockedMoodFields());
-        new art.moodframe.ui.dialog.MoodImageDialog(window(),
-                art.moodframe.service.brainstorm.MoodAnalysisService.create(config), context, imageFile,
+        new art.moodframe.ui.dialog.MoodImageDialog(window(), moodAnalysis, context, imageFile,
                 this::applyMoodFromImage).show();
     }
 

@@ -1,7 +1,9 @@
 /**
  * The controllers of the FXML views in {@code src/main/resources/fxml}. The main window is split into parts, each
  * with its FXML file and controller, which the coordinator {@link MainWindowController} wires together; it looks up
- * the services once and hands them to the parts, which never ask the service locator themselves.
+ * the services once and hands them to the parts, which never ask the service locator themselves, and lets go of what
+ * the window registered beyond itself when it closes. The sidebar keeps its own list of the chats, which follows the
+ * {@code ChatLibrary}.
  *
  * <p>Main classes:</p>
  * <ul>

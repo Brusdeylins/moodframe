@@ -32,7 +32,7 @@ class ImageSizeCheckTest {
         DatabaseManager databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
-        check = new ImageSizeCheck(repository);
+        check = new ImageSizeCheck(repository, Runnable::run);
         file = tempDir.resolve("image.png");
         ImageIO.write(new BufferedImage(160, 90, BufferedImage.TYPE_INT_RGB), "png", file.toFile());
     }

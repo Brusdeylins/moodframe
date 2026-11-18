@@ -9,7 +9,6 @@ import ch.qos.logback.core.read.ListAppender;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ImageGenerationRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,8 +119,7 @@ class ApiKeyLeakTest {
     void bflSendsTheKeyAsHeaderOnly() throws Exception {
         when(config.accounts().getApiKey(ApiProvider.BFL)).thenReturn(KEY);
         when(config.getApiTimeoutSeconds()).thenReturn(30);
-        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
-        BflApiServiceImpl service = new BflApiServiceImpl() {
+        BflApiServiceImpl service = new BflApiServiceImpl(config) {
             @Override
             public String getApiBaseUrl() {
                 return baseUrl;

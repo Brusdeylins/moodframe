@@ -3,7 +3,6 @@ package art.moodframe.service.chat;
 import art.moodframe.model.GeneratedImage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import art.moodframe.config.ServiceFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,14 +24,28 @@ public class FileManagerService {
     private static final Logger logger = LoggerFactory.getLogger(FileManagerService.class);
     
     private final Path baseImageDirectory;
+
+    /*  the thumbnails deleted with their images, null for none  */
+    private final ThumbnailManager thumbnails;
     
     /**
-     * Creates a new file manager service.
+     * Creates a new file manager service that deletes no thumbnails.
      *
      * @param baseImageDirectory the base directory for storing images, {@code LibraryPaths.images()}
      */
     public FileManagerService(Path baseImageDirectory) {
+        this(baseImageDirectory, null);
+    }
+
+    /**
+     * Creates a new file manager service.
+     *
+     * @param baseImageDirectory the base directory for storing images, {@code LibraryPaths.images()}
+     * @param thumbnails         the thumbnails, deleted with their images (may be null: none)
+     */
+    public FileManagerService(Path baseImageDirectory, ThumbnailManager thumbnails) {
         this.baseImageDirectory = baseImageDirectory;
+        this.thumbnails = thumbnails;
         ensureDirectoryExists(baseImageDirectory);
     }
     
@@ -148,10 +161,7 @@ public class FileManagerService {
      */
     private boolean deleteThumbnailFile(String originalImagePath) {
         try {
-            // Get ThumbnailManager from ServiceFactory
-            ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                .getService(ThumbnailManager.class);
-            
+            ThumbnailManager thumbnailManager = thumbnails;
             if (thumbnailManager == null) {
                 return true; // Not an error - service might not be initialized
             }

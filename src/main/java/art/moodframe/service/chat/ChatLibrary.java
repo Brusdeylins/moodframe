@@ -7,30 +7,26 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashGroup;
-import javafx.application.Platform;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * The chats with their entries, shared by the main window and later callers. It owns the list of the chats: they are
  * loaded once at the start, and every change goes through here, also what leaves the trash, and is reported as
  * {@link LibraryEvents.Kind#CHAT} or {@link LibraryEvents.Kind#ENTRY}.
  *
- * <p>Chats, entries and images are JavaFX models, they change on the JavaFX thread only. The methods may be called
- * from any thread: they access the database on the calling thread and hand the change of the model to the JavaFX
- * thread, waiting for it.</p>
+ * <p>The methods may be called from any thread, none waits for the JavaFX thread: they access the database on the
+ * calling thread and change the list and the models under the {@link ModelLock}, then report the change. The user
+ * interface keeps a list of its own, which follows the reports (see {@link LibraryEvents}); the listeners the views
+ * put on the models hand their work to the JavaFX thread.</p>
  *
  * @since 2.1.0
  */
@@ -40,7 +36,8 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     private final ChatHistoryService history;
     private final LibraryEvents events;
-    private final ObservableList<Chat> chats = FXCollections.observableArrayList();
+    /*  the chats in their order, guarded by the ModelLock  */
+    private final List<Chat> chats = new ArrayList<>();
 
     /**
      * Creates the library.
@@ -53,66 +50,47 @@ public class ChatLibrary implements TrashCenter.Listener {
         this.events = events;
     }
 
-    /*  Runs a change of the model on the JavaFX thread and waits for it, at once on the JavaFX thread itself  */
-    private static <T> T onFxThread(Supplier<T> change) {
-        if (Platform.isFxApplicationThread())
-            return change.get();
-        FutureTask<T> task = new FutureTask<>(change::get);
-        Platform.runLater(task);
-        try {
-            return task.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while waiting for the JavaFX thread", e);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Failed to change the chats", e.getCause());
-        }
-    }
-
-    private static void runOnFxThread(Runnable change) {
-        onFxThread(() -> {
-            change.run();
-            return null;
-        });
-    }
-
     /**
-     * The chats in their order, also the deleted ones that still hold entries (hidden until restored). Read it on the
-     * JavaFX thread only and change it through the library only.
+     * The chats in their order, also the deleted ones that still hold entries (hidden until restored), as they are
+     * now: a copy, which the list of the user interface follows. Change them through the library only.
      *
      * @return the chats
      */
-    public ObservableList<Chat> getChats() {
-        return chats;
+    public List<Chat> chats() {
+        return ModelLock.read(() -> List.copyOf(chats));
     }
 
     /**
-     * Reads the chats on the JavaFX thread and waits for the result, so a caller on another thread sees them in a
-     * consistent state. The reader must not change them.
+     * Reads the chats under the {@link ModelLock} on the calling thread, so a caller on another thread sees them in a
+     * consistent state. The reader must not change them and must work in memory only.
      *
      * @param reader reads the chats and returns what it found
      * @param <T>    the type of the result
      * @return the result of the reader
      */
     public <T> T read(Function<List<Chat>, T> reader) {
-        return onFxThread(() -> reader.apply(chats));
+        return ModelLock.read(() -> reader.apply(chats));
     }
 
     /**
-     * Loads the chats once at the start; what a restart left behind is repaired there (see
-     * {@link ChatHistoryService#load()}). Without any stored chat, a welcome chat is created.
+     * Loads the chats once at the start, before the main window opens; what a restart left behind is repaired there
+     * (see {@link ChatHistoryService#load()}). Without any stored chat, a welcome chat is created. It reads the
+     * database and the files, so call it off the JavaFX thread.
      */
     public void load() {
         try {
             if (history == null)
                 logger.warn("ChatRepository not available - creating empty chat list");
             ChatHistoryService.History loaded = history != null ? history.load() : null;
-            runOnFxThread(() -> chats.setAll(loaded != null ? loaded.chats() : List.of()));
+            ModelLock.change(() -> {
+                chats.clear();
+                chats.addAll(loaded != null ? loaded.chats() : List.of());
+            });
             if (loaded == null || loaded.nothingStored())
                 addWelcomeChat();
         } catch (Exception e) {
             logger.error("Failed to load chat data from database", e);
-            runOnFxThread(chats::clear);
+            ModelLock.change(chats::clear);
             addWelcomeChat();
         }
     }
@@ -127,7 +105,7 @@ public class ChatLibrary implements TrashCenter.Listener {
                 logger.warn("Failed to save welcome chat to database", e);
             }
         }
-        runOnFxThread(() -> chats.add(welcomeChat));
+        ModelLock.change(() -> chats.add(welcomeChat));
     }
 
     /**
@@ -137,7 +115,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @return the chat, null if it is not in the list
      */
     public Chat find(String chatId) {
-        return onFxThread(() -> chats.stream().filter((Chat chat) -> chat.getId().equals(chatId)).findFirst()
+        return ModelLock.read(() -> chats.stream().filter((Chat chat) -> chat.getId().equals(chatId)).findFirst()
                 .orElse(null));
     }
 
@@ -148,7 +126,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @return the entry, null if no chat of the list holds it
      */
     public ChatEntry findEntry(String entryId) {
-        return onFxThread(() -> chats.stream().flatMap((Chat chat) -> chat.getEntries().stream())
+        return ModelLock.read(() -> chats.stream().flatMap((Chat chat) -> chat.getEntries().stream())
                 .filter((ChatEntry entry) -> entry.getId().equals(entryId)).findFirst().orElse(null));
     }
 
@@ -165,7 +143,7 @@ public class ChatLibrary implements TrashCenter.Listener {
             try {
                 history.saveChat(chat);
             } catch (SQLException e) {
-                runOnFxThread(() -> chats.remove(chat));
+                ModelLock.change(() -> chats.remove(chat));
                 throw e;
             }
         }
@@ -188,7 +166,7 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     private Chat addOnTop(String name) {
         Chat chat = new Chat.Builder().name(name).build();
-        runOnFxThread(() -> {
+        ModelLock.change(() -> {
             chat.setSortOrder(ChatHistoryService.sortOrderOnTop(chats));
             chats.add(0, chat);
         });
@@ -203,7 +181,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @throws SQLException if it cannot be stored; it keeps the new name anyway
      */
     public void renameChat(Chat chat, String name) throws SQLException {
-        runOnFxThread(() -> {
+        ModelLock.change(() -> {
             chat.setName(name);
             chat.setUpdatedAt(LocalDateTime.now());
         });
@@ -222,7 +200,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public boolean moveToTrash(Chat chat) throws SQLException {
         boolean stored = history != null && history.softDeleteChat(chat.getId());
-        boolean gone = onFxThread(() -> {
+        boolean gone = ModelLock.read(() -> {
             if (!stored && !chat.getEntries().isEmpty())
                 return false;
             chat.markAsDeleted();
@@ -236,7 +214,7 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /**
-     * Moves a chat in front of another one, numbers all chats anew and stores their order; the list sorts itself anew.
+     * Moves a chat in front of another one, numbers all chats anew and stores their order; the list is sorted anew.
      *
      * @param chat   the chat to move
      * @param before the chat it goes in front of, null for the end of the list
@@ -245,9 +223,9 @@ public class ChatLibrary implements TrashCenter.Listener {
     public void moveChat(Chat chat, Chat before) throws SQLException {
         if (chat == before)
             return;
-        List<Chat> order = onFxThread(() -> {
+        List<Chat> order = ModelLock.read(() -> {
             List<Chat> moved = ChatHistoryService.order(chats, chat, before);
-            FXCollections.sort(chats, Comparator.comparingInt(Chat::getSortOrder));
+            chats.sort(Comparator.comparingInt(Chat::getSortOrder));
             return moved;
         });
         events.changed(LibraryEvents.Kind.CHAT, chat.getId());
@@ -271,7 +249,7 @@ public class ChatLibrary implements TrashCenter.Listener {
                 logger.error("Failed to save ChatEntry to database", e);
             }
         }
-        runOnFxThread(() -> {
+        ModelLock.change(() -> {
             chat.getEntries().add(entry);
             chat.setUpdatedAt(LocalDateTime.now());
         });
@@ -296,7 +274,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         if (history != null)
             history.deleteEntry(entry.getId(), history.findGeneratedImagesByEntry(entry.getId()));
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
-        runOnFxThread(() -> owner(entry).ifPresent((Chat chat) -> leave(chat, entry, deletedCost)));
+        ModelLock.change(() -> owner(entry).ifPresent((Chat chat) -> leave(chat, entry, deletedCost)));
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
     }
 
@@ -312,7 +290,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
                 : inMemory(entry, image);
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
-        runOnFxThread(() -> {
+        ModelLock.change(() -> {
             entry.getImages().remove(image);
             entry.setDeletedCost(deletion.entryDeletedCost());
             if (deletion.entryDeleted())
@@ -323,7 +301,7 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /*  A deleted entry leaves its chat, which takes the deleted cost as stored, without database it books the
-        cost of the entry itself; on the JavaFX thread  */
+        cost of the entry itself; under the lock  */
     private static void leave(Chat chat, ChatEntry entry, Optional<Double> deletedCost) {
         boolean removed = chat.getEntries().remove(entry);
         if (deletedCost.isPresent())
@@ -334,13 +312,13 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /*  the deletion of an image without database: as ChatRepository#softDeleteImage books it  */
     private static ChatHistoryService.ImageDeletion inMemory(ChatEntry entry, GeneratedImage image) {
-        return onFxThread(() -> entry.getImages().size() == 1
+        return ModelLock.read(() -> entry.getImages().size() == 1
                 ? new ChatHistoryService.ImageDeletion(true, entry.getCost())
                 : new ChatHistoryService.ImageDeletion(false, entry.getDeletedCost()
                         + ChatCost.imageShare(entry.getCost() - entry.getDeletedCost(), entry.getImages(), image)));
     }
 
-    /*  the chat of an entry in the list, on the JavaFX thread  */
+    /*  the chat of an entry in the list, under the lock  */
     private Optional<Chat> owner(ChatEntry entry) {
         return chats.stream().filter((Chat chat) -> chat.getId().equals(entry.getChatId())).findFirst();
     }
@@ -378,7 +356,7 @@ public class ChatLibrary implements TrashCenter.Listener {
     public void deleted(TrashGroup.Kind kind, List<String> ids) {
         if (kind != TrashGroup.Kind.CHATS)
             return;
-        runOnFxThread(() -> chats.removeIf((Chat chat) -> ids.contains(chat.getId())));
+        ModelLock.change(() -> chats.removeIf((Chat chat) -> ids.contains(chat.getId())));
         ids.forEach((String id) -> events.changed(LibraryEvents.Kind.CHAT, id));
     }
 
@@ -386,7 +364,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         place in the order  */
     private void restoreChat(String chatId) throws SQLException {
         Chat stored = history != null ? history.findChat(chatId).orElse(null) : null;
-        boolean shown = onFxThread(() -> {
+        boolean shown = ModelLock.read(() -> {
             Chat chat = chats.stream().filter((Chat listed) -> listed.getId().equals(chatId)).findFirst().orElse(null);
             if (chat != null)
                 chat.restore();
@@ -406,7 +384,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         if (restored == null)
             return;
         Optional<Double> deletedCost = history.findChat(restored.getChatId()).map(Chat::getDeletedCost);
-        ChatEntry shown = onFxThread(() -> {
+        ChatEntry shown = ModelLock.read(() -> {
             Chat chat = chats.stream().filter((Chat listed) -> listed.getId().equals(restored.getChatId())).findFirst()
                     .orElse(null);
             if (chat == null)

@@ -197,6 +197,45 @@ class McpEditToolsTest {
         assertTrue(ids(call("list_chats", "{}").path("chats")).contains(chatId), "the chat is back");
     }
 
+    @Test
+    void theChatToolsDoNotWaitForTheJavaFxThread() throws Exception {
+        CountDownLatch blocked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            blocked.countDown();
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertTrue(blocked.await(10, TimeUnit.SECONDS));
+        String chatId;
+        try {
+            /*  while the JavaFX thread is busy, the tools change and read the chats on the thread of the call  */
+            chatId = CompletableFuture.supplyAsync(() -> {
+                try {
+                    String id = call("create_chat", "{\"name\":\"Busy window\"}").path("id").asText();
+                    call("rename_chat", "{\"chatId\":\"" + id + "\",\"name\":\"Busy window, renamed\"}");
+                    assertEquals("Busy window, renamed", call("get_chat", "{\"chatId\":\"" + id + "\"}")
+                            .path("chat").path("name").asText());
+                    assertTrue(ids(call("list_chats", "{}").path("chats")).contains(id));
+                    return id;
+                }
+                catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }).get(10, TimeUnit.SECONDS);
+            assertFalse(reported.contains("CHAT:" + chatId), "the main window learns of it once its thread is free");
+        }
+        finally {
+            release.countDown();
+        }
+        drainFxThread();
+        assertTrue(reported.contains("CHAT:" + chatId));
+    }
+
     /*  ===== Moods =====  */
 
     @Test

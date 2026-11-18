@@ -16,7 +16,10 @@ import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
+import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.chat.ChatFileService;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
@@ -48,7 +51,6 @@ import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.ImagePreviewOverlay;
 import art.moodframe.ui.component.InPlaceEditableLabel;
-import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.ui.brainstorm.BrainstormDialog;
 import art.moodframe.util.I18nManager;
@@ -115,7 +117,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -165,11 +166,12 @@ class MainWindowFlowsTest {
     private RequestResponseManager requests;
     private ExecutorService io;
     private final AtomicInteger generations = new AtomicInteger();
+    private final AtomicInteger loads = new AtomicInteger();
     private final List<String> deletions = new CopyOnWriteArrayList<>();
 
     /*  the window of a test  */
     private int languageListeners;
-    private List<Consumer<String>> themeListeners;
+    private int themeListeners;
     private Stage stage;
     private Parent root;
     private MainWindowController controller;
@@ -220,17 +222,16 @@ class MainWindowFlowsTest {
         return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
     }
 
-    /*  the listeners of the theme, of which the cloud of a window never leaves  */
-    @SuppressWarnings("unchecked")
-    private static List<Consumer<String>> themeListeners() throws Exception {
-        Field listeners = ThemeManager.class.getDeclaredField("listeners");
-        listeners.setAccessible(true);
-        return (List<Consumer<String>>) listeners.get(null);
-    }
-
-    /*  the chats of the library, which note the thread every deletion runs on  */
-    private static ChatLibrary recording(ChatHistoryService history, LibraryEvents events, List<String> deletions) {
+    /*  the chats of the library, which note the thread every deletion runs on and count their loads  */
+    private static ChatLibrary recording(ChatHistoryService history, LibraryEvents events, List<String> deletions,
+                                         AtomicInteger loads) {
         return new ChatLibrary(history, events) {
+            @Override
+            public void load() {
+                loads.incrementAndGet();
+                super.load();
+            }
+
             @Override
             public void deleteEntry(ChatEntry entry) throws SQLException {
                 deletions.add(Thread.currentThread().getName());
@@ -241,6 +242,26 @@ class MainWindowFlowsTest {
             public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
                 deletions.add(Thread.currentThread().getName());
                 return super.deleteImage(entry, image);
+            }
+        };
+    }
+
+    /*  the chats in the database, whose writes of finished images by a generation take a while, as on a slow disk:
+        what a generation stores must be done before the window queries it  */
+    private static ChatRepository slowImageWrites(DatabaseManager database, ChatFileService files) {
+        return new ChatRepository(database, files) {
+            @Override
+            public void saveGeneratedImage(GeneratedImage image) throws SQLException {
+                if (Thread.currentThread().getName().startsWith("generation-store")
+                        && image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED) {
+                    try {
+                        Thread.sleep(150);
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                super.saveGeneratedImage(image);
             }
         };
     }
@@ -281,14 +302,18 @@ class MainWindowFlowsTest {
         /*  chats, their files and the trash  */
         TrashManager trashManager = new TrashManager(paths, 60);
         thumbnails = new ThumbnailManager(paths);
-        ChatFileService files = new ChatFileService(trashManager, thumbnails, new FileManagerService(paths.images()));
-        repository = new ChatRepository(database, files);
+        ChatFileService files = new ChatFileService(trashManager, thumbnails,
+                new FileManagerService(paths.images(), thumbnails));
+        repository = slowImageWrites(database, files);
         trash = new TrashCenter();
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
         ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
-        chats = recording(history, events, deletions);
+        chats = recording(history, events, deletions, loads);
         trash.addListener(chats);
+
+        /*  the start loads the chats before the window opens  */
+        chats.load();
         register(TrashManager.class, trashManager);
         register(ThumbnailManager.class, thumbnails);
         register(ChatFileService.class, files);
@@ -297,7 +322,7 @@ class MainWindowFlowsTest {
         register(ChatHistoryService.class, history);
         register(ChatLibrary.class, chats);
         register(ImageAttachmentService.class, new ImageAttachmentService());
-        sizeCheck = new ImageSizeCheck(repository);
+        sizeCheck = new ImageSizeCheck(repository, Platform::runLater);
         register(ImageSizeCheck.class, sizeCheck);
 
         /*  the providers: Gemini answers every request at once with the test image; the answer holds nothing of the
@@ -326,8 +351,14 @@ class MainWindowFlowsTest {
         register(RequestResponseManager.class, requests);
         register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers));
 
+        /*  the brainstorm and the analysis of an image, on the mocked language models  */
+        ApplicationConfig brainstormConfig = config;
+        register(BrainstormService.Factory.class, () -> new BrainstormService(new BrainstormRepository(database),
+                gemini, openAi, brainstormConfig));
+        register(MoodAnalysisService.class, new MoodAnalysisService(gemini, openAi, config));
+
         languageListeners = I18nManager.getChangeListenerCount();
-        themeListeners = List.copyOf(themeListeners());
+        themeListeners = ThemeManager.getThemeListenerCount();
         onFxThread(() -> {
             FXMLLoader loader = new FXMLLoader(MainWindowFlowsTest.class.getResource("/fxml/MainWindow.fxml"));
             root = loader.load();
@@ -341,8 +372,8 @@ class MainWindowFlowsTest {
     }
 
     /**
-     * Closes the dialogs and the window and releases what would keep it alive: the listeners of the language and the
-     * theme, the clipboard watch, the timeline of the memory display and the threads of the work.
+     * Closes the dialogs and the window, which lets go of what would keep it alive: the listeners of the language and
+     * the theme, the clipboard watch, the timeline of the memory display; then the threads of the work end.
      */
     @AfterEach
     void closeTheWindow() throws Exception {
@@ -352,20 +383,8 @@ class MainWindowFlowsTest {
             for (Window window : List.copyOf(Window.getWindows()))
                 if (window != stage && window.isShowing())
                     window.hide();
-
-            /*  the cards of the entries listen to the language until their cell lets them go  */
-            entryList().setItems(null);
         });
-        onFxThread(() -> {
-            stage.hide();
-            controller.generationPanel().dispose();
-
-            /*  its timeline would keep the whole window alive  */
-            find(root, MemoryStatusComponent.class).shutdown();
-        });
-        I18nManager.removeChangeListener(controller);
-        I18nManager.removeChangeListener(overlay());
-        themeListeners().retainAll(themeListeners);
+        onFxThread(stage::hide);
         I18nManager.setLocale(Locale.ENGLISH);
         requests.shutdown();
         io.shutdownNow();
@@ -373,6 +392,7 @@ class MainWindowFlowsTest {
         sizeCheck.shutdown();
         stage = null;
         assertEquals(languageListeners, I18nManager.getChangeListenerCount(), "the window leaves no listener behind");
+        assertEquals(themeListeners, ThemeManager.getThemeListenerCount(), "nor a listener of the theme");
     }
 
     // ===== Steps on the JavaFX thread =====
@@ -667,6 +687,38 @@ class MainWindowFlowsTest {
 
     // ===== 2. The list of the chats =====
 
+    /** The start loaded the chats before the window opened, the window shows them without loading them again. */
+    @Test
+    void theListShowsTheChatsLoadedAtTheStart() throws Exception {
+        assertEquals(1, loads.get(), "the window loads the chats no more");
+        assertEquals(chats.chats(), chatList().getItems());
+        assertEquals("Welcome to MoodFrame", chatList().getItems().get(0).getName());
+    }
+
+    /**
+     * Closing the window lets go of what it registered beyond itself: the listeners of the language (its own and those
+     * of the cards) and of the theme, and the listener of the library changes.
+     */
+    @Test
+    void aClosedWindowLetsGoOfWhatItRegistered() throws Exception {
+        Chat chat = createChat("Before closing");
+        open(chat);
+        chooseGemini();
+        send(chat, "a lighthouse");
+        assertTrue(I18nManager.getChangeListenerCount() > languageListeners, "the window and its cards listen");
+        assertEquals(themeListeners + 1, ThemeManager.getThemeListenerCount(), "the cloud follows the theme");
+
+        onFxThread(stage::hide);
+        assertEquals(languageListeners, I18nManager.getChangeListenerCount());
+        assertEquals(themeListeners, ThemeManager.getThemeListenerCount());
+
+        /*  the changes of the library reach the closed window no more  */
+        int listed = onFx(() -> chatList().getItems().size());
+        fromAnotherThread(() -> chats.createChat("After closing"));
+        onFx(() -> null);
+        assertEquals(listed, onFx(() -> chatList().getItems().size()));
+    }
+
     /**
      * A new chat comes on top of the list and opens; a chat opens scrolled towards its latest entry; a chat is renamed
      * in place and the header follows, moved with Alt+Down, moved to the trash, where it leaves the list and closes,
@@ -776,12 +828,15 @@ class MainWindowFlowsTest {
         ChatEntry second = send(chat, "a quiet harbour at night");
         assertTrue(entryList().getItems().contains(second), "the open group shows the new entry");
 
-        /*  the refresh at the end of the generation may query before the image is stored, so the count follows
-            with the next change of the library, here one of another caller  */
-        fromAnotherThread(() -> chats.renameChat(chat, "Grouped harbour"));
+        /*  the end of the generation refreshes the count once its image is stored, without another change  */
         waitUntil("the mood counts two images", () -> moodGroup(mood).imageCount() == 2);
         assertEquals(name, header().getText(), "the group stays open");
-        assertEquals(I18nManager.getText("sidebar.group.target", "Grouped harbour"), cost().getText());
+
+        /*  another caller renames the chat that takes the new prompts: the open group names it anew  */
+        fromAnotherThread(() -> chats.renameChat(chat, "Grouped harbour"));
+        waitUntil("the group names the renamed chat", () -> I18nManager.getText("sidebar.group.target",
+                "Grouped harbour").equals(cost().getText()));
+        assertEquals(name, header().getText(), "the group stays open");
 
         /*  by frame: the group of the frame  */
         onFxThread(() -> sidebarMode("byFrameMenuItem").setSelected(true));

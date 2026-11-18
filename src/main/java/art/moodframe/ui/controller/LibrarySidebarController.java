@@ -16,6 +16,7 @@ import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.support.CoalescedLoad;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.fxml.FXML;
@@ -31,7 +32,12 @@ import javafx.scene.layout.HBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 
@@ -96,8 +102,8 @@ public class LibrarySidebarController {
     private StatusSink status;
     private Listener listener;
 
-    /*  the chats of the library, without those in the trash  */
-    private ObservableList<Chat> chatList;
+    /*  the chats of the library as the sidebar shows them, following its reports on the JavaFX thread  */
+    private final ObservableList<Chat> chatList = FXCollections.observableArrayList();
     private FilteredList<Chat> filteredChatList;
 
     /*  the chat that takes the new prompts  */
@@ -122,9 +128,9 @@ public class LibrarySidebarController {
     }
 
     /**
-     * Connects the sidebar to the library and loads the chats once; what a restart left behind is repaired there.
-     * Later changes (what leaves the trash, what other callers change) update the list instead of reloading it, so
-     * running requests keep their chat objects.
+     * Connects the sidebar to the library, whose chats were loaded at the start. Later changes (what leaves the trash,
+     * what other callers change) update the list of the sidebar instead of reloading it, so running requests keep
+     * their chat objects.
      *
      * @param chatLibrary the chats
      * @param chatHistory queries the groups (may be null: no groups)
@@ -143,7 +149,7 @@ public class LibrarySidebarController {
         groupsLoad = new CoalescedLoad("the groups of the entries", worker, Platform::runLater,
                 this::prepareGroupsLoad);
 
-        chatList = chatLibrary.getChats();
+        syncChats();
 
         /*  trashed chats are only listed in the central trash  */
         filteredChatList = new FilteredList<>(chatList, LibrarySidebarController::shouldShowChat);
@@ -161,11 +167,30 @@ public class LibrarySidebarController {
             if (!reorderingChats)
                 onChatSelected(newChat);
         });
-        chatLibrary.load();
         Platform.runLater(() -> {
             if (currentChat != null)
                 listener.showSelection();
         });
+    }
+
+    /*  Brings the list of the sidebar in line with the chats of the library: removes, inserts and sorts only what
+        differs, so the list keeps its selection  */
+    private void syncChats() {
+        List<Chat> library = chatLibrary.chats();
+        Map<Chat, Integer> order = new IdentityHashMap<>();
+        for (int i = 0; i < library.size(); i++)
+            order.put(library.get(i), i);
+        chatList.removeIf((chat) -> !order.containsKey(chat));
+        Set<Chat> listed = Collections.newSetFromMap(new IdentityHashMap<>());
+        listed.addAll(chatList);
+        for (int i = 0; i < library.size(); i++)
+            if (!listed.contains(library.get(i)))
+                chatList.add(Math.min(i, chatList.size()), library.get(i));
+        for (int i = 0; i < chatList.size(); i++)
+            if (chatList.get(i) != library.get(i)) {
+                FXCollections.sort(chatList, Comparator.comparingInt(order::get));
+                break;
+            }
     }
 
     /** The chat that takes the new prompts, null if none is chosen. */
@@ -225,6 +250,7 @@ public class LibrarySidebarController {
     private void onChatDeleteRequested(Chat chat) {
         try {
             if (chatLibrary.moveToTrash(chat)) {
+                syncChats();
                 if (!chat.getEntries().isEmpty())
                     filteredChatList.setPredicate(LibrarySidebarController::shouldShowChat);
                 if (currentChat == chat)
@@ -257,6 +283,7 @@ public class LibrarySidebarController {
         } catch (Exception e) {
             logger.error("Failed to store the order of the chats", e);
         }
+        syncChats();
         reorderingChats = false;
     }
 
@@ -283,12 +310,13 @@ public class LibrarySidebarController {
     }
 
     /**
-     * Shows a change of a chat: one that left the trash or went there, a new name, a chat gone for good. Only what is
-     * not shown yet changes, as the changes made here are shown already.
+     * Shows a change of a chat: a new one, one that left the trash or went there, a new name or order, a chat gone for
+     * good. Only what is not shown yet changes, as the changes made here are shown already.
      *
      * @param chatId the ID of the chat
      */
     public void showChatChange(String chatId) {
+        syncChats();
         Chat chat = chatLibrary.find(chatId);
 
         /*  The open chat is gone for good: the view shows the welcome or the open group, which held no entry of a
@@ -459,6 +487,7 @@ public class LibrarySidebarController {
         /*  The new chat shows in the list of chats  */
         byChatMenuItem.setSelected(true);
         Chat newChat = chatLibrary.newChat("New Chat " + (chatList.size() + 1));
+        syncChats();
         chatListView.getSelectionModel().select(0);
 
         logger.debug("Created new chat: {}", newChat.getName());

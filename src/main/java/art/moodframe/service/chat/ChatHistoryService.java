@@ -217,8 +217,9 @@ public class ChatHistoryService {
                             if (actualPath != null) {
                                 java.io.File imageFile = new java.io.File(actualPath);
                                 // Write to the database only when the status really changes: this runs
-                                // for every image at startup on the UI thread, and an unconditional save
-                                // (two connections and a 36-column UPDATE per image) took about 13 s
+                                // for every image at startup (on the startup thread, behind the splash), and
+                                // an unconditional save (two connections and a 36-column UPDATE per image)
+                                // took about 13 s
                                 if (imageFile.exists()) {
                                     if (img.getDownloadStatus()
                                             != GeneratedImage.DownloadStatus.CACHED) {

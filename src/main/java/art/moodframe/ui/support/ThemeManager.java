@@ -50,6 +50,24 @@ public class ThemeManager {
         listeners.add(listener);
     }
 
+    /**
+     * Removes a listener, for example that of a window that closes.
+     *
+     * @param listener the listener
+     */
+    public static void removeThemeListener(java.util.function.Consumer<String> listener) {
+        listeners.remove(listener);
+    }
+
+    /**
+     * Counts the registered listeners, so a test can check that a closed window left none behind.
+     *
+     * @return the number of listeners
+     */
+    public static int getThemeListenerCount() {
+        return listeners.size();
+    }
+
     /*  the theme applied last, also while the settings still preview it unsaved  */
     private static volatile String appliedTheme;
 

@@ -5,6 +5,7 @@ import art.moodframe.config.LibraryPaths;
 import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -31,9 +32,11 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.CompletionStage;
+
 /**
  * Professional splash screen displayed during application startup.
- * Shows the application logo with version information for 3 seconds.
+ * Shows the application logo with version information while the application prepares itself, at least one second.
  * 
  * @author Matthias Brusdeylins
  * @since 1.0.0
@@ -52,6 +55,9 @@ public class SplashScreen {
     private final Stage splashStage;
     private final Runnable onComplete;
 
+    /*  completes once the application is prepared, the splash stays until then  */
+    private final CompletionStage<?> ready;
+
     /*  opened from the Info button: stays until Esc or a click, belongs to the main window  */
     private final boolean info;
 
@@ -61,14 +67,16 @@ public class SplashScreen {
     /**
      * Creates a new splash screen.
      *
+     * @param ready      completes once the application is prepared; the splash stays until then, also when it fails
      * @param onComplete callback to execute when splash screen closes
      * @param paths      the folders of the library, whose configuration holds the saved main window bounds
      */
-    public SplashScreen(Runnable onComplete, LibraryPaths paths) {
-        this(onComplete, null, paths);
+    public SplashScreen(CompletionStage<?> ready, Runnable onComplete, LibraryPaths paths) {
+        this(ready, onComplete, null, paths);
     }
 
-    private SplashScreen(Runnable onComplete, Window owner, LibraryPaths paths) {
+    private SplashScreen(CompletionStage<?> ready, Runnable onComplete, Window owner, LibraryPaths paths) {
+        this.ready = ready;
         this.onComplete = onComplete;
         this.paths = paths;
         this.info = owner != null;
@@ -87,7 +95,7 @@ public class SplashScreen {
      * @param owner the window the info belongs to
      */
     public static void showInfo(Window owner) {
-        new SplashScreen(null, owner, null).show();
+        new SplashScreen(null, null, owner, null).show();
     }
 
     /**
@@ -254,8 +262,7 @@ public class SplashScreen {
     }
 
     /**
-     * Shows the splash screen and automatically closes it after the display
-     * duration.
+     * Shows the splash screen and closes it once the display duration is over and the application is prepared.
      */
     public void show() {
         try {
@@ -267,10 +274,11 @@ public class SplashScreen {
 
             // Create pause transition for auto-close
             PauseTransition pause = new PauseTransition(Duration.millis(DISPLAY_DURATION_MS));
-            pause.setOnFinished(event -> close());
+            pause.setOnFinished(event -> ready.whenComplete((Object done, Throwable failure) ->
+                    Platform.runLater(this::close)));
             pause.play();
 
-            logger.debug("Splash screen displayed for {} ms", DISPLAY_DURATION_MS);
+            logger.debug("Splash screen displayed for at least {} ms", DISPLAY_DURATION_MS);
 
         } catch (Exception e) {
             logger.error("Failed to show splash screen", e);

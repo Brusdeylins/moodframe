@@ -21,7 +21,7 @@ import java.util.List;
  */
 class ChatEditTools {
 
-    /*  an image with its entry, found on the JavaFX thread  */
+    /*  an image with its entry, found inside ChatLibrary#read  */
     private record Found(ChatEntry entry, GeneratedImage image, boolean running) {
     }
 

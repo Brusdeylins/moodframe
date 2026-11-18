@@ -1,6 +1,6 @@
 /**
  * Helpers of the user interface that need JavaFX or the desktop: themes, videos, opening files and web pages,
- * listener cleanup, loading on a worker.
+ * listener cleanup, loading on a worker, the decoded images.
  *
  * <p>Main classes:</p>
  * <ul>
@@ -9,6 +9,7 @@
  * <li>{@link SystemOpen}: opens files and web pages in the default application</li>
  * <li>{@link Subscription}: removable listeners, collected in {@link CompositeDisposable}</li>
  * <li>{@link CoalescedLoad}: loads data for the JavaFX thread on a worker, one query per burst of requests</li>
+ * <li>{@link ImageCache}: the decoded JavaFX images of the thumbnails, loaded once per file without a global lock</li>
  * </ul>
  */
 package art.moodframe.ui.support;

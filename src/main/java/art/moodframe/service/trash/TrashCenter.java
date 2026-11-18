@@ -57,6 +57,15 @@ public class TrashCenter {
     }
 
     /**
+     * Removes a listener, for example that of a window that closes.
+     *
+     * @param listener the listener
+     */
+    public void removeListener(Listener listener) {
+        listeners.remove(listener);
+    }
+
+    /**
      * Lists the deleted items of a kind.
      *
      * @param kind the group
