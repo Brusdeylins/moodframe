@@ -1,5 +1,6 @@
 package art.moodframe.ui.controller;
 
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
@@ -48,8 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MainWindowModelResolutionTest {
 
-    private static final String NANO_BANANA_PRO_2K = GenerationModel.GEMINI_PRO_2K.getLocalizedDisplayName();
-    private static final String NANO_BANANA_PRO_4K = GenerationModel.GEMINI_PRO_4K.getLocalizedDisplayName();
+    private static final String NANO_BANANA_PRO_2K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_2K);
+    private static final String NANO_BANANA_PRO_4K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_4K);
 
     @TempDir
     static java.nio.file.Path home;

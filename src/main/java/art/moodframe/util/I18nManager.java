@@ -1,6 +1,5 @@
 package art.moodframe.util;
 
-import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +10,7 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 /**
  * Central internationalization manager for MoodFrame application.
@@ -61,8 +61,12 @@ public class I18nManager {
     // Fallback locale when key is not found
     private static final Locale FALLBACK_LOCALE = Locale.ENGLISH;
     
-    // List of components that need to be notified when language changes
-    private static final List<I18nChangeListener> changeListeners = new CopyOnWriteArrayList<>();
+    // List of components that need to be notified when language changes, each with the thread it is notified on
+    private static final List<Registration> changeListeners = new CopyOnWriteArrayList<>();
+
+    /** A listener with the executor that notifies it, e.g. the JavaFX thread for a view. */
+    private record Registration(I18nChangeListener listener, Executor executor) {
+    }
     
     /**
      * Private constructor to prevent instantiation.
@@ -249,17 +253,30 @@ public class I18nManager {
     }
     
     /**
-     * Adds a change listener that will be notified when the language changes.
+     * Adds a change listener that will be notified when the language changes, on the thread that changes it. A view
+     * registers with {@code ui.support.FxI18n}, which notifies it on the JavaFX thread.
      * 
      * @param listener the listener to add (must not be null)
      * @throws IllegalArgumentException if listener is null
      */
     public static void addChangeListener(I18nChangeListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("Listener cannot be null");
+        addChangeListener(listener, Runnable::run);
+    }
+
+    /**
+     * Adds a change listener that will be notified when the language changes, through the given executor.
+     *
+     * @param listener the listener to add (must not be null)
+     * @param executor runs the notification, e.g. on the JavaFX thread (must not be null)
+     * @throws IllegalArgumentException if listener or executor is null
+     * @since 2.1.3
+     */
+    public static void addChangeListener(I18nChangeListener listener, Executor executor) {
+        if (listener == null || executor == null) {
+            throw new IllegalArgumentException("Listener and executor cannot be null");
         }
-        
-        changeListeners.add(listener);
+
+        changeListeners.add(new Registration(listener, executor));
     }
     
     /**
@@ -269,8 +286,12 @@ public class I18nManager {
      * @return true if the listener was removed, false if it was not found
      */
     public static boolean removeChangeListener(I18nChangeListener listener) {
-        boolean removed = changeListeners.remove(listener);
-        return removed;
+        for (Registration registration : changeListeners) {
+            if (registration.listener().equals(listener)) {
+                return changeListeners.remove(registration);
+            }
+        }
+        return false;
     }
     
     /**
@@ -361,12 +382,7 @@ public class I18nManager {
     }
     
     /**
-     * Notifies all registered listeners that the language has changed.
-     * 
-     * <p>
-     * This method ensures that notifications are sent on the JavaFX
-     * Application Thread to allow safe UI updates.
-     * </p>
+     * Notifies all registered listeners that the language has changed, each through its executor.
      */
     private static void notifyLanguageChanged() {
         if (changeListeners.isEmpty()) {
@@ -375,26 +391,24 @@ public class I18nManager {
         
         logger.debug("Notifying {} I18n change listeners about language change", changeListeners.size());
         
-        // Ensure UI updates happen on the JavaFX Application Thread
-        if (Platform.isFxApplicationThread()) {
-            // Already on JavaFX thread, notify directly
-            notifyListenersDirectly();
-        } else {
-            // Schedule on JavaFX thread
-            Platform.runLater(I18nManager::notifyListenersDirectly);
+        for (Registration registration : changeListeners) {
+            /*  a listener removed before its executor runs the notification is not notified  */
+            registration.executor().execute(() -> {
+                if (changeListeners.contains(registration)) {
+                    notifyListener(registration.listener());
+                }
+            });
         }
     }
     
     /**
-     * Directly notifies all listeners (must be called on JavaFX Application Thread).
+     * Notifies one listener, logging its failure.
      */
-    private static void notifyListenersDirectly() {
-        for (I18nChangeListener listener : changeListeners) {
-            try {
-                listener.onLanguageChanged();
-            } catch (Exception e) {
-                logger.error("Error notifying I18n change listener: {}", listener.getClass().getSimpleName(), e);
-            }
+    private static void notifyListener(I18nChangeListener listener) {
+        try {
+            listener.onLanguageChanged();
+        } catch (Exception e) {
+            logger.error("Error notifying I18n change listener: {}", listener.getClass().getSimpleName(), e);
         }
     }
 }

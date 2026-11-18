@@ -3,7 +3,7 @@ package art.moodframe.ui.dialog;
 import art.moodframe.service.UpdateCheckService;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.SystemOpen;
+import art.moodframe.ui.support.SystemOpen;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonBar;

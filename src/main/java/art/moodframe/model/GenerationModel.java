@@ -742,22 +742,26 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Finds a GenerationModel by its localized display name.
-     * 
-     * @param localizedDisplayName the localized display name to search for
+     * Finds a GenerationModel by a dropdown item or chat entry name in any language: the display name, a localized
+     * display name (see {@link #displayNameKey()}) or a family name.
+     *
+     * <p>A localized display name differs from the display name only after the family name, e.g. "FLUX.2 [pro] -
+     * Produktionsqualität ($0.03+)", so it is found by its family without the texts of the languages.</p>
+     *
+     * @param localizedDisplayName the dropdown item or name to search for (may be null)
      * @return the corresponding GenerationModel, or null if not found
      */
     public static GenerationModel fromLocalizedDisplayName(String localizedDisplayName) {
         if (openAiModelId(localizedDisplayName) != null) {
             return OPENAI_IMAGE;
         }
-        for (GenerationModel model : values()) {
-            if (model.getLocalizedDisplayName().equals(localizedDisplayName)) {
-                return model;
-            }
+        GenerationModel exact = fromDisplayName(localizedDisplayName);
+        if (exact != null) {
+            return exact;
         }
-        // A family name stands for its first variant, the resolution choice picks the right one; an older
-        // name with another tagline or price (e.g. "FLUX.2 [pro] - Production Grade ($0.03/MP)") counts as its family
+        // A family name stands for its first variant, the resolution choice picks the right one; a localized name
+        // or an older name with another tagline or price (e.g. "FLUX.2 [pro] - Production Grade ($0.03/MP)") counts
+        // as its family
         int tagline = localizedDisplayName == null ? -1 : localizedDisplayName.indexOf(" - ");
         String family = tagline > 0 ? localizedDisplayName.substring(0, tagline) : localizedDisplayName;
         for (GenerationModel model : values()) {
@@ -765,8 +769,7 @@ public enum GenerationModel implements UnifiedModel {
                 return model;
             }
         }
-        // Fallback: try original display name for backward compatibility
-        return fromDisplayName(localizedDisplayName);
+        return null;
     }
 
     /**
@@ -813,18 +816,6 @@ public enum GenerationModel implements UnifiedModel {
                 return model;
         }
         return OPENAI_IMAGE;
-    }
-
-    /**
-     * Gets the dropdown item of a fixed id (see {@link #idOf(String)}), as shown in the current language.
-     *
-     * @param id the id (may be null)
-     * @return the localized display name, {@link #OPENAI_PREFIX} + id for an OpenAI model, null without id
-     * @since 2.1.0
-     */
-    public static String itemOf(String id) {
-        GenerationModel model = fromId(id);
-        return model == null ? null : model == OPENAI_IMAGE ? OPENAI_PREFIX + id : model.getLocalizedDisplayName();
     }
 
     /**
@@ -913,20 +904,6 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets all available models as localized display names for UI components.
-     * 
-     * @return array of localized display names
-     */
-    public static String[] getLocalizedDisplayNames() {
-        GenerationModel[] models = values();
-        String[] names = new String[models.length];
-        for (int i = 0; i < models.length; i++) {
-            names[i] = models[i].getLocalizedDisplayName();
-        }
-        return names;
-    }
-
-    /**
      * Gets the name of the model family: the variants that differ only by their resolution share it (for example
      * the Nano Banana 2 variants for 512, 1K, 2K and 4K). The model dropdown lists one entry per family and the
      * resolution has its own choice.
@@ -943,9 +920,8 @@ public enum GenerationModel implements UnifiedModel {
             case OMNI_360P, OMNI_720P, OMNI_1080P, OMNI_4K -> "Gemini Omni";
             default -> {
                 /*  Without variants the name is the display name up to the tagline: "FLUX.2 [pro] - ... ($0.03)"  */
-                String name = getLocalizedDisplayName();
-                int tagline = name.indexOf(" - ");
-                yield tagline > 0 ? name.substring(0, tagline) : name;
+                int tagline = displayName.indexOf(" - ");
+                yield tagline > 0 ? displayName.substring(0, tagline) : displayName;
             }
         };
     }
@@ -974,42 +950,20 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the localized display name for this model.
-     * 
-     * @return localized display name from i18n resources
+     * Gets the i18n key of the localized display name of this model, which the UI shows in the dropdown (see
+     * {@code service.generation.ModelLabels}). It differs from the display name only after the family name.
+     *
+     * @return the key for the FLUX.2 models [pro], [max] and [flex]; null for the models whose display name is
+     *         the same in every language
+     * @since 2.1.3
      */
-    public String getLocalizedDisplayName() {
-        switch (this) {
-            // FLUX.2 models
-            case FLUX2_PRO:
-                return art.moodframe.util.I18nManager.getText("model.flux2.pro");
-            case FLUX2_MAX:
-                return art.moodframe.util.I18nManager.getText("model.flux2.max");
-            case FLUX2_FLEX:
-                return art.moodframe.util.I18nManager.getText("model.flux2.flex");
-            // FLUX.2 [klein] models use English display names
-            case FLUX2_KLEIN_4B:
-            case FLUX2_KLEIN_9B:
-            // Nano Banana models use English display names
-            case GEMINI_FLASH_1K:
-            case GEMINI_PRO_2K:
-            case GEMINI_PRO_4K:
-            // Nano Banana 2 models use English display names
-            case NANO_BANANA2_512:
-            case NANO_BANANA2_1K:
-            case NANO_BANANA2_2K:
-            case NANO_BANANA2_4K:
-            // Nano Banana 2 Lite uses English display name
-            case NANO_BANANA2_LITE:
-            // Gemini Omni video models use English display names
-            case OMNI_360P:
-            case OMNI_720P:
-            case OMNI_1080P:
-            case OMNI_4K:
-                return displayName;
-            default:
-                return displayName; // Fallback to original
-        }
+    public String displayNameKey() {
+        return switch (this) {
+            case FLUX2_PRO -> "model.flux2.pro";
+            case FLUX2_MAX -> "model.flux2.max";
+            case FLUX2_FLEX -> "model.flux2.flex";
+            default -> null;
+        };
     }
 
     /**

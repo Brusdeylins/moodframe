@@ -1,6 +1,11 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.util.*;
+import art.moodframe.ui.support.CompositeDisposable;
+import art.moodframe.ui.support.Disposable;
+import art.moodframe.ui.support.FxI18n;
+import art.moodframe.ui.support.Subscription;
+import art.moodframe.util.I18nChangeListener;
+import art.moodframe.util.I18nManager;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,7 +113,7 @@ public abstract class ManagedComponent extends VBox implements Disposable, I18nC
             return;
         }
         
-        I18nManager.addChangeListener(listener);
+        FxI18n.addChangeListener(listener);
         i18nRegistered = true;
         
         logger.trace("Registered I18n listener for: {}", componentName);

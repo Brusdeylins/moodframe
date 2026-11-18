@@ -2,7 +2,7 @@ package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.LibraryPaths;
-import art.moodframe.util.SystemOpen;
+import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;

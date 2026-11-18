@@ -18,6 +18,7 @@ import art.moodframe.ui.controller.settings.ProxySettingsPane;
 import art.moodframe.ui.controller.settings.SettingsPrompts;
 import art.moodframe.ui.controller.settings.SettingsSection;
 import art.moodframe.ui.controller.settings.SettingsServices;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -133,7 +134,7 @@ public class SettingsController implements Initializable, I18nChangeListener {
         try {
             if (services == null)
                 services = lookUpServices();
-            I18nManager.addChangeListener(this);
+            FxI18n.addChangeListener(this);
 
             initializeNavigation();
 

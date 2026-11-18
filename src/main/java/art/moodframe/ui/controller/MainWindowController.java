@@ -30,6 +30,7 @@ import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -170,7 +171,7 @@ public class MainWindowController implements I18nChangeListener {
         logger.debug("Initializing MainWindow controller");
 
         statusBarController.init(config, validator);
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
         appVersionLabel.setText("v" + art.moodframe.util.VersionManager.getVersion());
 
         /*  The "M" of the logo starts on the line of the names of the sidebar, 1 px further in for the side bearing of
@@ -632,7 +633,7 @@ public class MainWindowController implements I18nChangeListener {
                     art.moodframe.service.brainstorm.BrainstormService.create(config);
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-            new art.moodframe.ui.dialog.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
+            new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
                     generationPanelController.modelItem(), this::applyBrainstormResult).show();
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
@@ -645,7 +646,7 @@ public class MainWindowController implements I18nChangeListener {
      *
      * @param result the adopted values; a {@code null} value is left unchanged
      */
-    private void applyBrainstormResult(art.moodframe.ui.dialog.BrainstormDialog.Result result) {
+    private void applyBrainstormResult(art.moodframe.ui.brainstorm.BrainstormDialog.Result result) {
         generationPanelController.setModel(result.targetModel());
 
         /*  The adopted resolution (or the one of a model without resolution variants) as remembered choice of the

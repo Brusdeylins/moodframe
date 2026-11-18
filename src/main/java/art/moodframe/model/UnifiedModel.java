@@ -17,13 +17,6 @@ public interface UnifiedModel {
     String getDisplayName();
 
     /**
-     * Gets the localized display name of this model.
-     *
-     * @return the localized display name
-     */
-    String getLocalizedDisplayName();
-
-    /**
      * Gets the API model identifier used in API requests.
      *
      * @return the API model ID

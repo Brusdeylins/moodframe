@@ -7,6 +7,7 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.repository.FrameRepository;
+import art.moodframe.service.generation.ModelLabels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +45,7 @@ class FrameServiceTest {
     }
 
     private static String item(GenerationModel model) {
-        return model.getLocalizedDisplayName();
+        return ModelLabels.displayName(model);
     }
 
     private static Frame standard(String name) {

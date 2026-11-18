@@ -9,6 +9,7 @@
  * <li>{@link BflGenerationFlow}: submits a BFL job per image, polls it and downloads the image</li>
  * <li>{@link ChatEntryTracker}: keeps a chat entry in step with its images while a request runs</li>
  * <li>{@link ImageFileStore}: writes the generated images to the images directory</li>
+ * <li>{@link ModelLabels}: the model dropdown items in the current language</li>
  * </ul>
  */
 package art.moodframe.service.generation;

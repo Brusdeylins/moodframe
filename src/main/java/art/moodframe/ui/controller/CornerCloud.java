@@ -1,7 +1,7 @@
 package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;

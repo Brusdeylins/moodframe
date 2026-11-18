@@ -8,7 +8,8 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, dialog, cell, component, dnd)      mcp
+ ui (controller, dialog, brainstorm, cell,         mcp
+     component, dnd, support)
             \                                      /
              +--------------> service <-----------+
                                  |          \
@@ -22,6 +23,9 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | Package      | Role                                                                                   |
 |--------------|----------------------------------------------------------------------------------------|
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
+|              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.support` the   |
+|              | helpers that need JavaFX or the desktop: themes, videos, opening files and web pages,   |
+|              | listener cleanup, `FxI18n`, `CoalescedLoad`)                                            |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -29,7 +33,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `repository` | data access with plain JDBC, one repository per aggregate                              |
 | `database`   | SQLite connections, WAL mode, schema migrations                                         |
 | `model`      | domain data classes, records and enums                                                  |
-| `util`       | general helpers: i18n, themes, images, videos, opening files and web pages             |
+| `util`       | general helpers without JavaFX: i18n, images, secrets, the version, YouTube links       |
 | `config`     | folders of the library (`LibraryPaths`), settings (`ApplicationConfig` and its          |
 |              | sections), key encryption, the service locator (`ServiceFactory`)                       |
 
@@ -42,11 +46,17 @@ Allowed dependency directions:
 - `mcp` → `service`, never `ui`. Whatever the UI can do to the library, the MCP tools do through the same services.
 - `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
   `mcp.McpService` and shows its command line. No view uses the tools of the server.
-- `model` should depend on nothing of the application. Known exception: `GenerationModel` asks
-  `util.I18nManager` for localized display names; this is to move into the UI.
-  `util` depends only on `config` (settings such as the theme).
+- `model` depends on nothing of the application. `GenerationModel` names only the i18n key of a localized display
+  name (`displayNameKey`); `service.generation.ModelLabels` gives the dropdown items in the current language. An item
+  in any language leads back to its model with `GenerationModel.fromLocalizedDisplayName`, since a localized name
+  differs from the display name only after the family name.
+- `util` may use `config` and uses nothing today; neither `util` nor `model` imports JavaFX, except the model classes
+  with JavaFX properties (see the known deviations below). `I18nManager` notifies each listener through the executor it was registered
+  with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
+- `ArchitectureTest` checks these directions, the order of the service subpackages below and that no packages
+  depend on each other in a cycle, from the imports and fully qualified names of `src/main/java`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -65,8 +75,9 @@ The subpackages of `service`, each using only those above it in the table (no cy
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
 Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (e.g.
-`LibraryEvents`), and some model classes carry JavaFX properties for binding. A generation changes the chat entry
-and its images, which carry such properties, only through `service.generation.FxModel`.
+`LibraryEvents`), and some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`, `GeneratedImage`,
+`ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which carry such
+properties, only through `service.generation.FxModel`.
 
 ## Threading
 

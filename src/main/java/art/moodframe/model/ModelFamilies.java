@@ -8,7 +8,9 @@ import java.util.stream.Stream;
 
 /**
  * Groups the model dropdown items (one per variant) into families with a resolution choice, for the main
- * window and the brainstorm popup, and maps a target resolution to the resolutions of a model.
+ * window and the brainstorm popup, and maps a target resolution to the resolutions of a model. An item may be in any
+ * language (see {@link GenerationModel#fromLocalizedDisplayName(String)}); the items in the current language come
+ * from {@code service.generation.ModelLabels}.
  *
  * @since 1.9.0
  */
@@ -20,24 +22,6 @@ public final class ModelFamilies {
             .filter(Objects::nonNull).distinct().sorted(Comparator.comparingDouble(ModelFamilies::pixels)).toList();
 
     private ModelFamilies() {
-    }
-
-    /**
-     * Gets the dropdown items of the models to choose from: the selectable models of the usable providers, then the
-     * models of the OpenAI-compatible gateway.
-     *
-     * @param bfl whether BFL is enabled and has a key
-     * @param gemini whether Gemini is enabled and has a key
-     * @param openAiIds the model ids of the gateway, empty while it is disabled or has no key
-     * @return the items, in the order of the dropdown
-     * @since 2.1.0
-     */
-    public static List<String> availableItems(boolean bfl, boolean gemini, List<String> openAiIds) {
-        return Stream.concat(GenerationModel.selectable().stream()
-                .filter((GenerationModel model) -> model.getProvider() == ApiProvider.BFL ? bfl
-                        : model.getProvider() == ApiProvider.GOOGLE_GEMINI && gemini)
-                .map(GenerationModel::getLocalizedDisplayName),
-                openAiIds.stream().map((String id) -> GenerationModel.OPENAI_PREFIX + id)).toList();
     }
 
     /**

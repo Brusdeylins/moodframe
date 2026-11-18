@@ -1,6 +1,6 @@
 /**
- * The JavaFX user interface. The subpackages hold the FXML controllers, the dialogs and windows, the list cells, the
- * reusable components and the drag and drop.
+ * The JavaFX user interface. The subpackages hold the FXML controllers, the dialogs and windows, the brainstorm
+ * window, the list cells, the reusable components, the drag and drop and the helpers that need JavaFX.
  *
  * <p>Main classes:</p>
  * <ul>

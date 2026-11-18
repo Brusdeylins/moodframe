@@ -5,6 +5,7 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.PromptBlockService;
 import org.junit.jupiter.api.Test;
 
@@ -88,7 +89,7 @@ class BrainstormPromptBuilderTest {
                 GenerationModel.FLUX3_IMAGE_1_5K, GenerationModel.FLUX3_IMAGE_2K, GenerationModel.FLUX3_IMAGE_4K,
                 GenerationModel.FLUX3_KLEIN_1K, GenerationModel.FLUX3_KLEIN_4K);
         BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(), models, "", models.stream().map(GenerationModel::getLocalizedDisplayName).toList(),
+                List.of(), models, "", models.stream().map(ModelLabels::displayName).toList(),
                 Set.of());
 
         String prompt = BrainstormPromptBuilder.build("{{MODELS}}|{{ASPECT_RATIOS}}", "English", flux3, "");
@@ -105,9 +106,9 @@ class BrainstormPromptBuilderTest {
         BrainstormContext variants = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), List.of(GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_2K,
                         GenerationModel.NANO_BANANA2_4K, GenerationModel.OPENAI_IMAGE),
-                "", List.of(GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName(),
-                        GenerationModel.NANO_BANANA2_2K.getLocalizedDisplayName(),
-                        GenerationModel.NANO_BANANA2_4K.getLocalizedDisplayName(),
+                "", List.of(ModelLabels.displayName(GenerationModel.NANO_BANANA2_1K),
+                        ModelLabels.displayName(GenerationModel.NANO_BANANA2_2K),
+                        ModelLabels.displayName(GenerationModel.NANO_BANANA2_4K),
                         GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"), Set.of());
 
         String models = BrainstormPromptBuilder.build("{{MODELS}}", "English", variants, "");

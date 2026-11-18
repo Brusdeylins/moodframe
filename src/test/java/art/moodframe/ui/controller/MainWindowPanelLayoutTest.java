@@ -18,7 +18,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;

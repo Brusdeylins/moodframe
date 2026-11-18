@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.service.generation.ModelLabels;
 import javafx.application.Platform;
 import javafx.scene.control.ChoiceBox;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,11 +23,11 @@ import static org.mockito.Mockito.when;
 /** Drives the model choice with the target resolution of the frame on the JavaFX thread without showing it. */
 class ModelFamilySelectorTest {
 
-    private static final String NANO_BANANA_2_1K = GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName();
-    private static final String NANO_BANANA_2_4K = GenerationModel.NANO_BANANA2_4K.getLocalizedDisplayName();
-    private static final String NANO_BANANA_PRO_2K = GenerationModel.GEMINI_PRO_2K.getLocalizedDisplayName();
-    private static final String NANO_BANANA_PRO_4K = GenerationModel.GEMINI_PRO_4K.getLocalizedDisplayName();
-    private static final String FLUX_2_PRO = GenerationModel.FLUX2_PRO.getLocalizedDisplayName();
+    private static final String NANO_BANANA_2_1K = ModelLabels.displayName(GenerationModel.NANO_BANANA2_1K);
+    private static final String NANO_BANANA_2_4K = ModelLabels.displayName(GenerationModel.NANO_BANANA2_4K);
+    private static final String NANO_BANANA_PRO_2K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_2K);
+    private static final String NANO_BANANA_PRO_4K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_4K);
+    private static final String FLUX_2_PRO = ModelLabels.displayName(GenerationModel.FLUX2_PRO);
 
     @BeforeAll
     static void startToolkit() throws Exception {

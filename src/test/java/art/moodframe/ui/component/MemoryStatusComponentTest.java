@@ -1,6 +1,6 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.Event;

@@ -2,7 +2,7 @@ package art.moodframe.ui.controller.settings;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;

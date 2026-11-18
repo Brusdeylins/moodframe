@@ -192,10 +192,10 @@ public class GenerationService {
      * Gets the dropdown items of the models to choose from: those of the enabled providers with a key.
      *
      * @param config the application configuration
-     * @return the items, see {@link ModelFamilies#availableItems(boolean, boolean, List)}
+     * @return the items, see {@link ModelLabels#availableItems(boolean, boolean, List)}
      */
     public static List<String> availableItems(ApplicationConfig config) {
-        return ModelFamilies.availableItems(config.accounts().isUsable(ApiProvider.BFL),
+        return ModelLabels.availableItems(config.accounts().isUsable(ApiProvider.BFL),
                 config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI),
                 config.accounts().isUsable(ApiProvider.OPENAI) ? config.getOpenAiModels() : List.of());
     }
@@ -219,7 +219,7 @@ public class GenerationService {
      * @return the preview
      */
     public Preview preview(GenerationOrder order) {
-        String item = GenerationModel.itemOf(order.modelId());
+        String item = ModelLabels.itemOf(order.modelId());
         int maxLength = promptLimit(order.modelId());
         String prompt = new PromptComposer(maxLength).compose(order.prompt(),
                 order.blocks() != null ? order.blocks() : NO_BLOCKS, order.hasReference());
@@ -283,7 +283,7 @@ public class GenerationService {
         GenerationModel model = GenerationModel.fromId(modelId);
         if (model == null || (model == GenerationModel.OPENAI_IMAGE && !config.getOpenAiModels().contains(modelId)))
             throw new GenerationException(Failure.UNKNOWN_MODEL, "Unknown model: " + modelId);
-        String item = GenerationModel.itemOf(modelId);
+        String item = ModelLabels.itemOf(modelId);
 
         ApiProvider provider = model.getProvider();
         if (!config.accounts().hasApiKey(provider)) {

@@ -15,6 +15,7 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.ui.component.ColorBox;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 
@@ -76,7 +77,7 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
         this.colorStyleService = ServiceFactory.getInstance().getService(ColorStyleService.class);
 
         // Register for i18n updates
-        I18nManager.addChangeListener(this);
+        FxI18n.addChangeListener(this);
 
         /*  A new palette and a palette of the user are saved, a default palette only as a new one: then "As New
             Entry" is the main button, else it stands at the far left  */

@@ -7,6 +7,7 @@ import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -583,13 +584,13 @@ public class GenerationPanelController {
                     && modelComboBox.getItems().contains(savedModelDisplay)) {
                 currentSelectedModel = GenerationModel.OPENAI_IMAGE;
                 modelComboBox.setValue(savedModelDisplay);
-            } else if (savedModel != null && modelComboBox.getItems().contains(savedModel.getLocalizedDisplayName())) {
+            } else if (savedModel != null && modelComboBox.getItems().contains(ModelLabels.displayName(savedModel))) {
                 currentSelectedModel = savedModel;
-                modelComboBox.setValue(savedModel.getLocalizedDisplayName());
+                modelComboBox.setValue(ModelLabels.displayName(savedModel));
             } else {
                 // Fallback to default if saved model not found
                 currentSelectedModel = GenerationModel.getDefault();
-                modelComboBox.setValue(currentSelectedModel.getLocalizedDisplayName());
+                modelComboBox.setValue(ModelLabels.displayName(currentSelectedModel));
             }
 
             safetyToleranceSlider.setValue(config.generation().getDefaultSafetyTolerance());
@@ -605,7 +606,7 @@ public class GenerationPanelController {
         } catch (Exception e) {
             logger.error("Failed to load the choices of the generation from the configuration", e);
             currentSelectedModel = GenerationModel.getDefault();
-            modelComboBox.setValue(currentSelectedModel.getLocalizedDisplayName());
+            modelComboBox.setValue(ModelLabels.displayName(currentSelectedModel));
             imageCountSlider.setValue(1);
         }
         updateParameterVisibility(currentSelectedModel);
@@ -1100,7 +1101,7 @@ public class GenerationPanelController {
                     }
 
                     if (isEnabled) {
-                        modelComboBox.getItems().add(model.getLocalizedDisplayName());
+                        modelComboBox.getItems().add(ModelLabels.displayName(model));
                     }
                 }
             }
@@ -1114,9 +1115,9 @@ public class GenerationPanelController {
                     art.moodframe.model.ApiProvider provider = model.getProvider();
 
                     if (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled) {
-                        modelComboBox.getItems().add(model.getLocalizedDisplayName());
+                        modelComboBox.getItems().add(ModelLabels.displayName(model));
                     } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled) {
-                        modelComboBox.getItems().add(model.getLocalizedDisplayName());
+                        modelComboBox.getItems().add(ModelLabels.displayName(model));
                     }
                 }
             }
@@ -1127,7 +1128,7 @@ public class GenerationPanelController {
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
             String localizedName = art.moodframe.model.GenerationModel.openAiModelId(previousItem) != null
-                    ? previousItem : currentModel.getLocalizedDisplayName();
+                    ? previousItem : ModelLabels.displayName(currentModel);
 
             if (modelComboBox.getItems().contains(localizedName)) {
                 // Temporarily suppress selection events to avoid recursion
@@ -1137,7 +1138,7 @@ public class GenerationPanelController {
                 logger.warn("Localized model name '{}' not found in items: {}", localizedName,
                         modelComboBox.getItems());
                 // Fallback to default if current model not available
-                String defaultLocalized = art.moodframe.model.GenerationModel.getDefault().getLocalizedDisplayName();
+                String defaultLocalized = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
                 if (modelComboBox.getItems().contains(defaultLocalized)) {
                     modelComboBox.setValue(defaultLocalized);
                 } else {
@@ -1202,7 +1203,7 @@ public class GenerationPanelController {
             // Check if model supports the current image count
             int maxImages = model.getMaxInputImages();
             if (maxImages >= imageCount) {
-                modelComboBox.getItems().add(model.getLocalizedDisplayName());
+                modelComboBox.getItems().add(ModelLabels.displayName(model));
             }
         }
 
@@ -1256,7 +1257,7 @@ public class GenerationPanelController {
 
             for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
                 if (model.supportsImageAttachment()) {
-                    modelComboBox.getItems().add(model.getLocalizedDisplayName());
+                    modelComboBox.getItems().add(ModelLabels.displayName(model));
                 }
             }
             modelComboBox.getItems().addAll(openAiModelItems());
@@ -1266,7 +1267,7 @@ public class GenerationPanelController {
                     .fromLocalizedDisplayName(currentSelection);
             if (currentModel == null || !currentModel.supportsImageAttachment()) {
                 // Auto-switch to the default model, which edits images (FLUX 3 Image)
-                String defaultName = art.moodframe.model.GenerationModel.getDefault().getLocalizedDisplayName();
+                String defaultName = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
 
                 // Make sure the item exists in the ComboBox before setting it
                 if (modelComboBox.getItems().contains(defaultName)) {
@@ -1679,7 +1680,7 @@ public class GenerationPanelController {
     /** Chooses the model of a chat entry, as long as it is offered. */
     private void reuseModel(ChatEntry entry) {
         art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromDisplayName(entry.getModel());
-        String name = model != null ? model.getLocalizedDisplayName() : entry.getModel();
+        String name = model != null ? ModelLabels.displayName(model) : entry.getModel();
         if (name != null && modelComboBox.getItems().contains(name))
             modelComboBox.setValue(name);
     }
