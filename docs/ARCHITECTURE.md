@@ -275,9 +275,10 @@ replace them with mocks and fake HTTP servers. Interfaces with a single implemen
 them were removed; a new interface is introduced when a second implementation or a test seam needs it.
 
 The three provider clients extend the provider SPI `service.provider.ImageProvider` (key, connection test,
-a copy with other credentials for the test of an unsaved key, submission, seeds, attached images, prompt limit, the
-parameters a model takes, download headers) and keep their own extras, such as the BFL job polling or the
-brainstorm chat. The generation knows no provider by name: what differs per provider lives in its client. Errors
+a copy with other credentials for the test of an unsaved key, submission of images and videos, seeds, attached
+images, prompt limit, the parameters a model takes, download headers) and keep their own extras, such as the BFL job polling or the
+brainstorm chat. The generation knows no provider by name: what differs per provider lives in its client; a video
+model is submitted like an image model, and images and videos are downloaded on one path (`ImageFileStore`). Errors
 are `ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the
 MCP clients get in English.
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider

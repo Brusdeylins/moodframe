@@ -105,7 +105,10 @@ public interface ImageProvider {
 
     /**
      * Submits one generation request. A provider that {@link #answersWithImage() answers with the image} completes
-     * with the finished (or failed) job, the others with the job to poll.
+     * with the finished (or failed) job, the others with the job to poll. For a video model
+     * ({@link GenerationModel#isVideoModel()}) the future completes when the video exists, with the job that carries
+     * its {@link GenerationJobInfo#getVideoDownloadUrl() download URL} (or a failed job); the download takes the
+     * {@link #downloadHeaders(String) headers} of the provider.
      *
      * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
      * @return a future with the job

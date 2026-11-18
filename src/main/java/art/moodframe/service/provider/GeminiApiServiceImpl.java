@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
@@ -99,14 +100,13 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         return image.testConnection();
     }
 
+    /**
+     * A video model (Gemini Omni) goes to the Interactions API, every other model to the image generation.
+     */
     @Override
     public CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request) {
-        return image.submit(request);
-    }
-
-    @Override
-    public CompletableFuture<GenerationJobInfo> submitOmniGenerationRequest(ImageGenerationRequest request) {
-        return omni.submit(request);
+        GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
+        return model != null && model.isVideoModel() ? omni.submit(request) : image.submit(request);
     }
 
     @Override
