@@ -75,8 +75,8 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
         this.block = block;
         this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
 
-        // Register for i18n updates
-        FxI18n.addChangeListener(this);
+        // Register for i18n updates until the dialog closes
+        FxI18n.addChangeListener(this, this);
 
         /*  A new block and a block of the user are saved, a standard block only as a new one: then "As New Entry" is
             the main button, else it stands at the far left  */

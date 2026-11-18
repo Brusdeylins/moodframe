@@ -76,8 +76,8 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
         this.colorPickers = new ColorPickerBox[5];
         this.colorStyleService = ServiceFactory.getInstance().getService(ColorStyleService.class);
 
-        // Register for i18n updates
-        FxI18n.addChangeListener(this);
+        // Register for i18n updates until the dialog closes
+        FxI18n.addChangeListener(this, this);
 
         /*  A new palette and a palette of the user are saved, a default palette only as a new one: then "As New
             Entry" is the main button, else it stands at the far left  */

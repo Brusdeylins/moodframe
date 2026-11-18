@@ -262,6 +262,30 @@ class SettingsDialogTest {
     }
 
     @Test
+    void theResultOfATestFollowsTheLanguage() throws Exception {
+        open();
+        testKey("apiKeyField", "testConnectionButton", "connectionStatusLabel", "bfl-typed",
+                I18nManager.getText("settings.test.api.connection.success", "Global"));
+        onFx(() -> I18nManager.setLocale(Locale.GERMAN));
+        assertEquals(I18nManager.getText("settings.test.api.connection.success", "Global"),
+                onFx(() -> this.<Label>node("connectionStatusLabel").getText()));
+        assertTrue(onFx(() -> this.<Label>node("connectionStatusLabel").getText()).startsWith("Verbindung"));
+    }
+
+    @Test
+    void aClosedDialogNoLongerFollowsTheLanguage() throws Exception {
+        open();
+        onFx(stage::close);
+        int listeners = I18nManager.getChangeListenerCount();
+        for (int i = 0; i < 3; i++) {
+            open();
+            assertTrue(I18nManager.getChangeListenerCount() > listeners, "the open dialog follows the language");
+            onFx(stage::close);
+            assertEquals(listeners, I18nManager.getChangeListenerCount(), "listeners after closing " + (i + 1));
+        }
+    }
+
+    @Test
     void anUntestedKeyIsNotSaved() throws Exception {
         open();
         onFx(() -> this.<TextInputControl>node("apiKeyField").setText("bfl-untested"));
