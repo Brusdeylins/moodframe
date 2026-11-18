@@ -1,8 +1,5 @@
-package art.moodframe.util;
+package art.moodframe.model;
 
-import art.moodframe.model.ModelFamilies;
-
-import art.moodframe.model.GenerationModel;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -15,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ModelFamiliesTest {
 
-    private final List<String> items = List.of(GenerationModel.NANO_BANANA2_1K.getLocalizedDisplayName(),
-            GenerationModel.NANO_BANANA2_4K.getLocalizedDisplayName(),
+    private final List<String> items = List.of(GenerationModel.NANO_BANANA2_1K.getDisplayName(),
+            GenerationModel.NANO_BANANA2_4K.getDisplayName(),
             GenerationModel.OPENAI_PREFIX + "qwen-image-2.1");
 
     @Test
@@ -43,7 +40,7 @@ class ModelFamiliesTest {
         List<String> models = Stream.of(GenerationModel.NANO_BANANA2_LITE, GenerationModel.GEMINI_PRO_2K,
                 GenerationModel.GEMINI_PRO_4K, GenerationModel.FLUX2_PRO, GenerationModel.OMNI_360P,
                 GenerationModel.OMNI_720P, GenerationModel.OMNI_1080P, GenerationModel.OMNI_4K)
-                .map(GenerationModel::getLocalizedDisplayName).collect(Collectors.toCollection(ArrayList::new));
+                .map(GenerationModel::getDisplayName).collect(Collectors.toCollection(ArrayList::new));
         models.add(items.get(2));
 
         assertEquals("1K", ModelFamilies.nearestForItem("4K", models, models.get(0)), "Nano Banana 2 Lite");

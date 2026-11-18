@@ -1,5 +1,6 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
@@ -357,7 +358,7 @@ class McpEditToolsTest {
         String expected = new PromptComposer(GenerationService.maxPromptLength(MODEL)).compose("a harbor at dawn",
                 new PromptComposer.Selection(selection.style(), null, selection.light(), selection.camera(),
                         selection.palette()));
-        String item = GenerationModel.itemOf(MODEL);
+        String item = ModelLabels.itemOf(MODEL);
         assertEquals(expected, preview.path("prompt").asText());
         assertTrue(preview.path("fits").asBoolean());
         assertEquals(AspectRatios.nearestForItem("16:9", item), preview.path("aspectRatio").asText());

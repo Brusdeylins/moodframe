@@ -1,8 +1,5 @@
-package art.moodframe.util;
+package art.moodframe.model;
 
-import art.moodframe.model.AspectRatios;
-
-import art.moodframe.model.GenerationModel;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -37,7 +34,7 @@ class AspectRatiosTest {
         assertArrayEquals(AspectRatios.OPENAI_COMPATIBLE,
                 AspectRatios.forItem(GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"));
         assertArrayEquals(AspectRatios.NANO_BANANA_2,
-                AspectRatios.forItem(GenerationModel.NANO_BANANA2_2K.getLocalizedDisplayName()));
+                AspectRatios.forItem(GenerationModel.NANO_BANANA2_2K.getDisplayName()));
         assertArrayEquals(AspectRatios.BFL, AspectRatios.forItem(null));
     }
 
@@ -95,8 +92,8 @@ class AspectRatiosTest {
 
     @Test
     void aTargetTakesTheClosestRatioOfTheModelOfADropdownItem() {
-        assertEquals("5:4", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX2_PRO.getLocalizedDisplayName()));
-        assertEquals("4:3", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX3_IMAGE_1K.getLocalizedDisplayName()));
+        assertEquals("5:4", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX2_PRO.getDisplayName()));
+        assertEquals("4:3", AspectRatios.nearestForItem("4:3", GenerationModel.FLUX3_IMAGE_1K.getDisplayName()));
         assertEquals("1:1", AspectRatios.nearestForItem("1:1", GenerationModel.OPENAI_PREFIX + "gpt-image-1"));
     }
 

@@ -4,6 +4,7 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.service.generation.ModelLabels;
 
 import java.util.List;
 import java.util.Set;
@@ -40,7 +41,7 @@ public record BrainstormContext(
     public BrainstormContext(List<PromptBlock> styles, List<ColorStyle> colorStyles, List<GenerationModel> models,
             String currentState) {
         this(styles, List.of(), List.of(), List.of(), colorStyles, List.of(), models, currentState,
-                models.stream().map(GenerationModel::getLocalizedDisplayName).toList(), Set.of());
+                models.stream().map(ModelLabels::displayName).toList(), Set.of());
     }
 
     /**

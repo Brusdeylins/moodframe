@@ -283,15 +283,15 @@ class GenerationServiceTest {
         Locale before = I18nManager.getCurrentLocale();
         try {
             I18nManager.setLocale(Locale.ENGLISH);
-            String english = GenerationModel.FLUX2_PRO.getLocalizedDisplayName();
+            String english = ModelLabels.displayName(GenerationModel.FLUX2_PRO);
             assertEquals("FLUX2_PRO", GenerationModel.idOf(english));
 
             I18nManager.setLocale(Locale.GERMAN);
-            String german = GenerationModel.FLUX2_PRO.getLocalizedDisplayName();
+            String german = ModelLabels.displayName(GenerationModel.FLUX2_PRO);
             assertNotEquals(english, german);
             assertEquals("FLUX2_PRO", GenerationModel.idOf(german));
-            assertEquals(german, GenerationModel.itemOf("FLUX2_PRO"));
-            assertEquals("gpt-image-1", GenerationModel.idOf(GenerationModel.itemOf("gpt-image-1")));
+            assertEquals(german, ModelLabels.itemOf("FLUX2_PRO"));
+            assertEquals("gpt-image-1", GenerationModel.idOf(ModelLabels.itemOf("gpt-image-1")));
 
             ChatEntry entry = service.submit(order("FLUX2_PRO", WIDE_2K)).entry();
             assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), entry.getModel(), "stored in English");

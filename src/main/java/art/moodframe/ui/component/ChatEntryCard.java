@@ -11,6 +11,7 @@ import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
@@ -669,7 +670,7 @@ public class ChatEntryCard extends ManagedComponent {
     /** The model under its full name with its price per image, a BFL model with its safety level. */
     private String modelDetails() {
         GenerationModel known = GenerationModel.fromDisplayName(chatEntry.getModel());
-        String name = known != null ? known.getLocalizedDisplayName() : chatEntry.getModel();
+        String name = known != null ? ModelLabels.displayName(known) : chatEntry.getModel();
         if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
             return name + "\n" + I18nManager.getText("params.safety",
                     getSafetyToleranceDescription(chatEntry.getSafetyTolerance()));

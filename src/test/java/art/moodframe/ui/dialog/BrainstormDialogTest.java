@@ -11,6 +11,7 @@ import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.util.I18nManager;
@@ -79,7 +80,7 @@ class BrainstormDialogTest {
         Platform.runLater(() -> {
             try {
                 new BrainstormDialog(null, service, context,
-                        GenerationModel.OMNI_720P.getLocalizedDisplayName(), result -> { });
+                        ModelLabels.displayName(GenerationModel.OMNI_720P), result -> { });
             } catch (Throwable t) {
                 failure.set(t);
             } finally {
@@ -111,7 +112,7 @@ class BrainstormDialogTest {
         Platform.runLater(() -> {
             try {
                 BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                        GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
                 dialog.getScene().getRoot().applyCss();
                 dialog.getScene().getRoot().layout();
                 grips.set(dialog.getScene().getRoot().lookupAll(".split-pane").stream()
@@ -155,7 +156,7 @@ class BrainstormDialogTest {
                 for (String theme : ThemeManager.getAvailableThemes()) {
                     Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
                     BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                            GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                            ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
                     Region root = (Region) dialog.getScene().getRoot();
                     root.applyCss();
                     Region probe = new Region();
@@ -196,7 +197,7 @@ class BrainstormDialogTest {
         BrainstormContext context = new BrainstormContext(List.of(), List.of(calm), List.of(blueHour), List.of(),
                 List.of(new ColorStyle("Ocean Breeze", List.of("#48BDFF"), true)), List.of(morning),
                 List.of(GenerationModel.FLUX2_PRO), "Target model: x",
-                List.of(GenerationModel.FLUX2_PRO.getLocalizedDisplayName()), Set.of(Mood.Field.LIGHT));
+                List.of(ModelLabels.displayName(GenerationModel.FLUX2_PRO)), Set.of(Mood.Field.LIGHT));
 
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Leuchtturm",
@@ -219,7 +220,7 @@ class BrainstormDialogTest {
         Platform.runLater(() -> {
             try {
                 BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                        GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), adopted::set);
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), adopted::set);
                 dialog.getScene().getRoot().applyCss();
                 checks.set(dialog.getScene().getRoot().lookupAll(".check-box").stream()
                         .map((node) -> (CheckBox) node).toList());
@@ -278,7 +279,7 @@ class BrainstormDialogTest {
             Platform.runLater(() -> {
                 try {
                     BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                            GenerationModel.FLUX2_PRO.getLocalizedDisplayName(), result -> { });
+                            ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
                     Field engineBox = BrainstormDialog.class.getDeclaredField("engineBox");
                     engineBox.setAccessible(true);
                     ComboBox<?> box = (ComboBox<?>) engineBox.get(dialog);
