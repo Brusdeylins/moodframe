@@ -473,7 +473,7 @@ public class ProxySettingsPane implements SettingsSection {
     @FXML
     private void onResetProxyConfig() {
         if (!services.prompts().confirm("Reset Proxy Configuration", "Reset Proxy Settings",
-                "This will clear all proxy settings and certificates. Continue?", false))
+                "This will clear all proxy settings; the installed certificates stay. Continue?", false))
             return;
 
         try {
