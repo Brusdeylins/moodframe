@@ -164,13 +164,14 @@ public class BrainstormDialog extends Stage {
         // The chat that was worked on last opens, wherever the user put it in the history
         history.refreshAndSelectLast();
 
-        /*  The window follows the language until it closes  */
+        /*  The window follows the language until it closes, by convention: the language changes only in the
+            application-modal settings, which this window-modal dialog of the main window never sees open  */
         FxI18n.addChangeListener(this::relabel, root);
     }
 
     /**
      * Sets the texts of the window in the current language. The messages stay as they were written, only a new chat
-     * that was not sent yet greets anew.
+     * that holds nothing but its greeting greets anew (one whose session could not be stored keeps its messages).
      */
     private void relabel() {
         setTitle(I18nManager.getText("brainstorm.title"));
@@ -178,7 +179,7 @@ public class BrainstormDialog extends Stage {
         chatView.relabel();
         resultForm.relabel();
         showChatTitle();
-        if (chat.session == null && !chat.busy) {
+        if (chat.session == null && !chat.busy && chat.messageBox.getChildren().size() == 1) {
             chat.messageBox.getChildren().clear();
             greet(chat);
             chatView.setQuickReplies(chat.quickReplies);

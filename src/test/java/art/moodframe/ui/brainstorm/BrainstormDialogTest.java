@@ -42,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -394,6 +396,56 @@ class BrainstormDialogTest {
                 return null;
             });
             assertEquals(listeners, onFx(I18nManager::getChangeListenerCount), "a closed window no longer listens");
+        }
+        finally {
+            onFx(() -> {
+                I18nManager.setLocale(locale);
+                return null;
+            });
+        }
+    }
+
+    /**
+     * A new chat whose session could not be stored keeps its message and the failure when the language changes; only
+     * an untouched new chat greets anew.
+     */
+    @Test
+    void aNewChatThatCouldNotBeStoredKeepsItsMessagesOnAChangeOfTheLanguage() throws Exception {
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        when(repository.createSession(anyString(), any())).thenThrow(new java.sql.SQLException("disk full"));
+        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+        java.util.Locale locale = I18nManager.getCurrentLocale();
+        AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
+        try {
+            onFx(() -> {
+                I18nManager.setLocale(java.util.Locale.ENGLISH);
+                dialog.set(new BrainstormDialog(null, null, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
+                        new BrainstormWorker(Runnable::run, Runnable::run)));
+                dialog.get().show();
+                javafx.scene.Parent root = dialog.get().getScene().getRoot();
+                ((javafx.scene.control.TextArea) root.lookup(".text-area")).setText("A lighthouse at dusk");
+                root.lookupAll(".button").stream().map((node) -> (Button) node)
+                        .filter((button) -> I18nManager.getText("brainstorm.send").equals(button.getText()))
+                        .findFirst().orElseThrow().fire();
+                return null;
+            });
+            String failure = I18nManager.getText("brainstorm.error.session");
+            assertTrue(texts(dialog).containsAll(List.of("A lighthouse at dusk", failure)), "sent and failed");
+
+            onFx(() -> {
+                I18nManager.setLocale(java.util.Locale.GERMAN);
+                return null;
+            });
+            List<String> texts = texts(dialog);
+            assertTrue(texts.containsAll(List.of("A lighthouse at dusk", failure)), "the messages stay: " + texts);
+            assertFalse(texts.contains(I18nManager.getText("brainstorm.greeting")), "no greeting in their place");
+            onFx(() -> {
+                dialog.get().close();
+                return null;
+            });
         }
         finally {
             onFx(() -> {
