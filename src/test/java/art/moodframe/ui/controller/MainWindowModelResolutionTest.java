@@ -19,7 +19,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.service.provider.MockProviders;
-import art.moodframe.ui.component.ChatEntryCard;
+import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;

@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.ui.support.MediaSupport;
 import art.moodframe.ui.support.SystemOpen;

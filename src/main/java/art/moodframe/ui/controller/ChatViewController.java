@@ -12,9 +12,9 @@ import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ModelLock;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
-import art.moodframe.ui.component.ChatEntryCard;
+import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
-import art.moodframe.ui.component.ImageGrid;
+import art.moodframe.ui.entry.ImageGrid;
 import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
@@ -206,14 +206,14 @@ public class ChatViewController {
     }
 
     /*  the thumbnails and the size check of the images, handed by the main window before init  */
-    private art.moodframe.ui.component.ImageSources imageSources = art.moodframe.ui.component.ImageSources.NONE;
+    private art.moodframe.ui.entry.ImageSources imageSources = art.moodframe.ui.entry.ImageSources.NONE;
 
     /**
      * Sets where the cards and the images view get the pictures of the images; call it before {@link #init}.
      *
      * @param sources the thumbnails and the size check
      */
-    public void useImageSources(art.moodframe.ui.component.ImageSources sources) {
+    public void useImageSources(art.moodframe.ui.entry.ImageSources sources) {
         this.imageSources = sources;
     }
 
@@ -681,7 +681,7 @@ public class ChatViewController {
 
         // CellFactory creates ChatEntryCard for each visible cell
         chatEntriesListView.setCellFactory(listView -> new javafx.scene.control.ListCell<ChatEntry>() {
-            private art.moodframe.ui.component.ChatEntryCard currentCard = null;
+            private art.moodframe.ui.entry.ChatEntryCard currentCard = null;
 
             {
                 // CRITICAL: Cell must fill entire width to prevent horizontal scroll

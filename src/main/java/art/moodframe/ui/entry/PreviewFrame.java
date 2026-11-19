@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import javafx.animation.Animation;
 import javafx.animation.Interpolator;

@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
@@ -11,6 +11,7 @@ import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.ui.component.ManagedComponent;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.SafetyTolerance;

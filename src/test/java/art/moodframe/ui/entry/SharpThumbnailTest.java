@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import org.junit.jupiter.api.Test;
 

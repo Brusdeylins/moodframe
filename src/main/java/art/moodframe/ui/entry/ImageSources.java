@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
