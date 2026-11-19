@@ -254,6 +254,15 @@ class MigrationRunnerTest {
         }
     }
 
+    @Test
+    void theJavaMigrationsUseNoModelOfTheApplication() throws Exception {
+        /*  a price or formula of a later version must not change what a migration books  */
+        for (String migration : List.of("FluxCostBackfill.java", "DeletedCostCorrection.java")) {
+            String code = java.nio.file.Files.readString(Path.of("src/main/java/art/moodframe/database", migration));
+            assertFalse(code.contains("art.moodframe.model"), migration);
+        }
+    }
+
     private static List<String> triggers(Connection connection) throws SQLException {
         return names(connection, "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name");
     }
