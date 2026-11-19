@@ -47,6 +47,7 @@ import java.util.function.Supplier;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -141,8 +142,9 @@ class DeleteRunningEntryTest {
 
         pool = Executors.newCachedThreadPool();
         workers = new GenerationWorkers();
-        requests = new RequestResponseManager(config, providers,
-                new ChatEntryTracker(repository, trash, workers.store()),
+        ChatEntryTracker tracker = new ChatEntryTracker(repository, trash, workers.store());
+        tracker.setOnEntryStored(chats::entryStored);
+        requests = new RequestResponseManager(config, providers, tracker,
                 new ImageFileStore(config, HttpClient::newHttpClient), workers, (Runnable task) -> {
                     if (holdBack)
                         heldBack.add(task);
@@ -277,6 +279,35 @@ class DeleteRunningEntryTest {
         drain(entry);
         assertTrue(repository.findChatEntryById(entry.getId()).isEmpty(), "no entry rises from the trash");
         assertTrue(repository.findChatEntriesByChatId(chat.getId()).isEmpty());
+    }
+
+    @Test
+    void anEntryRestoredWhileItsGenerationStillDeliversShowsTheLateImage() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 2);
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+        chats.deleteEntry(entry);
+
+        /*  the trash gives the entry back as a new object, while the generation still holds the one that left  */
+        assertTrue(trash.restoreChatEntry(entry.getId()));
+        chats.restored(TrashGroup.Kind.IMAGES, entry.getId());
+        ChatEntry restored = chats.findEntry(entry.getId());
+        assertNotNull(restored);
+        assertNotSame(entry, restored);
+
+        /*  Gemini still answers: the image is stored, and the chat shows it with the cost of the entry as stored  */
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().get(0).getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED);
+        flush();
+        assertTrue(dropped.isEmpty(), "the image of an entry in use keeps its file");
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertEquals(1, repository.findGeneratedImagesByEntry(entry.getId()).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count());
+        ChatEntry shown = chats.findEntry(entry.getId());
+        assertEquals(stored.getCost(), shown.getCost(), 1e-9, "the window and the MCP server show the stored cost");
+        assertEquals(1, ChatLibrary.imagesOf(shown).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count(), "the late image shows");
+        assertEquals(List.of(shown), ChatLibrary.entriesOf(chat), "the chat shows the entry once");
     }
 
     @Test

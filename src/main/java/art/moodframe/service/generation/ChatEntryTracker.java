@@ -35,6 +35,7 @@ public class ChatEntryTracker {
 
     private final List<Consumer<ChatEntry>> entryListeners = new CopyOnWriteArrayList<>();
     private final List<Consumer<GeneratedImage>> imageListeners = new CopyOnWriteArrayList<>();
+    private volatile Consumer<ChatEntry> onEntryStored = (ChatEntry entry) -> { };
 
     /**
      * Creates the tracker without the trash, for the tests of the generation: the file of an image delivered after
@@ -59,6 +60,17 @@ public class ChatEntryTracker {
         this.chatRepository = chatRepository;
         this.trash = trash;
         this.executor = executor;
+    }
+
+    /**
+     * Sets what learns of an entry stored, on the worker of the database writes after the write: the composition root
+     * hands in {@link art.moodframe.service.chat.ChatLibrary#entryStored}, so an entry restored from the trash while
+     * its generation still delivers shows what arrived.
+     *
+     * @param callback called with the object of the entry that was stored
+     */
+    public void setOnEntryStored(Consumer<ChatEntry> callback) {
+        onEntryStored = callback;
     }
 
     /** Adds a listener for chat entry updates, called on the FX thread. */
@@ -145,7 +157,9 @@ public class ChatEntryTracker {
             if (chatRepository == null)
                 return;
             try {
-                if (!chatRepository.updateChatEntry(chatEntry))
+                if (chatRepository.updateChatEntry(chatEntry))
+                    onEntryStored.accept(chatEntry);
+                else
                     logger.debug("Entry {} not saved: it is in the trash or not stored", chatEntry.getId());
             } catch (Exception e) {
                 logger.error("Failed to save the chat entry {}", chatEntry.getId(), e);

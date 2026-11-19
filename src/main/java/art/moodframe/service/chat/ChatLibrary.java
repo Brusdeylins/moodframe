@@ -475,6 +475,45 @@ public class ChatLibrary implements TrashCenter.Listener {
         ids.forEach((String id) -> events.changed(LibraryEvents.Kind.CHAT, id));
     }
 
+    /**
+     * Shows what a generation stored for an entry that left its chat for the trash and came back meanwhile: the
+     * generation holds the object that left, while the chat shows the one the restore loaded, so that one gives way to
+     * the entry as stored now. An entry the chat shows with this object, or does not show, stays as it is. The
+     * generation calls it on the thread of its writes, after the write.
+     *
+     * @param written the object of the entry the generation stored
+     */
+    public void entryStored(ChatEntry written) {
+        if (history == null || ModelLock.read(() -> otherObject(written) == null))
+            return;
+        try {
+            ChatEntry stored = history.findRestoredEntry(written.getId()).orElse(null);
+            if (stored == null || stored.getDeletedAt() != null)
+                return;
+            boolean replaced = ModelLock.changeAndGet(() -> {
+                ChatEntry shown = otherObject(written);
+                if (shown == null)
+                    return false;
+                List<ChatEntry> entries = owner(written).orElseThrow().getEntries();
+                entries.set(entries.indexOf(shown), stored);
+                return true;
+            });
+            if (replaced)
+                events.changed(LibraryEvents.Kind.ENTRY, written.getId());
+        }
+        catch (Exception e) {
+            logger.error("Failed to show the stored entry {}", written.getId(), e);
+        }
+    }
+
+    /*  The object of an entry its chat shows if it is not this one, null if it shows this one or none; under the
+        lock  */
+    private ChatEntry otherObject(ChatEntry entry) {
+        return owner(entry).flatMap((Chat chat) -> chat.getEntries().stream().filter((ChatEntry shown) ->
+                shown.getId().equals(entry.getId())).findFirst()).filter((ChatEntry shown) -> shown != entry)
+                .orElse(null);
+    }
+
     /*  A chat in the list is shown again; a chat without entries left the list and comes back from the database to its
         place in the order  */
     private void restoreChat(String chatId) throws SQLException {
@@ -493,7 +532,8 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /*  An entry in use keeps its object, as running requests may hold it, and gets the images back that came from the
-        trash (see merge); a deleted entry is inserted again at its place  */
+        trash (see merge); a deleted entry is inserted again at its place, as a new object (what its generation still
+        stores replaces it, see entryStored)  */
     private void restoreImages(String id) throws SQLException {
         ChatEntry restored = history != null ? history.findRestoredEntry(id).orElse(null) : null;
         if (restored == null)
