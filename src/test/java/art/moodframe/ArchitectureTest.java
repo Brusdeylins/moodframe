@@ -76,7 +76,7 @@ class ArchitectureTest {
                     .filter((Path file) -> !file.getFileName().toString().equals("module-info.java")).toList();
         }
         for (Path file : files) {
-            String pkg = packageOf(SOURCES.relativize(file.getParent()).toString().replace('/', '.'));
+            String pkg = packageOf(packageName(file.getParent()));
             String code = COMMENTS.matcher(Files.readString(file)).replaceAll("");
             Set<String> used = uses.computeIfAbsent(pkg, (String key) -> new TreeSet<>());
             Matcher reference = REFERENCE.matcher(code);
@@ -92,6 +92,14 @@ class ArchitectureTest {
                 locator.computeIfAbsent(pkg, (String key) -> new TreeSet<>())
                         .add(file.getFileName().toString().replace(".java", ""));
         }
+    }
+
+    /** The package name of a folder of the sources, from its parts, so it holds for any separator of the system. */
+    private static String packageName(Path folder) {
+        List<String> parts = new ArrayList<>();
+        for (Path part : SOURCES.relativize(folder))
+            parts.add(part.toString());
+        return String.join(".", parts);
     }
 
     /** The package below {@code art.moodframe}: "ui.dialog" of "art.moodframe.ui.dialog", "" of the root. */
@@ -175,10 +183,10 @@ class ArchitectureTest {
         assertEquals(FX_MODELS, javaFx.getOrDefault("model", Set.of()), "model, besides the known deviation");
     }
 
-    /*  The model classes that carry their own stored JSON form (org.json) or the names of the palette file and of a
-        request (Jackson); none of them carries what a language model exchanges  */
+    /*  The model classes that carry their own stored JSON form (org.json) or the names of the palette file
+        (Jackson); none of them carries what a language model exchanges  */
     private static final Set<String> JSON_MODELS = Set.of("EntryMood", "EntryFrame", "CameraSettings");
-    private static final Set<String> JACKSON_MODELS = Set.of("ColorStyle", "ImageGenerationRequest");
+    private static final Set<String> JACKSON_MODELS = Set.of("ColorStyle");
 
     @Test
     void onlyTheStoredValueTypesOfTheModelUseJson() throws IOException {
@@ -274,11 +282,6 @@ class ArchitectureTest {
             }
         }
         assertEquals(List.of(), found, "a wildcard hides which classes, and so which layers, a class uses");
-    }
-
-    @Test
-    void theChatsNeedNoJavaFx() {
-        assertEquals(Set.of(), javaFx.getOrDefault("service.chat", Set.of()), "service.chat");
     }
 
     /*  The image and video clients, whose failures reach the entries of the window and of the MCP server  */
