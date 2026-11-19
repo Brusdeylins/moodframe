@@ -3,6 +3,8 @@ package art.moodframe.service.chat;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GeneratedImage.DownloadStatus;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
@@ -45,7 +47,7 @@ public class ChatTrashGroup implements TrashGroup {
     }
 
     /**
-     * Lists the deleted chats with the number of their images and their cost.
+     * Lists the deleted chats with the number of their images, those that were downloaded, and their cost.
      *
      * @param locale the language of the context, null for that of the user interface
      * @return the chats in the trash, the latest deletion first
@@ -56,8 +58,11 @@ public class ChatTrashGroup implements TrashGroup {
         try {
             for (Chat chat : chatRepository.findDeletedChats()) {
                 List<ChatEntry> chatEntries = chatRepository.findChatEntriesByChatId(chat.getId());
-                int images = chatRepository.findImagesByEntryIds(chatEntries.stream().map(ChatEntry::getId).toList())
-                        .values().stream().mapToInt(List::size).sum();
+
+                /*  Only the images that came: a failed or unfinished request leaves a row without a picture  */
+                int images = (int) chatRepository.findImagesByEntryIds(chatEntries.stream().map(ChatEntry::getId)
+                        .toList()).values().stream().flatMap(List::stream)
+                        .filter((GeneratedImage image) -> image.getDownloadStatus() == DownloadStatus.CACHED).count();
 
                 /*  The total of the chat header: all it cost, deleted entries and images included  */
                 double cost = ChatCost.total(chatEntries, chat.getDeletedCost());
