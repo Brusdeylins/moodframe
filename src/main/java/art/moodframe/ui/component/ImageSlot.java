@@ -457,7 +457,7 @@ class ImageSlot extends VBox {
         }
     }
 
-    /*  removes the image; the slot goes with it unless it is the first one, which always stays (even if empty)  */
+    /*  removes the image; the slot goes with it unless it is the last slot left, which stays empty  */
     private void removeImage() {
         panel.removeSlot(this);
     }

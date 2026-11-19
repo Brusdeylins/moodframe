@@ -12,12 +12,14 @@ import art.moodframe.repository.ColorStyleRepository;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
+import art.moodframe.repository.SavedImageRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.bfl.BflApiService;
 import art.moodframe.service.provider.bfl.BflApiServiceImpl;
@@ -509,7 +511,8 @@ class SettingsDialogTest {
         ColorStyleService colors = new ColorStyleService(new ColorStyleRepository(database), events);
         MoodService moods = new MoodService(new MoodRepository(database), blocks, colors, events);
         exporter = new ConfigurationExporter(blocks, colors, moods,
-                new FrameService(new FrameRepository(database), events));
+                new FrameService(new FrameRepository(database), events), new SavedImageService(
+                new SavedImageRepository(database), folder.resolve("library-images"), events));
         Mood mood = new Mood(null, "Backup Me");
         mood.setReference(Mood.Field.STYLE, "std:style:analog-film");
         assertTrue(moods.add(mood));

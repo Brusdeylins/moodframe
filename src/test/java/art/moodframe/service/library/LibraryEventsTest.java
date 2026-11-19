@@ -258,7 +258,8 @@ class LibraryEventsTest {
         ColorStyleService palettes = TestLibraryServices.palettes(events);
         MoodService moods = TestLibraryServices.moods(blocks, palettes, events);
         ConfigurationExporter exporter = new ConfigurationExporter(blocks, palettes, moods,
-                TestLibraryServices.frames(events));
+                TestLibraryServices.frames(events), TestLibraryServices.savedImages(tempDir.resolve("library-images"),
+                events));
         Mood mood = new Mood(null, "Imported Mood");
         assertTrue(moods.add(mood));
         java.io.File file = tempDir.resolve("events-backup.json").toFile();

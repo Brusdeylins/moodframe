@@ -4,6 +4,7 @@ import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.provider.bfl.BflApiService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,6 +65,7 @@ public class ConfigurationExporter {
         CUSTOM_STYLES("Custom Building Blocks", "User-created styles, atmospheres, lights and palettes"),
         MOODS("Moods", "User-created moods, the saved combinations of building blocks"),
         FRAMES("Frames", "User-created frames, the saved target aspect ratios and resolutions"),
+        SAVED_IMAGES("Saved Images", "Saved attachment images like logos, with their image files"),
         ALL("All Settings", "Complete configuration export");
         
         private final String displayName;
@@ -105,6 +107,7 @@ public class ConfigurationExporter {
     private final ColorStyleService colorStyleService;
     private final MoodService moodService;
     private final FrameService frameService;
+    private final SavedImageService savedImageService;
 
     /**
      * Creates a new configuration exporter on the services of the application, so an import reaches the main window
@@ -114,9 +117,10 @@ public class ConfigurationExporter {
      * @param colorStyleService  the palettes
      * @param moodService        the moods
      * @param frameService       the frames
+     * @param savedImageService  the saved images
      */
     public ConfigurationExporter(PromptBlockService promptBlockService, ColorStyleService colorStyleService,
-            MoodService moodService, FrameService frameService) {
+            MoodService moodService, FrameService frameService, SavedImageService savedImageService) {
         this.objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -126,6 +130,7 @@ public class ConfigurationExporter {
         this.colorStyleService = colorStyleService;
         this.moodService = moodService;
         this.frameService = frameService;
+        this.savedImageService = savedImageService;
     }
     
     /**
@@ -227,6 +232,12 @@ public class ConfigurationExporter {
 
             /*  The frames of the user with their IDs, target aspect ratios and target resolutions  */
             configData.put("frames", frameService.exportCustom());
+        }
+
+        if (categories.contains(ConfigCategory.ALL) || categories.contains(ConfigCategory.SAVED_IMAGES)) {
+
+            /*  The saved images in use with their image files; the ones in the trash stay out  */
+            configData.put("savedImages", savedImageService.exportCustom());
         }
 
         exportData.put("configuration", configData);
@@ -437,6 +448,7 @@ public class ConfigurationExporter {
                     new TypeReference<List<ColorStyle>>() { }) : null;
             List<Map<String, Object>> moods = items(configData.get("moods"));
             List<Map<String, Object>> frames = items(configData.get("frames"));
+            List<Map<String, Object>> savedImages = items(configData.get("savedImages"));
             settings.forEach(Runnable::run);
 
             // Import the building blocks and palettes of the user next to the existing ones
@@ -470,6 +482,14 @@ public class ConfigurationExporter {
                 int importedFrames = frameService.importCustom(frames);
                 if (importedFrames > 0)
                     changes.put("Frames", String.format("%d frames imported", importedFrames));
+            }
+
+            /*  The saved images next to the existing ones; the same file is not stored twice, a taken name gets a
+                new one  */
+            if (savedImages != null) {
+                int importedImages = savedImageService.importCustom(savedImages);
+                if (importedImages > 0)
+                    changes.put("Saved Images", String.format("%d saved images imported", importedImages));
             }
 
             logger.debug("Configuration imported successfully. {} settings changed", changes.size());

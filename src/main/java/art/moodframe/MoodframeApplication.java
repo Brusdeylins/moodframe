@@ -385,7 +385,7 @@ public class MoodframeApplication extends Application {
         services.registerProvider(ConfigurationExporter.class,
                 () -> new ConfigurationExporter(services.getService(PromptBlockService.class),
                         services.getService(ColorStyleService.class), services.getService(MoodService.class),
-                        services.getService(FrameService.class)));
+                        services.getService(FrameService.class), services.getService(SavedImageService.class)));
 
         /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
         services.registerProvider(BlockUsage.class, () -> services.getService(MoodService.class));

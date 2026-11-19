@@ -195,14 +195,21 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             newMax = DEFAULT_MAX_IMAGES;
         }
 
-        int oldMax = maxImages.get();
+        logger.debug("Updated max images for model {}: {} -> {}",
+                    model.getApiModelId(), maxImages.get(), newMax);
+        setMaxImages(newMax);
+    }
+
+    /**
+     * Sets the limit of the images; the images above it are removed from the end.
+     *
+     * @param newMax the limit, at least one
+     */
+    void setMaxImages(int newMax) {
         maxImages.set(newMax);
 
-        logger.debug("Updated max images for model {}: {} -> {}",
-                    model.getApiModelId(), oldMax, newMax);
-
-        // Remove excess images if we now have fewer slots
-        while (attachedImages.size() > newMax) {
+        /*  Only the images count, an empty slot takes no place of the limit  */
+        while (getAttachmentCount() > newMax) {
             int lastIndex = attachedImages.size() - 1;
             removeImageAt(lastIndex);
         }
@@ -525,8 +532,8 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     }
 
     /**
-     * Removes the image of a slot; a slot but the first goes with it, and the images behind it move up with their
-     * slots.
+     * Removes the image of a slot with the slot, and the images behind it move up with their slots, so no empty slot
+     * is left before them; the last slot left stays, emptied.
      *
      * @param slot the slot
      */
@@ -534,7 +541,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
         int position = imageSlots.indexOf(slot);
         if (position < 0)
             return;
-        if (position == 0)
+        if (imageSlots.size() == 1)
             removeImageAt(0);
         else {
             imageSlots.remove(slot);

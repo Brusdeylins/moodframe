@@ -269,6 +269,7 @@ class CustomBlocksTest {
         PromptBlockService blocks = TestLibraryServices.blocks();
         ColorStyleService palettes = TestLibraryServices.palettes();
         return new ConfigurationExporter(blocks, palettes, TestLibraryServices.moods(blocks, palettes),
-                TestLibraryServices.frames());
+                TestLibraryServices.frames(), TestLibraryServices.savedImages(tempDir.resolve("library-images"),
+                new LibraryEvents()));
     }
 }

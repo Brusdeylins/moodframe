@@ -14,9 +14,13 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -317,6 +321,74 @@ public class SavedImageService {
             return false;
         deleteFile(image.file());
         return changed(true, id);
+    }
+
+    /**
+     * Exports the saved images in use as plain data for the backup of the settings: name, description, favorite, the
+     * name of the file and the file itself in Base64, so the backup stays one file. An image in the trash or one whose
+     * file is gone is passed over. Reads files, so it runs off the JavaFX thread.
+     *
+     * @return one map per image
+     */
+    public List<Map<String, Object>> exportCustom() {
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (SavedImage image : getAll()) {
+            byte[] data;
+            try {
+                data = Files.readAllBytes(fileOf(image));
+            }
+            catch (IOException e) {
+                logger.warn("Failed to read the file of the saved image {} for the export", image.name(), e);
+                continue;
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("name", image.name());
+            entry.put("description", image.description());
+            entry.put("favorite", image.favorite());
+            entry.put("file", image.file());
+            entry.put("data", Base64.getEncoder().encodeToString(data));
+            entries.add(entry);
+        }
+        return entries;
+    }
+
+    /**
+     * Adds saved images from plain data (see {@link #exportCustom()}) next to the saved images in use, each saved like
+     * by {@link #save}: the same file is not stored twice, and a name that is taken gets the next free one. Reads and
+     * writes files, so it runs off the JavaFX thread.
+     *
+     * @param entries the images as maps
+     * @return the number of imported images
+     */
+    public synchronized int importCustom(List<Map<String, Object>> entries) {
+        int imported = 0;
+        for (Map<String, Object> entry : entries) {
+            String name = entry.get("name") instanceof String text ? text.trim() : "";
+            String file = entry.get("file") instanceof String text ? text : "";
+            String description = entry.get("description") instanceof String text ? text : null;
+            if (name.isEmpty() || !(entry.get("data") instanceof String data))
+                continue;
+            Path source = null;
+            try {
+                source = Files.createTempFile("saved-image-", "." + extensionOf(Path.of(file)));
+                Files.write(source, Base64.getDecoder().decode(data));
+                Saved saved = save(source, freeName(name), description);
+                if (saved.outcome() != Outcome.SAVED)
+                    continue;
+                boolean favorite = Boolean.TRUE.equals(entry.get("favorite"));
+                if (favorite != saved.image().favorite())
+                    setFavorite(saved.image().id(), favorite);
+                imported++;
+            }
+            catch (IOException | IllegalArgumentException e) {
+                logger.warn("Failed to import the saved image {}", name, e);
+            }
+            finally {
+                if (source != null)
+                    source.toFile().delete();
+            }
+        }
+        return imported;
     }
 
     /**

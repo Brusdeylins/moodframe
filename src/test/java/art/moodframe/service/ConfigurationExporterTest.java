@@ -2,21 +2,30 @@ package art.moodframe.service;
 
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ConfigMocks;
+import art.moodframe.database.DatabaseManager;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.model.SavedImage;
+import art.moodframe.repository.SavedImageRepository;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The full backup of the moods and frames of the user in a fresh SQLite database. */
+/** The full backup of the moods, frames and saved images of the user in a fresh SQLite database. */
 class ConfigurationExporterTest {
 
     @TempDir
@@ -122,6 +131,56 @@ class ConfigurationExporterTest {
     }
 
     @Test
+    void exportsAndImportsTheSavedImagesIntoAnotherLibrary() throws Exception {
+        SavedImageService source = TestLibraryServices.savedImages(tempDir.resolve("source-images"),
+                new LibraryEvents());
+        SavedImage logo = source.save(image("backup-logo.png", Color.RED), "Backup Logo", "red logo, lower right")
+                .image();
+        assertTrue(source.setFavorite(logo.id(), true));
+        SavedImage word = source.save(image("backup-word.png", Color.BLUE), "Backup Word Mark", null).image();
+        SavedImage old = source.save(image("backup-old.png", Color.GRAY), "Backup Old Logo", null).image();
+        assertTrue(source.moveToTrash(old.id()));
+
+        File file = tempDir.resolve("saved-images-backup.json").toFile();
+        exporter(source).exportConfiguration(ConfigMocks.config(), file,
+                Set.of(ConfigurationExporter.ConfigCategory.SAVED_IMAGES));
+        assertFalse(Files.readString(file.toPath()).contains("Backup Old Logo"), "the trash stays out");
+
+        /*  An empty library on another machine gets them with name, description, favorite and the same file  */
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("other-db").resolve("other.db"));
+        database.initialize();
+        SavedImageService target = new SavedImageService(new SavedImageRepository(database),
+                tempDir.resolve("other-images"), new LibraryEvents());
+        ConfigurationExporter importer = exporter(target);
+        ConfigurationExporter.ImportResult result = importer.importConfiguration(file, ConfigMocks.config());
+        assertTrue(result.isSuccess(), result.getMessage());
+        assertEquals("2 saved images imported", result.getChanges().get("Saved Images"));
+        List<SavedImage> imported = target.getAll();
+        assertEquals(List.of("Backup Logo", "Backup Word Mark"), imported.stream().map(SavedImage::name).toList());
+        assertEquals("red logo, lower right", imported.get(0).description());
+        assertTrue(imported.get(0).favorite());
+        assertNull(imported.get(1).description());
+        assertFalse(imported.get(1).favorite());
+        assertEquals(logo.sha256(), imported.get(0).sha256());
+        assertEquals(word.sha256(), imported.get(1).sha256());
+        assertTrue(Files.isRegularFile(target.fileOf(imported.get(0))), "the library keeps the file");
+
+        /*  A second import stores no copies  */
+        result = importer.importConfiguration(file, ConfigMocks.config());
+        assertNull(result.getChanges().get("Saved Images"));
+        assertEquals(2, target.getAll().size());
+
+        /*  A name taken by another file meanwhile gets a new one  */
+        String wordId = imported.get(1).id();
+        assertTrue(target.moveToTrash(wordId));
+        assertTrue(target.deletePermanently(wordId));
+        assertNotNull(target.save(image("other-word.png", Color.GREEN), "Backup Word Mark", null).image());
+        result = importer.importConfiguration(file, ConfigMocks.config());
+        assertEquals("1 saved images imported", result.getChanges().get("Saved Images"));
+        assertEquals(word.sha256(), target.find("Backup Word Mark (1)").sha256());
+    }
+
+    @Test
     void aFileThatCannotBeReadToTheEndChangesNothing() throws Exception {
         File file = tempDir.resolve("broken-backup.json").toFile();
         Files.writeString(file.toPath(), """
@@ -186,9 +245,25 @@ class ConfigurationExporterTest {
 
     /*  an exporter on library services of its own, as the application builds one on its registered services  */
     private static ConfigurationExporter exporter() {
+        return exporter(TestLibraryServices.savedImages(tempDir.resolve("library-images"), new LibraryEvents()));
+    }
+
+    /*  an exporter on the saved images of a library  */
+    private static ConfigurationExporter exporter(SavedImageService savedImages) {
         PromptBlockService blocks = TestLibraryServices.blocks();
         ColorStyleService palettes = TestLibraryServices.palettes();
         return new ConfigurationExporter(blocks, palettes, TestLibraryServices.moods(blocks, palettes),
-                TestLibraryServices.frames());
+                TestLibraryServices.frames(), savedImages);
+    }
+
+    /*  an image file of a color, so each color is a file of its own content  */
+    private static Path image(String name, Color color) throws Exception {
+        Path file = tempDir.resolve(name);
+        BufferedImage image = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < 40; x++)
+            for (int y = 0; y < 20; y++)
+                image.setRGB(x, y, color.getRGB());
+        ImageIO.write(image, "png", file.toFile());
+        return file;
     }
 }
