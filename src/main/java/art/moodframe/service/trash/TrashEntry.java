@@ -9,7 +9,7 @@ import java.util.List;
  * @param id        the ID of the item within its group
  * @param name      the name of the item
  * @param deletedAt when the item was moved to the trash; for an item with parts when its first part was
- * @param context   what the row tells besides the name, in the language of the user
+ * @param context   what the row tells besides the name, in the language asked for (see {@link TrashGroup#list})
  * @param parts     what of the item leaves the trash on its own, like the images of an entry; empty for none
  * @since 2.0.0
  */

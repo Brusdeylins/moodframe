@@ -5,6 +5,7 @@ import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The frames in the central trash, each with its model, resolution, aspect ratio and image count.
@@ -30,7 +31,7 @@ public class FrameTrashGroup implements TrashGroup {
     }
 
     @Override
-    public List<TrashEntry> list() {
+    public List<TrashEntry> list(Locale locale) {
         return frameService.getDeleted().stream().map((Frame frame) -> new TrashEntry(frame.getId(), frame.getName(),
                 frame.getDeletedAt(), FrameService.describe(frame))).toList();
     }

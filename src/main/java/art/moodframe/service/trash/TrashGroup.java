@@ -1,6 +1,9 @@
 package art.moodframe.service.trash;
 
+import art.moodframe.util.I18nManager;
+
 import java.util.List;
+import java.util.Locale;
 
 /**
  * One group of the central trash: it lists what is deleted and takes it out again, back into use or for good.
@@ -23,11 +26,45 @@ public interface TrashGroup {
     Kind kind();
 
     /**
-     * Lists the deleted items.
+     * Lists the deleted items, with their context in the language of the user interface.
      *
      * @return the items in the trash, the latest deletion first
      */
-    List<TrashEntry> list();
+    default List<TrashEntry> list() {
+        return list(null);
+    }
+
+    /**
+     * Lists the deleted items.
+     *
+     * @param locale the language of the context, e.g. English for the MCP clients, with the numbers of
+     *               {@link Locale#ROOT}; null for the language of the user interface
+     * @return the items in the trash, the latest deletion first
+     */
+    List<TrashEntry> list(Locale locale);
+
+    /**
+     * Gets a text of the context of an item, see {@link #list(Locale)}.
+     *
+     * @param locale    the language, null for that of the user interface
+     * @param key       the key of the text
+     * @param arguments the arguments of the text
+     * @return the text
+     */
+    static String text(Locale locale, String key, Object... arguments) {
+        return locale != null ? I18nManager.getTextIn(locale, key, arguments) : I18nManager.getText(key, arguments);
+    }
+
+    /**
+     * Formats a cost in US dollars for the context of an item, see {@link #list(Locale)}.
+     *
+     * @param locale the language, null for that of the user interface
+     * @param cost   the cost
+     * @return the cost with two decimals
+     */
+    static String cost(Locale locale, double cost) {
+        return locale != null ? String.format(Locale.ROOT, "%.2f", cost) : String.format("%.2f", cost);
+    }
 
     /**
      * Takes an item out of the trash, back into use.

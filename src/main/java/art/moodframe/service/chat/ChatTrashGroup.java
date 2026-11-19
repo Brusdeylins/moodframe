@@ -7,13 +7,13 @@ import art.moodframe.repository.ChatRepository;
 import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
-import art.moodframe.util.I18nManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The chats in the central trash. It builds on the soft delete of the {@link ChatTrashRepository}: a deleted chat
@@ -47,10 +47,11 @@ public class ChatTrashGroup implements TrashGroup {
     /**
      * Lists the deleted chats with the number of their images and their cost.
      *
+     * @param locale the language of the context, null for that of the user interface
      * @return the chats in the trash, the latest deletion first
      */
     @Override
-    public List<TrashEntry> list() {
+    public List<TrashEntry> list(Locale locale) {
         List<TrashEntry> entries = new ArrayList<>();
         try {
             for (Chat chat : chatRepository.findDeletedChats()) {
@@ -61,9 +62,9 @@ public class ChatTrashGroup implements TrashGroup {
                 /*  The total of the chat header: all it cost, deleted entries and images included  */
                 double cost = ChatCost.total(chatEntries, chat.getDeletedCost());
 
-                entries.add(new TrashEntry(chat.getId(), chat.getName(), chat.getDeletedAt(), I18nManager.getText(
+                entries.add(new TrashEntry(chat.getId(), chat.getName(), chat.getDeletedAt(), TrashGroup.text(locale,
                         images == 1 ? "trash.context.chat.singular" : "trash.context.chat.plural",
-                        images, String.format("%.2f", cost))));
+                        images, TrashGroup.cost(locale, cost))));
             }
         } catch (SQLException e) {
             logger.error("Failed to list the deleted chats", e);

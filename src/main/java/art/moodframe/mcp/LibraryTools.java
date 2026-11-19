@@ -362,7 +362,7 @@ class LibraryTools {
         ObjectNode result = McpTools.JSON.createObjectNode();
         for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
             ArrayNode list = result.putArray(kind.name().toLowerCase(Locale.ROOT));
-            for (TrashEntry entry : trash.list(kind)) {
+            for (TrashEntry entry : trash.list(kind, Locale.ENGLISH)) {
                 ObjectNode node = list.addObject().put("id", entry.id()).put("name", entry.name())
                         .put("deletedAt", McpTools.time(entry.deletedAt())).put("context", entry.context());
                 node.set("parts", McpTools.JSON.valueToTree(entry.parts().stream().map(TrashEntry.Part::id).toList()));

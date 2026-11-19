@@ -8,7 +8,6 @@ import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.service.trash.TrashManager;
-import art.moodframe.util.I18nManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -67,10 +67,11 @@ public class ImageTrashGroup implements TrashGroup {
      * Lists the entries with deleted images: the beginning of the prompt, the chat, the number of the deleted
      * images and what they had cost.
      *
+     * @param locale the language of the context, null for that of the user interface
      * @return the entries in the trash, the latest deletion first
      */
     @Override
-    public List<TrashEntry> list() {
+    public List<TrashEntry> list(Locale locale) {
         List<TrashEntry> entries = new ArrayList<>();
         try {
             Map<String, String> chatNames = new HashMap<>();
@@ -86,10 +87,10 @@ public class ImageTrashGroup implements TrashGroup {
                 LocalDateTime deletedAt = parts.stream().map(TrashEntry.Part::deletedAt).filter(Objects::nonNull)
                         .min(Comparator.naturalOrder()).orElse(entry.getDeletedAt());
 
-                entries.add(new TrashEntry(entry.getId(), prompt(entry), deletedAt, I18nManager.getText(
+                entries.add(new TrashEntry(entry.getId(), prompt(entry), deletedAt, TrashGroup.text(locale,
                         parts.size() == 1 ? "trash.context.images.singular" : "trash.context.images.plural",
-                        chatNames.get(entry.getChatId()), parts.size(), String.format("%.2f", entry.getDeletedCost())),
-                        parts));
+                        chatNames.get(entry.getChatId()), parts.size(),
+                        TrashGroup.cost(locale, entry.getDeletedCost())), parts));
             }
         } catch (SQLException e) {
             logger.error("Failed to list the deleted images", e);

@@ -4,7 +4,6 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
-import art.moodframe.util.I18nManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,26 +43,27 @@ public class BlockTrashGroup implements TrashGroup {
     /**
      * Lists the deleted blocks with their type and the number of moods that use them.
      *
+     * @param locale the language of the context, null for that of the user interface
      * @return the blocks in the trash, the latest deletion first
      */
     @Override
-    public List<TrashEntry> list() {
+    public List<TrashEntry> list(Locale locale) {
         List<TrashEntry> entries = new ArrayList<>();
         for (PromptBlock block : blocks.getDeleted())
             entries.add(new TrashEntry(block.getId(), block.getName(), block.getDeletedAt(),
-                    context(block.getType().name().toLowerCase(Locale.ROOT), block.getId())));
+                    context(locale, block.getType().name().toLowerCase(Locale.ROOT), block.getId())));
         for (ColorStyle palette : palettes.getDeletedStyles())
             entries.add(new TrashEntry(palette.getId(), palette.getName(), palette.getDeletedAt(),
-                    context("palette", palette.getId())));
+                    context(locale, "palette", palette.getId())));
         entries.sort(Comparator.comparing(TrashEntry::deletedAt, Comparator.nullsLast(Comparator.reverseOrder())));
         return entries;
     }
 
     /*  the type of the block, plus the number of moods that use it  */
-    private String context(String type, String id) {
-        String typeName = I18nManager.getText("block.type." + type);
+    private String context(Locale locale, String type, String id) {
+        String typeName = TrashGroup.text(locale, "block.type." + type);
         int moods = usage != null ? usage.moodsUsing(id).size() : 0;
-        return moods == 0 ? typeName : I18nManager.getText(
+        return moods == 0 ? typeName : TrashGroup.text(locale,
                 moods == 1 ? "trash.context.block.singular" : "trash.context.block.plural", typeName, moods);
     }
 
