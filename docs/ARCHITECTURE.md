@@ -66,11 +66,11 @@ Allowed dependency directions:
   registered with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
-- `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
-  depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
-  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
-  `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
-  do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
+- `ArchitectureTest` checks these directions (a new top-level package fails until it gets its rules), the order of
+  the service subpackages below, that no packages depend on each other in a cycle, that `model` (besides the known
+  deviation), `util` and `service.chat` need no JavaFX, that `service.generation.FxModel` is the only class of
+  `service` that uses JavaFX, that no class outside `ui` and the root uses the `ServiceFactory` (besides itself) and
+  in `ui` only `MainWindowController` and `SettingsController` do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
   `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
   that the chat clients of Gemini and OpenAI use no class of each other (D6), from the imports and fully qualified
   names of `src/main/java`.
@@ -236,7 +236,7 @@ the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the l
 `RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
 `GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
 I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.
-No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
+No class outside `ui` and the root uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
 services, not in the wiring: `MoodService.followTrash` lets the moods lose the blocks deleted for good in the trash.

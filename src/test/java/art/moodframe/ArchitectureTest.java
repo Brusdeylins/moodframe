@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
- * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
- * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
- * interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
+ * checks which package uses which (a top-level package without rules fails), that no packages depend on each other
+ * in a cycle, that model, util and service.chat need no JavaFX, that no layer below the user interface looks up the
+ * services it uses in the locator, that in the user interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
  * uses, that no class imports a package of the application with a wildcard, that the chat clients of Gemini and
  * OpenAI do not use each other and that the generation and the image clients render no message themselves.
  */
@@ -110,9 +110,15 @@ class ArchitectureTest {
         List<String> violations = new ArrayList<>();
         uses.forEach((String pkg, Set<String> targets) -> {
             String layer = layerOf(pkg);
+
+            /*  the root is the composition root and may use everything; a layer of its own needs its rules  */
+            if (layer.isEmpty())
+                return;
             Set<String> allowed = ALLOWED.get(layer);
-            if (allowed == null)
-                return;  // the root is the composition root and may use everything
+            if (allowed == null) {
+                violations.add(pkg + ": a layer without rules in ALLOWED");
+                return;
+            }
             for (String target : targets) {
                 String targetLayer = layerOf(target);
                 if (!targetLayer.equals(layer) && !allowed.contains(targetLayer))
@@ -195,13 +201,14 @@ class ArchitectureTest {
     }
 
     @Test
-    void theServicesAndTheMcpServerGetTheirDependenciesInjected() {
+    void noLayerBelowTheUserInterfaceUsesTheLocator() {
         List<String> lookups = new ArrayList<>();
         locator.forEach((String pkg, Set<String> classes) -> {
-            if (layerOf(pkg).equals("service") || layerOf(pkg).equals("mcp"))
+            if (!pkg.isEmpty() && !layerOf(pkg).equals("ui"))
                 classes.forEach((String name) -> lookups.add(pkg + "." + name));
         });
-        assertEquals(List.of(), lookups, "no service looks up another in the ServiceFactory");
+        lookups.remove("config.ServiceFactory");
+        assertEquals(List.of(), lookups, "only the composition root and the coordinators use the ServiceFactory");
     }
 
     @Test
