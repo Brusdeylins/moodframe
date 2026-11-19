@@ -5,7 +5,7 @@ import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.binding.DoubleBinding;

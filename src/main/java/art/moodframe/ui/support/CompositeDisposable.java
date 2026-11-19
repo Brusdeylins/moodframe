@@ -112,24 +112,6 @@ public class CompositeDisposable implements Disposable {
     }
     
     /**
-     * Removes and unsubscribes a subscription from this composite.
-     * 
-     * @param subscription the subscription to remove and unsubscribe
-     * @return true if the subscription was removed, false otherwise
-     */
-    public boolean removeAndUnsubscribe(Subscription subscription) {
-        if (subscription == null) {
-            return false;
-        }
-        
-        boolean removed = remove(subscription);
-        if (removed || subscriptions.contains(subscription)) {
-            subscription.unsubscribe();
-        }
-        return removed;
-    }
-    
-    /**
      * Returns the number of active (non-disposed) subscriptions.
      * 
      * @return the number of subscriptions

@@ -1,9 +1,6 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.service.library.BlockUsage;
-import art.moodframe.service.trash.TrashCenter;
-import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
@@ -142,6 +139,8 @@ public class BlockManageDialog<T> extends Dialog<Void> {
     private final Library<T> library;
     private final String fileName;
     private final ListView<T> list = new ListView<>();
+    private final BlockUsage usage;
+    private final TrashWindow.Opener trash;
 
     /**
      * Creates the dialog.
@@ -151,11 +150,15 @@ public class BlockManageDialog<T> extends Dialog<Void> {
      * @param fileName the suggested name of an export file
      * @param library  the entries of the user
      * @param cells    draws an entry
+     * @param usage    names the moods that use a block, before it is deleted
+     * @param trash    opens the trash on the blocks
      */
     public BlockManageDialog(Window owner, String title, String fileName, Library<T> library,
-            Callback<ListView<T>, ListCell<T>> cells) {
+            Callback<ListView<T>, ListCell<T>> cells, BlockUsage usage, TrashWindow.Opener trash) {
         this.library = library;
         this.fileName = fileName;
+        this.usage = usage;
+        this.trash = trash;
 
         initOwner(owner);
         setTitle(title);
@@ -254,7 +257,6 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         if (entry == null)
             return;
 
-        BlockUsage usage = ServiceFactory.getInstance().getService(BlockUsage.class);
         List<String> moods = usage != null ? usage.moodsUsing(library.id(entry)) : List.of();
         Alert alert = new Alert(moods.isEmpty() ? Alert.AlertType.CONFIRMATION : Alert.AlertType.WARNING);
         alert.initOwner(getDialogPane().getScene().getWindow());
@@ -311,10 +313,7 @@ public class BlockManageDialog<T> extends Dialog<Void> {
 
     /*  the trash on its blocks; what is restored there shows up here once the trash is closed  */
     private void openTrash() {
-        TrashWindow window = new TrashWindow(getDialogPane().getScene().getWindow(),
-                ServiceFactory.getInstance().getService(TrashCenter.class),
-                ServiceFactory.getInstance().getService(TrashCleanupService.class));
-        window.select(TrashGroup.Kind.BLOCKS, null);
+        TrashWindow window = trash.window(getDialogPane().getScene().getWindow(), TrashGroup.Kind.BLOCKS, null);
         window.setOnHidden((event) -> reload(null));
         window.show();
     }

@@ -25,7 +25,8 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
 |              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.support` the   |
 |              | helpers that need JavaFX or the desktop: themes, videos, opening files and web pages,   |
-|              | listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`)    |
+|              | listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`,    |
+|              | `ListReorder`, `BoxInset`; the root holds only `SplashScreen`, shown before the window) |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -57,8 +58,13 @@ Allowed dependency directions:
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 - `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
   depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
-  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, and that no class of
-  `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names of `src/main/java`.
+  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
+  `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
+  do, the order of the parts of `ui` (below) and that no class imports a package of the application with a
+  wildcard, from the imports and fully qualified names of `src/main/java`.
+- The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
+  `ui.cell`, `ui.dialog`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
+  `ui.controller` on top, so no view uses a controller.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -138,7 +144,17 @@ was added with; the views add theirs with `ui.support.FxLibraryEvents`, which pa
   thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
 - **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
   the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
-  held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files.
+  held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files. The full view
+  decodes a full-size image in the background (`new Image(url, true)`), keeps the image shown before until it is done
+  and then fits zoom and pan to its pixel size; the previews of the attachments and of "Mood from image" load in the
+  background as well.
+- **Views and the chat models**: a view reads the entries and images of a chat as a copy taken under the lock
+  (`ChatLibrary.entriesOf`, `imagesOf`), and a list listener copies what it needs out of the change on the thread of
+  the change before it hands its work to the JavaFX thread.
+- **Language**: a view registers with `ui.support.FxI18n` and leaves when it closes: a dialog or a window with
+  `FxI18n.addChangeListener(listener, dialog)` or `(listener, node)`, which removes the listener when it is hidden,
+  the main window in its `dispose()`; a closed dialog stays reachable from nowhere (`SettingsDialogTest` checks the
+  number of listeners).
 
 ## Dependency injection
 
@@ -159,10 +175,12 @@ the startup calls after the registration: `PromptBlockService`, `ColorStyleServi
 palette or mood of the user that is named like a standard one the next free name, as a new version may bring new
 standard names (so this is no one-time migration); the moods last, as they refer to blocks and palettes.
 
-The locator is left to the user interface: the coordinators `MainWindowController` and `SettingsController` look up
-the services once and hand them to their parts; some dialogs and components (the managers of moods, frames and
-blocks, the trash window, the entry cards and the images view, the full view, the brainstorm dialog, `ThemeManager`)
-still look up what they need themselves (see "The main window").
+The locator is left to the coordinators of the user interface: `MainWindowController` and `SettingsController` look
+up the services once and hand them to their parts, which hand them on to the dialogs and components they open
+(`ArchitectureTest`): the managers and editors of moods, frames, blocks and palettes take their services in the
+constructor, the trash windows open through `TrashWindow.Opener`, the entry cards and the images view get the
+thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
+`MoodframeApplication` hands `ThemeManager` the configuration at the start.
 
 ## The main window
 
@@ -198,10 +216,15 @@ and the account checks, the timelines of the memory display and the clipboard wa
 stays reachable from nowhere.
 
 `MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog) can show the same
-fields: it takes its services as `MoodFramePanelController.Services`, follows the chosen model with `followModel`,
-tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`, `chooseFrame`,
-`setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
-`Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on.
+fields: it takes its services as `MoodFramePanelController.Services` (with the trash), follows the chosen model with
+`followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
+`chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
+`Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on. It
+keeps the moods and hands the rest to parts on its nodes: `BlockChoices` (the building block fields with their
+favorites, locks and dialogs) and `FrameGroup` (frame, aspect ratio, resolution and the hints of the model).
+`GenerationPanelController` likewise hands the attached images to `GenerationAttachments` and the fields of BFL and
+Gemini to `ProviderParameters`; `ChatEntryCard` loads the pictures of its tiles with `EntryTilePictures` and builds
+its context menus with `EntryMenus`.
 
 ## Settings dialog
 
@@ -215,8 +238,9 @@ in the `ServiceFactory` and hands them to every section as `SettingsServices` (c
 sections, and passes "Save", reload, reset and a change of the language on to all of them; the main window calls
 `applySettings()` when the dialog closes. Every connection test runs through `ConnectionTest.run` on a worker and
 tests a typed key with a copy of the live client (`ImageProvider.testConnection(apiKey, endpoint)`), so neither the
-live client nor the saved key changes until "Save". `SettingsPrompts` wraps the message boxes and file choosers, so
-`SettingsDialogTest` clicks through the dialog off-screen.
+live client nor the saved key changes until "Save". A status shown from an i18n key keeps the key, so a change of the
+language relabels it. The dialog follows the language until its window closes. `SettingsPrompts` wraps the message
+boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-screen.
 
 ## Folders and settings
 

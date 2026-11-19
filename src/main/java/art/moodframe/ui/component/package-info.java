@@ -3,10 +3,12 @@
  *
  * <p>Main classes:</p>
  * <ul>
- * <li>{@link ChatEntryCard}: one chat entry with its prompt, settings and images</li>
+ * <li>{@link ChatEntryCard}: one chat entry with its prompt, settings and images, the pictures of its tiles from
+ * {@link EntryTilePictures} and its context menus from {@link EntryMenus}; the thumbnails come as
+ * {@link ImageSources}</li>
  * <li>{@link ImageGrid}: the images of a chat or a group in a grid</li>
  * <li>{@link ImagePreviewOverlay}: the large preview of an image or video</li>
- * <li>{@link MultiImageAttachmentPanel}: the attached reference images</li>
+ * <li>{@link MultiImageAttachmentPanel}: the attached reference images, each in an {@link ImageSlot}</li>
  * <li>{@link FavoriteStar}: the favorite star of a row</li>
  * <li>{@link DialogButtons}: the standard dialog buttons in the language of the app</li>
  * <li>{@link MoodChoice}: an entry of the mood selection; likewise {@link FrameChoice} and {@link BlockChoice}</li>

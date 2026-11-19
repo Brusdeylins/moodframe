@@ -10,12 +10,12 @@ import art.moodframe.model.MoodGroup;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ModelLock;
-import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.ImageGrid;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -206,6 +206,18 @@ public class ChatViewController {
             side bearing of its letters, the view switch ends on their right edge  */
         chatHeader.setPadding(new javafx.geometry.Insets(chatHeader.getPadding().getTop(), BoxInset.RIGHT,
                 chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
+    }
+
+    /*  the thumbnails and the size check of the images, handed by the main window before init  */
+    private art.moodframe.ui.component.ImageSources imageSources = art.moodframe.ui.component.ImageSources.NONE;
+
+    /**
+     * Sets where the cards and the images view get the pictures of the images; call it before {@link #init}.
+     *
+     * @param sources the thumbnails and the size check
+     */
+    public void useImageSources(art.moodframe.ui.component.ImageSources sources) {
+        this.imageSources = sources;
     }
 
     /**
@@ -664,7 +676,8 @@ public class ChatViewController {
                     // Create new ChatEntryCard for this entry
                     // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
                     boolean isChatDeleted = group.get() == null && chat.get() != null && chat.get().isDeleted();
-                    currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory);
+                    currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory,
+                            imageSources);
                     shownCards.add(currentCard);
 
                     // CRITICAL: Card must also fill width
@@ -728,7 +741,7 @@ public class ChatViewController {
      * of the images both views share; view and size are remembered for all chats and groups.
      */
     private void setupImagesView() {
-        imageGrid = new ImageGrid(this::shownImagePath);
+        imageGrid = new ImageGrid(this::shownImagePath, imageSources);
         imageGrid.setVisible(false);
         chatAreaStackPane.getChildren().add(chatAreaStackPane.getChildren().indexOf(chatEntriesListView) + 1,
                 imageGrid);
@@ -1010,7 +1023,7 @@ public class ChatViewController {
     private void setupImagePreviewOverlay(StackPane overlayHost) {
         try {
             // Create and configure the image preview overlay
-            imagePreviewOverlay = new art.moodframe.ui.component.ImagePreviewOverlay();
+            imagePreviewOverlay = new art.moodframe.ui.component.ImagePreviewOverlay(config);
 
             // Add overlay to the main stack pane (covers entire window except header)
             overlayHost.getChildren().add(imagePreviewOverlay);

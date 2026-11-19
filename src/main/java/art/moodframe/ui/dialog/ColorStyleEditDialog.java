@@ -10,7 +10,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.ui.component.ColorBox;
@@ -67,17 +66,18 @@ public class ColorStyleEditDialog extends Dialog<ColorStyleEditDialog.ColorStyle
      * Creates a new ColorStyleEditDialog for a palette.
      *
      * @param style the palette to edit, null for a new one
+     * @param colorStyleService checks that the name is free
      */
-    public ColorStyleEditDialog(ColorStyle style) {
+    public ColorStyleEditDialog(ColorStyle style, ColorStyleService colorStyleService) {
         String initialName = style != null ? style.getName() : "";
         List<String> initialColors = style != null ? style.getColors() : null;
         this.isEdit = style != null;
         this.originalName = initialName;
         this.colorPickers = new ColorPickerBox[5];
-        this.colorStyleService = ServiceFactory.getInstance().getService(ColorStyleService.class);
+        this.colorStyleService = colorStyleService;
 
-        // Register for i18n updates
-        FxI18n.addChangeListener(this);
+        // Register for i18n updates until the dialog closes
+        FxI18n.addChangeListener(this, this);
 
         /*  A new palette and a palette of the user are saved, a default palette only as a new one: then "As New
             Entry" is the main button, else it stands at the far left  */

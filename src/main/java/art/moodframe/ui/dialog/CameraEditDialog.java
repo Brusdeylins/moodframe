@@ -19,7 +19,6 @@ import javafx.scene.shape.Line;
 import javafx.scene.text.TextAlignment;
 import org.kordamp.ikonli.javafx.FontIcon;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Body;
@@ -147,14 +146,16 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
      * Creates the dialog.
      *
      * @param block the camera to edit, null for a new one
+     * @param blockService checks that the name is free
      */
-    public CameraEditDialog(PromptBlock block) {
+    public CameraEditDialog(PromptBlock block, PromptBlockService blockService) {
         this.block = block;
-        this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
+        this.blockService = blockService;
         CameraSettings settings = (block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY)
                 .withoutConflicts();
 
-        FxI18n.addChangeListener(this);
+        /*  a closed dialog no longer follows the language, so it and its pictures are released  */
+        FxI18n.addChangeListener(this, this);
 
         /*  A new camera and a camera of the user are saved, a standard camera only as a new one: then "As New Entry"
             is the main button, else it stands at the far left  */
@@ -285,9 +286,6 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
         for (ToggleGroup group : List.of(perspectiveGroup, shotGroup))
             group.selectedToggleProperty().addListener((obs, oldVal, newVal) -> update());
         update();
-
-        /*  a closed dialog no longer follows the language, so it and its pictures are released  */
-        setOnHidden((event) -> I18nManager.removeChangeListener(this));
 
         validateName(nameField.getText().trim());
         nameField.textProperty().addListener((obs, oldText, newText) -> validateName(newText.trim()));

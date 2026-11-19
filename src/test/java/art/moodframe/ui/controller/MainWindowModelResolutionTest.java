@@ -1,7 +1,5 @@
 package art.moodframe.ui.controller;
 
-import art.moodframe.service.generation.ModelLabels;
-import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
@@ -11,12 +9,16 @@ import art.moodframe.model.EntryFrame;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.TestLibraryServices;
+import art.moodframe.service.provider.MockProviders;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -91,6 +93,9 @@ class MainWindowModelResolutionTest {
         ChatLibrary chats = new ChatLibrary(null, events);
         chats.load();
         register(ChatLibrary.class, chats);
+
+        /*  tells the prompt limits of the models, as the providers know them  */
+        register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing()));
         register(ImageAttachmentService.class, new ImageAttachmentService());
     }
 

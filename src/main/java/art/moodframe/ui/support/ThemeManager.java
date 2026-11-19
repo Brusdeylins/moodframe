@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import atlantafx.base.theme.*;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 
 /**
  * Utility class for managing AtlantaFX themes in the application.
@@ -36,6 +35,18 @@ import art.moodframe.config.ServiceFactory;
 public class ThemeManager {
     
     private static final Logger logger = LoggerFactory.getLogger(ThemeManager.class);
+
+    /*  remembers the chosen theme, handed by MoodframeApplication at the start (null: the default theme)  */
+    private static volatile ApplicationConfig config;
+
+    /**
+     * Sets the configuration that remembers the chosen theme; the application calls it once at the start.
+     *
+     * @param applicationConfig the configuration (may be null: nothing is remembered)
+     */
+    public static void useConfig(ApplicationConfig applicationConfig) {
+        config = applicationConfig;
+    }
 
     /*  notified with the theme name after a theme was applied (on the FX thread, once the styles are in place)  */
     private static final java.util.List<java.util.function.Consumer<String>> listeners =
@@ -151,15 +162,12 @@ public class ThemeManager {
      * @return true if theme was changed successfully
      */
     public static boolean changeTheme(String themeName) {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         logger.debug("Changing theme to: {}", themeName);
         
         if (applyTheme(themeName)) {
             // Save theme preference
             try {
-                if (config == null) {
-                    config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-                }
+                ApplicationConfig config = ThemeManager.config;
                 if (config != null) {
                     config.ui().setUiTheme(themeName);
                     logger.debug("Theme preference saved: {}", themeName);
@@ -180,7 +188,7 @@ public class ThemeManager {
      */
     public static String getCurrentTheme() {
         try {
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+            ApplicationConfig config = ThemeManager.config;
             if (config != null) {
                 return config.ui().getUiTheme();
             }
@@ -205,16 +213,6 @@ public class ThemeManager {
             "cupertino-dark",
             "dracula"
         };
-    }
-    
-    /**
-     * Checks if a theme name is valid.
-     * 
-     * @param themeName the theme name to validate
-     * @return true if the theme exists
-     */
-    public static boolean isValidTheme(String themeName) {
-        return getAtlantaFXTheme(themeName) != null;
     }
     
     /**
@@ -290,51 +288,5 @@ public class ThemeManager {
         } else {
             return "primer-light"; // Default light theme
         }
-    }
-    
-    /**
-     * Applies theme based on system preference if not already applied.
-     * 
-     * @return true if theme was changed, false if already matching
-     */
-    public static boolean applySystemPreferredTheme() {
-        String preferredTheme = getSystemPreferredTheme();
-        String currentTheme = getCurrentTheme();
-        
-        if (!preferredTheme.equals(currentTheme)) {
-            logger.debug("Applying system-preferred theme: {} (was: {})", preferredTheme, currentTheme);
-            return changeTheme(preferredTheme);
-        }
-        
-        return false; // No change needed
-    }
-    
-    /**
-     * Demonstrates theme switching by cycling through all available themes.
-     * This method is useful for testing and demonstration purposes.
-     * 
-     * @return the name of the next theme that was applied
-     */
-    public static String cycleToNextTheme() {
-        String currentTheme = getCurrentTheme();
-        String[] themes = getAvailableThemes();
-        
-        // Find current theme index
-        int currentIndex = 0;
-        for (int i = 0; i < themes.length; i++) {
-            if (themes[i].equals(currentTheme)) {
-                currentIndex = i;
-                break;
-            }
-        }
-        
-        // Get next theme (cycle back to 0 if at end)
-        int nextIndex = (currentIndex + 1) % themes.length;
-        String nextTheme = themes[nextIndex];
-        
-        changeTheme(nextTheme);
-        logger.debug("Cycled from '{}' to '{}' theme", currentTheme, nextTheme);
-        
-        return nextTheme;
     }
 }

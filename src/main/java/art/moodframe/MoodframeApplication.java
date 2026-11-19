@@ -689,6 +689,7 @@ public class MoodframeApplication extends Application {
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        ThemeManager.useConfig(config);
         String configuredTheme = config.ui().getUiTheme();
 
         // Check if user has explicitly set a theme preference

@@ -67,7 +67,6 @@ public class DragDropHandler {
 
     private Consumer<AttachedImage> onImageAttached;
     private Consumer<String> onError;
-    private Consumer<DragState> onStateChanged;
 
     /**
      * Creates a new DragDropHandler.
@@ -105,15 +104,6 @@ public class DragDropHandler {
         dropTarget.setOnDragExited(this::handleDragExited);
         
         logger.info("Drag and drop initialized for image attachments");
-    }
-    
-    /**
-     * Sets the state change callback.
-     * 
-     * @param onStateChanged callback for state changes
-     */
-    public void setOnStateChanged(Consumer<DragState> onStateChanged) {
-        this.onStateChanged = onStateChanged;
     }
     
     /**
@@ -294,11 +284,6 @@ public class DragDropHandler {
             if (!state.getCssClass().isEmpty()) {
                 dropTarget.getStyleClass().add(state.getCssClass());
             }
-            
-            // Notify state change listener
-            if (onStateChanged != null) {
-                onStateChanged.accept(state);
-            }
         });
         
         logger.debug("Visual state updated to: {}", state);
@@ -355,24 +340,10 @@ public class DragDropHandler {
     }
     
     /**
-     * Gets the current drag state.
-     */
-    public DragState getCurrentState() {
-        return currentState;
-    }
-    
-    /**
      * Checks if drag is currently over the target.
      */
     public boolean isDragOver() {
         return isDragOver.get();
-    }
-    
-    /**
-     * Gets the drag over property for binding.
-     */
-    public BooleanProperty dragOverProperty() {
-        return isDragOver;
     }
     
     /**

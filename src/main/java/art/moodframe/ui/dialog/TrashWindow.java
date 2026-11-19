@@ -1,6 +1,5 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashEntry;
@@ -98,17 +97,38 @@ public class TrashWindow extends Stage {
     }
 
     /**
-     * Opens the trash on the tab of a kind.
+     * Opens the trash windows: the central trash with how long an item stays there, handed from the coordinator of a
+     * window to its parts.
      *
-     * @param owner   the owner window
-     * @param kind    the group to show
-     * @param entryId the ID of the item to mark, or null for none
+     * @param center  the central trash with its groups
+     * @param cleanup knows how long an item stays in the trash
      */
-    public static void open(Window owner, TrashGroup.Kind kind, String entryId) {
-        TrashWindow window = new TrashWindow(owner, ServiceFactory.getInstance().getService(TrashCenter.class),
-                ServiceFactory.getInstance().getService(TrashCleanupService.class));
-        window.select(kind, entryId);
-        window.show();
+    public record Opener(TrashCenter center, TrashCleanupService cleanup) {
+
+        /**
+         * Creates the trash on the tab of a kind, not shown yet.
+         *
+         * @param owner   the owner window
+         * @param kind    the group to show
+         * @param entryId the ID of the item to mark, or null for none
+         * @return the window
+         */
+        public TrashWindow window(Window owner, TrashGroup.Kind kind, String entryId) {
+            TrashWindow window = new TrashWindow(owner, center, cleanup);
+            window.select(kind, entryId);
+            return window;
+        }
+
+        /**
+         * Opens the trash on the tab of a kind.
+         *
+         * @param owner   the owner window
+         * @param kind    the group to show
+         * @param entryId the ID of the item to mark, or null for none
+         */
+        public void open(Window owner, TrashGroup.Kind kind, String entryId) {
+            window(owner, kind, entryId).show();
+        }
     }
 
     /**

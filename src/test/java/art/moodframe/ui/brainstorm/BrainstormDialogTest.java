@@ -34,7 +34,6 @@ import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -79,7 +78,7 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                new BrainstormDialog(null, service, context,
+                new BrainstormDialog(null, null, service, context,
                         ModelLabels.displayName(GenerationModel.OMNI_720P), result -> { });
             } catch (Throwable t) {
                 failure.set(t);
@@ -111,7 +110,7 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                BrainstormDialog dialog = new BrainstormDialog(null, service, context,
+                BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
                         ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
                 dialog.getScene().getRoot().applyCss();
                 dialog.getScene().getRoot().layout();
@@ -155,7 +154,7 @@ class BrainstormDialogTest {
                 List<String> found = new ArrayList<>();
                 for (String theme : ThemeManager.getAvailableThemes()) {
                     Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
-                    BrainstormDialog dialog = new BrainstormDialog(null, service, context,
+                    BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
                             ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
                     Region root = (Region) dialog.getScene().getRoot();
                     root.applyCss();
@@ -219,7 +218,7 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                BrainstormDialog dialog = new BrainstormDialog(null, service, context,
+                BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
                         ModelLabels.displayName(GenerationModel.FLUX2_PRO), adopted::set);
                 dialog.getScene().getRoot().applyCss();
                 checks.set(dialog.getScene().getRoot().lookupAll(".check-box").stream()
@@ -267,49 +266,30 @@ class BrainstormDialogTest {
                 "Target model: x");
 
         /*  Gemini has a key but no web search: only OpenAI is offered, so there is nothing to choose  */
-        Map<Class<?>, Object> services = services();
-        Object realConfig = services.get(art.moodframe.config.ApplicationConfig.class);
-        art.moodframe.config.ServiceFactory.getInstance().registerService(art.moodframe.config.ApplicationConfig.class,
-                config);
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<List<String>> items = new AtomicReference<>();
         AtomicReference<Boolean> disabled = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
-        try {
-            Platform.runLater(() -> {
-                try {
-                    BrainstormDialog dialog = new BrainstormDialog(null, service, context,
-                            ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
-                    Field engineBox = BrainstormDialog.class.getDeclaredField("engineBox");
-                    engineBox.setAccessible(true);
-                    ComboBox<?> box = (ComboBox<?>) engineBox.get(dialog);
-                    items.set(box.getItems().stream().map(String::valueOf).toList());
-                    disabled.set(box.isDisabled());
-                } catch (Throwable t) {
-                    failure.set(t);
-                } finally {
-                    done.countDown();
-                }
-            });
-            assertTrue(done.await(20, TimeUnit.SECONDS), "the dialog was not built in time");
-        } finally {
-            if (realConfig != null)
-                services.put(art.moodframe.config.ApplicationConfig.class, realConfig);
-            else
-                services.remove(art.moodframe.config.ApplicationConfig.class);
-        }
+        Platform.runLater(() -> {
+            try {
+                BrainstormDialog dialog = new BrainstormDialog(null, config, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
+                Field engineBox = BrainstormDialog.class.getDeclaredField("engineBox");
+                engineBox.setAccessible(true);
+                ComboBox<?> box = (ComboBox<?>) engineBox.get(dialog);
+                items.set(box.getItems().stream().map(String::valueOf).toList());
+                disabled.set(box.isDisabled());
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+        assertTrue(done.await(20, TimeUnit.SECONDS), "the dialog was not built in time");
         if (failure.get() != null) {
             throw new AssertionError(failure.get());
         }
         assertEquals(List.of(I18nManager.getText("brainstorm.engine.openai", "gpt-x")), items.get());
         assertTrue(disabled.get(), "a single account leaves nothing to choose");
-    }
-
-    /*  the services the factory holds, of which this test takes out again what it put in  */
-    @SuppressWarnings("unchecked")
-    private static Map<Class<?>, Object> services() throws Exception {
-        Field services = art.moodframe.config.ServiceFactory.class.getDeclaredField("services");
-        services.setAccessible(true);
-        return (Map<Class<?>, Object>) services.get(art.moodframe.config.ServiceFactory.getInstance());
     }
 }

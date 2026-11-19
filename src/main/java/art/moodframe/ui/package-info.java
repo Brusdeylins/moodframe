@@ -4,8 +4,7 @@
  *
  * <p>Main classes:</p>
  * <ul>
- * <li>{@link SplashScreen}: the splash screen at startup and the info window</li>
- * <li>{@link BoxInset}: the common inset of the boxes of the main window and the brainstorm dialog</li>
+ * <li>{@link SplashScreen}: the splash screen at startup and the info window, shown before the main window</li>
  * </ul>
  */
 package art.moodframe.ui;

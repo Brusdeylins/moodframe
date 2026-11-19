@@ -235,15 +235,15 @@ class ChatEntryCardTest {
      */
     @Test
     void onlyAnImageOfBflWithASeedOffersItsSeed() {
-        assertTrue(ChatEntryCard.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 42)));
-        assertTrue(ChatEntryCard.offersSeed(image(GenerationModel.FLUX3_IMAGE_1K.getApiModelId(), -7)));
-        assertTrue(ChatEntryCard.offersSeed(image("flux-pro-1.1", 42)), "a former FLUX model");
-        assertFalse(ChatEntryCard.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 0)), "no seed");
-        assertFalse(ChatEntryCard.offersSeed(image(null, 42)), "no model");
+        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 42)));
+        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX3_IMAGE_1K.getApiModelId(), -7)));
+        assertTrue(EntryMenus.offersSeed(image("flux-pro-1.1", 42)), "a former FLUX model");
+        assertFalse(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 0)), "no seed");
+        assertFalse(EntryMenus.offersSeed(image(null, 42)), "no model");
         for (GenerationModel model : List.of(GenerationModel.GEMINI_PRO_2K, GenerationModel.NANO_BANANA2_1K,
                 GenerationModel.OMNI_720P))
-            assertFalse(ChatEntryCard.offersSeed(image(model.getApiModelId(), 42)), model.name());
-        assertFalse(ChatEntryCard.offersSeed(image("gpt-image-1", 42)), "a model of the OpenAI Images API");
+            assertFalse(EntryMenus.offersSeed(image(model.getApiModelId(), 42)), model.name());
+        assertFalse(EntryMenus.offersSeed(image("gpt-image-1", 42)), "a model of the OpenAI Images API");
     }
 
     private static GeneratedImage image(String model, long seed) {

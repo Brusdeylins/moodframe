@@ -134,7 +134,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
         try {
             if (services == null)
                 services = lookUpServices();
-            FxI18n.addChangeListener(this);
+            /*  The language is followed until the window of the dialog closes  */
+            FxI18n.addChangeListener(this, settingsDialogPane);
 
             initializeNavigation();
 

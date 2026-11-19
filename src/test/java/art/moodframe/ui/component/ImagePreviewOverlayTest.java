@@ -2,7 +2,6 @@ package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.MediaSupport;
 import art.moodframe.ui.support.SystemOpen;
@@ -37,6 +36,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -96,6 +94,15 @@ class ImagePreviewOverlayTest {
             started.countDown();
         }
         started.await(10, TimeUnit.SECONDS);
+
+        /*  The tests of the layout measure the image at once; theNextImageIsDecodedInTheBackground checks the
+            loading  */
+        ImagePreviewOverlay.decodeInBackground = false;
+    }
+
+    @AfterAll
+    static void decodeInTheBackgroundAgain() {
+        ImagePreviewOverlay.decodeInBackground = true;
     }
 
     @BeforeEach
@@ -520,7 +527,11 @@ class ImagePreviewOverlayTest {
     /*  The overlay at the size of the area it covers in the main window, with its buttons styled as in the app, as
         their size borders the safe area of the image, and laid out as by a pulse  */
     private static ImagePreviewOverlay overlayOfSize(double width, double height) {
-        ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+        return overlayOfSize(width, height, null);
+    }
+
+    private static ImagePreviewOverlay overlayOfSize(double width, double height, ApplicationConfig config) {
+        ImagePreviewOverlay overlay = new ImagePreviewOverlay(config);
         Scene scene = new Scene(overlay, width, height);
         scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
         overlay.applyCss();
@@ -619,10 +630,60 @@ class ImagePreviewOverlayTest {
     }
 
     @Test
+    void theNextImageIsDecodedInTheBackground() throws Exception {
+        Path first = image(dir, "first.png", 640, 480, 0x202020);
+        Path second = image(dir, "second.png", 1600, 900, 0x404040);
+        ImagePreviewOverlay.decodeInBackground = true;
+        try {
+            ImagePreviewOverlay overlay = onFxThread(() -> {
+                ImagePreviewOverlay created = overlayOfSize(1000, 700);
+                created.showImages(List.of(first.toString(), second.toString()), 0);
+                return created;
+            });
+            try {
+                waitUntilLoaded(overlay);
+                assertEquals(640.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
+
+                /*  the next image comes once it is decoded, and is fitted from its pixel size  */
+                onFxThread(() -> {
+                    press(overlay, KeyCode.RIGHT);
+                    return null;
+                });
+                waitUntilLoaded(overlay);
+                assertEquals(1600.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
+                assertTrue(onFxThread(() -> imageView(overlay).getBoundsInParent().getWidth()) <= 1000.0);
+            }
+            finally {
+                onFxThread(() -> {
+                    overlay.closeOverlay();
+                    return I18nManager.removeChangeListener(overlay);
+                });
+            }
+        }
+        finally {
+            ImagePreviewOverlay.decodeInBackground = false;
+        }
+        assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
+    }
+
+    private static void waitUntilLoaded(ImagePreviewOverlay overlay) throws Exception {
+        for (int i = 0; i < 200 && onFxThread(overlay::isLoading); i++)
+            Thread.sleep(25);
+        assertFalse(onFxThread(overlay::isLoading), "the image is decoded");
+    }
+
+    /*  the view of the images, the largest image view of the overlay  */
+    private static ImageView imageView(ImagePreviewOverlay overlay) {
+        return find(overlay, ImageView.class).stream().filter((ImageView view) -> view.getImage() != null)
+                .max(java.util.Comparator.comparingDouble((ImageView view) -> view.getImage().getWidth()))
+                .orElseThrow();
+    }
+
+    @Test
     void theColorsTurnWhileThePreviewIsShownOnly() throws Exception {
         Path image = image(dir, "image.png", 640, 480, 0x202020);
-        Object realConfig = useConfig(true);
-        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        ApplicationConfig config = config(true);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700, config));
         PreviewFrame frame = onFxThread(() -> frame(overlay));
         try {
             assertFalse(onFxThread(frame::isRunning));
@@ -652,7 +713,6 @@ class ImagePreviewOverlayTest {
             assertTrue(onFxThread(frame::isRunning));
         }
         finally {
-            restoreConfig(realConfig);
             onFxThread(() -> {
                 overlay.closeOverlay();
                 return I18nManager.removeChangeListener(overlay);
@@ -663,8 +723,8 @@ class ImagePreviewOverlayTest {
     @Test
     void switchedOffInTheSettingsTheFrameStandsStill() throws Exception {
         Path image = image(dir, "image.png", 640, 480, 0xffffff);
-        Object realConfig = useConfig(false);
-        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        ApplicationConfig config = config(false);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700, config));
         try {
             PreviewFrame frame = onFxThread(() -> {
                 overlay.showImage(image.toString());
@@ -677,7 +737,6 @@ class ImagePreviewOverlayTest {
             assertEquals(before, onFxThread(frame::getPhase));
         }
         finally {
-            restoreConfig(realConfig);
             onFxThread(() -> {
                 overlay.closeOverlay();
                 return I18nManager.removeChangeListener(overlay);
@@ -1350,27 +1409,10 @@ class ImagePreviewOverlayTest {
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
-    /*  A configuration without file that lets the frame turn or not, instead of what another test left behind  */
-    private static Object useConfig(boolean animated) throws Exception {
-        Object realConfig = services().get(ApplicationConfig.class);
+    /*  A configuration without file that lets the frame turn or not  */
+    private static ApplicationConfig config(boolean animated) {
         ApplicationConfig config = ConfigMocks.config();
         when(config.ui().isPreviewFrameAnimated()).thenReturn(animated);
-        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
-        return realConfig;
-    }
-
-    private static void restoreConfig(Object realConfig) throws Exception {
-        if (realConfig != null)
-            services().put(ApplicationConfig.class, realConfig);
-        else
-            services().remove(ApplicationConfig.class);
-    }
-
-    /*  the services the factory holds, of which this test takes out again what it put in  */
-    @SuppressWarnings("unchecked")
-    private static Map<Class<?>, Object> services() throws Exception {
-        Field services = ServiceFactory.class.getDeclaredField("services");
-        services.setAccessible(true);
-        return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
+        return config;
     }
 }

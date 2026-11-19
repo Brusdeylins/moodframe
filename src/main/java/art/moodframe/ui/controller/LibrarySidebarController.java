@@ -8,10 +8,10 @@ import art.moodframe.model.FrameGroup;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.cell.ChatListCell;
 import art.moodframe.ui.cell.FrameGroupListCell;
-import art.moodframe.ui.cell.ListReorder;
+import art.moodframe.ui.support.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.support.CoalescedLoad;
 import art.moodframe.util.I18nManager;
@@ -127,6 +127,18 @@ public class LibrarySidebarController {
         /*  the heading starts on the inset of the boxes, the line of the names in the list  */
         sidebarHeader.setPadding(new Insets(sidebarHeader.getPadding().getTop(),
                 sidebarHeader.getPadding().getRight(), sidebarHeader.getPadding().getBottom(), BoxInset.LEFT));
+    }
+
+    /*  opens the central trash, handed by the main window (null: no trash)  */
+    private art.moodframe.ui.dialog.TrashWindow.Opener trash;
+
+    /**
+     * Sets what opens the central trash of the button of the sidebar.
+     *
+     * @param trash opens the trash windows
+     */
+    public void useTrash(art.moodframe.ui.dialog.TrashWindow.Opener trash) {
+        this.trash = trash;
     }
 
     /**
@@ -527,8 +539,9 @@ public class LibrarySidebarController {
     @FXML
     private void onTrashClicked() {
         try {
-            art.moodframe.ui.dialog.TrashWindow.open(chatListView.getScene().getWindow(),
-                    art.moodframe.service.trash.TrashGroup.Kind.CHATS, null);
+            if (trash != null)
+                trash.open(chatListView.getScene().getWindow(), art.moodframe.service.trash.TrashGroup.Kind.CHATS,
+                        null);
         } catch (Exception e) {
             logger.error("Failed to open trash window", e);
         }

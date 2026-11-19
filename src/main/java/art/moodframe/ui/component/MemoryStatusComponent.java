@@ -207,23 +207,6 @@ public class MemoryStatusComponent extends HBox {
 
         tasksTooltip.setText(tooltipText);
     }
-
-    /**
-     * Gets a summary of current memory status.
-     * 
-     * @return formatted status summary
-     */
-    public String getStatusSummary() {
-        Runtime runtime = Runtime.getRuntime();
-        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
-        double memoryUsage = (double) usedMemory / runtime.maxMemory() * 100.0;
-        
-        return String.format(
-            "Memory Status: %.1f%% (%dMB)",
-            memoryUsage,
-            usedMemory / 1024 / 1024
-        );
-    }
     
     /**
      * Stops monitoring and cleanup resources.

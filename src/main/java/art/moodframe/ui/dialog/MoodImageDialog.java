@@ -107,6 +107,9 @@ public class MoodImageDialog extends Stage {
     /** Counts the analyses, so the answer for an image that was replaced meanwhile is dropped. */
     private int analysisCount;
 
+    /*  the file image decoded in the background, null while none is loading  */
+    private Image loading;
+
     /**
      * Creates the dialog.
      *
@@ -244,13 +247,40 @@ public class MoodImageDialog extends Stage {
             statusLabel.setText(I18nManager.getText("attachment.paste.empty"));
     }
 
-    /** Loads an image file scaled down and analyzes it; false if it cannot be read. */
+    /**
+     * Loads an image file scaled down in the background and analyzes it once it is decoded; an image chosen meanwhile
+     * replaces it.
+     *
+     * @return true, a file that cannot be read tells so in the status line
+     */
     private boolean loadFile(File file) {
-        return takeImage(new Image(file.toURI().toString(), LOAD_SIDE, LOAD_SIDE, true, true));
+        Image image = new Image(file.toURI().toString(), LOAD_SIDE, LOAD_SIDE, true, true, true);
+        loading = image;
+        Runnable take = () -> {
+            if (loading == image) {
+                loading = null;
+                takeImage(image);
+            }
+        };
+        if (image.getProgress() >= 1.0 || image.isError())
+            take.run();
+        else {
+            image.progressProperty().addListener((obs, oldProgress, progress) -> {
+                if (progress.doubleValue() >= 1.0)
+                    take.run();
+            });
+            image.errorProperty().addListener((obs, wasError, error) -> {
+                if (error)
+                    take.run();
+            });
+        }
+        return true;
     }
 
     /** Shows an image and analyzes it; false if it cannot be read. */
     private boolean takeImage(Image image) {
+        if (loading != null && loading != image)
+            loading = null;
         if (image == null || image.isError() || image.getPixelReader() == null || image.getWidth() < 1) {
             statusLabel.setText(I18nManager.getText("mood.image.unreadable"));
             return false;

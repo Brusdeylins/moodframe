@@ -1,5 +1,5 @@
 /**
- * List cells of the lists and dropdowns, and the reordering of list items.
+ * List cells of the lists and dropdowns.
  *
  * <p>Main classes:</p>
  * <ul>
@@ -9,7 +9,6 @@
  * <li>{@link StylePresetListCell}: a row of a building block selection</li>
  * <li>{@link ColorStyleListCell}: a row of the color palette selection</li>
  * <li>{@link TrashEntryCell}: an item of the central trash</li>
- * <li>{@link ListReorder}: reorders the items of a list by dragging</li>
  * </ul>
  */
 package art.moodframe.ui.cell;

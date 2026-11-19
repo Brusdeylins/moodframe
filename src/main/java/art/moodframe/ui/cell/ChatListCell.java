@@ -1,7 +1,8 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.Chat;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
+import art.moodframe.ui.support.ListReorder;
 import art.moodframe.ui.component.InPlaceEditableLabel;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

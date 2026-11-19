@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
  * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
- * service.chat need no JavaFX and that no service looks up the services it uses in the locator.
+ * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
+ * interface only the coordinators do, the order of the parts of the user interface and that no class imports a
+ * package of the application with a wildcard.
  */
 class ArchitectureTest {
 
@@ -173,6 +175,51 @@ class ArchitectureTest {
                 classes.forEach((String name) -> lookups.add(pkg + "." + name));
         });
         assertEquals(List.of(), lookups, "no service looks up another in the ServiceFactory");
+    }
+
+    @Test
+    void inTheUserInterfaceOnlyTheCoordinatorsUseTheLocator() {
+        List<String> lookups = new ArrayList<>();
+        locator.forEach((String pkg, Set<String> classes) -> {
+            if (layerOf(pkg).equals("ui"))
+                classes.forEach((String name) -> lookups.add(pkg + "." + name));
+        });
+        assertEquals(List.of("ui.controller.MainWindowController", "ui.controller.SettingsController"), lookups,
+                "the coordinators look up the services once and hand them to the views");
+    }
+
+    /*  The subpackages of ui, each using only those before it: support at the bottom, the controllers on top, so no
+        view uses a controller  */
+    private static final List<String> UI = List.of("ui.support", "ui.dnd", "ui.component", "ui.cell", "ui.dialog",
+            "ui.brainstorm", "ui", "ui.controller.settings", "ui.controller");
+
+    @Test
+    void everyPartOfTheUserInterfaceUsesOnlyThePartsBelowIt() {
+        List<String> violations = new ArrayList<>();
+        for (String part : UI) {
+            for (String target : uses.getOrDefault(part, Set.of())) {
+                if (UI.contains(target) && UI.indexOf(target) > UI.indexOf(part))
+                    violations.add(part + " -> " + target);
+            }
+        }
+        assertEquals(List.of(), violations);
+        assertEquals(new TreeSet<>(UI), new TreeSet<>(uses.keySet().stream()
+                .filter((String pkg) -> layerOf(pkg).equals("ui")).toList()), "every part of ui is ordered");
+    }
+
+    @Test
+    void noClassImportsAPackageOfTheApplicationWithAWildcard() throws IOException {
+        Pattern wildcard = Pattern.compile("^import\\s+(static\\s+)?art\\.moodframe\\.[\\w.]*\\*\\s*;",
+                Pattern.MULTILINE);
+        List<String> found = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(SOURCES)) {
+            for (Path file : walk.filter((Path path) -> path.toString().endsWith(".java")).toList()) {
+                Matcher matcher = wildcard.matcher(Files.readString(file));
+                while (matcher.find())
+                    found.add(SOURCES.relativize(file) + ": " + matcher.group());
+            }
+        }
+        assertEquals(List.of(), found, "a wildcard hides which classes, and so which layers, a class uses");
     }
 
     @Test

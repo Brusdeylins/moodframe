@@ -9,7 +9,6 @@ import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.util.I18nManager;
-import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -27,13 +26,10 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
-import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.function.Consumer;
 
 /**
  * The group Generation of the right panel of the main window ({@code GenerationPanel.fxml}): the model as family and
@@ -193,22 +189,27 @@ public class GenerationPanelController {
     // Track the currently selected model to survive language changes
     private GenerationModel currentSelectedModel;
 
-    private art.moodframe.ui.component.GeminiAdvancedFeaturesSection geminiAdvancedFeaturesSection;
+    /*  the fields of BFL and Gemini  */
+    private ProviderParameters parameters;
 
-    // Image attachment for image-to-image generation, the first of the attached images
-    private File attachedImageFile;
-
-    // Drag and drop handler for image attachments
-    private art.moodframe.ui.dnd.DragDropHandler dragDropHandler;
-
-    // Multi-Image Attachment Panel (FLUX.2 & Gemini)
-    private art.moodframe.ui.component.MultiImageAttachmentPanel multiImagePanel;
+    /*  the attached images  */
+    private GenerationAttachments attachments;
 
     /*  the price of the order, which the send button shows  */
     private final StringProperty costText = new SimpleStringProperty("$0.00");
 
     @FXML
     private void initialize() {
+        attachments = new GenerationAttachments(new GenerationAttachments.Nodes(multiImageAttachmentContainer,
+                imagePreviewContainer, noImagePlaceholder, attachmentPreviewImage, uploadImageButton,
+                removeImageButton), () -> currentSelectedModel);
+        parameters = new ProviderParameters(new ProviderParameters.Nodes(geminiAdvancedFeaturesContainer,
+                geminiThinkingLevelContainer, bflParametersContainer, flux2GroundingSearchContainer,
+                bflPromptUpsamplingCheckBox, flux1SafetyContainer, safetyToleranceLabel, flux2ParametersContainer,
+                flux2SafetyContainer, flux2SafetyLabel, flux2SafetySlider, flux2SafetyValueLabel,
+                flux2GuidanceContainer, flux2GuidanceLabel, flux2GuidanceSlider, flux2StepsContainer, flux2StepsLabel,
+                flux2StepsSlider));
+
         // Configure image count slider
         imageCountSlider.setMin(1);
         imageCountSlider.setMax(4);
@@ -236,7 +237,7 @@ public class GenerationPanelController {
             int roundedValue = (int) Math.round(newVal.doubleValue());
             if (Math.abs(newVal.doubleValue() - roundedValue) > 0.01)
                 safetyToleranceSlider.setValue(roundedValue);
-            updateSafetyToleranceLabel(roundedValue);
+            parameters.updateSafetyToleranceLabel(roundedValue);
         });
         imageCountSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
             int roundedValue = (int) Math.round(newVal.doubleValue());
@@ -244,7 +245,7 @@ public class GenerationPanelController {
                 imageCountSlider.setValue(roundedValue);
             updateImageCountLabel(roundedValue);
         });
-        updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
+        parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
         updateImageCountLabel((int) imageCountSlider.getValue());
 
         // The video durations (the items follow the selected video model)
@@ -263,7 +264,7 @@ public class GenerationPanelController {
      * remembers every choice.
      *
      * @param config            the configuration with the accounts and the remembered choices
-     * @param generationService tells the prompt limit of a model (may be null: the limits known without it)
+     * @param generationService tells the prompt limit of a model
      * @param attachments       reads and encodes the attached images
      * @param resolution        the target resolution of the frame, which chooses the variant of a family
      * @param status            shows what the group did
@@ -284,8 +285,7 @@ public class GenerationPanelController {
         }
         else
             videoDurationChoiceBox.setValue("8s");
-        setupGeminiAdvancedFeatures();
-        setupFlux2Parameters();
+        parameters.setUp(config, this::updateCostDisplay);
         modelFamilySelector = new art.moodframe.ui.component.ModelFamilySelector(modelComboBox,
                 modelFamilyChoiceBox, resolution, config);
 
@@ -301,8 +301,7 @@ public class GenerationPanelController {
         java.util.stream.Stream.of(modelFamilyChoiceBox, modelComboBox, videoDurationChoiceBox,
                 geminiThinkingLevelChoiceBox).forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
 
-        setupDragAndDrop();
-        setupMultiImageAttachmentPanel();
+        this.attachments.setUp(imageAttachmentService, status, attachmentHost());
         updateCostDisplay();
         updateGenerationSummary();
     }
@@ -334,7 +333,7 @@ public class GenerationPanelController {
 
     /** The panel of the attached images, for the tests. */
     art.moodframe.ui.component.MultiImageAttachmentPanel attachmentPanel() {
-        return multiImagePanel;
+        return attachments.panel();
     }
 
     /** The price of the order, e.g. "$0.12", "~$0.80" for a video or "unknown" for OpenAI. */
@@ -415,12 +414,6 @@ public class GenerationPanelController {
         return model != null && model.getProvider() == ApiProvider.BFL;
     }
 
-    /** Whether a model of Google Gemini is chosen. */
-    public boolean isGeminiSelected() {
-        GenerationModel model = selectedModel();
-        return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI;
-    }
-
     /** The number of images to generate. */
     public int imageCount() {
         return (int) imageCountSlider.getValue();
@@ -428,12 +421,12 @@ public class GenerationPanelController {
 
     /** The first attached image, null without. */
     public File attachedImage() {
-        return attachedImageFile;
+        return attachments.first();
     }
 
     /** Whether an image is attached. */
     public boolean hasAttachment() {
-        return attachedImageFile != null;
+        return attachments.first() != null;
     }
 
     /**
@@ -443,8 +436,7 @@ public class GenerationPanelController {
      */
     public int promptLimit() {
         String modelId = selectedModelId();
-        return generationService != null ? generationService.promptLimit(modelId)
-                : GenerationService.maxPromptLength(modelId);
+        return generationService.promptLimit(modelId);
     }
 
     /**
@@ -486,14 +478,8 @@ public class GenerationPanelController {
         imageCountLabel.setDisable(!enableInput);
         seedLabel.setDisable(!enableInput);
         imageAttachmentLabel.setDisable(!enableInput);
-        uploadImageButton.setDisable(!enableInput);
-        removeImageButton.setDisable(!enableInput);
-        if (multiImagePanel != null)
-            multiImagePanel.setDisable(!enableInput);
-        multiImageAttachmentContainer.setDisable(!enableInput);
-        noImagePlaceholder.setDisable(!enableInput);
+        attachments.setDisable(!enableInput);
         noImageLabel.setDisable(!enableInput);
-        imagePreviewContainer.setDisable(!enableInput);
         geminiAdvancedFeaturesContainer.setDisable(!enableInput);
 
         // The video parameters (duration) and the FLUX.2 parameters, with the web search of [max]
@@ -522,7 +508,7 @@ public class GenerationPanelController {
         uploadImageTooltip.setText(I18nManager.getText("params.image.attach.tooltip"));
         removeImageTooltip.setText(I18nManager.getText("params.image.remove.tooltip"));
         updateModelNames();
-        updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
+        parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
     }
 
     /**
@@ -536,7 +522,7 @@ public class GenerationPanelController {
 
     /** The Base64 data of the attached images that are ready to be sent, in their order. */
     public java.util.List<String> attachedImagesBase64() {
-        return attachedBase64Images();
+        return attachments.base64();
     }
 
     /**
@@ -547,7 +533,7 @@ public class GenerationPanelController {
      * @return whether the image was attached, false if the maximum number of images is reached
      */
     public boolean attach(File imageFile) {
-        return attachImageDirectly(imageFile);
+        return attachments.attach(imageFile);
     }
 
     /**
@@ -561,8 +547,7 @@ public class GenerationPanelController {
 
     /** Releases the attachment panel, which watches the clipboard. */
     public void dispose() {
-        if (multiImagePanel != null)
-            multiImagePanel.dispose();
+        attachments.dispose();
     }
 
     /** Restores the remembered model and the remembered fields of the models. */
@@ -600,9 +585,7 @@ public class GenerationPanelController {
             // Only "minimal" and "high" exist; a saved "low" from earlier versions becomes "minimal"
             geminiThinkingLevelChoiceBox.setValue(
                     "high".equalsIgnoreCase(config.generation().getDefaultGeminiThinkingLevel()) ? "High" : "Minimal");
-            if (geminiAdvancedFeaturesSection != null)
-                geminiAdvancedFeaturesSection.setSearchGroundingEnabled(
-                        config.generation().getDefaultGoogleSearchEnabled());
+            parameters.setGoogleSearch(config.generation().getDefaultGoogleSearchEnabled());
         } catch (Exception e) {
             logger.error("Failed to load the choices of the generation from the configuration", e);
             currentSelectedModel = GenerationModel.getDefault();
@@ -629,19 +612,14 @@ public class GenerationPanelController {
                                 ? newVal : model.getDisplayName());
 
                     // Provider switch: Google → BFL → clear attachments
-                    if (previousModel != null && multiImagePanel != null && multiImagePanel.hasAttachments()
-                            && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
-                            && model.getProvider() == ApiProvider.BFL) {
-                        multiImagePanel.clearAllAttachments();
-                        attachedImageFile = null;
+                    if (previousModel != null && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
+                            && model.getProvider() == ApiProvider.BFL && attachments.clearAll())
                         status.error(I18nManager.getText("status.attachments.cleared.provider"));
-                    }
                 }
                 updateParameterVisibility(model);
 
                 // Update multi-image panel with new model's max images
-                if (multiImagePanel != null && model != null)
-                    multiImagePanel.setCurrentModel(model);
+                attachments.setModel(model);
                 listener.modelChanged();
             }
             updateCostDisplay();
@@ -673,8 +651,7 @@ public class GenerationPanelController {
     private void updateCostDisplay() {
         try {
             GenerationModel model = GenerationModel.fromLocalizedDisplayName(modelComboBox.getValue());
-            Boolean googleSearch = geminiAdvancedFeaturesSection != null
-                    ? geminiAdvancedFeaturesSection.isSearchGroundingEnabled() : null;
+            Boolean googleSearch = parameters.googleSearch();
             GenerationCost.Quote quote = GenerationCost.quote(model, selectedVideoSeconds(), googleSearch,
                     (int) imageCountSlider.getValue());
             costText.set(!quote.known() ? I18nManager.getText("cost.unknown")
@@ -683,286 +660,6 @@ public class GenerationPanelController {
             logger.warn("Error updating cost display", e);
             costText.set("$0.00");
         }
-    }
-
-    /**
-     * Sets up drag and drop on the square of the single attachment.
-     */
-    private void setupDragAndDrop() {
-        if (imageAttachmentService == null) {
-            logger.warn("Cannot set up drag and drop: no ImageAttachmentService");
-            return;
-        }
-        dragDropHandler = new art.moodframe.ui.dnd.DragDropHandler(imageAttachmentService, imagePreviewContainer,
-                this::handleDroppedImage, status::failure, this::maxFileSize);
-        dragDropHandler.initializeDragAndDrop();
-        logger.info("Drag and drop initialized for image attachments");
-    }
-
-    /*  the file size limit of the provider of the chosen model, that of BFL without  */
-    private long maxFileSize() {
-        return GenerationModel.getMaxFileSize(currentSelectedModel != null ? currentSelectedModel.getProvider()
-                : ApiProvider.BFL);
-    }
-
-    /**
-     * Sets up the panel of the attached images for FLUX.2 and Gemini.
-     */
-    private void setupMultiImageAttachmentPanel() {
-        multiImagePanel = new art.moodframe.ui.component.MultiImageAttachmentPanel();
-        multiImagePanel.setAttachmentService(imageAttachmentService);
-        multiImagePanel.setOnError(status::failure);
-        Consumer<File> moodFromImage = listener::moodFromImage;
-        multiImagePanel.setOnMoodFromImage(moodFromImage);
-
-        // When first image is attached, apply same logic as single image
-        multiImagePanel.setOnFirstImageAttached(() -> Platform.runLater(() -> {
-            updateAttachmentState();
-            imageCountSlider.setValue(1);
-            updateImageCountLabel(1);
-        }));
-
-        // When all images removed, reset state
-        multiImagePanel.setOnAllImagesRemoved(() -> Platform.runLater(() -> {
-            attachedImageFile = null;
-            updateAttachmentState();
-        }));
-
-        multiImagePanel.setOnImagesChanged(images -> {
-            // The first image is the one of the single attachment
-            attachedImageFile = images != null && !images.isEmpty() ? images.get(0).getImageFile() : null;
-
-            // Filter models based on current image count
-            int imageCount = images != null ? (int) images.stream().filter(img -> img != null).count() : 0;
-            Platform.runLater(() -> {
-                filterModelsByImageCount(imageCount);
-                updateCostDisplay();
-                updateGenerationSummary();
-            });
-        });
-        if (currentSelectedModel != null)
-            multiImagePanel.setCurrentModel(currentSelectedModel);
-        multiImageAttachmentContainer.getChildren().setAll(multiImagePanel);
-        logger.info("Multi-image attachment panel initialized");
-    }
-
-    /**
-     * Updates the group once the attachment changed: the remove button, the models that take images and the aspect
-     * ratio of the first image (an added image keeps the aspect ratio of the first one).
-     */
-    private void updateAttachmentState() {
-        boolean hasAttachment = attachedImageFile != null;
-        removeImageButton.setDisable(!hasAttachment);
-        updateModelSelectionForAttachment(hasAttachment);
-        int attachmentCount = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 1;
-        listener.attachmentsChanged(hasAttachment && attachmentCount == 1 ? attachedImageFile : null);
-    }
-
-    /**
-     * Sets up the Gemini Advanced Features section (Phase 2).
-     * Creates the component and wires it to the model selection.
-     */
-    private void setupGeminiAdvancedFeatures() {
-        if (geminiAdvancedFeaturesContainer == null) {
-            logger.warn("geminiAdvancedFeaturesContainer is null, cannot setup Gemini advanced features");
-            return;
-        }
-
-        // Create the Gemini advanced features section
-        geminiAdvancedFeaturesSection = new art.moodframe.ui.component.GeminiAdvancedFeaturesSection();
-
-        // Add it to the container
-        geminiAdvancedFeaturesContainer.getChildren().add(geminiAdvancedFeaturesSection);
-
-        // Initially hidden - only show when Gemini model is selected
-        geminiAdvancedFeaturesContainer.setVisible(false);
-        geminiAdvancedFeaturesContainer.setManaged(false);
-
-        // Setup persistence listeners for Gemini Advanced Features
-        setupGeminiPersistenceListeners();
-
-        logger.info("Gemini Advanced Features section initialized");
-    }
-
-    /**
-     * Sets up persistence listeners for Gemini Advanced Features (Phase 2).
-     * Must be called after geminiAdvancedFeaturesSection is created.
-     */
-    private void setupGeminiPersistenceListeners() {
-        try {
-
-            if (config != null && geminiAdvancedFeaturesSection != null) {
-                // Google Search Grounding
-                geminiAdvancedFeaturesSection.getSearchGroundingCheckBox().selectedProperty()
-                        .addListener((obs, oldVal, newVal) -> {
-                            if (newVal != null) {
-                                config.generation().setDefaultGoogleSearchEnabled(newVal);
-                            }
-                        });
-
-                // NOTE: Thinking Mode persistence is now handled by reasoningQualityChoiceBox listener above
-                // (Reasoning Quality was moved from Gemini Advanced Features to general parameters)
-
-                logger.info("Gemini Advanced Features persistence listeners configured");
-            }
-        } catch (Exception e) {
-            logger.error("Failed to setup Gemini persistence listeners", e);
-        }
-    }
-
-    /**
-     * Sets up FLUX.2 specific parameters (Grounding Search, Guidance, Steps).
-     * Configures sliders, labels, and persistence listeners.
-     */
-    private void setupFlux2Parameters() {
-        try {
-
-            if (config == null) {
-                logger.warn("ApplicationConfig not available, FLUX.2 parameters will use defaults");
-                return;
-            }
-
-            // Load saved values from config
-            double savedGuidance = config.generation().getFlux2FlexGuidance();
-            int savedSteps = config.generation().getFlux2FlexSteps();
-            boolean savedGroundingSearch = config.generation().getFlux2GroundingSearchEnabled();
-
-            // Setup Guidance slider
-            if (flux2GuidanceSlider != null && flux2GuidanceLabel != null) {
-                flux2GuidanceSlider.setValue(savedGuidance);
-                updateFlux2GuidanceLabel(savedGuidance);
-
-                // Listener for label updates and config persistence
-                flux2GuidanceSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                    double value = newVal.doubleValue();
-                    updateFlux2GuidanceLabel(value);
-                    config.generation().setFlux2FlexGuidance(value);
-                    updateCostDisplay(); // Cost may depend on parameters
-                });
-            }
-
-            // Setup Steps slider
-            if (flux2StepsSlider != null && flux2StepsLabel != null) {
-                flux2StepsSlider.setValue(savedSteps);
-                updateFlux2StepsLabel(savedSteps);
-
-                // Listener for label updates and config persistence
-                flux2StepsSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                    int value = newVal.intValue();
-                    updateFlux2StepsLabel(value);
-                    config.generation().setFlux2FlexSteps(value);
-                    updateCostDisplay();
-                });
-            }
-
-            // Setup FLUX.2 Safety Tolerance slider (0-5 scale)
-            if (flux2SafetySlider != null && flux2SafetyValueLabel != null) {
-                int savedFlux2Safety = config.generation().getFlux2SafetyTolerance();
-                flux2SafetySlider.setValue(savedFlux2Safety);
-                updateFlux2SafetyLabel(savedFlux2Safety);
-
-                // Listener for label updates and config persistence
-                flux2SafetySlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                    int value = newVal.intValue();
-                    // Snap to integer values
-                    if (value != newVal.doubleValue()) {
-                        flux2SafetySlider.setValue(value);
-                    }
-                    updateFlux2SafetyLabel(value);
-                    config.generation().setFlux2SafetyTolerance(value);
-                });
-
-                // Set i18n labels
-                if (flux2SafetyLabel != null) {
-                    flux2SafetyLabel.setText(art.moodframe.util.I18nManager.getText("params.flux2.safety"));
-                }
-            }
-
-            // Note: Grounding Search checkbox removed - FLUX.2 [max] has built-in automatic grounding
-            // that activates based on prompt content (e.g., "current", "today", "latest")
-
-            // Initially hidden - visibility controlled by updateFlux2ParameterVisibility
-            if (flux2ParametersContainer != null) {
-                flux2ParametersContainer.setVisible(false);
-                flux2ParametersContainer.setManaged(false);
-            }
-
-            logger.info("FLUX.2 parameters initialized: guidance={}, steps={}, groundingSearch={}",
-                        savedGuidance, savedSteps, savedGroundingSearch);
-
-        } catch (Exception e) {
-            logger.error("Failed to setup FLUX.2 parameters", e);
-        }
-    }
-
-    /**
-     * Updates the FLUX.2 [flex] Guidance label with the current value.
-     *
-     * @param value the guidance value (1.5-10.0)
-     */
-    private void updateFlux2GuidanceLabel(double value) {
-        if (flux2GuidanceLabel != null) {
-            // Use getText with parameter - i18n uses MessageFormat {0} syntax
-            String labelText = art.moodframe.util.I18nManager.getText(
-                    "params.flux2.guidance", String.format("%.1f", value));
-            flux2GuidanceLabel.setText(labelText);
-        }
-    }
-
-    /**
-     * Updates the FLUX.2 [flex] Steps label with the current value.
-     *
-     * @param value the steps value (1-50)
-     */
-    private void updateFlux2StepsLabel(int value) {
-        if (flux2StepsLabel != null) {
-            // Use getText with parameter - i18n uses MessageFormat {0} syntax
-            String labelText = art.moodframe.util.I18nManager.getText(
-                    "params.flux2.steps", value);
-            flux2StepsLabel.setText(labelText);
-        }
-    }
-
-    /**
-     * Updates the FLUX.2 safety tolerance label with the current slider value and description.
-     * Uses i18n keys params.flux2.safety.0 through params.flux2.safety.5.
-     */
-    private void updateFlux2SafetyLabel(int value) {
-        if (flux2SafetyValueLabel != null) {
-            String i18nKey = "params.flux2.safety." + value;
-            String description = I18nManager.getText(i18nKey);
-            flux2SafetyValueLabel.setText(description);
-        }
-    }
-
-    /**
-     * Updates the safety tolerance label with the current slider value and
-     * description.
-     */
-    private void updateSafetyToleranceLabel(int value) {
-        if (safetyToleranceLabel != null) {
-            String description = getSafetyToleranceDescription(value);
-            safetyToleranceLabel.setText(I18nManager.getText("params.safety", description));
-        }
-    }
-
-    /**
-     * Gets a user-friendly description for safety tolerance values.
-     *
-     * @param value the safety tolerance value (0-6)
-     * @return descriptive text for the tolerance level
-     */
-    private String getSafetyToleranceDescription(int value) {
-        return switch (value) {
-            case 0 -> I18nManager.getText("params.safety.most.strict");
-            case 1 -> I18nManager.getText("params.safety.very.strict");
-            case 2 -> I18nManager.getText("params.safety.strict");
-            case 3 -> I18nManager.getText("params.safety.balanced");
-            case 4 -> I18nManager.getText("params.safety.permissive");
-            case 5 -> I18nManager.getText("params.safety.very.permissive");
-            case 6 -> I18nManager.getText("params.safety.most.permissive");
-            default -> I18nManager.getText("params.safety.unknown");
-        };
     }
 
     /**
@@ -993,11 +690,11 @@ public class GenerationPanelController {
             generationSummaryModel.setText(I18nManager.getText("params.generation.summary.count",
                     (int) Math.round(imageCountSlider.getValue()), family));
 
-        int attachments = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 0;
-        generationSummaryAttachments.setText(switch (attachments) {
+        int attached = attachments.panelCount();
+        generationSummaryAttachments.setText(switch (attached) {
             case 0 -> I18nManager.getText("params.generation.summary.attachments.none");
             case 1 -> I18nManager.getText("params.generation.summary.attachments.one");
-            default -> I18nManager.getText("params.generation.summary.attachments.many", attachments);
+            default -> I18nManager.getText("params.generation.summary.attachments.many", attached);
         });
     }
 
@@ -1023,7 +720,7 @@ public class GenerationPanelController {
                     config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
 
         // Add models from enabled providers with valid API keys
-        modelComboBox.getItems().addAll(art.moodframe.service.generation.GenerationService.availableItems(config));
+        modelComboBox.getItems().addAll(GenerationService.availableItems(config));
 
         logger.info("Available models after filtering: {}", modelComboBox.getItems());
 
@@ -1079,51 +776,11 @@ public class GenerationPanelController {
             }
         }
 
-        // Check if we're in attachment mode to preserve filtering
-        boolean hasAttachment = attachedImageFile != null;
-
-        // Clear and rebuild with localized names
+        // Clear and rebuild with localized names, keeping the filter of the attached images
         String previousItem = modelComboBox.getValue();
         modelComboBox.getItems().clear();
-
-        if (hasAttachment) {
-            // Only add models that take images from enabled providers
-            for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                if (model.supportsImageAttachment()) {
-                    // Check if model's provider is enabled
-                    art.moodframe.model.ApiProvider provider = model.getProvider();
-                    boolean isEnabled = false;
-
-                    if (provider == art.moodframe.model.ApiProvider.BFL && config != null) {
-                        isEnabled = config.accounts().isUsable(ApiProvider.BFL);
-                    } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && config != null) {
-                        isEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-                    }
-
-                    if (isEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    }
-                }
-            }
-        } else {
-            // Add models from enabled providers only
-            if (config != null) {
-                boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
-                boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-
-                for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                    art.moodframe.model.ApiProvider provider = model.getProvider();
-
-                    if (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    } else if (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled) {
-                        modelComboBox.getItems().add(ModelLabels.displayName(model));
-                    }
-                }
-            }
-        }
-
-        modelComboBox.getItems().addAll(openAiModelItems());
+        if (config != null)
+            modelComboBox.getItems().addAll(GenerationService.availableItems(config, attachments.count()));
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
@@ -1182,34 +839,8 @@ public class GenerationPanelController {
         // Get current selection before filtering
         String currentSelection = modelComboBox.getValue();
 
-        // Get provider status
-        boolean bflEnabled = config.accounts().isUsable(ApiProvider.BFL);
-        boolean geminiEnabled = config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI);
-
-        // Clear and rebuild with filtered models
-        modelComboBox.getItems().clear();
-
-        for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-            art.moodframe.model.ApiProvider provider = model.getProvider();
-
-            // Check if provider is enabled
-            boolean providerEnabled = (provider == art.moodframe.model.ApiProvider.BFL && bflEnabled)
-                    || (provider == art.moodframe.model.ApiProvider.GOOGLE_GEMINI && geminiEnabled);
-
-            if (!providerEnabled) {
-                continue;
-            }
-
-            // Check if model supports the current image count
-            int maxImages = model.getMaxInputImages();
-            if (maxImages >= imageCount) {
-                modelComboBox.getItems().add(ModelLabels.displayName(model));
-            }
-        }
-
-        if (art.moodframe.model.GenerationModel.OPENAI_IMAGE.getMaxInputImages() >= imageCount) {
-            modelComboBox.getItems().addAll(openAiModelItems());
-        }
+        // Clear and rebuild with the models of the usable providers that take this many images
+        modelComboBox.getItems().setAll(GenerationService.availableItems(config, imageCount));
 
         logger.info("Filtered models for {} images: {}", imageCount, modelComboBox.getItems());
 
@@ -1233,14 +864,7 @@ public class GenerationPanelController {
         }
 
         // Update max images in the panel based on new model
-        if (multiImagePanel != null) {
-            String selectedModelName = modelComboBox.getValue();
-            art.moodframe.model.GenerationModel selectedModel =
-                    art.moodframe.model.GenerationModel.fromLocalizedDisplayName(selectedModelName);
-            if (selectedModel != null) {
-                multiImagePanel.setCurrentModel(selectedModel);
-            }
-        }
+        attachments.setModel(GenerationModel.fromLocalizedDisplayName(modelComboBox.getValue()));
     }
 
     /**
@@ -1252,20 +876,11 @@ public class GenerationPanelController {
         String currentSelection = modelComboBox.getValue();
 
         if (hasAttachment) {
-            // Filter to only show models that take images
-            modelComboBox.getItems().clear();
-
-            for (art.moodframe.model.GenerationModel model : art.moodframe.model.GenerationModel.selectable()) {
-                if (model.supportsImageAttachment()) {
-                    modelComboBox.getItems().add(ModelLabels.displayName(model));
-                }
-            }
-            modelComboBox.getItems().addAll(openAiModelItems());
+            // Filter to only show the models of the usable providers that take the attached images
+            modelComboBox.getItems().setAll(GenerationService.availableItems(config, Math.max(1, attachments.count())));
 
             // Check if current selection is compatible
-            art.moodframe.model.GenerationModel currentModel = art.moodframe.model.GenerationModel
-                    .fromLocalizedDisplayName(currentSelection);
-            if (currentModel == null || !currentModel.supportsImageAttachment()) {
+            if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {
                 // Auto-switch to the default model, which edits images (FLUX 3 Image)
                 String defaultName = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
 
@@ -1293,19 +908,6 @@ public class GenerationPanelController {
     }
 
     /**
-     * Gets the dropdown items of the OpenAI models, empty while the provider is disabled or has no token.
-     *
-     * @return the items ({@link art.moodframe.model.GenerationModel#OPENAI_PREFIX} + model id)
-     */
-    private java.util.List<String> openAiModelItems() {
-        if (config == null || !config.accounts().isUsable(ApiProvider.OPENAI)) {
-            return java.util.List.of();
-        }
-        return config.accounts().getOpenAiModels().stream()
-                .map(id -> art.moodframe.model.GenerationModel.OPENAI_PREFIX + id).toList();
-    }
-
-    /**
      * Updates parameter visibility based on the selected provider (BFL or Gemini).
      *
      * <p>Provider-specific parameters:</p>
@@ -1328,43 +930,8 @@ public class GenerationPanelController {
 
         logger.info("Updating parameter visibility for provider: {}, isVideo: {}", provider, isVideo);
 
-        // BFL-specific parameters container (includes Prompt Upsampling checkbox)
-        if (bflParametersContainer != null) {
-            bflParametersContainer.setVisible(isBFL);
-            bflParametersContainer.setManaged(isBFL);
-        }
-
-        // Gemini Thinking Level container: only Nano Banana 2 and Lite can be controlled (minimal or high),
-        // Nano Banana Pro always thinks and cannot be controlled
-        if (geminiThinkingLevelContainer != null) {
-            boolean showThinking = isGemini && generationModel != null && generationModel.supportsThinkingLevel();
-            geminiThinkingLevelContainer.setVisible(showThinking);
-            geminiThinkingLevelContainer.setManaged(showThinking);
-        }
-
-        // FLUX.2 [klein] and FLUX 3 have no prompt upsampling switch (FLUX 3 always upsamples), hide the checkbox
-        boolean showUpsampling = generationModel == null
-                || (!generationModel.isFlux2Klein() && !generationModel.isFlux3Model());
-        if (bflPromptUpsamplingCheckBox != null) {
-            bflPromptUpsamplingCheckBox.setVisible(showUpsampling);
-            bflPromptUpsamplingCheckBox.setManaged(showUpsampling);
-        }
-
-        // Common parameters (always visible for both BFL and Gemini)
-        // - modelComboBox (always visible)
-        // - the aspect ratio of the frame (always visible - the target, of which each model takes its closest ratio)
-        // - stylePresetsComboBox (always visible - style appended to prompt for both providers)
-
-        // Gemini Advanced Features (Phase 2) - only visible for Gemini models
-        if (geminiAdvancedFeaturesContainer != null && geminiAdvancedFeaturesSection != null) {
-            // The only advanced feature is Google Search grounding, which Nano Banana 2 Lite does not support
-            boolean showAdvanced = isGemini && (generationModel == null || generationModel.supportsGroundingSearch());
-            geminiAdvancedFeaturesContainer.setVisible(showAdvanced);
-            geminiAdvancedFeaturesContainer.setManaged(showAdvanced);
-        }
-
-        // FLUX.2 Specific Parameters
-        updateFlux2ParameterVisibility(generationModel);
+        // The fields of BFL and Gemini
+        parameters.show(generationModel);
 
         // Video Parameters (the duration choices depend on the model)
         if (videoParametersContainer != null) {
@@ -1403,68 +970,6 @@ public class GenerationPanelController {
         logger.debug("Parameter visibility updated: BFL={}, Gemini={}, Video={}", isBFL, isGemini, isVideo);
     }
 
-    /**
-     * Updates FLUX.2 specific parameter visibility based on the selected model.
-     * <ul>
-     *   <li><b>FLUX.2 [max]:</b> Shows Grounding Search checkbox</li>
-     *   <li><b>FLUX.2 [flex]:</b> Shows Guidance and Steps sliders</li>
-     *   <li><b>Other models:</b> Hides all FLUX.2 parameters</li>
-     * </ul>
-     *
-     * @param generationModel the selected model, null for an unknown item
-     */
-    private void updateFlux2ParameterVisibility(art.moodframe.model.GenerationModel generationModel) {
-        boolean isFlux2 = generationModel != null && (generationModel.isFlux2Model() || generationModel.isFlux3Model());
-        boolean isFlux2Max = generationModel == art.moodframe.model.GenerationModel.FLUX2_MAX;
-        boolean isFlux2Flex = generationModel != null && generationModel.isFlux2Flex();
-
-        // Show main FLUX.2 container for FLUX.2 and FLUX 3 models (FLUX 3 only uses the safety slider)
-        flux2ParametersContainer.setVisible(isFlux2);
-        flux2ParametersContainer.setManaged(isFlux2);
-
-        // FLUX.2 [max] Grounding Search - only for FLUX2_MAX
-        if (flux2GroundingSearchContainer != null) {
-            flux2GroundingSearchContainer.setVisible(isFlux2Max);
-            flux2GroundingSearchContainer.setManaged(isFlux2Max);
-        }
-
-        // FLUX.2 [flex] Guidance slider - only for FLUX2_FLEX
-        if (flux2GuidanceContainer != null) {
-            flux2GuidanceContainer.setVisible(isFlux2Flex);
-            flux2GuidanceContainer.setManaged(isFlux2Flex);
-        }
-
-        // FLUX.2 [flex] Steps slider - only for FLUX2_FLEX
-        if (flux2StepsContainer != null) {
-            flux2StepsContainer.setVisible(isFlux2Flex);
-            flux2StepsContainer.setManaged(isFlux2Flex);
-        }
-
-        // FLUX.2 Safety Tolerance - for ALL FLUX.2 models (0-5 scale)
-        // Show FLUX.2 safety slider, hide FLUX.1 safety slider (they are at the same position)
-        if (flux2SafetyContainer != null) {
-            flux2SafetyContainer.setVisible(isFlux2);
-            flux2SafetyContainer.setManaged(isFlux2);
-        }
-        if (flux1SafetyContainer != null) {
-            flux1SafetyContainer.setVisible(!isFlux2);
-            flux1SafetyContainer.setManaged(!isFlux2);
-        }
-
-        logger.debug("FLUX.2 parameter visibility: isFlux2={}, isFlux2Max={}, isFlux2Flex={}",
-                     isFlux2, isFlux2Max, isFlux2Flex);
-    }
-
-    /** The Base64 data of the attached images that are ready to be sent, in their order. */
-    private java.util.List<String> attachedBase64Images() {
-        if (multiImagePanel == null || multiImagePanel.getAttachedImages() == null)
-            return java.util.List.of();
-        return multiImagePanel.getAttachedImages().stream()
-                .filter((img) -> img != null && img.isReadyForTransmission())
-                .map(art.moodframe.model.AttachedImage::getBase64Data)
-                .toList();
-    }
-
     /** The video length chosen in the duration choice, or null if there is none. */
     private Integer selectedVideoSeconds() {
         if (videoDurationChoiceBox == null || videoDurationChoiceBox.getValue() == null)
@@ -1493,54 +998,9 @@ public class GenerationPanelController {
                 (int) safetyToleranceSlider.getValue(),
                 flux2SafetySlider != null ? (int) flux2SafetySlider.getValue() : null,
                 bflPromptUpsamplingCheckBox != null && bflPromptUpsamplingCheckBox.isSelected(), thinkingLevel,
-                geminiAdvancedFeaturesSection != null ? geminiAdvancedFeaturesSection.isSearchGroundingEnabled() : null,
+                parameters.googleSearch(),
                 flux2GuidanceSlider != null ? flux2GuidanceSlider.getValue() : null,
                 flux2StepsSlider != null ? (int) flux2StepsSlider.getValue() : null, selectedVideoSeconds());
-    }
-
-    /**
-     * Handles a successfully dropped image.
-     *
-     * @param attachedImage the attached image with metadata
-     */
-    private void handleDroppedImage(art.moodframe.model.AttachedImage attachedImage) {
-        if (attachedImage == null || attachedImage.getImageFile() == null) {
-            logger.error("Invalid attached image received from drag and drop");
-            return;
-        }
-
-        Platform.runLater(() -> {
-            try {
-                File imageFile = attachedImage.getImageFile();
-
-                // Load and display the image, decoded in the background
-                Image image = new Image(imageFile.toURI().toString(), true);
-                attachmentPreviewImage.setImage(image);
-
-                // Show image preview, hide placeholder
-                attachmentPreviewImage.setVisible(true);
-                attachmentPreviewImage.setManaged(true);
-                noImagePlaceholder.setVisible(false);
-                noImagePlaceholder.setManaged(false);
-
-                // Store the file reference for API use
-                attachedImageFile = imageFile;
-
-                // Auto-set image count to 1 for image-to-image generation
-                imageCountSlider.setValue(1);
-                updateImageCountLabel(1);
-
-                // Update UI to reflect attachment
-                updateAttachmentState();
-
-                status.status(I18nManager.getText("status.image.attached") + ": " + imageFile.getName());
-                logger.info("Image attached via drag and drop: {}", imageFile.getName());
-
-            } catch (Exception e) {
-                logger.error("Failed to process dropped image", e);
-                status.failure(I18nManager.getText("error.image.processing.failed"));
-            }
-        });
     }
 
     /**
@@ -1548,61 +1008,7 @@ public class GenerationPanelController {
      */
     @FXML
     private void onAttachImageClicked() {
-        status.status(I18nManager.getText("status.selecting.image"));
-
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select Image to Attach");
-
-        // Set file filters for supported image formats
-        FileChooser.ExtensionFilter imageFilter = new FileChooser.ExtensionFilter(
-                "Image Files", "*.png", "*.jpg", "*.jpeg", "*.webp");
-        fileChooser.getExtensionFilters().add(imageFilter);
-
-        // Show the file picker dialog
-        Stage stage = (Stage) uploadImageButton.getScene().getWindow();
-        File selectedFile = fileChooser.showOpenDialog(stage);
-
-        if (selectedFile != null) {
-            try {
-                // Validate file size against provider-dependent limit
-                long maxSize = art.moodframe.model.GenerationModel.getMaxFileSize(
-                    currentSelectedModel != null ? currentSelectedModel.getProvider()
-                                                 : art.moodframe.model.ApiProvider.BFL);
-                if (selectedFile.length() > maxSize) {
-                    int maxMB = (int) (maxSize / (1024 * 1024));
-                    status.error(String.format(I18nManager.getText("status.error.file.too.large"), maxMB));
-                    return;
-                }
-
-                // Load and display the image, decoded in the background
-                Image image = new Image(selectedFile.toURI().toString(), true);
-                attachmentPreviewImage.setImage(image);
-
-                // Show image preview, hide placeholder
-                attachmentPreviewImage.setVisible(true);
-                attachmentPreviewImage.setManaged(true);
-                noImagePlaceholder.setVisible(false);
-                noImagePlaceholder.setManaged(false);
-
-                // Store the file reference for API use
-                attachedImageFile = selectedFile;
-
-                // Auto-set image count to 1 for image-to-image generation
-                imageCountSlider.setValue(1);
-                updateImageCountLabel(1);
-
-                // Update UI to reflect attachment
-                updateAttachmentState();
-
-                status.status(I18nManager.getText("status.image.attached"));
-
-            } catch (Exception e) {
-                status.error(I18nManager.getText("status.error.image.load"));
-                logger.error("Failed to load selected image: {}", selectedFile.getPath(), e);
-            }
-        } else {
-            status.status(I18nManager.getText("status.error.no.image"));
-        }
+        attachments.choose();
     }
 
     /**
@@ -1610,59 +1016,7 @@ public class GenerationPanelController {
      */
     @FXML
     private void onRemoveImageClicked() {
-
-        // Clear the attached image
-        attachedImageFile = null;
-        attachmentPreviewImage.setImage(null);
-
-        // Show placeholder, hide image preview
-        attachmentPreviewImage.setVisible(false);
-        attachmentPreviewImage.setManaged(false);
-        noImagePlaceholder.setVisible(true);
-        noImagePlaceholder.setManaged(true);
-
-        // Update UI state
-        updateAttachmentState();
-
-        status.status(I18nManager.getText("status.image.removed"));
-    }
-
-    /**
-     * Attaches an image file directly without showing file dialog.
-     * Used for Edit functionality where the image is already known.
-     *
-     * Behavior:
-     * 1) If only one image attached with no empty slot: replace it
-     * 2) If there's an empty slot: fill it with the new image
-     * 3) If 2+ images and no empty slot: create new slot and attach (if under max limit)
-     *
-     * @return whether the image was attached, false if the maximum number of images is reached
-     */
-    private boolean attachImageDirectly(File imageFile) {
-        // Use the MultiImageAttachmentPanel for image attachment (it shrinks images above the size limit)
-        if (multiImagePanel != null) {
-            int targetSlot = multiImagePanel.findTargetSlotForNewImage();
-            if (targetSlot >= 0) {
-                multiImagePanel.attachImageToSlot(targetSlot, imageFile);
-            } else {
-                // Max images reached - show warning
-                logger.warn("Cannot attach image: maximum number of images reached");
-                status.status(I18nManager.getText("attachment.max.reached",
-                    multiImagePanel.getAttachmentCount()));
-                return false;
-            }
-        }
-
-        // Store the file reference for API use (legacy support)
-        attachedImageFile = imageFile;
-
-        // Auto-set image count to 1 for image-to-image generation
-        imageCountSlider.setValue(1);
-        updateImageCountLabel(1);
-
-        // Update UI to reflect attachment (auto-adjusts model, aspect ratio, style)
-        updateAttachmentState();
-        return true;
+        attachments.remove();
     }
 
     /**
@@ -1675,6 +1029,35 @@ public class GenerationPanelController {
         seedTextField.clear();
 
         status.status(I18nManager.getText("status.seed.cleared"));
+    }
+
+    /*  what the group does when the attached images change  */
+    private GenerationAttachments.Host attachmentHost() {
+        return new GenerationAttachments.Host() {
+            @Override
+            public void imageAttached() {
+                imageCountSlider.setValue(1);
+                updateImageCountLabel(1);
+            }
+
+            @Override
+            public void attachmentChanged(boolean hasAttachment, File firstImage) {
+                updateModelSelectionForAttachment(hasAttachment);
+                listener.attachmentsChanged(firstImage);
+            }
+
+            @Override
+            public void imagesChanged(int imageCount) {
+                filterModelsByImageCount(imageCount);
+                updateCostDisplay();
+                updateGenerationSummary();
+            }
+
+            @Override
+            public void moodFromImage(File image) {
+                listener.moodFromImage(image);
+            }
+        };
     }
 
     /** Chooses the model of a chat entry, as long as it is offered. */

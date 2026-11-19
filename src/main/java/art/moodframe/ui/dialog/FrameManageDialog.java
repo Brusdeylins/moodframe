@@ -1,11 +1,8 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Frame;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
-import art.moodframe.service.trash.TrashCenter;
-import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
@@ -49,6 +46,7 @@ public class FrameManageDialog extends Stage {
     private static final double WINDOW_HEIGHT = 420;
 
     private final FrameService frameService;
+    private final TrashWindow.Opener trash;
     private final ListView<Frame> list = new ListView<>();
 
     /**
@@ -56,16 +54,19 @@ public class FrameManageDialog extends Stage {
      *
      * @param owner the owner window
      * @param frameService where the frames are kept
+     * @param favorites the favorites, which the star of a row toggles
+     * @param trash opens the trash on the frames
      */
-    public FrameManageDialog(Window owner, FrameService frameService) {
+    public FrameManageDialog(Window owner, FrameService frameService, FavoriteService favorites,
+            TrashWindow.Opener trash) {
         this.frameService = frameService;
+        this.trash = trash;
 
         initOwner(owner);
         initModality(Modality.WINDOW_MODAL);
         setTitle(I18nManager.getText("frame.manage.title"));
 
         list.setPlaceholder(new Label(I18nManager.getText("frame.manage.placeholder")));
-        FavoriteService favorites = ServiceFactory.getInstance().getService(FavoriteService.class);
         FavoriteStar.Favorites<Frame> starred = new FavoriteStar.Favorites<>(null, (frame) -> favorites != null
                 && favorites.isFavorite(FavoriteService.Kind.FRAME, frame.getId()), (frame) -> {
                     if (favorites != null)
@@ -245,9 +246,7 @@ public class FrameManageDialog extends Stage {
 
     /** Opens the frames in the trash; a restored frame shows up here once the trash is closed. */
     private void openTrash() {
-        TrashWindow window = new TrashWindow(this, ServiceFactory.getInstance().getService(TrashCenter.class),
-                ServiceFactory.getInstance().getService(TrashCleanupService.class));
-        window.select(TrashGroup.Kind.FRAMES, null);
+        TrashWindow window = trash.window(this, TrashGroup.Kind.FRAMES, null);
         window.setOnHidden((event) -> refresh(null));
         window.show();
     }

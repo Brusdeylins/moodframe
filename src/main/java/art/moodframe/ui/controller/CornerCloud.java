@@ -95,7 +95,7 @@ final class CornerCloud {
 
     /** Matches the strength of the cloud to the current theme, or hides it with the background image off. */
     void update() {
-        update(ThemeManager.getCurrentTheme());
+        update(config != null ? config.ui().getUiTheme() : ThemeManager.getCurrentTheme());
     }
 
     private void update(String themeName) {

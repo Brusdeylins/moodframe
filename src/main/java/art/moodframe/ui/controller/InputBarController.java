@@ -2,7 +2,7 @@ package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;

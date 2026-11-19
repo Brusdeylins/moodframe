@@ -112,7 +112,6 @@
                     </fx:define>
                     <Label fx:id="flux2GuidanceLabel" text="Guidance: 5.0" styleClass="text-bold" tooltip="$flux2GuidanceTooltip" />
                     <Slider fx:id="flux2GuidanceSlider" tooltip="$flux2GuidanceTooltip"
-                            min="1.5" max="10.0" value="5.0"
                             showTickLabels="true" showTickMarks="true"
                             majorTickUnit="1.0" minorTickCount="1" />
                 </VBox>
@@ -125,7 +124,6 @@
                     </fx:define>
                     <Label fx:id="flux2StepsLabel" text="Steps: 50" styleClass="text-bold" tooltip="$flux2StepsTooltip" />
                     <Slider fx:id="flux2StepsSlider" tooltip="$flux2StepsTooltip"
-                            min="1" max="50" value="50"
                             showTickLabels="true" showTickMarks="true"
                             majorTickUnit="10" minorTickCount="4" snapToTicks="true" />
                 </VBox>
