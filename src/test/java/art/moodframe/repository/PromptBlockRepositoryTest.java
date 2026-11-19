@@ -75,7 +75,7 @@ class PromptBlockRepositoryTest {
         assertTrue(repository.moveToTrash(block.getId()));
         assertTrue(repository.delete(block.getId()));
         assertTrue(repository.findById(block.getId()).isEmpty());
-        assertFalse(repository.existsById(block.getId()));
+        assertFalse(repository.exists(block.getId()));
     }
 
     @Test
@@ -130,9 +130,9 @@ class PromptBlockRepositoryTest {
 
         repository.deleteAll(PromptBlock.Type.STYLE);
 
-        assertFalse(repository.existsById(used.getId()));
-        assertFalse(repository.existsById(trashed.getId()), "the reset also removes the blocks in the trash");
-        assertTrue(repository.existsById(camera.getId()));
+        assertFalse(repository.exists(used.getId()));
+        assertFalse(repository.exists(trashed.getId()), "the reset also removes the blocks in the trash");
+        assertTrue(repository.exists(camera.getId()));
         Mood stored = moods.findById(mood.getId()).orElseThrow();
         assertNull(stored.getReference(Mood.Field.STYLE), "no mood keeps the id of a removed block");
         assertEquals(camera.getId(), stored.getReference(Mood.Field.CAMERA));

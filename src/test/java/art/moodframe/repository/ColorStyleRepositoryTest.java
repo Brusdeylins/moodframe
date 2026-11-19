@@ -52,6 +52,6 @@ class ColorStyleRepositoryTest {
         assertTrue(repository.findById(style.getId()).isPresent());
         assertTrue(repository.moveToTrash(style.getId()));
         assertTrue(repository.delete(style.getId()));
-        assertFalse(repository.existsById(style.getId()));
+        assertFalse(repository.exists(style.getId()));
     }
 }
