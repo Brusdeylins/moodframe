@@ -268,7 +268,8 @@ public class MainWindowController implements I18nChangeListener {
     /**
      * Lets go of what the window registered beyond itself, so a closed window stays reachable from nowhere: its
      * listeners of the language, the theme, the generations, the library, the trash and the checks of the accounts,
-     * the timelines of its parts and its worker. Runs once, when the window is closed.
+     * the timelines of its parts and its worker. The writes the window asked for end before it returns: those still
+     * on the worker (up to 5 seconds) and the delayed save of the settings. Runs once, when the window is closed.
      */
     public void dispose() {
         if (disposed)
@@ -290,7 +291,24 @@ public class MainWindowController implements I18nChangeListener {
         generationPanelController.dispose();
         statusBarController.dispose();
         cornerCloud.dispose();
+        drainWorker();
+
+        /*  The divider position waits for a quiet time before it is written; a closed window writes it now, so no
+            write of the window lands in the library after it closed  */
+        if (config != null)
+            config.flushConfiguration();
+    }
+
+    /*  The writes asked for before the window closed end before it is gone, not behind the back of whoever goes on  */
+    private void drainWorker() {
         worker.shutdown();
+        try {
+            if (!worker.awaitTermination(5, TimeUnit.SECONDS))
+                logger.warn("The work of the closed window did not end within 5 seconds");
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /*  A change of an entry during its generation; a finished entry changes the image counts of the groups  */
