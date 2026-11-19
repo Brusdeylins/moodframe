@@ -187,17 +187,13 @@ public class ChatViewController {
     private boolean wasScrolledToBottom = false;
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
 
-    // Image Preview Overlay
-    private art.moodframe.ui.component.ImagePreviewOverlay imagePreviewOverlay;
+    /*  The full view of the images, with the steps from entry to entry  */
+    private EntryFullView fullView;
 
     /*  the cards the cells show now, which listen to the language until they are disposed  */
     private final java.util.Set<ChatEntryCard> shownCards =
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
-    // Track the currently displayed chat entry for navigation
-    private ChatEntry currentlyDisplayedChatEntry;
-
-    /*  Shortcut+C over an entry or an image reuses it, installed by the window on all its content  */
     private EventHandler<KeyEvent> reuseFilter;
 
     @FXML
@@ -248,7 +244,47 @@ public class ChatViewController {
         setupImagesView();
         setupChatInputHeight();
         optimizeScrollPane();
-        setupImagePreviewOverlay(overlayHost);
+        fullView = new EntryFullView(config, overlayHost, fullViewHost());
+    }
+
+    /*  The full view pages through the shown entries and hands its actions to the window  */
+    private EntryFullView.Host fullViewHost() {
+        return new EntryFullView.Host() {
+            @Override
+            public Chat chat() {
+                return chat.get();
+            }
+
+            @Override
+            public EntryGroup group() {
+                return group.get();
+            }
+
+            @Override
+            public List<ChatEntry> shownEntries() {
+                return chatEntriesListView.getItems();
+            }
+
+            @Override
+            public String imagePath(GeneratedImage image, boolean isChatDeleted) {
+                return ChatViewController.this.imagePath(image, isChatDeleted);
+            }
+
+            @Override
+            public void edit(String path) {
+                actions.edit(path);
+            }
+
+            @Override
+            public void download(String path) {
+                downloadImageFromPath(path);
+            }
+
+            @Override
+            public void status(String message) {
+                status.status(message);
+            }
+        };
     }
 
     /** The input area below the chat. */
@@ -292,8 +328,8 @@ public class ChatViewController {
 
     /** Closes the full view of the images, if open. */
     public void closePreview() {
-        if (imagePreviewOverlay != null && imagePreviewOverlay.isVisible())
-            imagePreviewOverlay.setVisible(false);
+        if (fullView != null)
+            fullView.close();
     }
 
     /**
@@ -304,9 +340,8 @@ public class ChatViewController {
         shownCards.forEach(ChatEntryCard::dispose);
         shownCards.clear();
         chatEntriesListView.setItems(null);
-        closePreview();
-        if (imagePreviewOverlay != null)
-            I18nManager.removeChangeListener(imagePreviewOverlay);
+        if (fullView != null)
+            fullView.dispose();
     }
 
     /** Shows the texts of the chat area in the current language. */
@@ -694,7 +729,7 @@ public class ChatViewController {
                     currentCard.bindTileSize(imageSizeSlider.valueProperty());
 
                     currentCard.setOnImageClick((clickedEntry, imageIndex) -> {
-                        showImagePreview(clickedEntry, imageIndex);
+                        fullView.showEntry(clickedEntry, imageIndex);
                     });
 
                     currentCard.setOnImageDownload(filePath -> {
@@ -822,7 +857,7 @@ public class ChatViewController {
 
     /** Cmd/Ctrl + and - change the image size in steps, but not in the full view, where + and - zoom. */
     private void changeImageSize(KeyEvent event) {
-        if (!event.isShortcutDown() || imagePreviewOverlay != null && imagePreviewOverlay.isVisible())
+        if (!event.isShortcutDown() || fullView != null && fullView.isShowing())
             return;
         switch (event.getCode()) {
             case PLUS, ADD, EQUALS -> imageSizeSlider.setValue(imageSizeSlider.getValue() + IMAGE_SIZE_STEP);
@@ -859,8 +894,8 @@ public class ChatViewController {
             paths.add(path);
             captions.add(ImageGrid.caption(image.entry()));
         }
-        if (imagePreviewOverlay != null && start >= 0)
-            imagePreviewOverlay.showGallery(paths, captions, start);
+        if (start >= 0)
+            fullView.showGallery(paths, captions, start);
     }
 
     /**
@@ -1029,319 +1064,6 @@ public class ChatViewController {
         chatTotalCostLabel.setText(chat.get() != null && !chat.get().isDeleted()
                 ? I18nManager.getText("sidebar.group.target", chat.get().getName())
                 : I18nManager.getText("sidebar.group.target.none"));
-    }
-
-    /**
-     * Sets up the image preview overlay component.
-     */
-    private void setupImagePreviewOverlay(StackPane overlayHost) {
-        try {
-            // Create and configure the image preview overlay
-            imagePreviewOverlay = new art.moodframe.ui.component.ImagePreviewOverlay(config);
-
-            // Add overlay to the main stack pane (covers entire window except header)
-            overlayHost.getChildren().add(imagePreviewOverlay);
-
-            // Set up close callback
-            imagePreviewOverlay.setOnCloseRequested(aVoid -> {
-                imagePreviewOverlay.setVisible(false);
-            });
-
-            // Set up chat navigation callbacks
-            imagePreviewOverlay.setOnPrevChatRequested(() -> navigateToPreviousChatWithImages());
-            imagePreviewOverlay.setOnNextChatRequested(() -> navigateToNextChatWithImages());
-
-            // Set up edit this callback for overlay
-            imagePreviewOverlay.setOnEditThisRequested(filePath -> {
-                actions.edit(filePath);
-            });
-
-            imagePreviewOverlay.setOnDownloadRequested(filePath -> downloadImageFromPath(filePath));
-
-            // Forward overlay status messages (e.g. download feedback) to the footer
-            imagePreviewOverlay.setOnStatusMessage(message -> status.status(message));
-
-        } catch (Exception e) {
-            logger.error("Failed to setup image preview overlay", e);
-        }
-    }
-
-    /**
-     * Shows the image preview overlay with images from a chat entry.
-     *
-     * @param chatEntry  the chat entry containing images to display
-     * @param startIndex the index of the image to start with
-     */
-    private void showImagePreview(ChatEntry chatEntry, int startIndex) {
-        if (imagePreviewOverlay == null) {
-            return;
-        }
-
-        if (chatEntry == null || ChatLibrary.imagesOf(chatEntry).isEmpty()) {
-            return;
-        }
-
-        // Extract image paths from chat entry, checking both active and trash locations
-        java.util.List<String> imagePaths = ChatLibrary.imagesOf(chatEntry).stream()
-                .map(image -> imagePath(image, chat.get() != null && chat.get().isDeleted()))
-                .filter(path -> path != null && !path.isEmpty())
-                .filter(path -> new java.io.File(path).exists()) // Only include existing files
-                .collect(java.util.stream.Collectors.toList());
-
-        if (imagePaths.isEmpty()) {
-            return;
-        }
-
-        // Ensure startIndex is within bounds of valid images
-        int safeStartIndex = Math.max(0, Math.min(startIndex, imagePaths.size() - 1));
-
-        // Show overlay with images
-        imagePreviewOverlay.showImages(imagePaths, safeStartIndex);
-
-        // Track the current chat entry for navigation
-        currentlyDisplayedChatEntry = chatEntry;
-
-        // Update chat navigation button visibility
-        updateChatNavigationButtons();
-
-    }
-
-    /**
-     * Navigates to the previous chat entry that has images.
-     * Opens the first image of that chat entry in the preview.
-     */
-    private void navigateToPreviousChatWithImages() {
-        if (chat.get() == null && group.get() == null) {
-            return;
-        }
-
-        // Find the currently displayed chat entry
-        ChatEntry currentEntry = findCurrentlyDisplayedChatEntry();
-        if (currentEntry == null) {
-            return;
-        }
-
-        // Work directly with chat entries from the current chat, or with those of an open group
-        // The issue is not with deleted chat entries, but with the index calculation
-        java.util.List<ChatEntry> chatEntries = group.get() != null ? chatEntriesListView.getItems()
-                : ChatLibrary.entriesOf(chat.get());
-
-        int currentIndex = -1;
-
-        // Find current entry index in the chat entries list
-        for (int i = 0; i < chatEntries.size(); i++) {
-            if (chatEntries.get(i).getId().equals(currentEntry.getId())) {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        if (currentIndex == -1) {
-            return;
-        }
-
-        // Search for previous chat entry with images (going backwards)
-        for (int i = currentIndex - 1; i >= 0; i--) {
-            ChatEntry entry = chatEntries.get(i);
-            boolean hasImages = hasValidImages(entry);
-
-            // Check if this entry has valid images (not failed/cancelled)
-            if (hasImages) {
-                // Find the first valid image index instead of always using 0
-                int firstValidImageIndex = findFirstValidImageIndex(entry);
-                showImagePreview(entry, firstValidImageIndex);
-                return;
-            }
-        }
-    }
-
-    /**
-     * Navigates to the next chat entry that has images.
-     * Opens the first image of that chat entry in the preview.
-     */
-    private void navigateToNextChatWithImages() {
-        if (chat.get() == null && group.get() == null) {
-            return;
-        }
-
-        // Find the currently displayed chat entry
-        ChatEntry currentEntry = findCurrentlyDisplayedChatEntry();
-        if (currentEntry == null) {
-            return;
-        }
-
-        // Work directly with chat entries from the current chat, or with those of an open group
-        java.util.List<ChatEntry> chatEntries = group.get() != null ? chatEntriesListView.getItems()
-                : ChatLibrary.entriesOf(chat.get());
-        int currentIndex = -1;
-
-        // Find current entry index in the chat entries list
-        for (int i = 0; i < chatEntries.size(); i++) {
-            if (chatEntries.get(i).getId().equals(currentEntry.getId())) {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        if (currentIndex == -1) {
-            return;
-        }
-
-        // Search for next chat entry with images (going forwards)
-        for (int i = currentIndex + 1; i < chatEntries.size(); i++) {
-            ChatEntry entry = chatEntries.get(i);
-            boolean hasImages = hasValidImages(entry);
-
-            // Check if this entry has valid images (not failed/cancelled)
-            if (hasImages) {
-                // Find the first valid image index instead of always using 0
-                int firstValidImageIndex = findFirstValidImageIndex(entry);
-                showImagePreview(entry, firstValidImageIndex);
-                return;
-            }
-        }
-    }
-
-    /**
-     * Checks if a chat entry has valid images (not failed/cancelled and files
-     * exist).
-     *
-     * @param entry the chat entry to check
-     * @return true if the entry has at least one valid image
-     */
-    private boolean hasValidImages(ChatEntry entry) {
-        if (entry == null || ChatLibrary.imagesOf(entry).isEmpty()) {
-            return false;
-        }
-
-        // Don't rely solely on chat entry status - check individual images
-        // A chat entry might be COMPLETED but have some failed images
-
-        // Check if at least one image is valid (downloaded successfully and file
-        // exists)
-        for (GeneratedImage image : ChatLibrary.imagesOf(entry)) {
-            // Check image download status
-            if (image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED) {
-                continue; // Skip non-cached images
-            }
-
-            // Check if file path exists and file is actually there (including trash)
-            String actualPath = imagePath(image, chat.get() != null && chat.get().isDeleted());
-            if (actualPath != null && !actualPath.isEmpty()) {
-                java.io.File file = new java.io.File(actualPath);
-                if (file.exists()) {
-                    return true; // Found at least one valid image
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Finds the first valid image index in a chat entry.
-     * Skips failed/missing images and returns the index of the first existing
-     * image.
-     *
-     * @param entry the chat entry to search
-     * @return the index of the first valid image, or 0 if none found
-     */
-    private int findFirstValidImageIndex(ChatEntry entry) {
-        if (entry == null || ChatLibrary.imagesOf(entry).isEmpty()) {
-            return 0;
-        }
-
-        java.util.List<GeneratedImage> images = ChatLibrary.imagesOf(entry);
-        for (int i = 0; i < images.size(); i++) {
-            GeneratedImage image = images.get(i);
-
-            // Check if image is valid (cached status and file exists)
-            if (image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED) {
-                String actualPath = imagePath(image, chat.get() != null && chat.get().isDeleted());
-                if (actualPath != null && !actualPath.isEmpty()) {
-                    java.io.File file = new java.io.File(actualPath);
-                    if (file.exists()) {
-                        return i;
-                    }
-                }
-            }
-        }
-
-        // Fallback to 0 if no valid images found (should not happen if hasValidImages()
-        // was true)
-        return 0;
-    }
-
-    /**
-     * Finds the currently displayed chat entry in the preview overlay.
-     *
-     * @return the currently displayed chat entry, or null if none
-     */
-    private ChatEntry findCurrentlyDisplayedChatEntry() {
-        return currentlyDisplayedChatEntry;
-    }
-
-    /**
-     * Updates the visibility of chat navigation buttons based on available chat
-     * entries.
-     */
-    private void updateChatNavigationButtons() {
-        if (imagePreviewOverlay == null || currentlyDisplayedChatEntry == null) {
-            return;
-        }
-
-        boolean hasPrevious = hasPreviousChatWithImages();
-        boolean hasNext = hasNextChatWithImages();
-
-        imagePreviewOverlay.updateChatNavigationButtons(hasPrevious, hasNext);
-    }
-
-    /**
-     * Checks if there's a previous chat entry with valid images.
-     *
-     * @return true if there's a previous chat entry with images
-     */
-    private boolean hasPreviousChatWithImages() {
-        if ((chat.get() == null && group.get() == null) || chatEntriesListView == null
-                || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
-            return false;
-        }
-
-        java.util.List<ChatEntry> entries = chatEntriesListView.getItems();
-        int currentIndex = entries.indexOf(currentlyDisplayedChatEntry);
-
-        // Check for previous entries with images
-        for (int i = currentIndex - 1; i >= 0; i--) {
-            if (hasValidImages(entries.get(i))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Checks if there's a next chat entry with valid images.
-     *
-     * @return true if there's a next chat entry with images
-     */
-    private boolean hasNextChatWithImages() {
-        if ((chat.get() == null && group.get() == null) || chatEntriesListView == null
-                || chatEntriesListView.getItems() == null || currentlyDisplayedChatEntry == null) {
-            return false;
-        }
-
-        java.util.List<ChatEntry> entries = chatEntriesListView.getItems();
-        int currentIndex = entries.indexOf(currentlyDisplayedChatEntry);
-
-        // Check for next entries with images
-        for (int i = currentIndex + 1; i < entries.size(); i++) {
-            if (hasValidImages(entries.get(i))) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
