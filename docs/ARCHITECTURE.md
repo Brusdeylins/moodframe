@@ -148,8 +148,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   of the main window (`ui.panel.PanelWorker`: moods, frames, building blocks, palettes and favorites of the lists, and
   the "Manage…" windows of the building blocks, moods and frames, which wait meanwhile); the backup, its import and
   the reset of the settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled
-  meanwhile. The panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the
-  renaming and deleting of brainstorm sessions. Reads that feed what is shown at once (the lists of the panel and of
+  meanwhile; the brainstorm on its session queue and its window's worker (see "Brainstorm"). The panel shows the
+  outcome afterwards, a saved mood or frame as chosen. Reads that feed what is shown at once (the lists of the panel and of
   the "Manage…" windows, the fields of a chosen mood) stay on the JavaFX thread: they are short, and SQLite in WAL mode
   lets them read beside a running write. Which moods have a block in the trash (up to five queries per mood) the
   worker finds once per load of a list, in the panel and in the "Manage…" window of the moods; the rows and the
