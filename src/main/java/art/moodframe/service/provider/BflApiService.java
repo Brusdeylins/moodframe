@@ -3,8 +3,6 @@ package art.moodframe.service.provider;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;

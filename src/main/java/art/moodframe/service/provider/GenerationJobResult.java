@@ -1,4 +1,4 @@
-package art.moodframe.model;
+package art.moodframe.service.provider;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

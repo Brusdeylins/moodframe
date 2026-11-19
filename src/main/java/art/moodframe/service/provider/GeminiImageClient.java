@@ -1,7 +1,6 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.util.I18nManager;

@@ -5,7 +5,7 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
-import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.repository.ChatRepository;

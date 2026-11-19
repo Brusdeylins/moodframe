@@ -1,5 +1,6 @@
-package art.moodframe.model;
+package art.moodframe.service.provider;
 
+import art.moodframe.model.ApiProvider;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
