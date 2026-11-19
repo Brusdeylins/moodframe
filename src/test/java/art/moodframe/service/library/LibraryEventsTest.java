@@ -11,7 +11,6 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ChatTrashGroup;
@@ -237,7 +236,7 @@ class LibraryEventsTest {
 
         /*  The trash reports what left it, the library shows it again or drops it  */
         DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
-        assertTrue(new ChatTrashGroup(new ChatRepository(database), new ChatTrashRepository(database, ChatFiles.NONE))
+        assertTrue(new ChatTrashGroup(new ChatTrashRepository(database, ChatFiles.NONE))
                 .restore(chat.getId()));
         library.restored(TrashGroup.Kind.CHATS, chat.getId());
         assertEquals(once(LibraryEvents.Kind.CHAT, chat.getId()), reported());

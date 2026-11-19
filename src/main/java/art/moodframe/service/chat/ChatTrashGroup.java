@@ -1,11 +1,5 @@
 package art.moodframe.service.chat;
 
-import art.moodframe.model.Chat;
-import art.moodframe.model.ChatCost;
-import art.moodframe.model.ChatEntry;
-import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.GeneratedImage.DownloadStatus;
-import art.moodframe.repository.ChatRepository;
 import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
@@ -27,17 +21,14 @@ public class ChatTrashGroup implements TrashGroup {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatTrashGroup.class);
 
-    private final ChatRepository chatRepository;
     private final ChatTrashRepository trash;
 
     /**
      * Creates the group.
      *
-     * @param chatRepository where chats are stored
-     * @param trash          the trash of the chats, which moves their files
+     * @param trash the trash of the chats, which moves their files
      */
-    public ChatTrashGroup(ChatRepository chatRepository, ChatTrashRepository trash) {
-        this.chatRepository = chatRepository;
+    public ChatTrashGroup(ChatTrashRepository trash) {
         this.trash = trash;
     }
 
@@ -47,7 +38,8 @@ public class ChatTrashGroup implements TrashGroup {
     }
 
     /**
-     * Lists the deleted chats with the number of their images, those that were downloaded, and their cost.
+     * Lists the deleted chats with the number of their images, those that came ({@link
+     * art.moodframe.model.GeneratedImage#isReal()}), and their cost, in one query.
      *
      * @param locale the language of the context, null for that of the user interface
      * @return the chats in the trash, the latest deletion first
@@ -56,20 +48,15 @@ public class ChatTrashGroup implements TrashGroup {
     public List<TrashEntry> list(Locale locale) {
         List<TrashEntry> entries = new ArrayList<>();
         try {
-            for (Chat chat : chatRepository.findDeletedChats()) {
-                List<ChatEntry> chatEntries = chatRepository.findChatEntriesByChatId(chat.getId());
+            for (ChatTrashRepository.DeletedChat deleted : trash.findDeletedChats()) {
 
-                /*  Only the images that came: a failed or unfinished request leaves a row without a picture  */
-                int images = (int) chatRepository.findImagesByEntryIds(chatEntries.stream().map(ChatEntry::getId)
-                        .toList()).values().stream().flatMap(List::stream)
-                        .filter((GeneratedImage image) -> image.getDownloadStatus() == DownloadStatus.CACHED).count();
-
-                /*  The total of the chat header: all it cost, deleted entries and images included  */
-                double cost = ChatCost.total(chatEntries, chat.getDeletedCost());
-
-                entries.add(new TrashEntry(chat.getId(), chat.getName(), chat.getDeletedAt(), TrashGroup.text(locale,
-                        images == 1 ? "trash.context.chat.singular" : "trash.context.chat.plural",
-                        images, TrashGroup.cost(locale, cost))));
+                /*  The total of the chat header, as ChatCost#total sums it: all it cost, deleted entries and
+                    images included  */
+                double cost = deleted.entriesCost() + deleted.chat().getDeletedCost();
+                entries.add(new TrashEntry(deleted.chat().getId(), deleted.chat().getName(),
+                        deleted.chat().getDeletedAt(), TrashGroup.text(locale, deleted.images() == 1
+                                ? "trash.context.chat.singular" : "trash.context.chat.plural",
+                                deleted.images(), TrashGroup.cost(locale, cost))));
             }
         } catch (SQLException e) {
             logger.error("Failed to list the deleted chats", e);

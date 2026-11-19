@@ -127,7 +127,7 @@ class McpEditToolsTest {
         frames = TestLibraryServices.frames(events);
         favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ChatTrashGroup(chatTrash));
         trash.register(new ImageTrashGroup(repository, chatTrash, null, null));
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));

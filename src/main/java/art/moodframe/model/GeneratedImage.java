@@ -695,6 +695,16 @@ public class GeneratedImage {
     public void setHeight(int height) { this.height.set(height); }
     public IntegerProperty heightProperty() { return height; }
     
+    /**
+     * Tells whether the image came: downloaded, unlike the row of a failed or unfinished request, which holds no
+     * picture. The trash counts only these.
+     *
+     * @return true for a downloaded image
+     */
+    public boolean isReal() {
+        return getDownloadStatus() == DownloadStatus.CACHED;
+    }
+
     public boolean isInTrash() { return isInTrash; }
     public void setIsInTrash(boolean isInTrash) { this.isInTrash = isInTrash; }
 

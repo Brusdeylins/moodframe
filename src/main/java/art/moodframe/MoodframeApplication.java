@@ -432,7 +432,7 @@ public class MoodframeApplication extends Application {
             ChatRepository chatRepo = services.getService(ChatRepository.class);
             ChatTrashRepository chatTrash = services.getService(ChatTrashRepository.class);
             if (chatRepo != null) {
-                trashCenter.register(new ChatTrashGroup(chatRepo, chatTrash));
+                trashCenter.register(new ChatTrashGroup(chatTrash));
                 trashCenter.register(new ImageTrashGroup(chatRepo, chatTrash, services.getService(TrashManager.class),
                         services.getService(ThumbnailManager.class)));
             }

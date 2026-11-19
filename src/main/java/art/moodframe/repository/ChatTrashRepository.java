@@ -1,6 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.model.Chat;
 import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
@@ -13,6 +14,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,7 @@ import static art.moodframe.repository.ChatRepository.entryPlace;
 import static art.moodframe.repository.ChatRepository.findChatEntryById;
 import static art.moodframe.repository.ChatRepository.findGeneratedImageById;
 import static art.moodframe.repository.ChatRepository.findGeneratedImagesByEntry;
+import static art.moodframe.repository.ChatRepository.mapRowToChat;
 import static art.moodframe.repository.ChatRepository.mapRowToChatEntry;
 import static art.moodframe.repository.ChatRepository.mapRowToGeneratedImage;
 import static art.moodframe.repository.ChatRepository.now;
@@ -468,6 +471,51 @@ public class ChatTrashRepository {
                 return rs.next() ? rs.getDouble("deleted_cost") : 0.0;
             }
         }
+    }
+
+    /**
+     * What a chat in the trash holds, as its row in the trash shows it.
+     *
+     * @param chat        the chat
+     * @param images      its images that came ({@link GeneratedImage#isReal()}) of its entries, neither deleted on
+     *                    their own
+     * @param entriesCost the cost of its entries not deleted on their own
+     */
+    public record DeletedChat(Chat chat, int images, double entriesCost) {
+    }
+
+    /**
+     * Finds the chats in the trash with what they hold, in one query.
+     *
+     * @return the chats, the latest deletion first
+     * @throws SQLException if query fails
+     */
+    public List<DeletedChat> findDeletedChats() throws SQLException {
+        String sql = """
+                SELECT c.*,
+                    (SELECT COUNT(*) FROM generated_images gi JOIN chat_entries ce ON gi.chat_entry_id = ce.id
+                        WHERE ce.chat_id = c.id AND ce.deleted_at IS NULL AND gi.deleted_at IS NULL
+                        AND gi.download_status = ?) AS real_images,
+                    (SELECT COALESCE(SUM(ce.cost), 0) FROM chat_entries ce
+                        WHERE ce.chat_id = c.id AND ce.deleted_at IS NULL) AS entries_cost
+                FROM chats c WHERE c.deleted_at IS NOT NULL
+                """;
+
+        List<DeletedChat> chats = new ArrayList<>();
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, GeneratedImage.DownloadStatus.CACHED.name());
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next())
+                    chats.add(new DeletedChat(mapRowToChat(rs), rs.getInt("real_images"),
+                            rs.getDouble("entries_cost")));
+            }
+        }
+
+        /*  sorted here: older rows hold deleted_at in other formats, which SQL sorts apart  */
+        chats.sort(Comparator.comparing((DeletedChat deleted) -> deleted.chat().getDeletedAt(),
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return chats;
     }
 
     /**

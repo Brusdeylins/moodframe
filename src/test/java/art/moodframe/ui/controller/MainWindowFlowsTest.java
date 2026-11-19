@@ -338,7 +338,7 @@ class MainWindowFlowsTest {
         repository = slowImageWrites(database);
         ChatTrashRepository chatTrash = new ChatTrashRepository(database, files);
         trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ChatTrashGroup(chatTrash));
         trash.register(new ImageTrashGroup(repository, chatTrash, trashManager, thumbnails));
         ChatHistoryService history = new ChatHistoryService(repository, chatTrash, new ChatGroupQueries(database),
                 trashManager);

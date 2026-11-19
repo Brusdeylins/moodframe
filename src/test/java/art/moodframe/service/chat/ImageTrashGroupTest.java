@@ -91,6 +91,20 @@ class ImageTrashGroupTest {
     }
 
     @Test
+    void countsOnlyTheImagesThatCameAsTheChatsDo() throws Exception {
+        Chat chat = chat("Gewitter");
+        ChatEntry entry = entry(chat, "a storm", 0.04, 1);
+        repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(entry.getId()).model("flux-pro")
+                .sortOrder(1).downloadStatus(GeneratedImage.DownloadStatus.FAILED).baseCost(0.0).build());
+        trash.softDeleteChatEntry(entry.getId());
+
+        TrashEntry row = trashed(entry).orElseThrow();
+        assertEquals(2, row.parts().size(), "the failed row can be restored with its entry");
+        assertEquals(I18nManager.getText("trash.context.images.singular", "Gewitter", 1, I18nManager.formatCost(0.04)),
+                row.context());
+    }
+
+    @Test
     void restoresAWholeEntryWithItsFourImagesAndTheCostOfItsChat() throws Exception {
         Chat chat = chat("Sturm");
         ChatEntry entry = entry(chat, "a lighthouse in a storm", 0.16, 4);
@@ -231,7 +245,8 @@ class ImageTrashGroupTest {
         for (int i = 0; i < images; i++) {
             Path file = Files.writeString(directory.resolve(entry.getId() + "-" + i + ".png"), "image " + i);
             repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(entry.getId()).model("flux-pro")
-                    .localFilePath(file.toString()).sortOrder(i).build());
+                    .localFilePath(file.toString()).sortOrder(i).downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                    .build());
         }
         return entry;
     }

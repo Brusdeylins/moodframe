@@ -65,7 +65,8 @@ public class ImageTrashGroup implements TrashGroup {
 
     /**
      * Lists the entries with deleted images: the beginning of the prompt, the chat, the number of the deleted
-     * images and what they had cost.
+     * images that came ({@link art.moodframe.model.GeneratedImage#isReal()}, as the chats count them) and what they
+     * had cost.
      *
      * @param locale the language of the context, null for that of the user interface
      * @return the entries in the trash, the latest deletion first
@@ -87,9 +88,10 @@ public class ImageTrashGroup implements TrashGroup {
                 LocalDateTime deletedAt = parts.stream().map(TrashEntry.Part::deletedAt).filter(Objects::nonNull)
                         .min(Comparator.naturalOrder()).orElse(entry.getDeletedAt());
 
+                long images = entry.getImages().stream().filter(GeneratedImage::isReal).count();
                 entries.add(new TrashEntry(entry.getId(), prompt(entry), deletedAt, TrashGroup.text(locale,
-                        parts.size() == 1 ? "trash.context.images.singular" : "trash.context.images.plural",
-                        chatNames.get(entry.getChatId()), parts.size(),
+                        images == 1 ? "trash.context.images.singular" : "trash.context.images.plural",
+                        chatNames.get(entry.getChatId()), images,
                         TrashGroup.cost(locale, entry.getDeletedCost())), parts));
             }
         } catch (SQLException e) {
