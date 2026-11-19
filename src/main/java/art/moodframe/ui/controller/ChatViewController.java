@@ -18,6 +18,8 @@ import art.moodframe.ui.entry.ImageGrid;
 import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.DoubleProperty;
@@ -49,6 +51,7 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Screen;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -186,6 +189,10 @@ public class ChatViewController {
     /*  The chat keeps its end in view while the images of a new entry arrive: from sending until the user scrolls
         away from the end  */
     private boolean wasScrolledToBottom = false;
+
+    /*  The delays of the passes that scroll to the end in ms (1 ms: the next pulse), and the passes, created once  */
+    private static final int[] SCROLL_DELAYS = { 1, 50, 150, 300, 600 };
+    private Timeline scrollPasses;
     private int lastChatEntriesCount = 0; // Track number of entries to detect new ones
 
     /*  The full view of the images, with the steps from entry to entry  */
@@ -336,6 +343,8 @@ public class ChatViewController {
      * cells and stop listening to the language, the full view closes and stops listening as well.
      */
     public void dispose() {
+        if (scrollPasses != null)
+            scrollPasses.stop();
         shownCards.forEach(ChatEntryCard::dispose);
         shownCards.clear();
         chatEntriesListView.setItems(null);
@@ -573,7 +582,7 @@ public class ChatViewController {
     /*  During a generation the chat keeps its end in view and its header the total cost  */
     private void followGeneration() {
         if (wasScrolledToBottom)
-            scrollToBottom("entry updated");
+            scrollToBottom();
         if (chat.get() != null)
             updateChatTotalCost(chat.get());
     }
@@ -589,7 +598,7 @@ public class ChatViewController {
                 if (group.get().holds(chatEntry)) {
                     chatEntriesListView.getItems().add(chatEntry);
                     wasScrolledToBottom = true;
-                    scrollToBottom("new entry added");
+                    scrollToBottom();
                 }
                 return;
             }
@@ -612,7 +621,7 @@ public class ChatViewController {
 
                 // Auto-scroll to bottom for new entries
                 wasScrolledToBottom = true;
-                scrollToBottom("new entry added");
+                scrollToBottom();
 
                 logger.debug("Added new ChatEntry to ListView - total entries: {}",
                         chatEntriesListView.getItems().size());
@@ -623,38 +632,21 @@ public class ChatViewController {
     }
 
     /**
-     * Scrolls the chat scroll pane to the bottom with robust layout handling.
-     *
-     * @param reason the reason for scrolling (for logging)
+     * Scrolls the chat to its end, again after short delays while the cells of new content are measured. The passes
+     * run one at a time: a request while they run starts them anew, so a burst of updates of a generation adds no
+     * further timers.
      */
-    private void scrollToBottom(String reason) {
-        // Multiple scroll attempts with different delays to handle dynamic content
-        int[] delays = { 0, 50, 150, 300, 600 };
-
-        for (int delay : delays) {
-            if (delay == 0) {
-                // Immediate attempt
-                Platform.runLater(() -> {
-                    performScroll(reason, "immediate");
-                });
-            } else {
-                // Delayed attempts
-                javafx.animation.Timeline timeline = new javafx.animation.Timeline(
-                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(delay), e -> {
-                            performScroll(reason, delay + "ms delay");
-                        }));
-                timeline.play();
-            }
+    private void scrollToBottom() {
+        if (scrollPasses == null) {
+            scrollPasses = new Timeline();
+            for (int delay : SCROLL_DELAYS)
+                scrollPasses.getKeyFrames().add(new KeyFrame(Duration.millis(delay), (event) -> performScroll()));
         }
+        scrollPasses.playFromStart();
     }
 
-    /**
-     * Performs the actual scroll operation.
-     *
-     * @param reason the reason for scrolling
-     * @param timing timing description
-     */
-    private void performScroll(String reason, String timing) {
+    /** Performs one scroll to the end, as long as the chat was at its end. */
+    private void performScroll() {
         /*  At position 1 the list lays its cells out from the end; scrollTo(last) misjudges cells not measured yet  */
         if (wasScrolledToBottom && chatEntriesListView != null
                 && chatEntriesListView.lookup(".virtual-flow") instanceof VirtualFlow<?> flow)
