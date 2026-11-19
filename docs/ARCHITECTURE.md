@@ -182,8 +182,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   `GenerationWorkers`. The listeners learn of an entry that ended (completed, failed, cancelled) once its write is
   done, which the worker runs after those of its images, so the image counts the window queries then include it.
   `GenerationService.submit` may run on the JavaFX thread: it checks the order in memory (a refused order throws at
-  once), adds the new entry to its chat and the database on the store thread and dispatches the request only then;
-  the window shows the entry at once, the MCP tool `generate` waits until it is stored.
+  once; only the copy of the mood looks up a palette without id by its name, a short read), adds the new entry to
+  its chat and the database on the store thread and dispatches the request only then; the window shows the entry at
+  once, the MCP tool `generate` waits until it is stored.
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
@@ -495,7 +496,8 @@ the generation renders a message with `I18nManager.getText` itself (`Architectur
 its `ApiProvider`. What needs no change for a new provider: the dispatch and the flows of the generation, the
 dropdown (`ModelLabels.availableItems` lists the selectable constants of every usable provider), the startup check
 of the accounts (`ApiProviderValidator` tests the connection of every registered provider; only Gemini and OpenAI add
-the checks of their brainstorm language model) and the MCP tools. A new provider is, in this order:
+the checks of their brainstorm language model) and the MCP tools, as long as its models take only the request options
+there are. A new provider is, in this order:
 
 1. its constant in `model.ApiProvider` (display name, prefix of its account settings in `ProviderAccounts`, largest
    attachment) and its key in `config.Secret`, mapped in `ProviderAccounts.secret` (and `isBrainstormAvailable`,
@@ -508,8 +510,9 @@ the checks of their brainstorm language model) and the MCP tools. A new provider
    `model.ModelParameters`, their prices in `model.GenerationCost`, their aspect ratios in `AspectRatios.forModel` and
    the multiple of their sizes in `ImageDimensions.multipleFor`;
 4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
-   `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), and its field in
-   `ui.controller.ProviderParameters`;
+   `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), its field in
+   `ui.controller.ProviderParameters`, and its value in `mcp.GenerateTools.parameters`, which builds the
+   `GenerationOrder.Parameters` of the MCP tool `generate` from the parameters of `model.ModelParameters`;
 5. the user interface of the account: a settings tab (FXML in `fxml/settings`, a `SettingsSection` in
    `ui.controller.settings`, its client in `SettingsServices`), its line in `StatusBarController` and its texts in
    the i18n resources (`status.request.submitted.<last part of the prefix>`, falling back to a generic one).

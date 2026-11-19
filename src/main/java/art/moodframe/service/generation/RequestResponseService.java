@@ -63,14 +63,18 @@ public interface RequestResponseService {
     /**
      * Submits an image generation request with optional image attachment: on a worker, it encodes the attachment,
      * checks the request and hands one request per image to the flow of the provider, whose answers arrive later
-     * through the listeners. A submission that fails (an attachment that cannot be read or that the model does not
-     * take, an invalid request, a prompt too long for the provider, a provider that refuses at once) marks the entry
-     * failed, like {@link #markFailed}, and the future fails with the reason.
+     * through the listeners. An entry cancelled before is left alone and nothing is sent. A submission that fails
+     * before the requests are handed to their flow (an attachment that cannot be read or that the model does not take,
+     * an invalid request, a prompt too long for the provider, a client that throws at once) marks the entry failed,
+     * like {@link #markFailed}, and the future fails with the reason. What the provider answers, a refusal included
+     * (e.g. HTTP 402 or 422, no answer in time), arrives in the flow after the future completed: the image fails
+     * with the reason and the entry is settled with its other images.
      *
      * @param request the generation request containing parameters
      * @param chatEntry the chat entry to update with results
      * @param attachedImageFile optional image file for image-to-image generation (can be null)
-     * @return completes once the requests are handed to the provider, exceptionally if the submission failed
+     * @return completes once the requests are handed to the flows of the provider (or the entry was cancelled),
+     *         exceptionally if the submission failed before
      */
     CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
             java.io.File attachedImageFile);
