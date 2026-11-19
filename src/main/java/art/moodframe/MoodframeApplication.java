@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -556,12 +557,13 @@ public class MoodframeApplication extends Application {
                     new TrashCleanupService(
                             ServiceFactory.getInstance().getService(TrashCenter.class));
             cleanupService.start();
-            ServiceFactory.getInstance().registerProvider(
-                    TrashCleanupService.class,
-                    () -> cleanupService);
+
+            /*  Registered as created, so the shutdown, which creates nothing, finds it  */
+            ServiceFactory.getInstance().registerService(TrashCleanupService.class, cleanupService);
             return cleanupService;
-        } catch (Exception e) {
-            // Don't let cleanup failure prevent app startup
+        }
+        catch (Exception e) {
+            /*  A failed cleanup does not stop the start  */
             logger.error("Failed to perform trash cleanup", e);
             return null;
         }
@@ -853,55 +855,47 @@ public class MoodframeApplication extends Application {
 
     @Override
     public void stop() {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         logger.debug("Shutting down MoodFrame Application...");
+        shutDown(ServiceFactory.getInstance());
+    }
 
+    /**
+     * Stops what the application started, creates nothing (only services created already are stopped) and runs every
+     * step even if one before it failed, so the settings are written in any case.
+     *
+     * @param services the registered services, cleared at the end
+     */
+    static void shutDown(ServiceFactory services) {
+        stopService(services, TrashCleanupService.class, TrashCleanupService::shutdown);
+        stopService(services, RequestResponseManager.class, RequestResponseManager::shutdown);
+        stopService(services, ThumbnailManager.class, ThumbnailManager::shutdown);
+        stopService(services, ImageSizeCheck.class, ImageSizeCheck::shutdown);
+
+        /*  The MCP server stops before the database closes  */
+        stopService(services, McpService.class, McpService::stop);
+
+        /*  Pending provider calls and downloads end with the application  */
+        runStep("the I/O executor", IoExecutor::shutdown);
+
+        /*  Write the window bounds and divider positions of the last moments, which wait for a quiet time  */
+        stopService(services, ApplicationConfig.class, ApplicationConfig::flushConfiguration);
+        runStep("the services", services::clearServices);
+    }
+
+    /*  Stops a service if it was created; a failure is logged and the shutdown goes on  */
+    private static <T> void stopService(ServiceFactory services, Class<T> type, Consumer<T> stop) {
+        T service = services.getCreatedService(type);
+        if (service != null)
+            runStep(type.getSimpleName(), () -> stop.accept(service));
+    }
+
+    /*  Runs a step of the shutdown; a failure is logged and the shutdown goes on  */
+    private static void runStep(String name, Runnable step) {
         try {
-            // Shutdown TrashCleanupService background tasks
-            TrashCleanupService cleanupService = ServiceFactory.getInstance()
-                    .getService(TrashCleanupService.class);
-            if (cleanupService != null) {
-                cleanupService.shutdown();
-            }
-
-            // Shutdown RequestResponseManager to stop all threads
-            RequestResponseManager requestManager = ServiceFactory.getInstance()
-                    .getService(RequestResponseManager.class);
-            if (requestManager != null) {
-                requestManager.shutdown();
-            }
-
-            // Shutdown ThumbnailManager to stop thumbnail generation threads
-            ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                    .getService(ThumbnailManager.class);
-            if (thumbnailManager != null) {
-                thumbnailManager.shutdown();
-            }
-
-            /*  Stop the workers of the size check, if they were started at all  */
-            ImageSizeCheck sizeCheck = ServiceFactory.getInstance()
-                    .getCreatedService(ImageSizeCheck.class);
-            if (sizeCheck != null)
-                sizeCheck.shutdown();
-
-            /*  The MCP server stops before the database closes  */
-            McpService mcp = ServiceFactory.getInstance()
-                    .getService(McpService.class);
-            if (mcp != null)
-                mcp.stop();
-
-            /*  Pending provider calls and downloads end with the application  */
-            IoExecutor.shutdown();
-
-            /*  Write the window bounds and divider positions of the last moments, which wait for a quiet time  */
-            if (config != null)
-                config.flushConfiguration();
-
-            // Clear service factory
-            ServiceFactory.getInstance().clearServices();
-
-        } catch (Exception e) {
-            logger.error("Error during application shutdown", e);
+            step.run();
+        }
+        catch (RuntimeException e) {
+            logger.error("Failed to stop {}", name, e);
         }
     }
 
