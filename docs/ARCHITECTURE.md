@@ -224,8 +224,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 
 `config.ServiceFactory` is a singleton **service locator**, not a DI container. `getService` fails with an
 `IllegalStateException` when nothing is registered for a type, so a missing registration shows at the lookup; a
-service the caller can do without (the generation, whose provider gives none if its requests cannot be set up, the
-check of the accounts, the update check, the trash cleanup) is looked up with `findService`, an `Optional`.
+service the caller can do without (the check of the accounts, the update check, the trash cleanup) is looked up with
+`findService`, an `Optional`. The generation and the thumbnails are required: their providers create them or fail.
 `MoodframeApplication` is the composition root: it registers the instances and lazy providers at startup and hands
 every service its dependencies in the constructor, which is also how tests pass mocks: the provider clients take
 `ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,

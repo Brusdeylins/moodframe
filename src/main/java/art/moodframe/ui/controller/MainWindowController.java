@@ -185,7 +185,7 @@ public class MainWindowController implements I18nChangeListener {
         ServiceFactory services = ServiceFactory.getInstance();
         config = services.getService(ApplicationConfig.class);
         chatHistory = services.getService(ChatHistoryService.class);
-        generationService = services.findService(GenerationService.class).orElse(null);
+        generationService = services.getService(GenerationService.class);
         blockService = services.getService(PromptBlockService.class);
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
@@ -494,44 +494,33 @@ public class MainWindowController implements I18nChangeListener {
         this.requests = requests;
         this.events = events;
         this.trashCenter = trashCenter;
-        if (requests != null) {
-            requests.addEntryListener(entryListener);
-            requests.addImageListener(imageListener);
-            requests.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
-                generationPanelController.setFlux2Safety(value);
-                statusBarController.status(I18nManager.getText("status.bfl.safety.lowered", value));
-            }));
-        } else
-            logger.warn("RequestResponseManager not available - using mock mode");
-
-        if (events != null)
-            FxLibraryEvents.addListener(events, libraryListener);
-        else
-            logger.warn("LibraryEvents not available - no automatic UI refresh");
+        requests.addEntryListener(entryListener);
+        requests.addImageListener(imageListener);
+        requests.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
+            generationPanelController.setFlux2Safety(value);
+            statusBarController.status(I18nManager.getText("status.bfl.safety.lowered", value));
+        }));
+        FxLibraryEvents.addListener(events, libraryListener);
 
         /*  What leaves the trash shows by the changes of the library; the trash adds the status and the moods that
             lost their last block  */
-        if (trashCenter != null) {
-            trashListener = new TrashCenter.Listener() {
-                @Override
-                public void restored(TrashGroup.Kind kind, String id) {
-                    if (kind == TrashGroup.Kind.CHATS)
-                        Platform.runLater(() -> statusBarController.status(I18nManager.getText("status.chat.restored")));
-                    else if (kind == TrashGroup.Kind.IMAGES)
-                        showImagesRestoredStatus(id);
-                }
+        trashListener = new TrashCenter.Listener() {
+            @Override
+            public void restored(TrashGroup.Kind kind, String id) {
+                if (kind == TrashGroup.Kind.CHATS)
+                    Platform.runLater(() -> statusBarController.status(I18nManager.getText("status.chat.restored")));
+                else if (kind == TrashGroup.Kind.IMAGES)
+                    showImagesRestoredStatus(id);
+            }
 
-                /*  A mood that lost its last block with these blocks may go to the trash as well  */
-                @Override
-                public void deleted(TrashGroup.Kind kind, List<String> ids) {
-                    if (kind == TrashGroup.Kind.BLOCKS)
-                        Platform.runLater(moodFramePanelController::askToDeleteEmptiedMoods);
-                }
-            };
-            trashCenter.addListener(trashListener);
-        }
-        else
-            logger.warn("TrashCenter not available - no automatic UI refresh");
+            /*  A mood that lost its last block with these blocks may go to the trash as well  */
+            @Override
+            public void deleted(TrashGroup.Kind kind, List<String> ids) {
+                if (kind == TrashGroup.Kind.BLOCKS)
+                    Platform.runLater(moodFramePanelController::askToDeleteEmptiedMoods);
+            }
+        };
+        trashCenter.addListener(trashListener);
     }
 
     /**
@@ -644,11 +633,6 @@ public class MainWindowController implements I18nChangeListener {
         String userPrompt = inputBar.prompt().trim();
         if (userPrompt.isEmpty() || userPrompt.length() > generationPanelController.promptLimit())
             return;
-        if (generationService == null) {
-            statusBarController.error(I18nManager.getText("status.error.service.unavailable"));
-            logger.error("GenerationService not available");
-            return;
-        }
 
         /*  Without selection the default model  */
         String modelId = Objects.requireNonNullElse(generationPanelController.selectedModelId(),

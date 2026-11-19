@@ -112,8 +112,8 @@ public class ServiceFactory {
     }
 
     /**
-     * Retrieves a service the caller can do without, like the generation, whose provider gives none if its parts
-     * cannot be created; creates it from its provider like {@link #getService(Class)}.
+     * Retrieves a service the caller can do without, like the update check; creates it from its provider like
+     * {@link #getService(Class)}.
      *
      * @param <T> the service type
      * @param serviceClass the class object representing the service type
