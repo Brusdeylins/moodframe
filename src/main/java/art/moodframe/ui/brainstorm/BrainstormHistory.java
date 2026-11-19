@@ -51,6 +51,8 @@ final class BrainstormHistory extends VBox {
     private final BrainstormWorker worker;
     private final Listener listener;
     private final ListView<BrainstormSession> list = new ListView<>();
+    private final Label title = new Label();
+    private final Button newButton = new Button();
     private boolean updating;
 
     /**
@@ -69,10 +71,8 @@ final class BrainstormHistory extends VBox {
 
         FontIcon newIcon = new FontIcon("mdi2p-plus");
         newIcon.setIconSize(20);
-        Button newButton = new Button();
         newButton.setGraphic(newIcon);
         newButton.getStyleClass().add("icon-button");
-        newButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.new")));
         newButton.setOnAction((event) -> listener.startNew());
 
         ListReorder<BrainstormSession> reorder = new ListReorder<>(list, this::move);
@@ -87,16 +87,23 @@ final class BrainstormHistory extends VBox {
                 listener.open(selected);
         });
         VBox.setVgrow(list, Priority.ALWAYS);
+        relabel();
 
         /*  The heading starts on the inset of the boxes, the line of the titles in the list. The gap to the chat is
             the divider, the list ends at the bottom with the input field and "Adopt".  */
-        Label title = new Label(I18nManager.getText("brainstorm.history.title"));
         getChildren().addAll(BrainstormHeading.row(title, BoxInset.LEFT, 0, newButton), list);
         getStyleClass().add("bg-inset");
         setPadding(new Insets(0, 0, 15.0, 10.0));
         setPrefWidth(240.0);
         setMinWidth(180.0);
         setMaxWidth(420.0);
+    }
+
+    /** Sets the texts in the current language; the rows of the list are drawn anew. */
+    void relabel() {
+        title.setText(I18nManager.getText("brainstorm.history.title"));
+        newButton.setTooltip(new Tooltip(I18nManager.getText("brainstorm.history.new")));
+        list.refresh();
     }
 
     /** Lists the stored sessions anew, after the work of the window asked for before, and selects the shown one. */

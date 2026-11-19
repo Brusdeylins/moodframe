@@ -39,6 +39,7 @@ import javafx.scene.layout.VBox;
 import org.json.JSONObject;
 
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +103,10 @@ final class BrainstormResultForm extends VBox {
     private final CheckBox durationCheck = new CheckBox();
     private final VBox factsBox = new VBox(6.0);
     private final Button adoptButton = new Button();
+    /** The labels of the form by the keys of their texts, set anew on a change of the language. */
+    private final Map<Label, String> labels = new LinkedHashMap<>();
+    /** The text of the "None" items of the mood and the blocks, in the language they were made in. */
+    private String noneItem = I18nManager.getText(NONE_ITEM_KEY);
 
     /**
      * Creates the column.
@@ -135,7 +140,7 @@ final class BrainstormResultForm extends VBox {
         ratioBox.setMaxWidth(Double.MAX_VALUE);
         durationBox.setMaxWidth(Double.MAX_VALUE);
 
-        moodBox.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
+        moodBox.getItems().add(noneItem);
         context.moods().stream().map(Mood::getName).forEach(moodBox.getItems()::add);
         for (Mood.Field field : BrainstormDraft.FIELDS)
             blockRows.put(field, new BlockRow(field));
@@ -192,8 +197,7 @@ final class BrainstormResultForm extends VBox {
         CheckBox resolutionCheck = new CheckBox();
         resolutionCheck.setSelected(true);
         resolutionCheck.setDisable(true);
-        resolutionRow.getChildren().add(row(I18nManager.getText("brainstorm.result.resolution"), resolutionBox,
-                resolutionCheck));
+        resolutionRow.getChildren().add(row("brainstorm.result.resolution", resolutionBox, resolutionCheck));
         resolutionRow.managedProperty().bind(resolutionRow.visibleProperty());
         moodBox.valueProperty().addListener((obs, old, value) -> {
             if (updating || value == null)
@@ -209,35 +213,32 @@ final class BrainstormResultForm extends VBox {
                     .put("value", mood != null ? value : ""));
         });
         ratioBox.valueProperty().addListener((obs, old, value) -> settingChanged("aspect_ratio", value, ratioCheck));
-        saveMoodCheck.setText(I18nManager.getText("brainstorm.result.save.mood"));
-        saveMoodCheck.setTooltip(new Tooltip(I18nManager.getText("brainstorm.result.save.mood.tooltip")));
 
         durationBox.getItems().setAll(DURATIONS);
         durationCheck.setSelected(true);
-        VBox durationRow = row(I18nManager.getText("brainstorm.result.duration"), durationBox, durationCheck);
+        VBox durationRow = row("brainstorm.result.duration", durationBox, durationCheck);
         durationRow.managedProperty().bind(durationRow.visibleProperty());
         videoBox.getChildren().add(durationRow);
         videoBox.managedProperty().bind(videoBox.visibleProperty());
 
-        adoptButton.setText(I18nManager.getText("brainstorm.adopt"));
         adoptButton.getStyleClass().add("accent");
         adoptButton.setMaxWidth(Double.MAX_VALUE);
         adoptButton.setOnAction((event) -> adopt());
 
-        Label resultTitle = new Label(I18nManager.getText("brainstorm.result.title"));
-        Label promptLabel = new Label(I18nManager.getText("brainstorm.result.prompt"));
+        Label resultTitle = label("brainstorm.result.title");
+        Label promptLabel = label("brainstorm.result.prompt");
         promptLabel.getStyleClass().addAll("text-bold", "text-small");
 
         factsBox.managedProperty().bind(factsBox.visibleProperty());
         factsBox.setVisible(false);
 
         fields.getChildren().addAll(promptLabel, promptArea, promptCounter, factsBox,
-                row(I18nManager.getText("brainstorm.result.model"), familyBox, modelCheck),
+                row("brainstorm.result.model", familyBox, modelCheck),
                 resolutionRow,
-                row(I18nManager.getText("params.mood.title"), moodBox, moodCheck));
+                row("params.mood.title", moodBox, moodCheck));
         blockRows.values().forEach((BlockRow blockRow) -> fields.getChildren().add(blockRow.node));
         fields.getChildren().addAll(styleReasonLabel, saveMoodCheck,
-                row(I18nManager.getText("brainstorm.result.ratio"), ratioBox, ratioCheck),
+                row("brainstorm.result.ratio", ratioBox, ratioCheck),
                 videoBox);
 
         /*  The mood and the four building blocks make the panel taller than the dialog; the fields keep 10 px off the
@@ -265,6 +266,46 @@ final class BrainstormResultForm extends VBox {
         updating = false;
         showVariant(currentModel, null);
         refreshModelDependent();
+        relabel();
+    }
+
+    /**
+     * Sets the texts of the form in the current language. The "None" and "New" items keep their choice, the AI
+     * learns nothing of it; the names of the models stay as the main window gave them.
+     */
+    void relabel() {
+        boolean wasUpdating = updating;
+        updating = true;
+        labels.forEach((Label label, String key) -> label.setText(I18nManager.getText(key)));
+        saveMoodCheck.setText(I18nManager.getText("brainstorm.result.save.mood"));
+        saveMoodCheck.setTooltip(new Tooltip(I18nManager.getText("brainstorm.result.save.mood.tooltip")));
+        adoptButton.setText(I18nManager.getText("brainstorm.adopt"));
+
+        String none = I18nManager.getText(NONE_ITEM_KEY);
+        replaceItem(moodBox, noneItem, none);
+        blockRows.values().forEach((BlockRow blockRow) -> blockRow.relabel(noneItem, none));
+        noneItem = none;
+        showFacts(draft.getFacts());
+        updating = wasUpdating;
+    }
+
+    /*  replaces an item of a choice by its text in another language; a chosen item stays chosen  */
+    private static void replaceItem(ChoiceBox<String> box, String old, String now) {
+        int index = box.getItems().indexOf(old);
+        if (index < 0 || old.equals(now))
+            return;
+
+        boolean chosen = old.equals(box.getValue());
+        box.getItems().set(index, now);
+        if (chosen)
+            box.setValue(now);
+    }
+
+    /*  a label whose text follows the language  */
+    private Label label(String key) {
+        Label label = new Label(I18nManager.getText(key));
+        labels.put(label, key);
+        return label;
     }
 
     /**
@@ -276,8 +317,8 @@ final class BrainstormResultForm extends VBox {
         fields.setDisable(busy);
     }
 
-    /** A labeled control with its checkbox on the right (the checkbox may be null). */
-    private VBox row(String label, Node control, CheckBox check) {
+    /** A control under the label of a key, with its checkbox on the right (the label may be null). */
+    private VBox row(String labelKey, Node control, CheckBox check) {
         HBox line = new HBox(8.0, control, check);
         line.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(control, Priority.ALWAYS);
@@ -285,8 +326,8 @@ final class BrainstormResultForm extends VBox {
         /*  The control gives way, the text of the checkbox ("Add to my list") stays readable  */
         check.setMinWidth(Region.USE_PREF_SIZE);
         VBox box = new VBox(3.0);
-        if (label != null) {
-            Label title = new Label(label);
+        if (labelKey != null) {
+            Label title = label(labelKey);
             title.getStyleClass().addAll("text-bold", "text-small");
             box.getChildren().add(title);
         }
@@ -298,7 +339,7 @@ final class BrainstormResultForm extends VBox {
         if (updating || value == null) {
             return;
         }
-        boolean none = I18nManager.getText(NONE_ITEM_KEY).equals(value);
+        boolean none = noneItem.equals(value);
         check.setSelected(!none);
         listener.changed(new JSONObject().put("event", "setting_changed").put("name", name)
                 .put("value", none ? "" : value));
@@ -409,7 +450,7 @@ final class BrainstormResultForm extends VBox {
             mood = findMood(style);
             style = null;
         }
-        moodBox.setValue(mood != null ? mood.getName() : I18nManager.getText(NONE_ITEM_KEY));
+        moodBox.setValue(mood != null ? mood.getName() : noneItem);
         moodCheck.setSelected(mood != null);
         showMood(mood);
         for (Mood.Field field : BrainstormDraft.FIELDS) {
@@ -576,32 +617,28 @@ final class BrainstormResultForm extends VBox {
         private final HBox colorBoxes = new HBox(3.0);
         private final VBox newBox;
         private final VBox node;
-        private final String newItem = I18nManager.getText("brainstorm.block.new");
+        private String newItem = I18nManager.getText("brainstorm.block.new");
         private BrainstormDraft.Block proposed;
 
         BlockRow(Mood.Field field) {
             this.field = field;
             box.setMaxWidth(Double.MAX_VALUE);
-            box.getItems().add(I18nManager.getText(NONE_ITEM_KEY));
+            box.getItems().add(noneItem);
             box.getItems().addAll(names());
-            nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
             textLabel.setWrapText(true);
             textLabel.getStyleClass().addAll("text-muted", "text-small");
             newBox = new VBox(4.0, nameField, field == Mood.Field.COLOR ? colorBoxes : textLabel);
             newBox.setPadding(new Insets(0, 0, 0, 12.0));
             newBox.managedProperty().bind(newBox.visibleProperty());
             newBox.setVisible(false);
-            if (locked()) {
-                check.setDisable(true);
-                check.setTooltip(new Tooltip(I18nManager.getText("brainstorm.block.locked")));
-            }
+            check.setDisable(locked());
 
             String typeKey = field == Mood.Field.COLOR ? "palette" : field.name().toLowerCase(Locale.ROOT);
-            node = new VBox(3.0, row(I18nManager.getText("block.type." + typeKey), box, check), newBox);
+            node = new VBox(3.0, row("block.type." + typeKey, box, check), newBox);
             box.valueProperty().addListener((obs, old, value) -> {
                 boolean isNewItem = newItem.equals(value);
                 newBox.setVisible(isNewItem);
-                check.setText(isNewItem ? I18nManager.getText("brainstorm.block.mylist") : "");
+                showCheckText();
                 if (updating || value == null)
                     return;
 
@@ -610,6 +647,28 @@ final class BrainstormResultForm extends VBox {
                         .put("name", field.name().toLowerCase(Locale.ROOT))
                         .put("value", isNone() ? "" : isNewItem ? nameField.getText().trim() : value));
             });
+        }
+
+        /*  the checkbox of a new block puts it into the list of the user  */
+        private void showCheckText() {
+            check.setText(newItem.equals(box.getValue()) ? I18nManager.getText("brainstorm.block.mylist") : "");
+        }
+
+        /**
+         * Sets the texts of the row in the current language; the "None" and "New" items keep their choice.
+         *
+         * @param oldNone the "None" item before
+         * @param none    the "None" item in the current language
+         */
+        void relabel(String oldNone, String none) {
+            String oldNew = newItem;
+            newItem = I18nManager.getText("brainstorm.block.new");
+            replaceItem(box, oldNew, newItem);
+            replaceItem(box, oldNone, none);
+            nameField.setPromptText(I18nManager.getText("block.dialog.name.placeholder"));
+            if (locked())
+                check.setTooltip(new Tooltip(I18nManager.getText("brainstorm.block.locked")));
+            showCheckText();
         }
 
         /** The names of the entries of the list of the field. */
@@ -623,7 +682,7 @@ final class BrainstormResultForm extends VBox {
         }
 
         private boolean isNone() {
-            return box.getValue() == null || I18nManager.getText(NONE_ITEM_KEY).equals(box.getValue());
+            return box.getValue() == null || noneItem.equals(box.getValue());
         }
 
         /**
@@ -634,7 +693,7 @@ final class BrainstormResultForm extends VBox {
             box.getItems().remove(newItem);
             proposed = block != null && block.isNew() && (field == Mood.Field.COLOR ? !block.colors().isEmpty()
                     : field == Mood.Field.CAMERA ? block.settings() != null : block.text() != null) ? block : null;
-            String value = I18nManager.getText(NONE_ITEM_KEY);
+            String value = noneItem;
             if (proposed != null) {
                 box.getItems().add(1, newItem);
                 nameField.setText(proposed.name());
