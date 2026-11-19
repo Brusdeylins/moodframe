@@ -316,7 +316,12 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   counts as deleted now (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames,
   blocks and palettes are still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates);
   nothing reads them.
-- **Finders** of one row answer with an `Optional` in every repository.
+- **Finders** of one row answer with an `Optional` in every repository. The finders of lists skip the rows in the
+  trash unless named for it (`findDeleted`, `findDeletedChats`), and so do the finders of one mood, frame, block or
+  palette (`findInTrash` and `exists` look into the trash); the finders of one chat, entry or image by id
+  (`ChatRepository.findChatById`, `findChatEntryById`, `findGeneratedImageById`) answer a row in the trash as well,
+  with its `deleted_at`, as the trash, its restore and a deletion look them up by id. Each finder's Javadoc says
+  which rows it answers.
 - **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
   apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,
   empty) through `service.library.RepositoryAccess`.

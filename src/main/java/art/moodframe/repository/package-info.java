@@ -1,6 +1,9 @@
 /**
  * Data access with plain JDBC on SQLite, one repository per aggregate. Deleting usually sets {@code deleted_at}, so
- * the central trash can restore an item; the finders skip deleted rows.
+ * the central trash can restore an item. The finders of lists skip the rows in the trash unless they are named for it
+ * ({@code findDeleted}, {@code findDeletedChats}); so do the finders of one mood, frame, block or palette, which have
+ * {@code findInTrash} or {@code exists} beside them. The finders of one chat, entry or image by id answer a row in the
+ * trash as well, as the trash looks them up by id. The Javadoc of each finder says which rows it answers.
  *
  * <p>Error contract: a repository never swallows a database error but throws it as {@link java.sql.SQLException}, so
  * "not found" (an empty {@link java.util.Optional}, false, an empty list) stays apart from "the database failed". A

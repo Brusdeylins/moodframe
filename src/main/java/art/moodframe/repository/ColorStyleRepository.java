@@ -26,9 +26,9 @@ import java.util.UUID;
  * <li>Support for 1-5 hex color codes per style</li>
  * </ul>
  *
- * <p>The finders skip color styles in the trash ({@code deleted_at} set); the name checks do not,
- * as such a name stays taken (unique column) until the style is deleted for good. A finder of one style answers
- * with an {@link Optional}.</p>
+ * <p>The finders skip color styles in the trash ({@code deleted_at} set), except those for the trash itself
+ * ({@link #findDeleted()}, {@link #findInTrash}); the checks of names and ids do not, as such a name stays taken
+ * (unique column) until the style is deleted for good. A finder of one style answers with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *

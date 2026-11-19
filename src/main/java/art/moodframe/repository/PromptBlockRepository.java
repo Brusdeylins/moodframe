@@ -18,8 +18,8 @@ import java.util.UUID;
  * Repository for the prompt building blocks of the user in SQLite (table {@code prompt_blocks}).
  *
  * <p>The standard blocks come from code and are never stored. All queries skip the blocks
- * in the trash ({@code deleted_at} set), except those for the trash itself. A finder of one block answers with an
- * {@link Optional}.</p>
+ * in the trash ({@code deleted_at} set), except {@link #existsById}, {@link #deleteAll} and those for the trash
+ * itself ({@link #findDeleted()}, {@link #findInTrash}). A finder of one block answers with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
