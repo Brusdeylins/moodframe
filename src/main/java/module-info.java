@@ -38,7 +38,8 @@ module art.moodframe {
     // AtlantaFX Modern Theme Framework
     requires transitive atlantafx.base;
     
-    // Export packages for reflection (FXML, etc.)
+    /*  Exported: the root for the JavaFX launcher, which creates the application class, and the packages whose
+        public types other modules use; the reflection of FXML and Jackson on fields needs the opens below  */
     exports art.moodframe;
     exports art.moodframe.ui.controller;
     exports art.moodframe.ui.component;

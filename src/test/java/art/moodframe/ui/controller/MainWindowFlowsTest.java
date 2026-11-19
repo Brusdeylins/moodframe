@@ -4,7 +4,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
@@ -315,7 +314,8 @@ class MainWindowFlowsTest {
         register(LibraryPaths.class, paths);
         if (!realServices.containsKey(DatabaseManager.class))
             realServices.put(DatabaseManager.class, services().get(DatabaseManager.class));
-        DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
+        DatabaseManager database = new DatabaseManager(paths.database());
+        database.initialize();
 
         LibraryEvents events = new LibraryEvents();
         PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);
@@ -1196,6 +1196,33 @@ class MainWindowFlowsTest {
                 .filter((model) -> model.getProvider() == ApiProvider.BFL
                         || model.getProvider() == ApiProvider.GOOGLE_GEMINI)
                 .filter(test).map(ModelLabels::displayName).toList();
+    }
+
+    /**
+     * The edit pencil attaches through the panel of the attachments: a file the panel cannot read leaves nothing
+     * attached, a readable one is the attached image once the panel holds it.
+     */
+    @Test
+    void anEditedImageIsAttachedOnlyOnceThePanelHoldsIt() throws Exception {
+        Chat chat = createChat("Edit");
+        open(chat);
+        MultiImageAttachmentPanel panel = controller.generationPanel().attachmentPanel();
+        Path broken = home.resolve("broken.png");
+        Files.writeString(broken, "no image");
+        String editing = I18nManager.getText("status.image.edit.attached");
+
+        onFxThread(() -> controller.editImage(broken.toString()));
+        assertNull(controller.generationPanel().attachedImage(), "nothing is attached before the panel holds it");
+        waitUntil("the failure shows", () -> !editing.equals(status().getText()));
+        assertEquals(0, panel.getAttachmentCount());
+        assertFalse(controller.generationPanel().hasAttachment(), "the unreadable file is not attached");
+
+        File image = image("edited.png");
+        onFxThread(() -> controller.editImage(image.getPath()));
+        waitUntil("the image is attached", () -> panel.getAttachmentCount() == 1
+                && controller.generationPanel().hasAttachment());
+        assertEquals(image, controller.generationPanel().attachedImage());
+        onFxThread(panel::clearAllAttachments);
     }
 
     private File image(String name) throws Exception {

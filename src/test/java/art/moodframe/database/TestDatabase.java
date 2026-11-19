@@ -1,5 +1,8 @@
 package art.moodframe.database;
 
+import java.nio.file.Path;
+import java.sql.SQLException;
+
 /**
  * The database a test opened with {@link #open(String)}, for the repositories and services the test creates itself;
  * the application hands its database to every service instead.
@@ -13,15 +16,23 @@ public final class TestDatabase {
     }
 
     /**
-     * Opens a database as the application does ({@link DatabaseConfig#initialize(String)}) and keeps it as the
-     * database of the test.
+     * Opens a database as the application does, with its schema up to date, and keeps it as the database of the
+     * test.
      *
      * @param databasePath the path of the database file
      * @return the database
+     * @throws IllegalStateException if the database cannot be opened
      */
     public static DatabaseManager open(String databasePath) {
-        database = DatabaseConfig.initialize(databasePath);
-        return database;
+        DatabaseManager opened = new DatabaseManager(Path.of(databasePath));
+        try {
+            opened.initialize();
+        }
+        catch (SQLException e) {
+            throw new IllegalStateException("Failed to open the test database " + databasePath, e);
+        }
+        database = opened;
+        return opened;
     }
 
     /**

@@ -7,10 +7,16 @@ import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryGroup;
 import art.moodframe.model.FrameGroup;
+import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.service.UpdateCheckService;
+import art.moodframe.service.brainstorm.BrainstormContext;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
@@ -30,6 +36,9 @@ import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
+import art.moodframe.ui.SplashScreen;
+import art.moodframe.ui.brainstorm.BrainstormDialog;
+import art.moodframe.ui.dialog.UpdateDialog;
 import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.entry.ChatEntryCard;
@@ -41,6 +50,7 @@ import art.moodframe.ui.support.FxI18n;
 import art.moodframe.ui.support.FxLibraryEvents;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
+import art.moodframe.util.VersionManager;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -65,6 +75,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -73,6 +84,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * The main window ({@code MainWindow.fxml}), a coordinator of its parts. The window holds the header (version, update
@@ -124,8 +136,8 @@ public class MainWindowController implements I18nChangeListener {
 
     /*  Looks for a newer version, and the newer version the update hint in the header stands for, null while there
         is none  */
-    private art.moodframe.service.UpdateCheckService updates;
-    private art.moodframe.service.UpdateCheckService.Result update;
+    private UpdateCheckService updates;
+    private UpdateCheckService.Result update;
 
     // The parts of the window
     @FXML
@@ -149,7 +161,7 @@ public class MainWindowController implements I18nChangeListener {
     private PromptBlockService blockService;
     private ColorStyleService colorService;
     private MoodService moodService;
-    private art.moodframe.service.brainstorm.BrainstormService.Factory brainstorms;
+    private BrainstormService.Factory brainstorms;
 
     /*  Whether all parts are set up: until then, a change in one part does not update the others  */
     private boolean ready;
@@ -159,8 +171,8 @@ public class MainWindowController implements I18nChangeListener {
     private LibraryEvents events;
     private TrashCenter trashCenter;
     private ApiProviderValidator validator;
-    private final java.util.function.Consumer<ChatEntry> entryListener = this::entryUpdated;
-    private final java.util.function.Consumer<art.moodframe.model.GeneratedImage> imageListener =
+    private final Consumer<ChatEntry> entryListener = this::entryUpdated;
+    private final Consumer<GeneratedImage> imageListener =
             (image) -> Platform.runLater(() -> chatViewController.imageUpdated(image));
     private final LibraryEvents.Listener libraryListener = this::onLibraryChanged;
     private final Runnable validationListener = () -> Platform.runLater(this::refreshApiKeyStatus);
@@ -185,19 +197,19 @@ public class MainWindowController implements I18nChangeListener {
         ServiceFactory services = ServiceFactory.getInstance();
         config = services.getService(ApplicationConfig.class);
         chatHistory = services.getService(ChatHistoryService.class);
-        generationService = services.findService(GenerationService.class).orElse(null);
+        generationService = services.getService(GenerationService.class);
         blockService = services.getService(PromptBlockService.class);
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
-        brainstorms = services.getService(art.moodframe.service.brainstorm.BrainstormService.Factory.class);
+        brainstorms = services.getService(BrainstormService.Factory.class);
         ChatLibrary chatLibrary = services.getService(ChatLibrary.class);
         validator = services.findService(ApiProviderValidator.class).orElse(null);
-        updates = services.findService(art.moodframe.service.UpdateCheckService.class).orElse(null);
+        updates = services.findService(UpdateCheckService.class).orElse(null);
         logger.debug("Initializing MainWindow controller");
 
         statusBarController.init(config, validator);
         FxI18n.addChangeListener(this);
-        appVersionLabel.setText("v" + art.moodframe.util.VersionManager.getVersion());
+        appVersionLabel.setText("v" + VersionManager.getVersion());
 
         /*  The "M" of the logo starts on the line of the names of the sidebar, 1 px further in for the side bearing of
             their letters (behind the 10 px padding of the sidebar)  */
@@ -225,7 +237,7 @@ public class MainWindowController implements I18nChangeListener {
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
                 moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
-                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash), worker,
+                services.getService(MoodAnalysisService.class), trash), worker,
                 statusBarController, this::updateUIState);
         inputBar.init(generationPanelController.costTextProperty(), inputListener());
         statusBarController.ready();
@@ -494,44 +506,33 @@ public class MainWindowController implements I18nChangeListener {
         this.requests = requests;
         this.events = events;
         this.trashCenter = trashCenter;
-        if (requests != null) {
-            requests.addEntryListener(entryListener);
-            requests.addImageListener(imageListener);
-            requests.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
-                generationPanelController.setFlux2Safety(value);
-                statusBarController.status(I18nManager.getText("status.bfl.safety.lowered", value));
-            }));
-        } else
-            logger.warn("RequestResponseManager not available - using mock mode");
-
-        if (events != null)
-            FxLibraryEvents.addListener(events, libraryListener);
-        else
-            logger.warn("LibraryEvents not available - no automatic UI refresh");
+        requests.addEntryListener(entryListener);
+        requests.addImageListener(imageListener);
+        requests.setOnSafetyToleranceLowered((value) -> Platform.runLater(() -> {
+            generationPanelController.setFlux2Safety(value);
+            statusBarController.status(I18nManager.getText("status.bfl.safety.lowered", value));
+        }));
+        FxLibraryEvents.addListener(events, libraryListener);
 
         /*  What leaves the trash shows by the changes of the library; the trash adds the status and the moods that
             lost their last block  */
-        if (trashCenter != null) {
-            trashListener = new TrashCenter.Listener() {
-                @Override
-                public void restored(TrashGroup.Kind kind, String id) {
-                    if (kind == TrashGroup.Kind.CHATS)
-                        Platform.runLater(() -> statusBarController.status(I18nManager.getText("status.chat.restored")));
-                    else if (kind == TrashGroup.Kind.IMAGES)
-                        showImagesRestoredStatus(id);
-                }
+        trashListener = new TrashCenter.Listener() {
+            @Override
+            public void restored(TrashGroup.Kind kind, String id) {
+                if (kind == TrashGroup.Kind.CHATS)
+                    Platform.runLater(() -> statusBarController.status(I18nManager.getText("status.chat.restored")));
+                else if (kind == TrashGroup.Kind.IMAGES)
+                    showImagesRestoredStatus(id);
+            }
 
-                /*  A mood that lost its last block with these blocks may go to the trash as well  */
-                @Override
-                public void deleted(TrashGroup.Kind kind, List<String> ids) {
-                    if (kind == TrashGroup.Kind.BLOCKS)
-                        Platform.runLater(moodFramePanelController::askToDeleteEmptiedMoods);
-                }
-            };
-            trashCenter.addListener(trashListener);
-        }
-        else
-            logger.warn("TrashCenter not available - no automatic UI refresh");
+            /*  A mood that lost its last block with these blocks may go to the trash as well  */
+            @Override
+            public void deleted(TrashGroup.Kind kind, List<String> ids) {
+                if (kind == TrashGroup.Kind.BLOCKS)
+                    Platform.runLater(moodFramePanelController::askToDeleteEmptiedMoods);
+            }
+        };
+        trashCenter.addListener(trashListener);
     }
 
     /**
@@ -557,7 +558,7 @@ public class MainWindowController implements I18nChangeListener {
                     chatViewController.showEntryChange(id);
                     librarySidebarController.refreshGroups();
                 }
-                case DOWNLOAD -> statusBarController.status(java.text.MessageFormat.format(
+                case DOWNLOAD -> statusBarController.status(MessageFormat.format(
                         I18nManager.getText("download.image.success"), id));
             }
         } catch (Exception e) {
@@ -585,9 +586,9 @@ public class MainWindowController implements I18nChangeListener {
      * reference, see {@link PromptComposer}.
      */
     private String buildFinalPrompt() {
-        moodFramePanelController.setReference(generationPanelController.hasAttachment());
+        boolean reference = generationPanelController.hasAttachment();
         return new PromptComposer(generationPanelController.promptLimit()).compose(inputBar.prompt(),
-                moodFramePanelController.promptBlocks(), generationPanelController.hasAttachment());
+                moodFramePanelController.promptBlocks(reference), reference);
     }
 
     /**
@@ -616,6 +617,7 @@ public class MainWindowController implements I18nChangeListener {
         boolean enableInput = hasApiKey && hasChat && generationPanelController.hasModels();
         librarySidebarController.setNewChatEnabled(config != null && config.accounts().hasAnyApiKey());
         generationPanelController.setInputEnabled(enableInput);
+        moodFramePanelController.setReference(generationPanelController.hasAttachment());
         moodFramePanelController.setInputEnabled(enableInput);
         inputBar.setInputEnabled(enableInput, placeholder(hasApiKey, hasChat));
         inputBar.updateBrainstorm(config, hasChat);
@@ -644,21 +646,16 @@ public class MainWindowController implements I18nChangeListener {
         String userPrompt = inputBar.prompt().trim();
         if (userPrompt.isEmpty() || userPrompt.length() > generationPanelController.promptLimit())
             return;
-        if (generationService == null) {
-            statusBarController.error(I18nManager.getText("status.error.service.unavailable"));
-            logger.error("GenerationService not available");
-            return;
-        }
 
         /*  Without selection the default model  */
         String modelId = Objects.requireNonNullElse(generationPanelController.selectedModelId(),
                 GenerationModel.getDefault().name());
-        moodFramePanelController.setReference(generationPanelController.hasAttachment());
         MoodFramePanelController.Selection selection = moodFramePanelController.selection();
         GenerationService.Submission submission;
         try {
             submission = generationService.submit(new GenerationOrder(librarySidebarController.currentChat(),
-                    userPrompt, moodFramePanelController.promptBlocks(), selection.mood(), selection.moodChanged(),
+                    userPrompt, moodFramePanelController.promptBlocks(generationPanelController.hasAttachment()),
+                    selection.mood(), selection.moodChanged(),
                     new GenerationOrder.Target(selection.frame(), selection.frameChanged(), selection.aspectRatio(),
                             selection.resolution()),
                     modelId, generationPanelController.imageCount(), generationPanelController.parameters(),
@@ -713,21 +710,20 @@ public class MainWindowController implements I18nChangeListener {
 
             /*  the building blocks and the mood as chosen, a locked field keeps its choice on "Adopt"  */
             Set<Mood.Field> locked = moodFramePanelController.lockedMoodFields();
-            String currentState = new art.moodframe.service.brainstorm.BrainstormContext.WindowState(
+            String currentState = new BrainstormContext.WindowState(
                     generationPanelController.modelItem(), moodFramePanelController.modelResolution(),
                     moodFramePanelController.describe(), moodFramePanelController.modelAspectRatio(),
                     inputBar.prompt()).describe();
 
-            art.moodframe.service.brainstorm.BrainstormContext brainstormContext =
-                    new art.moodframe.service.brainstorm.BrainstormContext(
-                            blockService.getAll(PromptBlock.Type.STYLE), blockService.getAll(PromptBlock.Type.ATMOSPHERE),
-                            blockService.getAll(PromptBlock.Type.LIGHT), blockService.getAll(PromptBlock.Type.CAMERA),
-                            colorService.getAllStyles(), moodService != null ? moodService.getAll() : List.of(),
-                            models, currentState, modelNames, locked);
-            art.moodframe.service.brainstorm.BrainstormService brainstormService = brainstorms.create();
+            BrainstormContext brainstormContext = new BrainstormContext(
+                    blockService.getAll(PromptBlock.Type.STYLE), blockService.getAll(PromptBlock.Type.ATMOSPHERE),
+                    blockService.getAll(PromptBlock.Type.LIGHT), blockService.getAll(PromptBlock.Type.CAMERA),
+                    colorService.getAllStyles(), moodService != null ? moodService.getAll() : List.of(),
+                    models, currentState, modelNames, locked);
+            BrainstormService brainstormService = brainstorms.create();
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-            new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, config, brainstormService,
+            new BrainstormDialog(ownerStage, config, brainstormService,
                     brainstormContext, generationPanelController.modelItem(), this::applyBrainstormResult).show();
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
@@ -740,13 +736,13 @@ public class MainWindowController implements I18nChangeListener {
      *
      * @param result the adopted values; a {@code null} value is left unchanged
      */
-    private void applyBrainstormResult(art.moodframe.ui.brainstorm.BrainstormDialog.Result result) {
+    private void applyBrainstormResult(BrainstormDialog.Result result) {
         generationPanelController.setModel(result.targetModel());
 
         /*  The adopted resolution (or the one of a model without resolution variants) as remembered choice of the
             family and as target, of which the model takes the same; any other leaves the target as it is  */
         String resolution = result.resolution() != null ? result.resolution()
-                : art.moodframe.model.ModelFamilies.resolutionOf(result.targetModel());
+                : ModelFamilies.resolutionOf(result.targetModel());
         if (resolution != null) {
             generationPanelController.rememberResolution(result.targetModel(), resolution);
             moodFramePanelController.setResolution(resolution);
@@ -804,7 +800,7 @@ public class MainWindowController implements I18nChangeListener {
             statusBarController.status(I18nManager.getText("status.image.edit.attached"));
         } catch (Exception e) {
             logger.error("Failed to initiate edit mode for image: {}", filePath, e);
-            statusBarController.status(java.text.MessageFormat.format(
+            statusBarController.status(MessageFormat.format(
                     I18nManager.getText("status.error.image.edit"), e.getMessage()));
         }
     }
@@ -838,7 +834,7 @@ public class MainWindowController implements I18nChangeListener {
      */
     @FXML
     private void onInfoClicked() {
-        art.moodframe.ui.SplashScreen.showInfo(infoButton.getScene().getWindow());
+        SplashScreen.showInfo(infoButton.getScene().getWindow());
     }
 
     /**
@@ -852,7 +848,7 @@ public class MainWindowController implements I18nChangeListener {
     }
 
     /*  Shows the hint of a newer version behind the version, its text and its symbol, or hides it for null  */
-    private void showUpdateHint(art.moodframe.service.UpdateCheckService.Result result) {
+    private void showUpdateHint(UpdateCheckService.Result result) {
         update = result;
         updateHintLabel.setVisible(result != null);
         updateHintLabel.setManaged(result != null);
@@ -867,7 +863,7 @@ public class MainWindowController implements I18nChangeListener {
      */
     @FXML
     private void onUpdateClicked() {
-        if (art.moodframe.ui.dialog.UpdateDialog.showAndWait(updateButton.getScene().getWindow(), updates,
+        if (UpdateDialog.showAndWait(updateButton.getScene().getWindow(), updates,
                 CompletableFuture.completedFuture(update)))
             showUpdateHint(null);
     }

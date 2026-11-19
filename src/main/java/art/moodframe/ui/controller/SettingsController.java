@@ -206,7 +206,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 section.load();
         } catch (Exception e) {
             logger.error("Failed to load current settings", e);
-            services.prompts().error("Settings Load Error", "Failed to load current settings: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.error.load.title"),
+                    I18nManager.getText("settings.error.load", e.getMessage()));
         }
     }
 
@@ -232,7 +233,8 @@ public class SettingsController implements Initializable, I18nChangeListener {
                 section.apply();
         } catch (Exception e) {
             logger.error("Failed to apply settings", e);
-            services.prompts().error("Apply Settings Error", "Failed to save settings: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.error.apply.title"),
+                    I18nManager.getText("settings.error.apply", e.getMessage()));
         }
     }
 

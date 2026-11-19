@@ -1,28 +1,46 @@
 package art.moodframe.ui.panel;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.Frame;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
+import art.moodframe.model.PromptBlock;
+import art.moodframe.service.brainstorm.BrainstormContext;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.prompt.CameraPromptBuilder;
+import art.moodframe.service.prompt.PromptComposer;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.cell.MoodListCell;
+import art.moodframe.ui.component.BlockChoice;
+import art.moodframe.ui.component.CameraExample;
 import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.component.DropdownBounds;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.StylePresetItem;
+import art.moodframe.ui.dialog.MoodImageDialog;
+import art.moodframe.ui.dialog.MoodManageDialog;
+import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.value.ObservableValue;
+import javafx.css.PseudoClass;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
@@ -42,11 +60,17 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * The groups Mood and Frame of the right panel of the main window ({@code MoodFramePanel.fxml}): the mood with its
@@ -55,7 +79,7 @@ import java.util.concurrent.Executor;
  *
  * <p>The host loads the FXML, follows the chosen model ({@link #followModel}), which the hints below aspect ratio and
  * resolution name, and then hands over the services ({@link #init}). It reads the choice with {@link #selection()} and
- * the prompt blocks with {@link #promptBlocks()}, sets it with {@link #chooseMood(Mood)}, {@link #chooseFrame(Frame)},
+ * the prompt blocks with {@link #promptBlocks(boolean)}, sets it with {@link #chooseMood(Mood)}, {@link #chooseFrame(Frame)},
  * {@link #setAspectRatio}, {@link #setResolution} or from a chat entry, and learns of every change of the fields by
  * {@link Listener#changed()}. It passes the changes of the library ({@link #onLibraryChanged}) and of the language
  * ({@link #updateTexts()}) on.</p>
@@ -80,13 +104,13 @@ public class MoodFramePanelController {
      */
     public record Services(ApplicationConfig config, PromptBlockService blocks, ColorStyleService colors,
                            MoodService moods, FrameService frames, FavoriteService favorites,
-                           art.moodframe.service.brainstorm.MoodAnalysisService analysis,
-                           art.moodframe.ui.dialog.TrashWindow.Opener trash) {
+                           MoodAnalysisService analysis,
+                           TrashWindow.Opener trash) {
 
         /** The services without a trash, e.g. for a window that offers none. */
         public Services(ApplicationConfig config, PromptBlockService blocks, ColorStyleService colors,
                         MoodService moods, FrameService frames, FavoriteService favorites,
-                        art.moodframe.service.brainstorm.MoodAnalysisService analysis) {
+                        MoodAnalysisService analysis) {
             this(config, blocks, colors, moods, frames, favorites, analysis, null);
         }
     }
@@ -225,8 +249,8 @@ public class MoodFramePanelController {
     /*  The frames: whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame
         selection sets them  */
     private FrameService frameService;
-    private art.moodframe.service.brainstorm.MoodAnalysisService moodAnalysis;
-    private art.moodframe.ui.dialog.TrashWindow.Opener trash;
+    private MoodAnalysisService moodAnalysis;
+    private TrashWindow.Opener trash;
 
     /*  the group Frame  */
     private FrameGroupPart frames;
@@ -304,11 +328,11 @@ public class MoodFramePanelController {
             value.addListener((obs, oldVal, newVal) -> listener.changed());
 
         /*  The open lists start flush with their field and are as wide as it  */
-        java.util.stream.Stream.of(moodComboBox, atmosphereComboBox, stylePresetsComboBox, colorStyleComboBox,
+        Stream.of(moodComboBox, atmosphereComboBox, stylePresetsComboBox, colorStyleComboBox,
                 lightComboBox, cameraComboBox, frameComboBox)
-                .forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
-        java.util.stream.Stream.of(aspectRatioComboBox, resolutionChoiceBox)
-                .forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
+                .forEach(DropdownBounds::keepInWindow);
+        Stream.of(aspectRatioComboBox, resolutionChoiceBox)
+                .forEach(DropdownBounds::keepInWindow);
     }
 
     /** The group Mood, a card of the panel. */
@@ -333,8 +357,7 @@ public class MoodFramePanelController {
     }
 
     /**
-     * Tells whether the image gets a reference image: then the building blocks go into the prompt only with
-     * "Apply mood", which shows only then.
+     * Tells whether the image gets a reference image: then the mood fields are greyed and "Apply mood" shows.
      *
      * @param reference whether an image is attached
      */
@@ -342,9 +365,14 @@ public class MoodFramePanelController {
         this.reference = reference;
     }
 
-    /** The building blocks that go into the prompt; none with a reference image unless "Apply mood" is on. */
-    public art.moodframe.service.prompt.PromptComposer.Selection promptBlocks() {
-        return selectedBlocks();
+    /**
+     * The building blocks that go into the prompt.
+     *
+     * @param reference whether the image gets a reference image: then none unless "Apply mood" is on
+     * @return the building blocks
+     */
+    public PromptComposer.Selection promptBlocks(boolean reference) {
+        return selectedBlocks(reference);
     }
 
     /** The target aspect ratio. */
@@ -511,17 +539,17 @@ public class MoodFramePanelController {
      * @param moodId the id of the adopted mood, null for none
      * @param blocks the adopted blocks by their field
      */
-    public void adoptBrainstorm(String moodId, Map<Mood.Field, art.moodframe.model.BrainstormDraft.Block> blocks) {
+    public void adoptBrainstorm(String moodId, Map<Mood.Field, BrainstormDraft.Block> blocks) {
         Map<Mood.Field, String> before = currentMoodFields();
         Set<Mood.Field> locked = lockedMoodFields();
         Mood mood = moodId != null && moodService != null ? moodService.find(moodId) : null;
         if (mood != null)
             chooseMood(mood);
         List<CompletableFuture<Boolean>> stored = new ArrayList<>();
-        for (Mood.Field field : art.moodframe.model.BrainstormDraft.FIELDS) {
+        for (Mood.Field field : BrainstormDraft.FIELDS) {
             if (locked.contains(field))
                 continue;
-            art.moodframe.model.BrainstormDraft.Block block = blocks.get(field);
+            BrainstormDraft.Block block = blocks.get(field);
             if (block != null)
                 stored.add(adoptBlock(field, block));
             else if (mood != null)
@@ -555,19 +583,19 @@ public class MoodFramePanelController {
         try {
             String savedResolution = config.generation().getDefaultResolution();
             resolutionChoiceBox.setValue(savedResolution != null ? savedResolution
-                    : art.moodframe.model.ModelFamilies.nearest(art.moodframe.model.ModelFamilies.resolutionOf(
-                            modelItem()), art.moodframe.model.ModelFamilies.RESOLUTIONS));
+                    : ModelFamilies.nearest(ModelFamilies.resolutionOf(
+                            modelItem()), ModelFamilies.RESOLUTIONS));
             aspectRatioComboBox.setValue(config.generation().getDefaultAspectRatio());
 
-            art.moodframe.model.PromptBlock savedBlock = blockService != null
-                    ? blockService.find(art.moodframe.model.PromptBlock.Type.STYLE,
+            PromptBlock savedBlock = blockService != null
+                    ? blockService.find(PromptBlock.Type.STYLE,
                             config.generation().getDefaultStyle()) : null;
             String savedStyle = savedBlock != null ? savedBlock.getName() : config.generation().getDefaultStyle();
             if (savedStyle != null)
                 stylePresetsComboBox.getItems().stream().filter((item) -> savedStyle.equals(item.getName()))
                         .findFirst().ifPresent(stylePresetsComboBox::setValue);
 
-            art.moodframe.model.ColorStyle savedPalette = colorService != null
+            ColorStyle savedPalette = colorService != null
                     ? colorService.getStyleByName(config.generation().getDefaultColorStyle()) : null;
             String savedColorStyle = savedPalette != null ? savedPalette.getName()
                     : config.generation().getDefaultColorStyle();
@@ -584,7 +612,7 @@ public class MoodFramePanelController {
         } catch (Exception e) {
             logger.error("Failed to load the choices of mood and frame from the configuration", e);
             aspectRatioComboBox.setValue("16:9");
-            blocks.fillBlockChoice(art.moodframe.model.PromptBlock.Type.STYLE, null);
+            blocks.fillBlockChoice(PromptBlock.Type.STYLE, null);
         }
     }
 
@@ -601,7 +629,7 @@ public class MoodFramePanelController {
                 config.generation().setDefaultResolution(newVal);
         });
         stylePresetsComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && blocks.choice(art.moodframe.model.PromptBlock.Type.STYLE).isEntry(newVal))
+            if (newVal != null && blocks.choice(PromptBlock.Type.STYLE).isEntry(newVal))
                 config.generation().setDefaultStyle(newVal.getName());
         });
         colorStyleComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -609,15 +637,15 @@ public class MoodFramePanelController {
                 config.generation().setDefaultColorStyle(newVal.getName());
         });
         lightComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && blocks.choice(art.moodframe.model.PromptBlock.Type.LIGHT).isEntry(newVal))
+            if (newVal != null && blocks.choice(PromptBlock.Type.LIGHT).isEntry(newVal))
                 config.generation().setDefaultLight(newVal.getName());
         });
         cameraComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && blocks.choice(art.moodframe.model.PromptBlock.Type.CAMERA).isEntry(newVal))
+            if (newVal != null && blocks.choice(PromptBlock.Type.CAMERA).isEntry(newVal))
                 config.generation().setDefaultCamera(newVal.getName());
         });
         atmosphereComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && blocks.choice(art.moodframe.model.PromptBlock.Type.ATMOSPHERE).isEntry(newVal))
+            if (newVal != null && blocks.choice(PromptBlock.Type.ATMOSPHERE).isEntry(newVal))
                 config.generation().setDefaultAtmosphere(newVal.getName());
         });
     }
@@ -628,7 +656,7 @@ public class MoodFramePanelController {
      * pointer.
      */
     private void reorderFavorites() {
-        java.util.Map<ComboBox<?>, Runnable> reloads = new java.util.LinkedHashMap<>();
+        Map<ComboBox<?>, Runnable> reloads = new LinkedHashMap<>();
         if (moodService != null)
             reloads.put(moodComboBox, () -> {
                 Mood chosen = chosenMood();
@@ -668,7 +696,7 @@ public class MoodFramePanelController {
         moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, moodFavorites));
         moodComboBox.setButtonCell(new MoodListCell(this::isMoodChanged));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
-        for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
+        for (ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
                 colorStyleComboBox, lightComboBox, cameraComboBox))
             field.valueProperty().addListener((obs, oldVal, newVal) -> {
                 if (!updatingMood)
@@ -775,14 +803,14 @@ public class MoodFramePanelController {
         Map<Mood.Field, String> fields = moodService.apply(combination, currentMoodFields(),
                 lockedMoodFields());
 
-        art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
+        ColorStyle palette = colorStyleService().getStyleById(fields.get(Mood.Field.COLOR));
         String paletteName = palette != null ? palette.getName() : "None";
 
         updatingMood = true;
-        selectBlock(art.moodframe.model.PromptBlock.Type.ATMOSPHERE, fields.get(Mood.Field.ATMOSPHERE));
-        selectBlock(art.moodframe.model.PromptBlock.Type.STYLE, fields.get(Mood.Field.STYLE));
-        selectBlock(art.moodframe.model.PromptBlock.Type.LIGHT, fields.get(Mood.Field.LIGHT));
-        selectBlock(art.moodframe.model.PromptBlock.Type.CAMERA, fields.get(Mood.Field.CAMERA));
+        selectBlock(PromptBlock.Type.ATMOSPHERE, fields.get(Mood.Field.ATMOSPHERE));
+        selectBlock(PromptBlock.Type.STYLE, fields.get(Mood.Field.STYLE));
+        selectBlock(PromptBlock.Type.LIGHT, fields.get(Mood.Field.LIGHT));
+        selectBlock(PromptBlock.Type.CAMERA, fields.get(Mood.Field.CAMERA));
 
         /*  only entries, as in selectBlock  */
         colorStyleComboBox.getItems().stream().filter((item) -> blocks.colorChoice().isEntry(item)
@@ -834,7 +862,7 @@ public class MoodFramePanelController {
         Mood base = moodService.find(copy != null && copy.moodId() == null ? copy.baseId() : combination.getId());
         Mood saved = null;
         if (save) {
-            String name = art.moodframe.ui.dialog.MoodManageDialog.askName(window(),
+            String name = MoodManageDialog.askName(window(),
                     moodService::exists, I18nManager.getText("mood.name.new"),
                     combination.getName() != null ? moodService.freeName(combination.getName()) : "", null);
             if (name == null)
@@ -845,7 +873,7 @@ public class MoodFramePanelController {
         /*  The references of the copies, the blocks created anew among them, and the new mood  */
         boolean recreated = recreate;
         Mood mood = saved;
-        java.util.function.Supplier<Boolean> write = () -> {
+        Supplier<Boolean> write = () -> {
             if (copy != null)
                 moodService.references(copy, recreated).forEach(combination::setReference);
             if (mood == null)
@@ -853,7 +881,7 @@ public class MoodFramePanelController {
             combination.getReferences().forEach(mood::setReference);
             return moodService.add(mood);
         };
-        java.util.function.Consumer<Boolean> show = (stored) -> {
+        Consumer<Boolean> show = (stored) -> {
             if (recreated)
                 blocks.refreshBlockChoices();
             if (!stored) {
@@ -898,7 +926,7 @@ public class MoodFramePanelController {
         if (frameService == null)
             return;
         EntryFrame copy = entry.getFrame();
-        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromEntryModel(entry.getModel());
+        GenerationModel model = GenerationModel.fromEntryModel(entry.getModel());
         String aspectRatio = copy != null ? copy.aspectRatio() : entry.getSize();
         String resolution = copy != null ? copy.resolution() : model != null ? model.getResolutionLabel() : null;
         Frame frame = copy != null ? frameService.find(copy.frameId() != null ? copy.frameId() : copy.baseId()) : null;
@@ -956,9 +984,9 @@ public class MoodFramePanelController {
      * Selects the item of a block in a field, "None" (the first entry) if the block is not listed. Only entries are
      * chosen, never a group header.
      */
-    private void selectBlock(art.moodframe.model.PromptBlock.Type type, String blockId) {
-        javafx.scene.control.ComboBox<StylePresetItem> comboBox = blocks.blockComboBox(type);
-        art.moodframe.ui.component.BlockChoice<StylePresetItem> choice = blocks.choice(type);
+    private void selectBlock(PromptBlock.Type type, String blockId) {
+        ComboBox<StylePresetItem> comboBox = blocks.blockComboBox(type);
+        BlockChoice<StylePresetItem> choice = blocks.choice(type);
         comboBox.getItems().stream().filter((item) -> choice.isEntry(item) && item.getBlock() != null
                 && item.getBlock().getId().equals(blockId)).findFirst()
                 .or(() -> comboBox.getItems().stream().filter(choice::isEntry).findFirst())
@@ -967,15 +995,15 @@ public class MoodFramePanelController {
 
     /** The block ids of the fields; an empty field is missing. */
     private Map<Mood.Field, String> currentMoodFields() {
-        Map<Mood.Field, String> fields = new java.util.EnumMap<>(Mood.Field.class);
-        java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereComboBox, Mood.Field.STYLE, stylePresetsComboBox,
+        Map<Mood.Field, String> fields = new EnumMap<>(Mood.Field.class);
+        Map.of(Mood.Field.ATMOSPHERE, atmosphereComboBox, Mood.Field.STYLE, stylePresetsComboBox,
                 Mood.Field.LIGHT, lightComboBox, Mood.Field.CAMERA, cameraComboBox).forEach((field, comboBox) -> {
             StylePresetItem item = comboBox.getValue();
             if (item != null && item.getBlock() != null)
                 fields.put(field, item.getBlock().getId());
         });
         ColorStyleItem colorItem = colorStyleComboBox.getValue();
-        art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
+        ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? colorStyleService().getStyleByName(colorItem.getName()) : null;
         if (palette != null)
             fields.put(Mood.Field.COLOR, palette.getId());
@@ -984,8 +1012,8 @@ public class MoodFramePanelController {
 
     /** The fields whose lock is closed. */
     public Set<Mood.Field> lockedMoodFields() {
-        Set<Mood.Field> locked = java.util.EnumSet.noneOf(Mood.Field.class);
-        java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereLockButton, Mood.Field.STYLE, styleLockButton,
+        Set<Mood.Field> locked = EnumSet.noneOf(Mood.Field.class);
+        Map.of(Mood.Field.ATMOSPHERE, atmosphereLockButton, Mood.Field.STYLE, styleLockButton,
                 Mood.Field.COLOR, colorLockButton, Mood.Field.LIGHT, lightLockButton, Mood.Field.CAMERA,
                 cameraLockButton).forEach((field, lock) -> {
             if (lock.isSelected())
@@ -994,7 +1022,7 @@ public class MoodFramePanelController {
         return locked;
     }
 
-    private art.moodframe.service.library.ColorStyleService colorStyleService() {
+    private ColorStyleService colorStyleService() {
         return colorService;
     }
 
@@ -1005,7 +1033,7 @@ public class MoodFramePanelController {
 
     /*  The action which saves the changed mood or frame: shown also without the pointer over the group, "Save" for
         one of the user, "Save as..." for a standard one (see main-window.css)  */
-    private static final javafx.css.PseudoClass UNSAVED = javafx.css.PseudoClass.getPseudoClass("unsaved");
+    private static final PseudoClass UNSAVED = PseudoClass.getPseudoClass("unsaved");
 
     /**
      * Shows the chosen mood as changed while a field differs from it, also by keeping its save action shown, remembers
@@ -1036,7 +1064,7 @@ public class MoodFramePanelController {
         if (!asNew && chosen != null && !chosen.isDefault())
             mood = chosen;
         else {
-            String name = art.moodframe.ui.dialog.MoodManageDialog.askName(window(),
+            String name = MoodManageDialog.askName(window(),
                     moodService::exists, I18nManager.getText("mood.name.new"),
                     chosen != null ? moodService.freeName(chosen.getName()) : "", null);
             if (name == null)
@@ -1062,7 +1090,7 @@ public class MoodFramePanelController {
 
     /** Opens the window for the moods of the user; the list follows its changes. */
     private void manageMoods() {
-        new art.moodframe.ui.dialog.MoodManageDialog(window(), ManagedLibraries.moods(moodService, writes),
+        new MoodManageDialog(window(), ManagedLibraries.moods(moodService, writes),
                 blocks.favorites(null, FavoriteService.Kind.MOOD, Mood::getId), trash).showAndWait();
     }
 
@@ -1095,26 +1123,22 @@ public class MoodFramePanelController {
      * @param imageFile the image to analyze at once, null to let the user give one
      */
     public void openMoodFromImage(File imageFile) {
-                art.moodframe.service.library.ColorStyleService colorService = colorStyleService();
+        ColorStyleService colorService = colorStyleService();
         if (blockService == null || colorService == null)
             return;
 
-        art.moodframe.service.brainstorm.BrainstormContext context =
-                new art.moodframe.service.brainstorm.BrainstormContext(
-                blockService.getAll(art.moodframe.model.PromptBlock.Type.STYLE),
-                blockService.getAll(art.moodframe.model.PromptBlock.Type.ATMOSPHERE),
-                blockService.getAll(art.moodframe.model.PromptBlock.Type.LIGHT),
-                blockService.getAll(art.moodframe.model.PromptBlock.Type.CAMERA), colorService.getAllStyles(),
+        BrainstormContext context = new BrainstormContext(blockService.getAll(PromptBlock.Type.STYLE),
+                blockService.getAll(PromptBlock.Type.ATMOSPHERE), blockService.getAll(PromptBlock.Type.LIGHT),
+                blockService.getAll(PromptBlock.Type.CAMERA), colorService.getAllStyles(),
                 List.of(), List.of(), "", List.of(), lockedMoodFields());
-        new art.moodframe.ui.dialog.MoodImageDialog(window(), moodAnalysis, context, imageFile,
-                this::applyMoodFromImage).show();
+        new MoodImageDialog(window(), moodAnalysis, context, imageFile, this::applyMoodFromImage).show();
     }
 
     /**
      * Sets the building blocks adopted in the dialog "Mood from image" into the fields that are not locked, a new block
      * into the list of the user first, and saves the fields as a new mood if asked to.
      */
-    private void applyMoodFromImage(art.moodframe.ui.dialog.MoodImageDialog.Result result) {
+    private void applyMoodFromImage(MoodImageDialog.Result result) {
         Set<Mood.Field> locked = lockedMoodFields();
         List<CompletableFuture<Boolean>> stored = new ArrayList<>();
         result.blocks().forEach((field, block) -> {
@@ -1132,7 +1156,7 @@ public class MoodFramePanelController {
         Mood mood = chosenMood();
         List<String> trashed = mood != null ? moodService.trashedBlocks(mood) : List.of();
         if (!trashed.isEmpty() && trash != null)
-            trash.open(window(), art.moodframe.service.trash.TrashGroup.Kind.BLOCKS, trashed.get(0));
+            trash.open(window(), TrashGroup.Kind.BLOCKS, trashed.get(0));
     }
 
     /** Asks for every mood that lost its last block whether to move it to the trash, which the worker does. */
@@ -1194,7 +1218,7 @@ public class MoodFramePanelController {
      *
      * @return completes on the JavaFX thread once the block is in its field, with whether it is
      */
-    private CompletableFuture<Boolean> adoptBlock(Mood.Field field, art.moodframe.model.BrainstormDraft.Block block) {
+    private CompletableFuture<Boolean> adoptBlock(Mood.Field field, BrainstormDraft.Block block) {
         if (!block.isNew()) {
             selectField(field, block.id());
             return CompletableFuture.completedFuture(true);
@@ -1202,12 +1226,12 @@ public class MoodFramePanelController {
 
         String failure = I18nManager.getText("block.error.save", block.name());
         if (field == Mood.Field.COLOR) {
-            art.moodframe.service.library.ColorStyleService service = colorStyleService();
+            ColorStyleService service = colorStyleService();
             if (service == null) {
                 status.status(failure);
                 return CompletableFuture.completedFuture(false);
             }
-            art.moodframe.model.ColorStyle palette = new art.moodframe.model.ColorStyle(block.name(), block.colors(),
+            ColorStyle palette = new ColorStyle(block.name(), block.colors(),
                     false);
             return writes.run(() -> service.addCustomStyle(palette), false, failure, (saved) -> {
                 if (saved)
@@ -1217,16 +1241,16 @@ public class MoodFramePanelController {
             });
         }
 
-        art.moodframe.service.library.PromptBlockService service = blockService;
-        art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
+        PromptBlockService service = blockService;
+        PromptBlock.Type type = PromptBlock.Type.valueOf(field.name());
         if (service == null) {
             status.status(failure);
             return CompletableFuture.completedFuture(false);
         }
-        art.moodframe.model.PromptBlock stored = type == art.moodframe.model.PromptBlock.Type.CAMERA
-                ? art.moodframe.service.library.PromptBlockService.camera(null, block.name(), block.settings())
-                : new art.moodframe.model.PromptBlock(null, type, block.name(), block.text(), null,
-                        type == art.moodframe.model.PromptBlock.Type.STYLE);
+        PromptBlock stored = type == PromptBlock.Type.CAMERA
+                ? PromptBlockService.camera(null, block.name(), block.settings())
+                : new PromptBlock(null, type, block.name(), block.text(), null,
+                        type == PromptBlock.Type.STYLE);
         return writes.run(() -> service.addCustom(stored), false, failure, (saved) -> {
             if (saved)
                 blocks.fillBlockChoice(type, block.name());
@@ -1238,10 +1262,10 @@ public class MoodFramePanelController {
     /** Selects the entry with this id in the field of a building block, "None" if the field does not list it. */
     private void selectField(Mood.Field field, String id) {
         if (field != Mood.Field.COLOR) {
-            selectBlock(art.moodframe.model.PromptBlock.Type.valueOf(field.name()), id);
+            selectBlock(PromptBlock.Type.valueOf(field.name()), id);
             return;
         }
-        art.moodframe.model.ColorStyle palette = colorStyleService().getStyleById(id);
+        ColorStyle palette = colorStyleService().getStyleById(id);
         String paletteName = palette != null ? palette.getName() : "None";
         colorStyleComboBox.getItems().stream().filter((item) -> blocks.colorChoice().isEntry(item)
                 && item.getName().equals(paletteName)).findFirst()
@@ -1250,18 +1274,18 @@ public class MoodFramePanelController {
     }
 
     /** The building blocks selected in the main window; none with a reference image unless "Apply mood" is on. */
-    private art.moodframe.service.prompt.PromptComposer.Selection selectedBlocks() {
+    private PromptComposer.Selection selectedBlocks(boolean reference) {
         if (reference && !moodApplyCheckBox.isSelected())
-            return new art.moodframe.service.prompt.PromptComposer.Selection(null, null, null, null, null);
+            return new PromptComposer.Selection(null, null, null, null, null);
 
         StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
         StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
         StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
         StylePresetItem cameraItem = cameraComboBox != null ? cameraComboBox.getValue() : null;
         ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
-        art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
+        ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? colorItem.toColorStyle() : null;
-        return new art.moodframe.service.prompt.PromptComposer.Selection(
+        return new PromptComposer.Selection(
                 styleItem != null ? styleItem.getBlock() : null,
                 atmosphereItem != null ? atmosphereItem.getBlock() : null, lightItem != null ? lightItem.getBlock() : null,
                 cameraItem != null ? cameraItem.getBlock() : null, palette);
@@ -1269,22 +1293,22 @@ public class MoodFramePanelController {
 
     /**
      * Shows the hints below the camera: for a style that is not photographic, layout included, only perspective and
-     * shot size apply (see {@link art.moodframe.service.prompt.PromptComposer}); with a reference image, a stage that
+     * shot size apply (see {@link PromptComposer}); with a reference image, a stage that
      * changes the geometry may show only weakly, as an edit hardly changes it.
      */
     private void updateCameraHint() {
         StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean framingOnly = styleItem != null && styleItem.getBlock() != null
                 && !styleItem.getBlock().isPhotographic();
-        art.moodframe.model.PromptBlock camera = reference ? selectedBlocks().camera() : null;
-        List<Enum<?>> weak = camera != null ? art.moodframe.service.prompt.CameraPromptBuilder.weakInEdits(
-                art.moodframe.model.CameraSettings.fromJson(camera.getParams()), !framingOnly) : List.of();
-        List<String> hints = new java.util.ArrayList<>();
+        PromptBlock camera = reference ? selectedBlocks(true).camera() : null;
+        List<Enum<?>> weak = camera != null ? CameraPromptBuilder.weakInEdits(
+                CameraSettings.fromJson(camera.getParams()), !framingOnly) : List.of();
+        List<String> hints = new ArrayList<>();
         if (framingOnly)
             hints.add(I18nManager.getText("params.camera.framing.hint"));
         if (!weak.isEmpty())
             hints.add(I18nManager.getText("params.camera.edit.hint", String.join(", ", weak.stream()
-                    .map(art.moodframe.ui.component.CameraExample::name).toList())));
+                    .map(CameraExample::name).toList())));
         cameraHint.setText(String.join("\n", hints));
         cameraHint.setVisible(!hints.isEmpty());
         cameraHint.setManaged(!hints.isEmpty());

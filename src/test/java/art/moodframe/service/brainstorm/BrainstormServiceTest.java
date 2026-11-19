@@ -713,7 +713,7 @@ class BrainstormServiceTest {
     void requestsOfOneSessionRunOneAfterTheOther() throws Exception {
         CompletableFuture<ChatTurn.Model> gate = new CompletableFuture<>();
         when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean()))
-                .thenReturn(gate).thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
+                .thenReturn(gate, CompletableFuture.completedFuture(text(VALID_REPLY)));
 
         CompletableFuture<BrainstormReply> first = service.sendUserMessage(session, "eins", context);
         verify(gemini, org.mockito.Mockito.timeout(5000)).chatTurn(anyString(), anyList(),
@@ -773,6 +773,60 @@ class BrainstormServiceTest {
         assertInstanceOf(java.util.concurrent.CancellationException.class, ended.getCause());
         Thread.sleep(300);
         verify(gemini, times(1)).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
+    }
+
+    /** A service of another window on the same sessions, as the factory of the composition root creates it. */
+    private BrainstormService otherWindow(BrainstormSessions sessions) {
+        return new BrainstormService(sessions, new BrainstormModels(gemini, null, null),
+                new BrainstormTools(gemini, null));
+    }
+
+    @Test
+    void theTurnsOfOneSessionWaitForEachOtherAcrossWindows() throws Exception {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        CompletableFuture<ChatTurn.Model> gate = new CompletableFuture<>();
+        when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean()))
+                .thenReturn(gate).thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
+
+        CompletableFuture<BrainstormReply> first = closed.sendUserMessage(session, "eins", context);
+        verify(gemini, org.mockito.Mockito.timeout(5000)).chatTurn(anyString(), anyList(),
+                anyList(), anyBoolean());
+        CompletableFuture<Void> pending = reopened.pending("s1");
+        CompletableFuture<BrainstormReply> second = reopened.sendUserMessage(session, "zwei", context);
+        Thread.sleep(300);
+
+        assertFalse(pending.isDone(), "the reopened window sees the running turn");
+        assertFalse(second.isDone(), "the second turn waits for the first one");
+        verify(gemini, times(1)).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
+        gate.complete(text(VALID_REPLY));
+        first.get(5, TimeUnit.SECONDS);
+        second.get(5, TimeUnit.SECONDS);
+        pending.get(5, TimeUnit.SECONDS);
+        assertEquals(List.of(BrainstormMessage.ROLE_USER, BrainstormMessage.ROLE_ASSISTANT,
+                BrainstormMessage.ROLE_USER, BrainstormMessage.ROLE_ASSISTANT),
+                stored.stream().map(BrainstormMessage::getRole).toList(), "the second turn reads the first answer");
+    }
+
+    @Test
+    void deletingInAnotherWindowStopsTheTurnOfAClosedOne() throws Exception {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        CompletableFuture<ChatTurn.Model> gate = new CompletableFuture<>();
+        when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean())).thenReturn(gate);
+
+        CompletableFuture<BrainstormReply> running = closed.sendUserMessage(session, "eins", context);
+        verify(gemini, org.mockito.Mockito.timeout(5000)).chatTurn(anyString(), anyList(),
+                anyList(), anyBoolean());
+        reopened.deleteSession("s1");
+        gate.complete(text(VALID_REPLY));
+
+        assertThrows(java.util.concurrent.CancellationException.class, () -> running.get(5, TimeUnit.SECONDS));
+        Thread.sleep(300);
+        verify(repository, never()).addDraft(anyString(), anyString());
+        assertEquals(1, stored.size(), "only the user message from before the delete");
     }
 
     @Test

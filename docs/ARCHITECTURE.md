@@ -28,8 +28,9 @@ the persistence and the main decisions. The `package-info.java` of each package 
 |              | Mood and Frame, which other windows can show; `ui.component` the generic controls;     |
 |              | `ui.support` the helpers that need JavaFX or the desktop: themes, videos, opening      |
 |              | files and web pages, listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded          |
-|              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`; the root holds    |
-|              | only `SplashScreen`, shown before the window)                                          |
+|              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`, and the texts     |
+|              | several views share without JavaFX (`SafetyTolerance`), as it is the lowest part of    |
+|              | `ui` they all may use; the root holds only `SplashScreen`, shown before the window)    |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -174,12 +175,15 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
 - **Brainstorm**: `BrainstormService` queues the requests of each session; a request reads and writes the session
   (its title from the first message, the messages, the draft) on a thread of that queue, after the request before
-  it, and "draft adopted" and a rename are stored on the same queue. The short name of a session is asked for on a
-  thread of its own and stored on the queue only while the title is still the first message (compare and set), so
-  a rename meanwhile wins. `sendUserMessage`, `sendEvent`, `noteAdopted` and `renameSession` only queue, so the
-  JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
-  creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
-  with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
+  it, and "draft adopted" and a rename are stored on the same queue. The queue (`BrainstormQueue`) belongs to the
+  shared `BrainstormSessions`, so it holds for every window: a request still running after its window closed holds
+  back the next one of the session, a window opened meanwhile shows its answer when it arrives (`pending`), and
+  deleting the session in any window stops it. The short name of a session is asked for on a thread of its own and
+  stored on the queue only while the title is still the first message (compare and set), so a rename meanwhile wins.
+  `sendUserMessage`, `sendEvent`, `noteAdopted` and `renameSession` only queue, so the JavaFX thread may call them.
+  The brainstorm window lists, opens, renames, moves and deletes the sessions and creates a new one on its own worker
+  (`BrainstormWorker`, one thread that ends when idle) and takes the results back with `Platform.runLater`; nothing
+  of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry` on the store
   thread of `GenerationWorkers`), so the writes keep the order of the changes and never run on the JavaFX thread;
@@ -221,8 +225,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 
 `config.ServiceFactory` is a singleton **service locator**, not a DI container. `getService` fails with an
 `IllegalStateException` when nothing is registered for a type, so a missing registration shows at the lookup; a
-service the caller can do without (the generation, whose provider gives none if its requests cannot be set up, the
-check of the accounts, the update check, the trash cleanup) is looked up with `findService`, an `Optional`.
+service the caller can do without (the check of the accounts, the update check, the trash cleanup) is looked up with
+`findService`, an `Optional`. The generation and the thumbnails are required: their providers create them or fail.
 `MoodframeApplication` is the composition root: it registers the instances and lazy providers at startup and hands
 every service its dependencies in the constructor, which is also how tests pass mocks: the provider clients take
 `ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,
@@ -232,8 +236,8 @@ every service its dependencies in the constructor, which is also how tests pass 
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
-the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the language model of a session) and
-`BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
+the shared `BrainstormSessions` (the stored sessions and the queue of each session), `BrainstormModels` (the
+language model of a session) and `BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
 `RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
 `GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
 I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.

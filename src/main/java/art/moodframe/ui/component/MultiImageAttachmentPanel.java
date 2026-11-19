@@ -286,35 +286,45 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
     /**
      * Attaches an image to a specific slot.
+     *
+     * @param slotIndex the slot
+     * @param imageFile the image
+     * @return completes on the JavaFX thread with whether the image is in the slot now
      */
-    public void attachImageToSlot(int slotIndex, File imageFile) {
+    public CompletableFuture<Boolean> attachImageToSlot(int slotIndex, File imageFile) {
         if (slotIndex < 0 || slotIndex >= imageSlots.size()) {
             logger.warn("Invalid slot index: {}", slotIndex);
-            return;
+            return CompletableFuture.completedFuture(false);
         }
 
         if (attachmentService == null) {
             logger.error("ImageAttachmentService not set");
-            return;
+            return CompletableFuture.completedFuture(false);
         }
 
         /*  Images above the limit of the provider are shrunk by the service; async to keep the UI responsive  */
+        CompletableFuture<Boolean> attached = new CompletableFuture<>();
         attachmentService.createAttachmentAsync(imageFile, getCurrentMaxFileSize())
-            .thenAccept(attachment -> {
-                if (attachment != null && attachment.isValid()) {
-                    Platform.runLater(() -> setImageAtSlot(slotIndex, attachment));
-                }
-            })
+            .thenAccept(attachment -> Platform.runLater(() -> {
+                boolean valid = attachment != null && attachment.isValid();
+                if (valid)
+                    setImageAtSlot(slotIndex, attachment);
+                attached.complete(valid);
+            }))
             .exceptionally(e -> {
                 logger.error("Failed to attach image: {}", e.getMessage(), e);
                 Throwable cause = e;
                 while (cause.getCause() != null)
                     cause = cause.getCause();
                 String message = cause.getMessage();
-                if (onError != null)
-                    Platform.runLater(() -> onError.accept(message));
+                Platform.runLater(() -> {
+                    if (onError != null)
+                        onError.accept(message);
+                    attached.complete(false);
+                });
                 return null;
             });
+        return attached;
     }
 
     /**

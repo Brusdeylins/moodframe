@@ -139,17 +139,40 @@ public class MoodRepository {
      * @throws SQLException if the database fails
      */
     public int dropReference(String blockId) throws SQLException {
-        return database.inTransaction((Connection conn) -> {
-            int dropped = 0;
-            for (Mood.Field field : Mood.Field.values()) {
-                try (PreparedStatement stmt = conn.prepareStatement("UPDATE moods SET " + field.column()
-                        + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE " + field.column() + " = ?")) {
-                    stmt.setString(1, blockId);
-                    dropped += stmt.executeUpdate();
-                }
+        return database.inTransaction((Connection conn) -> dropReferences(conn, "= ?", blockId));
+    }
+
+    /**
+     * Empties every field of the stored moods whose block id meets a condition, in the transaction of the caller.
+     *
+     * @param conn      the connection of the transaction
+     * @param condition the condition on the column of the block id with one parameter, e.g. {@code "= ?"}
+     * @param value     the value of the parameter
+     * @return the number of emptied fields
+     * @throws SQLException if the database fails
+     */
+    static int dropReferences(Connection conn, String condition, String value) throws SQLException {
+        int dropped = 0;
+        for (Mood.Field field : Mood.Field.values()) {
+            String column = column(field);
+            try (PreparedStatement stmt = conn.prepareStatement("UPDATE moods SET " + column
+                    + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE " + column + " " + condition)) {
+                stmt.setString(1, value);
+                dropped += stmt.executeUpdate();
             }
-            return dropped;
-        });
+        }
+        return dropped;
+    }
+
+    /*  The column of the block id of a field in the table moods  */
+    private static String column(Mood.Field field) {
+        return switch (field) {
+            case ATMOSPHERE -> "atmosphere_id";
+            case STYLE -> "style_id";
+            case COLOR -> "color_id";
+            case LIGHT -> "light_id";
+            case CAMERA -> "camera_id";
+        };
     }
 
     /**
@@ -235,7 +258,7 @@ public class MoodRepository {
     private static Mood map(ResultSet rs) throws SQLException {
         Mood mood = new Mood(rs.getString("id"), rs.getString("name"));
         for (Mood.Field field : Mood.Field.values())
-            mood.setReference(field, rs.getString(field.column()));
+            mood.setReference(field, rs.getString(column(field)));
         mood.setSortOrder(rs.getInt("sort_order"));
         Timestamp deletedAt = rs.getTimestamp("deleted_at");
         mood.setDeletedAt(deletedAt != null ? deletedAt.toLocalDateTime() : null);

@@ -306,18 +306,52 @@ public class BrainstormDialog extends Stage {
 
         target.loading = true;
         String sessionId = selected.getId();
-        worker.run(() -> new Stored(service.loadMessages(sessionId),
-                service.latestDraft(sessionId).orElseGet(BrainstormDraft::new)), (Stored stored) -> {
+        CompletableFuture<Void> pending = service.pending(sessionId);
+        worker.run(() -> read(sessionId), (Stored stored) -> {
             target.loading = false;
-            showStored(target, stored);
+            showStored(target, stored.messages());
+            target.draft = stored.draft();
+            target.scrollPosition = 1.0;
+            target.loaded = true;
+            if (!pending.isDone())
+                awaitPending(target, pending, stored.messages().size());
             if (opening == selected)
                 activate(target);
         });
     }
 
-    /** Shows the stored messages of a chat. */
-    private void showStored(BrainstormChat target, Stored stored) {
-        for (BrainstormMessage message : stored.messages()) {
+    private Stored read(String sessionId) {
+        return new Stored(service.loadMessages(sessionId),
+                service.latestDraft(sessionId).orElseGet(BrainstormDraft::new));
+    }
+
+    /**
+     * Waits for a request that a closed window sent for the session and shows what it stored after the messages
+     * shown so far.
+     */
+    private void awaitPending(BrainstormChat target, CompletableFuture<Void> pending, int shown) {
+        target.started();
+        target.statusText = I18nManager.getText("brainstorm.status.thinking");
+        String sessionId = target.session.getId();
+        pending.thenRun(() -> worker.run(() -> read(sessionId), (Stored stored) -> {
+            if (chats.get(sessionId) != target)
+                return;
+            List<BrainstormMessage> messages = stored.messages();
+            showStored(target, messages.subList(Math.min(shown, messages.size()), messages.size()));
+            target.draft = stored.draft();
+            boolean open = target == chat;
+            target.answered(open);
+            if (open) {
+                applyBusy(target);
+                resultForm.show(target.draft);
+            }
+            history.refresh();
+        }));
+    }
+
+    /** Shows stored messages of a chat. */
+    private void showStored(BrainstormChat target, List<BrainstormMessage> messages) {
+        for (BrainstormMessage message : messages) {
             switch (message.getRole()) {
                 case BrainstormMessage.ROLE_USER -> chatView.addBubble(target, message.getContent(), true);
                 case BrainstormMessage.ROLE_EVENT -> chatView.addStoredEvent(target, message.getContent());
@@ -334,9 +368,6 @@ public class BrainstormDialog extends Stage {
                 }
             }
         }
-        target.draft = stored.draft();
-        target.scrollPosition = 1.0;
-        target.loaded = true;
     }
 
     /** Shows a chat in the parts: its messages, steps, draft, quick replies and whether it waits for the AI. */

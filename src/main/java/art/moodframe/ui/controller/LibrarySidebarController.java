@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * The left sidebar of the main window ({@code LibrarySidebar.fxml}): the chats, or the moods or the frames images were
@@ -528,12 +529,29 @@ public class LibrarySidebarController {
 
         /*  The new chat shows in the list of chats  */
         byChatMenuItem.setSelected(true);
-        Chat newChat = chatLibrary.newChat("New Chat " + (chatList.size() + 1));
+        Chat newChat = chatLibrary.newChat(newChatName(chatList));
         syncChats();
         chatListView.getSelectionModel().select(0);
 
         logger.debug("Created new chat: {}", newChat.getName());
         status.status(I18nManager.getText("status.chat.created"));
+    }
+
+    /**
+     * The name of a new chat: "New Chat" in the language of the window with the first number that no chat outside the
+     * trash has.
+     *
+     * @param chats the chats, those in the trash included
+     * @return the name
+     */
+    static String newChatName(List<Chat> chats) {
+        String base = I18nManager.getText("chat.new.default") + " ";
+        Set<String> taken = chats.stream().filter(LibrarySidebarController::shouldShowChat).map(Chat::getName)
+                .collect(Collectors.toSet());
+        int number = 1;
+        while (taken.contains(base + number))
+            number++;
+        return base + number;
     }
 
     /** Opens the central trash. */

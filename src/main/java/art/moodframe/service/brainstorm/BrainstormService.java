@@ -15,12 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
@@ -31,7 +28,9 @@ import java.util.function.Supplier;
  * Runs the guided brainstorm chat of a window: queues the requests of each session, lets
  * {@link BrainstormConversation} answer them and stores messages and draft versions in {@link BrainstormSessions}.
  * Every session is independent: requests of different sessions run in parallel, requests of one session run one
- * after the other, and deleting a session stops its running request. With Gemini, the YouTube videos a message links
+ * after the other, and deleting a session stops its running request. The queue belongs to the shared sessions, so
+ * this holds across windows: a request still running after its window closed holds back the next one of the session
+ * in another window, and deleting the session stops it. With Gemini, the YouTube videos a message links
  * are watched before the answer, with the message as instruction ({@link BrainstormTools}).
  *
  * <p>Threads: {@link #sendUserMessage}, {@link #sendEvent} and {@link #noteAdopted} only queue the request and
@@ -63,9 +62,8 @@ public class BrainstormService {
     private final BrainstormConversation conversation;
     private BiConsumer<String, String> onToolStatus = (String sessionId, String status) -> { };
     private Consumer<BrainstormSession> onTitleChanged = (BrainstormSession session) -> { };
-    /** The latest request of each session, the next request of the session waits for it. */
-    private final Map<String, CompletableFuture<?>> tails = new ConcurrentHashMap<>();
-    private final Set<String> deleted = ConcurrentHashMap.newKeySet();
+    /** The queue of the sessions, shared with every other window on the same sessions. */
+    private final BrainstormQueue queue;
 
     /** Creates a service for each brainstorm window, with the sessions and language models of the application. */
     @FunctionalInterface
@@ -88,6 +86,7 @@ public class BrainstormService {
      */
     public BrainstormService(BrainstormSessions sessions, BrainstormModels models, BrainstormTools tools) {
         this.sessions = sessions;
+        this.queue = sessions.queue();
         this.models = models;
         this.tools = tools;
         this.conversation = new BrainstormConversation(models, tools, TURNS);
@@ -196,17 +195,24 @@ public class BrainstormService {
      * @return true if the session was deleted
      */
     public boolean deleteSession(String sessionId) {
-        deleted.add(sessionId);
-        CompletableFuture<?> running = tails.get(sessionId);
-        if (running != null) {
-            running.cancel(true);
-        }
+        queue.delete(sessionId);
         return sessions.delete(sessionId);
+    }
+
+    /**
+     * The requests of a session queued so far, also those a closed window sent, so a window opened later can wait
+     * for their answer.
+     *
+     * @param sessionId the session id
+     * @return completes when they are done, whether they failed or not; at once if there are none
+     */
+    public CompletableFuture<Void> pending(String sessionId) {
+        return queue.pending(sessionId);
     }
 
     /** Throws if the session was deleted, so a running request ends without any further call or write. */
     private void ensureNotDeleted(String sessionId) {
-        if (deleted.contains(sessionId)) {
+        if (queue.isDeleted(sessionId)) {
             throw new CancellationException("Brainstorm session " + sessionId + " was deleted");
         }
     }
@@ -314,21 +320,13 @@ public class BrainstormService {
     private CompletableFuture<BrainstormReply> send(
             BrainstormSession session, BrainstormMessage message, BrainstormContext context) {
 
-        // The history is read when the request is its turn, so it contains the answer of the one before
+        /*  The history is read when the request is its turn, so it contains the answer of the one before  */
         return enqueue(session.getId(), () -> process(session, message, context));
     }
 
     /** Runs work of a session after the work of the session queued before it, on a thread of its own. */
     private <T> CompletableFuture<T> enqueue(String sessionId, Supplier<T> work) {
-        CompletableFuture<T> result;
-        synchronized (tails) {
-            CompletableFuture<?> previous = tails.getOrDefault(sessionId, CompletableFuture.completedFuture(null));
-            result = previous.handle((Object ignored, Throwable error) -> null)
-                    .thenApplyAsync((Object ignored) -> work.get(), TURNS);
-            tails.put(sessionId, result);
-        }
-        result.whenComplete((T done, Throwable error) -> tails.remove(sessionId, result));
-        return result;
+        return queue.enqueue(sessionId, work, TURNS);
     }
 
     private BrainstormReply process(BrainstormSession session, BrainstormMessage message, BrainstormContext context) {
@@ -382,7 +380,7 @@ public class BrainstormService {
             try {
                 String title = models.of(session).suggestTitle(content, language()).join()
                         .replaceAll("[\"'„“”.\\n]", "").trim();
-                if (title.isEmpty() || deleted.contains(session.getId())) {
+                if (title.isEmpty() || queue.isDeleted(session.getId())) {
                     return;
                 }
                 String name = title.length() > SHORT_TITLE_MAX_LENGTH
@@ -396,7 +394,7 @@ public class BrainstormService {
 
     /*  On the queue of the session: the short name replaces the title only while it is still the first sentence  */
     private Void applyName(BrainstormSession session, String automatic, String name) {
-        if (deleted.contains(session.getId()) || !sessions.replaceTitle(session.getId(), automatic, name))
+        if (queue.isDeleted(session.getId()) || !sessions.replaceTitle(session.getId(), automatic, name))
             return null;
         session.setTitle(name);
         onTitleChanged.accept(session);

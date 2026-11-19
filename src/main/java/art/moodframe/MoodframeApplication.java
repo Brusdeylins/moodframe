@@ -28,7 +28,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.DetailedLogging;
 import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
@@ -295,8 +294,10 @@ public class MoodframeApplication extends Application {
             setUpConfiguration(config);
             LibraryPaths paths = config.paths();
 
-            /*  The one database of the library, every repository gets its connections here  */
-            DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
+            /*  The one database of the library with its schema up to date, every repository gets its connections
+                here  */
+            DatabaseManager database = new DatabaseManager(paths.database());
+            database.initialize();
 
             /*  The services report every change of the library here, the main window shows what others changed  */
             LibraryEvents events = new LibraryEvents();
@@ -408,15 +409,8 @@ public class MoodframeApplication extends Application {
         // Initialize TrashManager for trash file operations (60 days retention)
         services.registerProvider(TrashManager.class, () -> new TrashManager(paths, 60));
 
-        // Initialize ThumbnailManager for image optimization
-        services.registerProvider(ThumbnailManager.class, () -> {
-            try {
-                return new ThumbnailManager(paths);
-            } catch (Exception e) {
-                logger.error("Failed to create ThumbnailManager", e);
-                return null;
-            }
-        });
+        /*  The thumbnails of the images  */
+        services.registerProvider(ThumbnailManager.class, () -> new ThumbnailManager(paths));
 
         // Moves the files of chats, entries and images to the trash and back
         services.registerProvider(ChatFileService.class, () -> {
@@ -483,30 +477,23 @@ public class MoodframeApplication extends Application {
         /*  The requests to the providers: the tracker writes on the store thread, the files come from the downloads
             of the shared HTTP clients  */
         services.registerProvider(RequestResponseManager.class, () -> {
-            try {
-                GenerationWorkers workers = services.getService(GenerationWorkers.class);
-                ImageFileStore files = new ImageFileStore(config, services.getService(HttpClients.class)
-                        .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
-                                .followRedirects(HttpClient.Redirect.NORMAL).build()));
-                return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
-                        new ChatEntryTracker(services.getService(ChatRepository.class), workers.store()), files,
-                        workers, io);
-            } catch (Exception e) {
-                logger.error("Failed to create RequestResponseManager with database integration", e);
-                return null;
-            }
+            GenerationWorkers workers = services.getService(GenerationWorkers.class);
+            ImageFileStore files = new ImageFileStore(config, services.getService(HttpClients.class)
+                    .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
+                            .followRedirects(HttpClient.Redirect.NORMAL).build()));
+            return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
+                    new ChatEntryTracker(services.getService(ChatRepository.class), workers.store()), files,
+                    workers, io);
         });
 
         /*  Carries out a generation order without the user interface: entry, request and submission  */
-        services.registerProvider(GenerationService.class, () -> services.findService(RequestResponseManager.class)
-                .map((RequestResponseManager requests) -> new GenerationService(config,
-                        services.getService(ChatLibrary.class), services.getService(MoodService.class), requests,
-                        services.getService(ProviderRegistry.class), services.getService(GenerationWorkers.class).store()))
-                .orElse(null));
+        services.registerProvider(GenerationService.class, () -> new GenerationService(config,
+                services.getService(ChatLibrary.class), services.getService(MoodService.class),
+                services.getService(RequestResponseManager.class), services.getService(ProviderRegistry.class),
+                services.getService(GenerationWorkers.class).store()));
     }
 
-    /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled. Without the generation
-        service, it only reads  */
+    /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled  */
     private static void registerMcp(ApplicationConfig config, LibraryEvents events) {
         ServiceFactory services = ServiceFactory.getInstance();
         services.registerProvider(McpService.class, () -> {
@@ -517,12 +504,9 @@ public class MoodframeApplication extends Application {
             FrameService frames = services.getService(FrameService.class);
             FavoriteService favorites = services.getService(FavoriteService.class);
             TrashCenter trash = services.getService(TrashCenter.class);
-            GenerationService generation = services.findService(GenerationService.class).orElse(null);
-            return new McpService(config, generation != null
-                    ? McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
-                            services.getService(MoodAnalysisService.class))
-                    : McpTools.reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
-                            services.getService(ProviderRegistry.class)::promptLimit));
+            return new McpService(config, McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash,
+                    events, services.getService(GenerationService.class),
+                    services.getService(MoodAnalysisService.class)));
         });
     }
 

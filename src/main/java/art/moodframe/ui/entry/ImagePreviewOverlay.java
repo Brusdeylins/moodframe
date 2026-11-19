@@ -961,66 +961,26 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     }
 
     /**
-     * Updates the zoom toggle button icon based on current state.
-     * 
-     * @param showZoomInIcon true to show zoom-in icon (next action: zoom to 100%),
-     *                       false to show fit-to-page icon (next action: fit to
-     *                       screen)
+     * Shows the icon and the tooltip of the zoom button: the next action, or a plain magnifier when there is none.
+     *
+     * @param icon       the literal of the icon
+     * @param tooltipKey the key of the tooltip
      */
-    private void updateZoomButtonIcon(boolean showZoomInIcon) {
-        zoom100Button.setText(""); // Always clear text
-
-        // Get the existing FontIcon or create a new one if it doesn't exist
+    private void showZoomButton(String icon, String tooltipKey) {
+        zoom100Button.setText("");
         FontIcon zoomIcon;
-        if (zoom100Button.getGraphic() instanceof FontIcon) {
-            zoomIcon = (FontIcon) zoom100Button.getGraphic();
-        } else {
-            // This should only happen on first initialization
+        if (zoom100Button.getGraphic() instanceof FontIcon shown)
+            zoomIcon = shown;
+        else {
             zoomIcon = new FontIcon();
             zoomIcon.setIconSize(20);
-            zoomIcon.setIconColor(javafx.scene.paint.Color.WHITE);
             zoom100Button.setGraphic(zoomIcon);
         }
+        zoomIcon.setIconLiteral(icon);
 
-        if (showZoomInIcon) {
-            // Update to magnify-plus icon (next action will be zoom to 100%)
-            zoomIcon.setIconLiteral("mdi2m-magnify-plus");
-            zoom100Button.setTooltip(new javafx.scene.control.Tooltip(I18nManager.getText("tooltip.preview.zoom.to.100")));
-        } else {
-            // Update to magnify-minus icon (next action will be fit-to-screen)
-            zoomIcon.setIconLiteral("mdi2m-magnify-minus");
-            zoom100Button.setTooltip(new javafx.scene.control.Tooltip(I18nManager.getText("tooltip.preview.zoom.fit.screen")));
-        }
-
-        // Ensure icon color remains white after icon code change
+        /*  A new icon code resets the color  */
         zoomIcon.setIconColor(javafx.scene.paint.Color.WHITE);
-    }
-
-    /**
-     * Updates the zoom button to show a simple magnify icon when no zoom operations
-     * are possible.
-     */
-    private void updateZoomButtonIconSimple() {
-        zoom100Button.setText(""); // Always clear text
-
-        // Get the existing FontIcon or create a new one if it doesn't exist
-        FontIcon zoomIcon;
-        if (zoom100Button.getGraphic() instanceof FontIcon) {
-            zoomIcon = (FontIcon) zoom100Button.getGraphic();
-        } else {
-            // This should only happen on first initialization
-            zoomIcon = new FontIcon();
-            zoomIcon.setIconSize(20);
-            zoomIcon.setIconColor(javafx.scene.paint.Color.WHITE);
-            zoom100Button.setGraphic(zoomIcon);
-        }
-
-        // Set simple magnify icon without plus or minus
-        zoomIcon.setIconLiteral("mdi2m-magnify");
-        zoom100Button.setTooltip(new javafx.scene.control.Tooltip(I18nManager.getText("tooltip.preview.zoom.unavailable")));
-
-        // Ensure icon color remains white after icon code change
-        zoomIcon.setIconColor(javafx.scene.paint.Color.WHITE);
+        zoom100Button.setTooltip(new Tooltip(I18nManager.getText(tooltipKey)));
     }
 
     /**
@@ -1042,24 +1002,18 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         boolean canZoom = zoom.canZoomToOriginal() || zoom.canZoomToFit();
 
         if (!canZoom) {
-            // No zoom operations possible - show simple magnify icon and disable
             zoom100Button.setDisable(true);
             zoom100Button.setOpacity(0.5);
-            updateZoomButtonIconSimple(); // Show simple magnify icon
+            showZoomButton("mdi2m-magnify", "tooltip.preview.zoom.unavailable");
         } else {
-            // Zoom operations possible - enable and show appropriate icon
             zoom100Button.setDisable(false);
             zoom100Button.setOpacity(1.0);
 
-            // Determine icon based on current zoom state
-            if (zoom.isOriginal()) {
-                // We're at 100%, next action would be fit-to-screen
-                updateZoomButtonIcon(false); // Show magnify-minus icon (fit-to-screen)
-            } else {
-                // We're at any other zoom level (including fit-to-screen), next action would be
-                // 100%
-                updateZoomButtonIcon(true); // Show magnify-plus icon (zoom to 100%)
-            }
+            /*  At 100 % the next action fits the image to the screen, at any other zoom it shows 100 %  */
+            if (zoom.isOriginal())
+                showZoomButton("mdi2m-magnify-minus", "tooltip.preview.zoom.fit.screen");
+            else
+                showZoomButton("mdi2m-magnify-plus", "tooltip.preview.zoom.to.100");
         }
     }
 
