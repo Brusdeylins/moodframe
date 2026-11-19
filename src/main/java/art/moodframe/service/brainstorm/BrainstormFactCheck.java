@@ -43,8 +43,8 @@ final class BrainstormFactCheck {
                 try {
                     JSONObject event = new JSONObject(
                             message.getContent().substring(BrainstormSessions.EVENT_PREFIX.length()));
-                    if (ResearchNote.EVENT.equals(event.optString("event")))
-                        known.addAll(ResearchNote.fromEventJson(event).sources());
+                    if (BrainstormJson.RESEARCH_EVENT.equals(event.optString("event")))
+                        known.addAll(BrainstormJson.researchNote(event).sources());
                 }
                 catch (JSONException e) {
                     logger.debug("Skipping unreadable event", e);

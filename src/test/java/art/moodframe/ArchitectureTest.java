@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
- * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
- * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
- * interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
+ * checks which package uses which (a top-level package without rules fails), that no packages depend on each other
+ * in a cycle, that model, util and service.chat need no JavaFX, that no layer below the user interface looks up the
+ * services it uses in the locator, that in the user interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
  * uses, that no class imports a package of the application with a wildcard, that the chat clients of Gemini and
  * OpenAI do not use each other and that the generation and the image clients render no message themselves.
  */
@@ -110,9 +110,15 @@ class ArchitectureTest {
         List<String> violations = new ArrayList<>();
         uses.forEach((String pkg, Set<String> targets) -> {
             String layer = layerOf(pkg);
+
+            /*  the root is the composition root and may use everything; a layer of its own needs its rules  */
+            if (layer.isEmpty())
+                return;
             Set<String> allowed = ALLOWED.get(layer);
-            if (allowed == null)
-                return;  // the root is the composition root and may use everything
+            if (allowed == null) {
+                violations.add(pkg + ": a layer without rules in ALLOWED");
+                return;
+            }
             for (String target : targets) {
                 String targetLayer = layerOf(target);
                 if (!targetLayer.equals(layer) && !allowed.contains(targetLayer))
@@ -169,14 +175,40 @@ class ArchitectureTest {
         assertEquals(FX_MODELS, javaFx.getOrDefault("model", Set.of()), "model, besides the known deviation");
     }
 
+    /*  The model classes that carry their own stored JSON form (org.json) or the names of the palette file and of a
+        request (Jackson); none of them carries what a language model exchanges  */
+    private static final Set<String> JSON_MODELS = Set.of("EntryMood", "EntryFrame", "CameraSettings");
+    private static final Set<String> JACKSON_MODELS = Set.of("ColorStyle", "ImageGenerationRequest");
+
     @Test
-    void theServicesAndTheMcpServerGetTheirDependenciesInjected() {
+    void onlyTheStoredValueTypesOfTheModelUseJson() throws IOException {
+        Set<String> json = new TreeSet<>();
+        Set<String> jackson = new TreeSet<>();
+        try (Stream<Path> walk = Files.list(SOURCES.resolve("art/moodframe/model"))) {
+            for (Path file : walk.filter((Path path) -> path.toString().endsWith(".java")).toList()) {
+                String code = COMMENTS.matcher(Files.readString(file)).replaceAll("");
+                String name = file.getFileName().toString().replace(".java", "");
+                if (code.contains("org.json."))
+                    json.add(name);
+                if (code.contains("com.fasterxml.jackson."))
+                    jackson.add(name);
+            }
+        }
+        json.removeAll(JSON_MODELS);
+        jackson.removeAll(JACKSON_MODELS);
+        assertEquals(Set.of(), json, "the JSON of the brainstorm lives in service.brainstorm.BrainstormJson");
+        assertEquals(Set.of(), jackson, "the model classes with Jackson names");
+    }
+
+    @Test
+    void noLayerBelowTheUserInterfaceUsesTheLocator() {
         List<String> lookups = new ArrayList<>();
         locator.forEach((String pkg, Set<String> classes) -> {
-            if (layerOf(pkg).equals("service") || layerOf(pkg).equals("mcp"))
+            if (!pkg.isEmpty() && !layerOf(pkg).equals("ui"))
                 classes.forEach((String name) -> lookups.add(pkg + "." + name));
         });
-        assertEquals(List.of(), lookups, "no service looks up another in the ServiceFactory");
+        lookups.remove("config.ServiceFactory");
+        assertEquals(List.of(), lookups, "only the composition root and the coordinators use the ServiceFactory");
     }
 
     @Test

@@ -61,6 +61,7 @@ class ApiProviderValidatorTest {
         doAnswer((invocation) -> setFlag(invocation, "web_search")).when(accounts).setWebSearch(any(), anyBoolean());
         doCallRealMethod().when(accounts).isOpenAiChatAvailable();
         doCallRealMethod().when(accounts).isBrainstormAvailable(any());
+        doCallRealMethod().when(accounts).isUsable(any());
 
         /*  Every account configured and enabled by the user, the brainstorm talks to Gemini  */
         flags.put("bfl.enabled", true);
@@ -465,5 +466,42 @@ class ApiProviderValidatorTest {
         assertFalse(accounts.isWebSearch(ApiProvider.OPENAI));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.LANGUAGE_MODEL));
         assertNull(validator.getReason(ApiProvider.OPENAI, ApiProviderValidator.Check.WEB_SEARCH));
+    }
+
+    @Test
+    void anOpenAiUserWithAStoredGeminiKeyKeepsGeminiOff() {
+        flags.put("bfl.enabled", false);
+        flags.put("gemini.enabled", false);
+
+        validator.validateAllProviders().join();
+
+        assertFalse(accounts.isEnabled(ApiProvider.GOOGLE_GEMINI), "the choice of the user stays");
+        assertFalse(accounts.isEnabled(ApiProvider.BFL), "the choice of the user stays");
+        verify(accounts, never()).setEnabled(any(), anyBoolean());
+    }
+
+    @Test
+    void aProviderWithoutPreferenceStaysOffWhileAnotherIsUsable() {
+        flags.remove("gemini.enabled");
+        when(accounts.hasEnabledPreference(ApiProvider.GOOGLE_GEMINI)).thenReturn(false);
+
+        validator.validateAllProviders().join();
+
+        assertFalse(accounts.isEnabled(ApiProvider.GOOGLE_GEMINI));
+        verify(accounts, never()).setEnabled(any(), anyBoolean());
+    }
+
+    @Test
+    void theFirstStartEnablesEveryWorkingProviderWithoutPreference() {
+        flags.clear();
+        for (ApiProvider provider : ApiProvider.values())
+            when(accounts.hasEnabledPreference(provider)).thenReturn(false);
+        when(bfl.testConnection()).thenReturn(CompletableFuture.completedFuture(false));
+
+        validator.validateAllProviders().join();
+
+        assertTrue(accounts.isEnabled(ApiProvider.GOOGLE_GEMINI));
+        assertTrue(accounts.isEnabled(ApiProvider.OPENAI), "the order of the tests decides nothing");
+        assertFalse(accounts.isEnabled(ApiProvider.BFL), "a refused key enables nothing");
     }
 }

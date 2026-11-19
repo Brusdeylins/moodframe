@@ -231,7 +231,7 @@ public class AttachedImage {
      * 
      * @return true if file size is acceptable
      */
-    public boolean isFileSizeValid() {
+    private boolean isFileSizeValid() {
         return fileSizeBytes <= 10 * 1024 * 1024; // 10MB limit
     }
     
@@ -240,7 +240,7 @@ public class AttachedImage {
      * 
      * @return true if MIME type is PNG, JPEG, or WebP
      */
-    public boolean isMimeTypeSupported() {
+    private boolean isMimeTypeSupported() {
         return mimeType != null && (
             mimeType.equals("image/png") ||
             mimeType.equals("image/jpeg") ||
@@ -260,27 +260,6 @@ public class AttachedImage {
                isMimeTypeSupported() &&
                width > 0 && 
                height > 0;
-    }
-    
-    /**
-     * Gets validation error messages if the attachment is invalid.
-     * 
-     * @return error message, or null if valid
-     */
-    public String getValidationError() {
-        if (imageFile == null || !imageFile.exists()) {
-            return "Image file does not exist";
-        }
-        if (!isFileSizeValid()) {
-            return "File size exceeds 10MB limit (" + getFormattedFileSize() + ")";
-        }
-        if (!isMimeTypeSupported()) {
-            return "Unsupported file format. Use PNG, JPEG, or WebP";
-        }
-        if (width <= 0 || height <= 0) {
-            return "Invalid image dimensions";
-        }
-        return null; // Valid
     }
     
     /**

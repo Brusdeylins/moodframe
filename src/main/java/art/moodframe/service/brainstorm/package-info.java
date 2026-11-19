@@ -12,6 +12,8 @@
  * <li>{@link BrainstormTools}: the tools of the assistant (research, watching a YouTube video)</li>
  * <li>{@link BrainstormFactCheck}: the facts of a draft against the research of the session</li>
  * <li>{@link BrainstormReply}: an answer of the assistant, parsed from the JSON the language model writes</li>
+ * <li>{@link BrainstormJson}: the JSON of a draft (written by the language model, stored by the session) and of a
+ *     research event</li>
  * <li>{@link BrainstormPromptBuilder}: the system prompt of the assistant from a {@link BrainstormContext}</li>
  * <li>{@link MoodAnalysisService}: derives the building blocks of a mood from an image</li>
  * <li>{@link PaletteExtractor}: the main colors of an image by median cut, for the analysis</li>

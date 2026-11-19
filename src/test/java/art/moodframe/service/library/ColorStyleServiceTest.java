@@ -44,6 +44,5 @@ class ColorStyleServiceTest {
         assertFalse(service.deleteCustomStyle("Own Palette"));
         assertFalse(service.deleteStylePermanently(own.getId()));
         assertEquals(0, service.importStyles(List.of(new ColorStyle("Imported", List.of("#778899")))));
-        assertEquals(0, service.resetToDefaults());
     }
 }

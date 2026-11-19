@@ -1,13 +1,8 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
-import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -31,8 +26,6 @@ import java.util.UUID;
  * @since 1.7.0
  */
 public class BrainstormRepository {
-
-    private static final Logger logger = LoggerFactory.getLogger(BrainstormRepository.class);
 
     private final DatabaseManager database;
 
@@ -154,6 +147,29 @@ public class BrainstormRepository {
     }
 
     /**
+     * Replaces the title of a session only if it is still the expected one, and marks it as changed now; a title
+     * the user changed meanwhile stays.
+     *
+     * @param sessionId the session id
+     * @param expected  the title the session must still have
+     * @param title     the new title
+     * @return true if the title was replaced
+     * @throws SQLException if the database fails
+     */
+    public boolean replaceTitle(String sessionId, String expected, String title) throws SQLException {
+        String sql = "UPDATE brainstorm_sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ?";
+
+        try (Connection conn = database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, title);
+            stmt.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
+            stmt.setString(3, sessionId);
+            stmt.setString(4, expected);
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    /**
      * Stores which language model answers a session (does not count as a change of the session).
      *
      * @param sessionId the session id
@@ -243,11 +259,11 @@ public class BrainstormRepository {
      * Stores a draft as the next version of a session.
      *
      * @param sessionId the session id
-     * @param draft the draft to store
+     * @param draftJson the JSON form of the draft
      * @return the version number of the stored draft
      * @throws SQLException if the database fails
      */
-    public int addDraft(String sessionId, BrainstormDraft draft) throws SQLException {
+    public int addDraft(String sessionId, String draftJson) throws SQLException {
         String sql = """
             INSERT INTO brainstorm_drafts (session_id, version, draft_json, created_at)
             VALUES (?, (SELECT COALESCE(MAX(version), 0) + 1 FROM brainstorm_drafts WHERE session_id = ?), ?, ?)
@@ -257,21 +273,15 @@ public class BrainstormRepository {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             stmt.setString(2, sessionId);
-            stmt.setString(3, draft.toJson().toString());
+            stmt.setString(3, draftJson);
             stmt.setTimestamp(4, Timestamp.valueOf(LocalDateTime.now()));
             stmt.executeUpdate();
         }
         return countDrafts(sessionId);
     }
 
-    /**
-     * Returns the number of draft versions of a session.
-     *
-     * @param sessionId the session id
-     * @return the number of versions
-     * @throws SQLException if the database fails
-     */
-    public int countDrafts(String sessionId) throws SQLException {
+    /*  the number of draft versions of a session  */
+    private int countDrafts(String sessionId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM brainstorm_drafts WHERE session_id = ?";
 
         try (Connection conn = database.getConnection();
@@ -284,26 +294,21 @@ public class BrainstormRepository {
     }
 
     /**
-     * Returns the latest draft of a session.
+     * Returns the JSON form of the latest draft of a session.
      *
      * @param sessionId the session id
-     * @return the latest draft, or empty if the session has none or it is unreadable
+     * @return the JSON form of the latest draft, or empty if the session has none
      * @throws SQLException if the database fails
      */
-    public Optional<BrainstormDraft> findLatestDraft(String sessionId) throws SQLException {
+    public Optional<String> findLatestDraft(String sessionId) throws SQLException {
         String sql = "SELECT draft_json FROM brainstorm_drafts WHERE session_id = ? ORDER BY version DESC LIMIT 1";
 
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, sessionId);
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(BrainstormDraft.fromJson(new JSONObject(rs.getString("draft_json"))));
-                }
+                return rs.next() ? Optional.ofNullable(rs.getString("draft_json")) : Optional.empty();
             }
-        } catch (JSONException e) {
-            logger.error("Unreadable latest brainstorm draft for session: {}", sessionId, e);
         }
-        return Optional.empty();
     }
 }

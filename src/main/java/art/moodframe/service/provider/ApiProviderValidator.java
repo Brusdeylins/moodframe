@@ -7,9 +7,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +26,8 @@ import java.util.function.Function;
  * <p>This service automatically tests configured API keys for all providers
  * (BFL, Google Gemini and OpenAI) and updates their validation status in the configuration.
  * Validation results indicate whether a provider CAN work (has valid credentials),
- * but do NOT override the user's manual enable/disable preference.</p>
+ * but do NOT override the user's manual enable/disable preference: a provider is enabled on its own only if the user
+ * never switched it on or off and no other provider is usable, the same rule for every provider.</p>
  *
  * <p><strong>Important:</strong> This validator only updates validation status, not
  * the enabled status. User preferences for provider activation are always respected
@@ -147,11 +150,12 @@ public class ApiProviderValidator {
      */
     public CompletableFuture<Map<ApiProvider, Boolean>> validateAllProviders() {
         logger.info("Starting API provider validation...");
+        Set<ApiProvider> usable = usableProviders();
 
         /*  OpenAI first: only its fresh result tells if OpenAI is the only provider in use, whose
             other providers are not contacted and keep their stored status  */
         Map<ApiProvider, CompletableFuture<Boolean>> validations = new EnumMap<>(ApiProvider.class);
-        CompletableFuture<Boolean> openAiValidation = validate(ApiProvider.OPENAI);
+        CompletableFuture<Boolean> openAiValidation = validate(ApiProvider.OPENAI, usable);
         validations.put(ApiProvider.OPENAI, openAiValidation);
         CompletableFuture<Boolean> openAiOnly = openAiValidation.handle((valid, error) -> {
             boolean only = ProviderPolicy.isOpenAiOnly(config);
@@ -164,7 +168,7 @@ public class ApiProviderValidator {
                 continue;
             validations.put(id, openAiOnly.thenCompose((only) -> {
                 if (!only)
-                    return validate(id);
+                    return validate(id, usable);
                 reasons.put(new Key(id, Check.CONNECTION), new Reason("status.api.check.skipped", null));
                 return CompletableFuture.completedFuture(config.accounts().isValidated(id));
             }));
@@ -184,30 +188,50 @@ public class ApiProviderValidator {
     /**
      * Validates a provider: tests its connection and, for Gemini and OpenAI, checks the brainstorm language model.
      *
-     * <p>Note: This method only updates the validation status. The enabled status is only auto-set on first
-     * successful validation (when no user preference exists). After initial setup, the enabled status is controlled
-     * by user preference and will not be overridden by automatic validation.</p>
+     * <p>Note: This method only updates the validation status. The enabled status is only auto-set on a successful
+     * validation while the user never switched the provider on or off and no other provider is usable (see
+     * {@link #autoEnables}); otherwise it is controlled by user preference and never overridden.</p>
      *
      * @param provider the provider, one of the registry
      * @return a CompletableFuture that resolves to true if validation succeeded
      */
     public CompletableFuture<Boolean> validate(ApiProvider provider) {
-        return validateConnection(provider, noKey.getOrDefault(provider, () -> { }),
+        return validate(provider, usableProviders());
+    }
+
+    private CompletableFuture<Boolean> validate(ApiProvider provider, Set<ApiProvider> usable) {
+        return validateConnection(provider, usable, noKey.getOrDefault(provider, () -> { }),
                 extras.getOrDefault(provider, CompletableFuture::completedFuture));
     }
 
-    /*  Gemini after a decided connection test: enabled if no provider is, then its brainstorm language model  */
-    private CompletableFuture<Boolean> checkGeminiAfterConnection(boolean isValid) {
-        if (isValid && !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)
-                && !config.accounts().isEnabled(ApiProvider.BFL)) {
-
-            /*  No provider usable (e.g. after migration to a new machine): enable Gemini  */
-            config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, true);
-            logger.info("Gemini API validation successful - no provider enabled, Gemini auto-enabled");
+    /*  the providers enabled with a key, taken before any test of a run, so the order of the tests decides nothing  */
+    private Set<ApiProvider> usableProviders() {
+        Set<ApiProvider> usable = EnumSet.noneOf(ApiProvider.class);
+        for (ApiProvider id : providers.ids()) {
+            if (config.accounts().isUsable(id))
+                usable.add(id);
         }
+        return usable;
+    }
 
-        /*  Without a connection, language model and search stay as last decided: no brainstorm anyway; a disabled
-            provider keeps them too, so no paid check runs for an account switched off  */
+    /**
+     * Tells whether a successful connection test enables a provider: only if the user never switched it on or off
+     * and no other provider was usable when the run began (e.g. a first start with a key from the environment), the
+     * same for every provider. A user who works with another provider keeps this one as it is.
+     *
+     * @param provider          the provider
+     * @param hasUserPreference true if the user switched the provider on or off
+     * @param usable            the providers usable when the run began
+     * @return true if the provider is to be enabled
+     */
+    static boolean autoEnables(ApiProvider provider, boolean hasUserPreference, Set<ApiProvider> usable) {
+        return !hasUserPreference && usable.stream().allMatch(provider::equals);
+    }
+
+    /*  Gemini after a decided connection test: its brainstorm language model; without a connection, language model
+        and search stay as last decided (no brainstorm anyway), and a disabled provider keeps them too, so no paid
+        check runs for an account switched off  */
+    private CompletableFuture<Boolean> checkGeminiAfterConnection(boolean isValid) {
         if (!isValid || !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI))
             return CompletableFuture.completedFuture(isValid);
         return checkGeminiModel().thenApply((check) -> true);
@@ -259,16 +283,17 @@ public class ApiProviderValidator {
     }
 
     /**
-     * Tests the connection of a provider and stores the decided result; the enabled status is only auto-set on the
-     * first successful validation (no user preference yet). A transient failure keeps the last decided state.
+     * Tests the connection of a provider and stores the decided result; the enabled status is only auto-set as
+     * {@link #autoEnables} tells. A transient failure keeps the last decided state.
      *
      * @param provider the provider
+     * @param usable   the providers usable when the run began
      * @param noKey    clears what depends on the account if no key is configured
      * @param then     the checks after a decided connection test, given its result
      * @return a future with true if the connection works
      */
-    private CompletableFuture<Boolean> validateConnection(ApiProvider provider, Runnable noKey,
-            Function<Boolean, CompletableFuture<Boolean>> then) {
+    private CompletableFuture<Boolean> validateConnection(ApiProvider provider, Set<ApiProvider> usable,
+            Runnable noKey, Function<Boolean, CompletableFuture<Boolean>> then) {
         String name = provider.getDisplayName();
         if (!config.accounts().hasApiKey(provider)) {
             logger.info("{} API key not configured, skipping validation", name);
@@ -280,16 +305,15 @@ public class ApiProviderValidator {
         }
 
         logger.info("Validating {} API key...", name);
-        final boolean hasUserPreference = config.accounts().hasEnabledPreference(provider);
+        boolean autoEnable = autoEnables(provider, config.accounts().hasEnabledPreference(provider), usable);
 
         return providers.get(provider).testConnection()
                 .thenApply(isValid -> {
                     storeConnection(provider, isValid);
 
-                    if (isValid && !hasUserPreference) {
-                        // Only auto-enable on first successful validation (no user preference exists)
+                    if (isValid && autoEnable) {
                         config.accounts().setEnabled(provider, true);
-                        logger.info("{} API validation successful - provider auto-enabled (first time setup)", name);
+                        logger.info("{} API validation successful - provider auto-enabled (no other provider)", name);
                     } else if (isValid) {
                         logger.info("{} API validation successful - provider status: {} (user preference)", name,
                                 config.accounts().isEnabled(provider) ? "enabled" : "disabled");

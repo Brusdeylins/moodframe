@@ -124,19 +124,6 @@ public class VersionManager {
     }
     
     /**
-     * Clears the cached version information.
-     * 
-     * <p>
-     * This method is primarily for testing purposes to force
-     * re-detection of version information.
-     * </p>
-     */
-    public static synchronized void clearCache() {
-        cachedVersion = null;
-        cachedBuildInfo = null;
-    }
-    
-    /**
      * Detects the application version from various sources.
      * 
      * @return the detected version string

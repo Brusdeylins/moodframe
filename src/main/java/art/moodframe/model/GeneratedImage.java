@@ -649,33 +649,6 @@ public class GeneratedImage {
     }
     
     /**
-     * Checks if the image is available locally.
-     * 
-     * @return true if download status is CACHED
-     */
-    public boolean isAvailableLocally() {
-        return downloadStatus.get() == DownloadStatus.CACHED;
-    }
-    
-    /**
-     * Checks if the image is currently being downloaded.
-     * 
-     * @return true if download status is DOWNLOADING
-     */
-    public boolean isDownloading() {
-        return downloadStatus.get() == DownloadStatus.DOWNLOADING;
-    }
-    
-    /**
-     * Checks if the download has failed.
-     * 
-     * @return true if download status is FAILED
-     */
-    public boolean isDownloadFailed() {
-        return downloadStatus.get() == DownloadStatus.FAILED;
-    }
-    
-    /**
      * Gets the file size in a human-readable format.
      * 
      * @return formatted file size string

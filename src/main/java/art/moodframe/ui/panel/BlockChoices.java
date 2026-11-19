@@ -594,7 +594,7 @@ final class BlockChoices {
 
                     @Override
                     public CompletableFuture<Integer> importFrom(File file) {
-                        return writes.call(() -> service.importStyles(file, true));
+                        return writes.call(() -> service.importStyles(file));
                     }
 
                     @Override

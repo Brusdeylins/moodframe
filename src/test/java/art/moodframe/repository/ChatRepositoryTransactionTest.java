@@ -156,6 +156,52 @@ class ChatRepositoryTransactionTest {
     }
 
     @Test
+    void theFilesOfADeletionAndAnImmediateRestoreMoveInTheOrderOfTheCommits() throws Exception {
+        List<String> moves = new java.util.concurrent.CopyOnWriteArrayList<>();
+        AtomicReference<ChatTrashRepository> files = new AtomicReference<>();
+        AtomicReference<Future<Boolean>> restore = new AtomicReference<>();
+        ExecutorService other = Executors.newSingleThreadExecutor();
+        Chat chat = chat("Reihenfolge");
+        entry(chat, 0.04, 0.04);
+        files.set(new ChatTrashRepository(databaseManager, new ChatFiles() {
+            @Override
+            public void moveToTrash(String chatId, List<GeneratedImage> images) {
+
+                /*  a restore from another thread while the files of the deletion still move  */
+                restore.set(other.submit(() -> files.get().restoreChat(chatId)));
+                try {
+                    restore.get().get(300, TimeUnit.MILLISECONDS);
+                }
+                catch (Exception e) {
+                    moves.add("waiting");
+                }
+                moves.add("to trash");
+            }
+
+            @Override
+            public void restoreFromTrash(String chatId, List<GeneratedImage> images) {
+                moves.add("back");
+            }
+
+            @Override
+            public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
+                return true;
+            }
+        }));
+
+        try {
+            assertTrue(files.get().softDeleteChat(chat.getId()));
+            assertTrue(restore.get().get(10, TimeUnit.SECONDS));
+        }
+        finally {
+            other.shutdownNow();
+        }
+
+        assertEquals(List.of("waiting", "to trash", "back"), moves, "the restore waits for the moves of the deletion");
+        assertNull(repository.findChatById(chat.getId()).orElseThrow().getDeletedAt());
+    }
+
+    @Test
     void theFilesOfAChatFollowTheDatabaseAndTheirFailureDoesNotUndoIt() throws Exception {
         AtomicReference<Boolean> rowGoneBeforeFiles = new AtomicReference<>();
         ChatTrashRepository withFiles = new ChatTrashRepository(databaseManager, new ChatFiles() {

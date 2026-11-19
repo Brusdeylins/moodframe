@@ -150,10 +150,6 @@ public class ColorStyleService {
         return access.call(() -> repository.restore(id), false, "Failed to restore color style with ID: " + id);
     }
 
-    private int deleteAllCustom() {
-        return access.call(repository::deleteAllCustom, 0, "Failed to delete all custom color styles");
-    }
-
     /**
      * A palette of the user named like a standard palette (which may be new) keeps its colors and gets the next
      * free name with a counter, so it stays selectable next to the standard one.
@@ -507,18 +503,6 @@ public class ColorStyleService {
     }
 
     /**
-     * Resets all styles to defaults (deletes all custom styles).
-     */
-    public synchronized int resetToDefaults() {
-        int deleted = deleteAllCustom();
-
-        logger.debug("Reset color styles to defaults, deleted {} custom styles", deleted);
-
-        changed(true, null);
-        return deleted;
-    }
-
-    /**
      * Checks if a style exists (in defaults or custom).
      */
     public boolean styleExists(String name) {
@@ -565,18 +549,14 @@ public class ColorStyleService {
     }
 
     /**
-     * Imports styles from a JSON file.
+     * Adds the styles of a JSON file behind the custom styles, like {@link #importStyles(List)}.
      */
-    public synchronized int importStyles(File file, boolean mergeWithExisting) {
+    public synchronized int importStyles(File file) {
         try {
             String json = Files.readString(file.toPath());
             List<ColorStyle> importedStyles = objectMapper.readValue(json,
                     new TypeReference<List<ColorStyle>>() {
                     });
-
-            if (!mergeWithExisting) {
-                deleteAllCustom();
-            }
 
             int imported = importStyles(importedStyles);
 

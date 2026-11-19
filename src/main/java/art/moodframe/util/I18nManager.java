@@ -241,30 +241,8 @@ public class I18nManager {
     }
     
     /**
-     * Gets all available locales supported by this application.
-     * 
-     * @return array of supported locales
-     */
-    public static Locale[] getAvailableLocales() {
-        return new Locale[] {
-            Locale.ENGLISH,    // English (default)
-            Locale.GERMAN      // German
-        };
-    }
-    
-    /**
-     * Adds a change listener that will be notified when the language changes, on the thread that changes it. A view
+     * Adds a change listener that will be notified when the language changes, through the given executor. A view
      * registers with {@code ui.support.FxI18n}, which notifies it on the JavaFX thread.
-     * 
-     * @param listener the listener to add (must not be null)
-     * @throws IllegalArgumentException if listener is null
-     */
-    public static void addChangeListener(I18nChangeListener listener) {
-        addChangeListener(listener, Runnable::run);
-    }
-
-    /**
-     * Adds a change listener that will be notified when the language changes, through the given executor.
      *
      * @param listener the listener to add (must not be null)
      * @param executor runs the notification, e.g. on the JavaFX thread (must not be null)
@@ -301,18 +279,6 @@ public class I18nManager {
      */
     public static int getChangeListenerCount() {
         return changeListeners.size();
-    }
-    
-    /**
-     * Clears the resource bundle cache.
-     * 
-     * <p>
-     * This method is primarily for testing purposes or when
-     * resource bundles need to be reloaded at runtime.
-     * </p>
-     */
-    public static synchronized void clearCache() {
-        bundleCache.clear();
     }
     
     /**

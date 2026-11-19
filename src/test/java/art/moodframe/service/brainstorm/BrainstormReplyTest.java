@@ -102,7 +102,7 @@ class BrainstormReplyTest {
         assertTrue(draft.getFacts().get(1).isFromUser());
         assertTrue(draft.getFacts().get(1).isConfirmed(), "confirmed by default");
 
-        BrainstormDraft again = BrainstormDraft.fromJson(draft.toJson());
+        BrainstormDraft again = BrainstormJson.draft(BrainstormJson.toJson(draft));
         assertEquals("Septa divide the shell", again.getFacts().get(0).getText());
         assertEquals("ai.example", again.getFacts().get(0).getDomain());
         assertFalse(again.getFacts().get(0).isConfirmed());
@@ -144,7 +144,7 @@ class BrainstormReplyTest {
     void draftSurvivesJsonRoundTrip() {
         BrainstormDraft original = BrainstormReply.parse(IMAGE_REPLY).getDraft();
 
-        BrainstormDraft copy = BrainstormDraft.fromJson(new JSONObject(original.toJson().toString()));
+        BrainstormDraft copy = BrainstormJson.draft(new JSONObject(BrainstormJson.toJson(original).toString()));
 
         assertEquals(original.getPrompt(), copy.getPrompt());
         assertEquals(original.getBlock(Mood.Field.STYLE), copy.getBlock(Mood.Field.STYLE));
@@ -155,7 +155,7 @@ class BrainstormReplyTest {
 
     @Test
     void readsTheStyleAndThePaletteOfAnOlderDraftAsReferencesByName() {
-        BrainstormDraft draft = BrainstormDraft.fromJson(new JSONObject("""
+        BrainstormDraft draft = BrainstormJson.draft(new JSONObject("""
             {"prompt": "p", "style": "Pixel Art", "color_style": "Ocean Breeze", "style_reason": "r"}
             """));
 
@@ -167,7 +167,7 @@ class BrainstormReplyTest {
         assertNull(draft.getBlock(Mood.Field.ATMOSPHERE));
         assertEquals("r", draft.getStyleReason());
 
-        JSONObject written = draft.toJson();
+        JSONObject written = BrainstormJson.toJson(draft);
         assertFalse(written.has("color_style"), "a draft is written in the new format only");
         assertEquals("Ocean Breeze", written.getJSONObject("color").getString("name"));
     }
@@ -192,7 +192,7 @@ class BrainstormReplyTest {
         assertEquals(List.of("#A8D5BA", "#2F4858"), draft.getBlock(Mood.Field.COLOR).colors(),
                 "only colors in the form #RRGGBB are kept, in upper case");
 
-        BrainstormDraft copy = BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()));
+        BrainstormDraft copy = BrainstormJson.draft(new JSONObject(BrainstormJson.toJson(draft).toString()));
         for (Mood.Field field : BrainstormDraft.FIELDS)
             assertEquals(draft.getBlock(field), copy.getBlock(field), field.name());
         assertEquals(draft.getMood(), copy.getMood());
@@ -210,22 +210,22 @@ class BrainstormReplyTest {
         assertTrue(camera.isNew());
         assertEquals(new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_135, null, null,
                 null, null, CameraSettings.Shot.WIDE), camera.settings(), "an unknown value counts as any");
-        assertEquals(camera, BrainstormDraft.fromJson(new JSONObject(draft.toJson().toString()))
+        assertEquals(camera, BrainstormJson.draft(new JSONObject(BrainstormJson.toJson(draft).toString()))
                 .getBlock(Mood.Field.CAMERA));
 
-        BrainstormDraft entry = BrainstormDraft.fromJson(new JSONObject("""
+        BrainstormDraft entry = BrainstormJson.draft(new JSONObject("""
             {"prompt": "p", "camera": {"name": "Classic Portrait", "is_new": false}}
             """));
         assertEquals(new BrainstormDraft.Block(null, "Classic Portrait", null, List.of(), false),
                 entry.getBlock(Mood.Field.CAMERA));
-        assertNull(BrainstormDraft.fromJson(new JSONObject("""
+        assertNull(BrainstormJson.draft(new JSONObject("""
             {"prompt": "p", "camera": {"name": "Anything", "settings": {"lens": "MM_7"}, "is_new": true}}
             """)).getBlock(Mood.Field.CAMERA), "a new camera whose settings leave every value any has no content");
     }
 
     @Test
     void dropsBlocksWithoutNameAndNewBlocksWithoutContent() {
-        BrainstormDraft draft = BrainstormDraft.fromJson(new JSONObject("""
+        BrainstormDraft draft = BrainstormJson.draft(new JSONObject("""
             {"prompt": "p", "mood": "null",
              "style": {"text": "ink wash"},
              "atmosphere": {"name": "Empty", "is_new": true},

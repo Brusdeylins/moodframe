@@ -492,60 +492,12 @@ public class ChatEntry {
     }
     
     /**
-     * Removes a generated image from this entry.
-     * 
-     * @param image the image to remove
-     * @return true if the image was removed
-     */
-    public boolean removeImage(GeneratedImage image) {
-        return images.remove(image);
-    }
-    
-    /**
-     * Checks if this entry is currently processing.
-     * 
-     * @return true if status is PROCESSING
-     */
-    public boolean isProcessing() {
-        return status.get() == Status.PROCESSING;
-    }
-    
-    /**
-     * Checks if this entry has completed successfully.
-     * 
-     * @return true if status is COMPLETED
-     */
-    public boolean isCompleted() {
-        return status.get() == Status.COMPLETED;
-    }
-    
-    /**
      * Checks if this entry has failed.
      * 
      * @return true if status is FAILED
      */
     public boolean isFailed() {
         return status.get() == Status.FAILED;
-    }
-    
-    /**
-     * Marks this entry as failed with an error message.
-     * 
-     * @param errorMessage the error message
-     */
-    public void markAsFailed(String errorMessage) {
-        setStatus(Status.FAILED);
-        setErrorMessage(errorMessage);
-    }
-    
-    /**
-     * Gets the effective prompt (enhanced if available, otherwise user prompt).
-     * 
-     * @return the prompt to use for generation
-     */
-    public String getEffectivePrompt() {
-        String enhanced = getEnhancedPrompt();
-        return (enhanced != null && !enhanced.isEmpty()) ? enhanced : getUserPrompt();
     }
     
     @Override

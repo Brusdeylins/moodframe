@@ -1,7 +1,5 @@
 package art.moodframe.model;
 
-import org.json.JSONObject;
-
 /**
  * A fact of the brainstorm draft: a statement with its source. Facts the user stated have no source, a fact from a
  * video names the time in the video.
@@ -38,35 +36,6 @@ public class BrainstormFact {
         this.confirmed = confirmed;
     }
 
-    /**
-     * Reads a fact from its JSON form.
-     *
-     * @param json the fact JSON object
-     * @return the fact, or {@code null} if it has no text
-     */
-    public static BrainstormFact fromJson(JSONObject json) {
-        String text = json.optString("text", "").trim();
-        if (text.isEmpty()) {
-            return null;
-        }
-        BrainstormFact fact = new BrainstormFact(text, json.optString("domain", ""), json.optString("url", ""),
-                json.optString("origin"), json.optBoolean("confirmed", true));
-        fact.verified = json.optBoolean("verified", true);
-        fact.time = json.optString("time", "").trim();
-        return fact;
-    }
-
-    public JSONObject toJson() {
-        return new JSONObject()
-                .put("text", text)
-                .put("domain", domain)
-                .put("url", url)
-                .put("origin", origin)
-                .put("confirmed", confirmed)
-                .put("verified", verified)
-                .put("time", time);
-    }
-
     public String getText() {
         return text;
     }
@@ -82,6 +51,10 @@ public class BrainstormFact {
     /** The time in the video ("m:ss") of a fact from a video, else empty. */
     public String getTime() {
         return time;
+    }
+
+    public void setTime(String time) {
+        this.time = time;
     }
 
     /** Sets the source as the app knows it from the research, instead of what the AI wrote. */

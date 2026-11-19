@@ -141,7 +141,7 @@ class BrainstormServiceTest {
         assertEquals(List.of(BrainstormMessage.ROLE_USER, BrainstormMessage.ROLE_ASSISTANT),
                 stored.stream().map(BrainstormMessage::getRole).toList());
         verify(repository).updateTitle("s1", "Ein Logo");
-        verify(repository).addDraft(eq("s1"), any(BrainstormDraft.class));
+        verify(repository).addDraft(eq("s1"), anyString());
     }
 
     @Test
@@ -235,12 +235,12 @@ class BrainstormServiceTest {
 
         assertInstanceOf(IllegalStateException.class, error.getCause());
         assertEquals(1, stored.size(), "only the user message is stored");
-        verify(repository, never()).addDraft(anyString(), any(BrainstormDraft.class));
+        verify(repository, never()).addDraft(anyString(), anyString());
     }
 
     @Test
     void renamesASession() throws Exception {
-        service.renameSession("s1", "Neuer Name");
+        service.renameSession("s1", "Neuer Name").get(5, TimeUnit.SECONDS);
 
         verify(repository).updateTitle("s1", "Neuer Name");
     }
@@ -450,7 +450,7 @@ class BrainstormServiceTest {
         ArgumentCaptor<List<ChatTurn>> contents = turns();
         verify(gemini).chatTurn(anyString(), contents.capture(), anyList(), anyBoolean());
         String videoTurn = ((ChatTurn.User) contents.getValue().get(1)).text();
-        assertTrue(videoTurn.contains(ResearchNote.EVENT) && videoTurn.contains("42 % Wachstum"),
+        assertTrue(videoTurn.contains(BrainstormJson.RESEARCH_EVENT) && videoTurn.contains("42 % Wachstum"),
                 "the result follows the message in the same turn");
         assertTrue(stored.stream().anyMatch((BrainstormMessage event) -> event.getContent().contains("42 % Wachstum")),
                 "the result is stored for the later turns");
@@ -531,8 +531,8 @@ class BrainstormServiceTest {
         assertTrue(facts.get(0).isVerified(), "researched source, www. is ignored");
         assertFalse(facts.get(1).isVerified(), "source that was never researched");
         assertTrue(facts.get(2).isVerified(), "a fact of the user has no source");
-        verify(repository).addDraft(eq("s1"), org.mockito.ArgumentMatchers.argThat(
-                (BrainstormDraft draft) -> !draft.getFacts().get(1).isVerified()));
+        verify(repository).addDraft(eq("s1"), org.mockito.ArgumentMatchers.argThat((String json) ->
+                !BrainstormJson.draft(new JSONObject(json)).getFacts().get(1).isVerified()));
     }
 
     @Test
@@ -592,6 +592,8 @@ class BrainstormServiceTest {
     void replacesTheFirstSentenceByAShortNameOnceTheTopicIsClear() throws Exception {
         when(gemini.suggestTitle(anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture("\"Nautilus-Infografik\"\n"));
+        when(repository.replaceTitle(eq("s1"), anyString(), eq("Nautilus-Infografik")))
+                .thenReturn(true);
         CountDownLatch named = new CountDownLatch(1);
         service.setOnTitleChanged(changed -> named.countDown());
         answers(text(STEP_TWO_REPLY));
@@ -600,7 +602,35 @@ class BrainstormServiceTest {
 
         assertTrue(named.await(5, TimeUnit.SECONDS));
         assertEquals("Nautilus-Infografik", session.getTitle(), "quotes and line breaks are removed");
-        verify(repository).updateTitle("s1", "Nautilus-Infografik");
+    }
+
+    @Test
+    void aRenameDuringTheNamingWins() throws Exception {
+        String[] title = { "Neue Sitzung" };
+        org.mockito.Mockito.doAnswer((invocation) -> title[0] = invocation.getArgument(1))
+                .when(repository).updateTitle(eq("s1"), anyString());
+        when(repository.replaceTitle(eq("s1"), anyString(), anyString())).thenAnswer((invocation) -> {
+            if (!title[0].equals(invocation.getArgument(1)))
+                return false;
+            title[0] = invocation.getArgument(2);
+            return true;
+        });
+        CompletableFuture<String> naming = new CompletableFuture<>();
+        when(gemini.suggestTitle(anyString(), anyString())).thenReturn(naming);
+        List<BrainstormSession> named = new java.util.concurrent.CopyOnWriteArrayList<>();
+        service.setOnTitleChanged(named::add);
+        answers(text(STEP_TWO_REPLY));
+
+        service.sendUserMessage(session, "Ein Logo", context).get(5, TimeUnit.SECONDS);
+        verify(gemini, org.mockito.Mockito.timeout(5000)).suggestTitle(anyString(), anyString());
+        service.renameSession("s1", "Mein Name").get(5, TimeUnit.SECONDS);
+        naming.complete("Logo");
+        verify(repository, org.mockito.Mockito.timeout(5000)).replaceTitle("s1", "Ein Logo", "Logo");
+        service.noteAdopted(session).get(5, TimeUnit.SECONDS);
+
+        assertEquals("Mein Name", title[0], "the name of the user stays");
+        assertEquals("Ein Logo", session.getTitle());
+        assertEquals(List.of(), named);
     }
 
     @Test
@@ -640,7 +670,7 @@ class BrainstormServiceTest {
     @Test
     void knowsTheSourcesOfEarlierResearchEventsOfTheSession() {
         stored.add(new BrainstormMessage(BrainstormMessage.ROLE_EVENT, "[APP EVENT] "
-                + new ResearchNote("q", "r", List.of(SOURCE)).toEventJson(100)));
+                + BrainstormJson.researchEvent(new ResearchNote("q", "r", List.of(SOURCE)), 100)));
         String withFact = "{\"step\": 5, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"facts\": ["
                 + "{\"text\": \"A\", \"domain\": \"ai.google.dev\", \"url\": \"u\", \"origin\": \"source\"}]}}";
         answers(text(withFact));
@@ -718,7 +748,7 @@ class BrainstormServiceTest {
 
         assertThrows(java.util.concurrent.CancellationException.class, () -> running.get(5, TimeUnit.SECONDS));
         Thread.sleep(300);
-        verify(repository, never()).addDraft(anyString(), any(BrainstormDraft.class));
+        verify(repository, never()).addDraft(anyString(), anyString());
         verify(gemini, never()).suggestTitle(anyString(), anyString());
         assertEquals(1, stored.size(), "only the user message from before the delete");
         assertTrue(titled.isEmpty());

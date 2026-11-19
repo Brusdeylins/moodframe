@@ -367,25 +367,6 @@ public class ColorStyleRepository {
     }
 
     /**
-     * Deletes all custom (non-default) color styles.
-     *
-     * @return number of deleted styles
-     * @throws SQLException if the database fails
-     */
-    public int deleteAllCustom() throws SQLException {
-        String sql = "DELETE FROM color_styles WHERE is_default = false";
-
-        try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            int rowsAffected = stmt.executeUpdate();
-
-            logger.debug("Deleted {} custom color styles", rowsAffected);
-            return rowsAffected;
-        }
-    }
-
-    /**
      * Maps a ResultSet row to a ColorStyle object.
      *
      * @param rs the ResultSet positioned at a valid row

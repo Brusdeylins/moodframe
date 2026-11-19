@@ -53,7 +53,10 @@ Allowed dependency directions:
   services. `service` reaches `database` only through `repository`.
 - `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
   `mcp.McpService` and shows its command line. No view uses the tools of the server.
-- `model` depends on nothing of the application. `GenerationModel` names only the i18n key of a localized display
+- `model` depends on nothing of the application. A value type stored as JSON carries that form itself (`EntryMood`,
+  `EntryFrame`, `CameraSettings`, read by several layers), `ColorStyle` the Jackson names of the palette file; what
+  a language model exchanges (the brainstorm draft, the research events) is `service.brainstorm.BrainstormJson`, as
+  `model/package-info.java` states and `ArchitectureTest` checks. `GenerationModel` names only the i18n key of a localized display
   name (`displayNameKey`); `service.generation.ModelLabels` gives the dropdown items in the current language. An item
   in any language leads back to its model with `GenerationModel.fromLocalizedDisplayName`, since a localized name
   differs from the display name only after the family name.
@@ -63,11 +66,11 @@ Allowed dependency directions:
   registered with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
-- `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
-  depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
-  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
-  `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
-  do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
+- `ArchitectureTest` checks these directions (a new top-level package fails until it gets its rules), the order of
+  the service subpackages below, that no packages depend on each other in a cycle, that `model` (besides the known
+  deviation), `util` and `service.chat` need no JavaFX, that `service.generation.FxModel` is the only class of
+  `service` that uses JavaFX, that no class outside `ui` and the root uses the `ServiceFactory` (besides itself) and
+  in `ui` only `MainWindowController` and `SettingsController` do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
   `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
   that the chat clients of Gemini and OpenAI use no class of each other (D6), from the imports and fully qualified
   names of `src/main/java`.
@@ -171,8 +174,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
 - **Brainstorm**: `BrainstormService` queues the requests of each session; a request reads and writes the session
   (its title from the first message, the messages, the draft) on a thread of that queue, after the request before
-  it, and "draft adopted" is stored on the same queue. `sendUserMessage`, `sendEvent` and `noteAdopted` only queue,
-  so the JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
+  it, and "draft adopted" and a rename are stored on the same queue. The short name of a session is asked for on a
+  thread of its own and stored on the queue only while the title is still the first message (compare and set), so
+  a rename meanwhile wins. `sendUserMessage`, `sendEvent`, `noteAdopted` and `renameSession` only queue, so the
+  JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
   creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
   with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
@@ -232,7 +237,7 @@ the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the l
 `RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
 `GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
 I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.
-No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
+No class outside `ui` and the root uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
 services, not in the wiring: `MoodService.followTrash` lets the moods lose the blocks deleted for good in the trash.
@@ -375,11 +380,15 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   commit. Every move to the trash and back is guarded this way, for chats, entries, images, moods, frames, blocks
   and palettes, and so is every removal for good: it removes only rows still in the trash
   (`AND deleted_at IS NOT NULL`) and answers false otherwise, so an item restored by the main window or an agent
-  after the cleanup listed it survives with its entries, images and files.
+  after the cleanup listed it survives with its entries, images and files. The one exception is the reset of the
+  settings, which removes the style blocks of the user for good, in use and in the trash
+  (`PromptBlockRepository.deleteAll`), as its confirmation says; the moods lose their references to them in the
+  same transaction.
 - **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
-  file. The services never move these files themselves.
+  file. Its writes run one after the other, each with the moves of its files, so a deletion and an immediate
+  restore from another thread move the files in the order of their commits. The services never move these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
   brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
   `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);

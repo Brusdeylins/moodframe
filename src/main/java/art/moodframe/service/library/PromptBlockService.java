@@ -490,7 +490,8 @@ public class PromptBlockService {
     }
 
     /**
-     * Deletes all blocks of a type the user created.
+     * Deletes all blocks of a type the user created for good, in use and in the trash, for the reset of the
+     * settings; the moods lose their references to them.
      *
      * @param type the block type
      * @return the number of deleted blocks
@@ -499,6 +500,7 @@ public class PromptBlockService {
         int deleted = access.call(() -> repository.deleteAll(type), 0,
                 "Failed to delete prompt blocks of type " + type);
         changed(type, true, null);
+        events.changed(LibraryEvents.Kind.MOOD, null);
         return deleted;
     }
 }

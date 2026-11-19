@@ -7,9 +7,10 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
@@ -82,15 +83,7 @@ public class EncryptionUtil {
         if (masterKey != null)
             return masterKey;
         try {
-            byte[] key;
-            if (Files.exists(keyFile))
-                key = Base64.getDecoder().decode(Files.readString(keyFile, StandardCharsets.US_ASCII).trim());
-            else {
-                key = new byte[32];
-                new SecureRandom().nextBytes(key);
-                Files.createDirectories(keyFile.getParent());
-                writeKeyFile(Base64.getEncoder().encodeToString(key));
-            }
+            byte[] key = Files.exists(keyFile) ? readKey() : createKey();
             if (key.length != 32)
                 throw new IllegalStateException("Invalid key file: " + keyFile);
             masterKey = new SecretKeySpec(key, "AES");
@@ -100,31 +93,62 @@ public class EncryptionUtil {
         }
     }
     
+    /*  A new random key; if another instance created the file meanwhile, its key is taken, so both use one key  */
+    private byte[] createKey() throws IOException, InterruptedException {
+        byte[] key = new byte[32];
+        new SecureRandom().nextBytes(key);
+        Files.createDirectories(keyFile.getParent());
+        return writeKeyFile(Base64.getEncoder().encodeToString(key)) ? key : readKey();
+    }
+
+    /*  The key of the file; a file another instance has just created without POSIX permissions may still be empty  */
+    private byte[] readKey() throws IOException, InterruptedException {
+        String text = Files.readString(keyFile, StandardCharsets.US_ASCII).trim();
+        for (int attempt = 0; text.isEmpty() && attempt < 20; attempt++) {
+            Thread.sleep(50);
+            text = Files.readString(keyFile, StandardCharsets.US_ASCII).trim();
+        }
+        return Base64.getDecoder().decode(text);
+    }
+
     /**
-     * Writes a new key file that nobody but the user can read at any time: where the file system has POSIX
-     * permissions, the key goes into a temporary file created with {@code rw-------}, which is then moved into
-     * place, so the key file appears at once with its content and permissions.
+     * Writes a new key file that nobody but the user can read at any time, unless it exists: where the file system
+     * has POSIX permissions, the key goes into a temporary file created with {@code rw-------}, which is then linked
+     * into place, so the key file appears at once with its content and permissions; elsewhere the file is created
+     * new. Either way, of two instances starting at once only one creates the file.
      *
      * @param key the key, Base64
+     * @return true if the file was written, false if it existed
      * @throws IOException if the file cannot be written
      */
-    private void writeKeyFile(String key) throws IOException {
+    private boolean writeKeyFile(String key) throws IOException {
         Path directory = keyFile.getParent();
         if (!Files.getFileStore(directory).supportsFileAttributeView(PosixFileAttributeView.class)) {
-            Files.writeString(keyFile, key, StandardCharsets.US_ASCII);
+            try {
+                Files.writeString(keyFile, key, StandardCharsets.US_ASCII, StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE);
+            }
+            catch (FileAlreadyExistsException e) {
+                return false;
+            }
 
             /*  Windows: the file stays in the user profile, which only the user can read by default  */
             keyFile.toFile().setReadable(false, false);
             keyFile.toFile().setReadable(true, true);
-            return;
+            return true;
         }
 
         Path temporary = Files.createTempFile(directory, keyFile.getFileName().toString(), ".tmp",
                 PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
         try {
             Files.writeString(temporary, key, StandardCharsets.US_ASCII);
-            Files.move(temporary, keyFile, StandardCopyOption.ATOMIC_MOVE);
-        } finally {
+            Files.createLink(keyFile, temporary);
+            return true;
+        }
+        catch (FileAlreadyExistsException e) {
+            return false;
+        }
+        finally {
             Files.deleteIfExists(temporary);
         }
     }
