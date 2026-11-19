@@ -105,9 +105,8 @@ public class ThumbnailManager {
      * Creates a new ThumbnailManager.
      *
      * @param paths the folders of the library: the images and the thumbnails
-     * @throws IOException if thumbnail directory cannot be created
      */
-    public ThumbnailManager(LibraryPaths paths) throws IOException {
+    public ThumbnailManager(LibraryPaths paths) {
         this.thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREAD_POOL_SIZE,
                 r -> {
                     Thread t = new Thread(r, "ThumbnailGenerator-" + THREADS.incrementAndGet());
@@ -128,28 +127,9 @@ public class ThumbnailManager {
         this.totalOriginalSize = new AtomicLong(0);
         this.totalThumbnailSize = new AtomicLong(0);
 
-        // Initialize directory structure
+        /*  No folder is created here: the first thumbnail written creates its folder  */
         this.originalImagesDirectory = paths.images();
         this.thumbnailDirectory = paths.thumbnails();
-
-        // Create directories if they don't exist
-        createDirectoryStructure();
-
-    }
-
-    /**
-     * Creates the required directory structure for thumbnails.
-     * 
-     * @throws IOException if directories cannot be created
-     */
-    private void createDirectoryStructure() throws IOException {
-        if (!Files.exists(thumbnailDirectory)) {
-            Files.createDirectories(thumbnailDirectory);
-        }
-
-        if (!Files.exists(originalImagesDirectory)) {
-            Files.createDirectories(originalImagesDirectory);
-        }
     }
 
     /**

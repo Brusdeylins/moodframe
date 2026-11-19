@@ -25,13 +25,11 @@ public class TrashManager {
     /**
      * Creates a new TrashManager with specified retention period.
      * 
-     * <p>Initializes the trash directory structure and creates necessary
-     * directories if they don't exist. Files in trash older than the
-     * retention period will be automatically deleted.</p>
-     * 
+     * <p>It creates no folder: a file moved to the trash or back creates the folders it needs. Files in trash older
+     * than the retention period will be automatically deleted.</p>
+     *
      * @param paths the folders of the library: images, thumbnails and the trash
      * @param trashRetentionDays number of days to keep items in trash (must be positive)
-     * @throws RuntimeException if directories cannot be created
      */
     public TrashManager(LibraryPaths paths, int trashRetentionDays) {
         this.trashDirectory = paths.trash();
@@ -40,16 +38,8 @@ public class TrashManager {
         this.activeImagesDirectory = paths.images();
         this.activeThumbnailsDirectory = paths.thumbnails();
         this.trashRetentionDays = trashRetentionDays;
-        
-        // Ensure directories exist
-        try {
-            Files.createDirectories(trashImagesDirectory);
-            Files.createDirectories(trashThumbnailsDirectory);
-            
-            logger.debug("Trash directories initialized at: {}", trashDirectory);
-        } catch (IOException e) {
-            logger.error("Failed to create trash directories", e);
-        }
+
+        /*  The folders of the trash are created by the first file moved there  */
     }
     
     /**

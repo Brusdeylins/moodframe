@@ -532,6 +532,7 @@ public class MoodframeApplication extends Application {
             art.moodframe.service.trash.TrashCleanupService cleanupService =
                     new art.moodframe.service.trash.TrashCleanupService(
                             ServiceFactory.getInstance().getService(art.moodframe.service.trash.TrashCenter.class));
+            cleanupService.start();
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.trash.TrashCleanupService.class,
                     () -> cleanupService);
