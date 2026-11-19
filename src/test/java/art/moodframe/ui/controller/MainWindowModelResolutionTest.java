@@ -95,7 +95,8 @@ class MainWindowModelResolutionTest {
         register(ChatLibrary.class, chats);
 
         /*  tells the prompt limits of the models, as the providers know them  */
-        register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing()));
+        register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing(),
+                Runnable::run));
         register(ImageAttachmentService.class, new ImageAttachmentService());
     }
 

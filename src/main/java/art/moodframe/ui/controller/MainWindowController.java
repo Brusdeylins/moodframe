@@ -661,10 +661,9 @@ public class MainWindowController implements I18nChangeListener {
 
         statusBarController.status(I18nManager.getText("status.processing.request"));
 
-        /*  The entry shows at once, without reloading the chat; an open group counts it  */
+        /*  The entry shows at once, without reloading the chat; it is stored in the background, and the change the
+            library then reports lets an open group count it  */
         chatViewController.addEntry(submission.entry());
-        if (librarySidebarController.shownGroup() != null)
-            librarySidebarController.refreshGroups();
         inputBar.clearPrompt();
 
         /*  Provider-specific status message once the request is submitted  */

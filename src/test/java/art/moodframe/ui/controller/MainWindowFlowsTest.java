@@ -379,7 +379,8 @@ class MainWindowFlowsTest {
         });
         requests = TestRequests.create(config, repository, providers, io);
         register(RequestResponseManager.class, requests);
-        register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers));
+        register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers,
+                Runnable::run));
 
         /*  the brainstorm and the analysis of an image, on the mocked language models  */
         ApplicationConfig brainstormConfig = config;

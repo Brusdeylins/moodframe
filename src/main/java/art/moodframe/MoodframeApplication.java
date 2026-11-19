@@ -467,7 +467,8 @@ public class MoodframeApplication extends Application {
         services.registerProvider(GenerationService.class, () -> {
             RequestResponseManager requests = services.getService(RequestResponseManager.class);
             return requests != null ? new GenerationService(config, services.getService(ChatLibrary.class),
-                    services.getService(MoodService.class), requests, services.getService(ProviderRegistry.class))
+                    services.getService(MoodService.class), requests, services.getService(ProviderRegistry.class),
+                    services.getService(GenerationWorkers.class).store())
                     : null;
         });
     }

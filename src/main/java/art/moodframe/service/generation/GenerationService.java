@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
@@ -32,7 +33,8 @@ import java.util.function.Consumer;
  * {@link GenerationModel#idOf(String)}).
  *
  * <p>{@link #submit(GenerationOrder)} adds the entry to its chat through the {@link ChatLibrary}, so it shows in the
- * main window, whoever placed the order.</p>
+ * main window, whoever placed the order. It may be called on the JavaFX thread: it checks the order in memory and
+ * leaves the database to the store executor.</p>
  *
  * @since 2.1.0
  */
@@ -97,12 +99,14 @@ public class GenerationService {
     /**
      * An accepted order.
      *
-     * @param entry the stored chat entry
-     * @param submitted completes once the request is handed to the provider, exceptionally if that failed (the entry
-     *                  is marked failed then)
+     * @param entry the chat entry, to be shown at once; it is in its chat and stored once {@code stored} completes
+     * @param stored completes once the entry is in its chat and stored (kept in memory only if the database fails),
+     *               exceptionally if that could not run (the entry is marked failed then)
+     * @param submitted completes once the request is handed to the provider, after {@code stored}, exceptionally if
+     *                  that failed (the entry is marked failed then)
      * @param finished completes with the state the entry ends in: COMPLETED, FAILED or CANCELLED
      */
-    public record Submission(ChatEntry entry, CompletableFuture<Void> submitted,
+    public record Submission(ChatEntry entry, CompletableFuture<Void> stored, CompletableFuture<Void> submitted,
             CompletableFuture<ChatEntry.Status> finished) {
     }
 
@@ -135,6 +139,7 @@ public class GenerationService {
     private final MoodService moodService;
     private final RequestResponseService requests;
     private final ProviderRegistry providers;
+    private final Executor store;
 
     /**
      * Creates the service.
@@ -144,14 +149,17 @@ public class GenerationService {
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
      * @param providers   the providers, which know the prompt limits and the parameters of their models
+     * @param store       stores the new entries, off the thread that places the order: the store thread of the
+     *                    generation ({@link GenerationWorkers#store()}), so the writes of an entry keep their order
      */
     public GenerationService(ApplicationConfig config, ChatLibrary chats, MoodService moodService,
-            RequestResponseService requests, ProviderRegistry providers) {
+            RequestResponseService requests, ProviderRegistry providers, Executor store) {
         this.config = config;
         this.chats = chats;
         this.moodService = moodService;
         this.requests = requests;
         this.providers = providers;
+        this.store = store;
     }
 
     /**
@@ -255,8 +263,14 @@ public class GenerationService {
     /**
      * Carries out an order: stores the chat entry and submits the request.
      *
+     * <p><strong>Threading:</strong> the checks that refuse an order (empty prompt, prompt too long, no chat, unknown
+     * model, missing key) and the building of the entry and the request run on the calling thread, in memory only. The
+     * entry goes into its chat and the database on the store executor, and only then is the request dispatched, so its
+     * images find the row of their entry. The caller, e.g. the JavaFX thread, never waits for the database: it shows
+     * the entry at once; a caller that needs the entry in the library waits for {@link Submission#stored()}.</p>
+     *
      * @param order the order
-     * @return the entry with the progress of its request
+     * @return the entry with the progress of its storing and its request
      * @throws GenerationException if the order is refused; nothing is stored or sent then
      */
     public Submission submit(GenerationOrder order) throws GenerationException {
@@ -319,9 +333,6 @@ public class GenerationService {
                 .cost(totalCost)
                 .build();
 
-        /*  Stored with its chat; without database, or if storing fails, kept in memory only  */
-        chats.addEntry(chat, entry);
-
         ImageGenerationRequest request = createRequest(prompt, model, item, aspectRatio, order);
 
         /*  The entry is finished once the provider reports it in a final state  */
@@ -333,15 +344,26 @@ public class GenerationService {
         requests.addEntryListener(watch);
         finished.whenComplete((ChatEntry.Status status, Throwable throwable) -> requests.removeEntryListener(watch));
 
+        /*  Stored with its chat off the calling thread (without database, or if storing fails, kept in memory only),
+            then dispatched; a closed store fails the future instead of throwing  */
+        CompletableFuture<Void> stored = CompletableFuture.completedFuture((Void) null)
+                .thenRunAsync(() -> chats.addEntry(chat, entry), store);
+        stored.exceptionally((Throwable failure) -> {
+            logger.error("Failed to add the entry {} to its chat", entry.getId(), failure);
+            requests.markFailed(entry, failure);
+            return null;
+        });
+
         /*  A failed submission is stored as failed with the reason by the requests, whose listeners finish the entry  */
-        CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, order.attachment())
+        CompletableFuture<Void> submitted = stored
+                .thenCompose((Void done) -> requests.submitImageGeneration(request, entry, order.attachment()))
                 .whenComplete((Void done, Throwable throwable) -> {
                     if (throwable == null)
                         logger.debug("Request submitted to {} for prompt: {}", provider.getDisplayName(), prompt);
                     else
                         logger.error("Failed to submit API request", throwable);
                 });
-        return new Submission(entry, submitted, finished);
+        return new Submission(entry, stored, submitted, finished);
     }
 
     /**

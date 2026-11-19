@@ -144,7 +144,7 @@ class McpEditToolsTest {
 
         provider = new Provider(repository);
         GenerationService generation = new GenerationService(config, chats, moods, provider,
-                MockProviders.preparing());
+                MockProviders.preparing(), Runnable::run);
         tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                 new MoodAnalysisService(null, null, config));
     }

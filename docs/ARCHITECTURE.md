@@ -118,7 +118,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
   `service.chat.ModelLock`:
   - they are changed only under the `ModelLock` (`change`, `changeAndGet`): by `ChatLibrary` on the calling thread
-    (an MCP thread, the worker of the window), by a generation on the JavaFX thread through `FxModel`;
+    (an MCP thread, the worker of the window, the store thread of the generation), by a generation on the JavaFX
+    thread through `FxModel`;
   - every other access reads them under the lock, the JavaFX thread included: `ChatLibrary.read` for the chats,
     `ModelLock.read` for a value computed from them (e.g. the cost of a chat), and the snapshots
     `ChatLibrary.entriesOf(chat)` and `ChatLibrary.imagesOf(entry)`, unmodifiable copies to iterate. Nobody iterates
@@ -142,9 +143,11 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry` on the store
   thread of `GenerationWorkers`), so the writes keep the order of the changes and never run on the JavaFX thread;
   requests, downloads and files run on the I/O executor, the BFL polling on the named daemon threads of
-  `GenerationWorkers`. The listeners learn of an entry that ended (completed, failed,
-  cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
-  queries then include it.
+  `GenerationWorkers`. The listeners learn of an entry that ended (completed, failed, cancelled) once its write is
+  done, which the worker runs after those of its images, so the image counts the window queries then include it.
+  `GenerationService.submit` may run on the JavaFX thread: it checks the order in memory (a refused order throws at
+  once), adds the new entry to its chat and the database on the store thread and dispatches the request only then;
+  the window shows the entry at once, the MCP tool `generate` waits until it is stored.
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
