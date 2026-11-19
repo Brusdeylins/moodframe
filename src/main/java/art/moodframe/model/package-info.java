@@ -1,6 +1,6 @@
 /**
- * The domain model: data classes, records and enums (some with JavaFX properties for binding), without persistence or
- * service logic, shared by all layers.
+ * The domain model: data classes, records and enums, without persistence or service logic, shared by all layers;
+ * {@link ChatEntry} and {@link GeneratedImage} carry the few JavaFX properties the views observe.
  *
  * <p>Main classes:</p>
  * <ul>

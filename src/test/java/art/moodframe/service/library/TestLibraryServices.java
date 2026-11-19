@@ -9,7 +9,7 @@ import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
 
 /**
- * Library services for tests on the database a test opened with {@code DatabaseConfig.initialize}, on repositories of
+ * Library services for tests on the database a test opened with {@code TestDatabase.open}, on repositories of
  * their own, as {@code MoodframeApplication} wires them. Without {@link LibraryEvents} each reports to events of its
  * own; a test that watches the events passes its own.
  */

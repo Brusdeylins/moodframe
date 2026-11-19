@@ -44,10 +44,6 @@ public class ImageGenerationRequest {
     @JsonProperty("aspect_ratio")
     private String aspectRatio;
     
-    // For FLUX Pro Ultra
-    @JsonProperty("raw")
-    private Boolean raw;
-    
     // Image count (handled at client level, not API level) - NOT part of BFL API
     private Integer imageCount = 1;
     
@@ -62,13 +58,11 @@ public class ImageGenerationRequest {
     private final List<String> inputImages = new ArrayList<>();
 
     // Gemini-specific fields (not used for BFL)
-    private List<String> responseModalities; // e.g., ["IMAGE"] or ["TEXT", "IMAGE"]
     private String imageSize; // "1K", "2K", "4K" (Gemini only)
 
     // Gemini Phase 2 Advanced Features
     private Boolean enableGoogleSearch; // Google Search grounding (adds ~$0.03 per request)
     private String thinkingMode; // "off", "low", "high" - unified for both Gemini 2.5 and 3
-    private Boolean includeThoughts; // Return AI reasoning summary
 
     // FLUX.2 specific parameters
     @JsonProperty("guidance")
@@ -83,9 +77,7 @@ public class ImageGenerationRequest {
     // Video-specific parameters (Gemini Omni)
     private String videoResolution;     // "360p", "720p", "1080p", "4k"
     private Integer videoDuration;      // 3 to 10 seconds
-    private String negativePrompt;      // What NOT to generate
     private Boolean generateAudio;      // Enable native audio generation (default: false)
-    private String personGeneration;    // "dont_allow" or "allow_adult"
 
     // Video-to-image source (gemini-3.1-flash-image only): a YouTube video passed
     // directly as multimodal context to generate thumbnails/posters/infographics.
@@ -279,24 +271,6 @@ public class ImageGenerationRequest {
     }
     
     /**
-     * Gets whether to use raw mode (FLUX Pro Ultra only).
-     * 
-     * @return true for raw mode, false or null for standard
-     */
-    public Boolean getRaw() {
-        return raw;
-    }
-    
-    /**
-     * Sets whether to use raw mode (FLUX Pro Ultra only).
-     * 
-     * @param raw true for raw mode, false for standard
-     */
-    public void setRaw(Boolean raw) {
-        this.raw = raw;
-    }
-    
-    /**
      * Gets the number of images to generate.
      * 
      * @return the image count (1-4)
@@ -402,24 +376,6 @@ public class ImageGenerationRequest {
     }
 
     /**
-     * Gets the response modalities for Gemini API.
-     *
-     * @return the list of response modalities (e.g., ["IMAGE"], ["TEXT", "IMAGE"])
-     */
-    public List<String> getResponseModalities() {
-        return responseModalities;
-    }
-
-    /**
-     * Sets the response modalities for Gemini API.
-     *
-     * @param responseModalities the list of modalities to request
-     */
-    public void setResponseModalities(List<String> responseModalities) {
-        this.responseModalities = responseModalities;
-    }
-
-    /**
      * Gets the image size for Gemini API.
      *
      * @return the image size ("1K", "2K", "4K")
@@ -475,24 +431,6 @@ public class ImageGenerationRequest {
      */
     public void setThinkingMode(String thinkingMode) {
         this.thinkingMode = thinkingMode;
-    }
-
-    /**
-     * Gets whether to include the AI's thought process in the response.
-     *
-     * @return true if thought summary should be included
-     */
-    public Boolean getIncludeThoughts() {
-        return includeThoughts;
-    }
-
-    /**
-     * Sets whether to include the AI's thought process in the response.
-     *
-     * @param includeThoughts true to include reasoning summary
-     */
-    public void setIncludeThoughts(Boolean includeThoughts) {
-        this.includeThoughts = includeThoughts;
     }
 
     /**
@@ -566,14 +504,8 @@ public class ImageGenerationRequest {
     public Integer getVideoDuration() { return videoDuration; }
     public void setVideoDuration(Integer videoDuration) { this.videoDuration = videoDuration; }
 
-    public String getNegativePrompt() { return negativePrompt; }
-    public void setNegativePrompt(String negativePrompt) { this.negativePrompt = negativePrompt; }
-
     public Boolean getGenerateAudio() { return generateAudio; }
     public void setGenerateAudio(Boolean generateAudio) { this.generateAudio = generateAudio; }
-
-    public String getPersonGeneration() { return personGeneration; }
-    public void setPersonGeneration(String personGeneration) { this.personGeneration = personGeneration; }
 
     public String getVideoSourceUrl() { return videoSourceUrl; }
     public void setVideoSourceUrl(String videoSourceUrl) { this.videoSourceUrl = videoSourceUrl; }

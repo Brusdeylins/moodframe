@@ -1,6 +1,9 @@
 package art.moodframe.model;
 
-import javafx.beans.property.*;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
@@ -61,31 +64,31 @@ public class ChatEntry {
         MCP
     }
     
-    private final StringProperty id = new SimpleStringProperty();
-    private final StringProperty chatId = new SimpleStringProperty();
+    private String id;
+    private String chatId;
     private final StringProperty userPrompt = new SimpleStringProperty();
-    private final StringProperty enhancedPrompt = new SimpleStringProperty();
+    private String enhancedPrompt;
     private final ObjectProperty<Status> status = new SimpleObjectProperty<>(Status.PENDING);
-    private final StringProperty errorMessage = new SimpleStringProperty();
-    private final ObjectProperty<LocalDateTime> createdAt = new SimpleObjectProperty<>();
-    private final ObjectProperty<LocalDateTime> completedAt = new SimpleObjectProperty<>();
-    private final IntegerProperty sortOrder = new SimpleIntegerProperty();
+    private String errorMessage;
+    private LocalDateTime createdAt;
+    private LocalDateTime completedAt;
+    private int sortOrder;
     private final ObservableList<GeneratedImage> images = FXCollections.observableArrayList();
     
     // Generation parameters
-    private final StringProperty model = new SimpleStringProperty();
-    private final StringProperty size = new SimpleStringProperty();
-    private final StringProperty format = new SimpleStringProperty();
-    private final StringProperty style = new SimpleStringProperty(); // Style preset name
-    private final ObjectProperty<EntryMood> mood = new SimpleObjectProperty<>();
-    private final ObjectProperty<EntryFrame> frame = new SimpleObjectProperty<>();
-    private final ObjectProperty<Source> source = new SimpleObjectProperty<>(Source.UI);
-    private final BooleanProperty promptUpsampling = new SimpleBooleanProperty();
-    private final IntegerProperty safetyTolerance = new SimpleIntegerProperty();
-    private final LongProperty seed = new SimpleLongProperty();
-    private final DoubleProperty cost = new SimpleDoubleProperty(); // Estimated cost for this generation
-    private final DoubleProperty deletedCost = new SimpleDoubleProperty(0.0); // Cost of deleted images
-    private final ObjectProperty<LocalDateTime> deletedAt = new SimpleObjectProperty<>();
+    private String model;
+    private String size;
+    private String format;
+    private String style; // Style preset name
+    private EntryMood mood;
+    private EntryFrame frame;
+    private Source source = Source.UI;
+    private boolean promptUpsampling;
+    private int safetyTolerance;
+    private long seed;
+    private double cost; // Estimated cost for this generation
+    private double deletedCost = 0.0; // Cost of deleted images
+    private LocalDateTime deletedAt;
     
     /**
      * Creates a new chat entry with auto-generated UUID.
@@ -100,12 +103,12 @@ public class ChatEntry {
      * @param id the entry ID
      */
     public ChatEntry(String id) {
-        this.id.set(id);
-        this.createdAt.set(LocalDateTime.now());
-        this.sortOrder.set(0);
-        this.promptUpsampling.set(false);
-        this.safetyTolerance.set(2);
-        this.seed.set(-1);
+        this.id = id;
+        this.createdAt = LocalDateTime.now();
+        this.sortOrder = 0;
+        this.promptUpsampling = false;
+        this.safetyTolerance = 2;
+        this.seed = -1;
     }
     
     /**
@@ -272,84 +275,33 @@ public class ChatEntry {
         }
     }
     
-    // Property getters for JavaFX binding
-    
-    public StringProperty idProperty() {
-        return id;
-    }
-    
-    public StringProperty chatIdProperty() {
-        return chatId;
-    }
-    
+    /*  The prompt, the status and the images are observed by the entry card ({@code ui.component.ChatEntryCard}),
+        the images also by the images view; every other value is plain  */
+
     public StringProperty userPromptProperty() {
         return userPrompt;
     }
-    
-    public StringProperty enhancedPromptProperty() {
-        return enhancedPrompt;
-    }
-    
+
     public ObjectProperty<Status> statusProperty() {
         return status;
     }
-    
-    public StringProperty errorMessageProperty() {
-        return errorMessage;
-    }
-    
-    public ObjectProperty<LocalDateTime> createdAtProperty() {
-        return createdAt;
-    }
-    
-    public ObjectProperty<LocalDateTime> completedAtProperty() {
-        return completedAt;
-    }
-    
-    public IntegerProperty sortOrderProperty() {
-        return sortOrder;
-    }
-    
-    public StringProperty modelProperty() {
-        return model;
-    }
-    
-    public StringProperty sizeProperty() {
-        return size;
-    }
-    
-    public StringProperty formatProperty() {
-        return format;
-    }
-    
-    public BooleanProperty promptUpsamplingProperty() {
-        return promptUpsampling;
-    }
-    
-    public IntegerProperty safetyToleranceProperty() {
-        return safetyTolerance;
-    }
-    
-    public LongProperty seedProperty() {
-        return seed;
-    }
-    
+
     // Standard getters and setters
     
     public String getId() {
-        return id.get();
+        return id;
     }
     
     public void setId(String id) {
-        this.id.set(id);
+        this.id = id;
     }
     
     public String getChatId() {
-        return chatId.get();
+        return chatId;
     }
     
     public void setChatId(String chatId) {
-        this.chatId.set(chatId);
+        this.chatId = chatId;
     }
     
     public String getUserPrompt() {
@@ -361,11 +313,11 @@ public class ChatEntry {
     }
     
     public String getEnhancedPrompt() {
-        return enhancedPrompt.get();
+        return enhancedPrompt;
     }
     
     public void setEnhancedPrompt(String enhancedPrompt) {
-        this.enhancedPrompt.set(enhancedPrompt);
+        this.enhancedPrompt = enhancedPrompt;
     }
     
     public Status getStatus() {
@@ -380,160 +332,144 @@ public class ChatEntry {
     }
     
     public String getErrorMessage() {
-        return errorMessage.get();
+        return errorMessage;
     }
     
     public void setErrorMessage(String errorMessage) {
-        this.errorMessage.set(errorMessage);
+        this.errorMessage = errorMessage;
     }
     
     public LocalDateTime getCreatedAt() {
-        return createdAt.get();
+        return createdAt;
     }
     
     public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt.set(createdAt);
+        this.createdAt = createdAt;
     }
     
     public LocalDateTime getCompletedAt() {
-        return completedAt.get();
+        return completedAt;
     }
     
     public void setCompletedAt(LocalDateTime completedAt) {
-        this.completedAt.set(completedAt);
+        this.completedAt = completedAt;
     }
     
     public int getSortOrder() {
-        return sortOrder.get();
+        return sortOrder;
     }
     
     public void setSortOrder(int sortOrder) {
-        this.sortOrder.set(sortOrder);
+        this.sortOrder = sortOrder;
     }
     
     public String getModel() {
-        return model.get();
+        return model;
     }
     
     public void setModel(String model) {
-        this.model.set(model);
+        this.model = model;
     }
     
     public String getSize() {
-        return size.get();
+        return size;
     }
     
     public void setSize(String size) {
-        this.size.set(size);
+        this.size = size;
     }
     
     public String getFormat() {
-        return format.get();
+        return format;
     }
 
     public void setFormat(String format) {
-        this.format.set(format);
+        this.format = format;
     }
 
     public String getStyle() {
-        return style.get();
+        return style;
     }
 
     public void setStyle(String style) {
-        this.style.set(style);
-    }
-
-    public StringProperty styleProperty() {
-        return style;
+        this.style = style;
     }
 
     /** The mood and the building blocks the entry was generated with, null for an entry without any. */
     public EntryMood getMood() {
-        return mood.get();
+        return mood;
     }
 
     public void setMood(EntryMood mood) {
-        this.mood.set(mood);
+        this.mood = mood;
     }
 
     /** The frame and the target the entry was generated with, null for an entry from before the frames were copied. */
     public EntryFrame getFrame() {
-        return frame.get();
+        return frame;
     }
 
     public void setFrame(EntryFrame frame) {
-        this.frame.set(frame);
+        this.frame = frame;
     }
 
     /** Who placed the order of the entry, UI for every entry from before. */
     public Source getSource() {
-        return source.get();
+        return source;
     }
 
     public void setSource(Source source) {
-        this.source.set(source);
+        this.source = source;
     }
 
     public boolean isPromptUpsampling() {
-        return promptUpsampling.get();
+        return promptUpsampling;
     }
     
     public void setPromptUpsampling(boolean promptUpsampling) {
-        this.promptUpsampling.set(promptUpsampling);
+        this.promptUpsampling = promptUpsampling;
     }
     
     public int getSafetyTolerance() {
-        return safetyTolerance.get();
+        return safetyTolerance;
     }
     
     public void setSafetyTolerance(int safetyTolerance) {
-        this.safetyTolerance.set(safetyTolerance);
+        this.safetyTolerance = safetyTolerance;
     }
     
     public long getSeed() {
-        return seed.get();
+        return seed;
     }
     
     public void setSeed(long seed) {
-        this.seed.set(seed);
+        this.seed = seed;
     }
     
     public double getCost() {
-        return cost.get();
-    }
-    
-    public void setCost(double cost) {
-        this.cost.set(cost);
-    }
-    
-    public DoubleProperty costProperty() {
         return cost;
     }
     
+    public void setCost(double cost) {
+        this.cost = cost;
+    }
+
     public double getDeletedCost() {
-        return deletedCost.get();
-    }
-    
-    public void setDeletedCost(double deletedCost) {
-        this.deletedCost.set(deletedCost);
-    }
-    
-    public DoubleProperty deletedCostProperty() {
         return deletedCost;
     }
     
+    public void setDeletedCost(double deletedCost) {
+        this.deletedCost = deletedCost;
+    }
+
     public LocalDateTime getDeletedAt() {
-        return deletedAt.get();
-    }
-    
-    public void setDeletedAt(LocalDateTime deletedAt) {
-        this.deletedAt.set(deletedAt);
-    }
-    
-    public ObjectProperty<LocalDateTime> deletedAtProperty() {
         return deletedAt;
     }
     
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
     public ObservableList<GeneratedImage> getImages() {
         return images;
     }

@@ -1,44 +1,42 @@
-package art.moodframe.model;
+package art.moodframe.ui.component;
 
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
+import art.moodframe.model.PromptBlock;
 
 /**
  * Represents a Style Preset item for image generation.
- * 
- * <p>This class holds the name and prompt text of a style building block
- * ({@link PromptBlock}) for the UI. It uses JavaFX properties for UI binding
- * compatibility.</p>
- * 
+ *
+ * <p>This class holds the name and prompt text of a building block ({@link PromptBlock}) for an entry of the
+ * block selections of the main window.</p>
+ *
  * @since 1.0.0
  */
 public class StylePresetItem {
-    
-    private final StringProperty name;
-    private final StringProperty promptText;
+
+    private final String name;
+    private final String promptText;
     private final boolean isDefault;
     private final PromptBlock block;
-    
+
     /**
      * Creates a new StylePresetItem with the specified name and prompt.
-     * 
+     *
      * @param name the display name of the style
      * @param promptText the prompt text to append/apply for this style
      */
     public StylePresetItem(String name, String promptText) {
         this(name, promptText, false);
     }
-    
+
     /**
      * Creates a new StylePresetItem with the specified name, prompt and default flag.
-     * 
+     *
      * @param name the display name of the style
      * @param promptText the prompt text to append/apply for this style
      * @param isDefault true if this is a default style (cannot be deleted)
      */
     public StylePresetItem(String name, String promptText, boolean isDefault) {
-        this.name = new SimpleStringProperty(name);
-        this.promptText = new SimpleStringProperty(promptText);
+        this.name = name;
+        this.promptText = promptText;
         this.isDefault = isDefault;
         this.block = null;
     }
@@ -49,38 +47,20 @@ public class StylePresetItem {
      * @param block the style block
      */
     public StylePresetItem(PromptBlock block) {
-        this.name = new SimpleStringProperty(block.getName());
-        this.promptText = new SimpleStringProperty(block.getText());
+        this.name = block.getName();
+        this.promptText = block.getText();
         this.isDefault = block.isDefault();
         this.block = block;
     }
-    
-    // Property getters
-    public StringProperty nameProperty() {
+
+    public String getName() {
         return name;
     }
-    
-    public StringProperty promptTextProperty() {
+
+    public String getPromptText() {
         return promptText;
     }
-    
-    // Value getters/setters
-    public String getName() {
-        return name.get();
-    }
-    
-    public void setName(String name) {
-        this.name.set(name);
-    }
-    
-    public String getPromptText() {
-        return promptText.get();
-    }
-    
-    public void setPromptText(String promptText) {
-        this.promptText.set(promptText);
-    }
-    
+
     public boolean isDefault() {
         return isDefault;
     }
@@ -89,12 +69,12 @@ public class StylePresetItem {
     public PromptBlock getBlock() {
         return block;
     }
-    
+
     @Override
     public String toString() {
         return getName(); // For ListView display
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -102,7 +82,7 @@ public class StylePresetItem {
         StylePresetItem that = (StylePresetItem) obj;
         return getName().equals(that.getName());
     }
-    
+
     @Override
     public int hashCode() {
         return getName().hashCode();

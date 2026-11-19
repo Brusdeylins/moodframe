@@ -1,6 +1,5 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
@@ -42,7 +41,7 @@ class FrameRepositoryTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test

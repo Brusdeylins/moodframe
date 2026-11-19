@@ -210,13 +210,6 @@ public class ApplicationConfig {
     }
 
     /**
-     * Writes the configuration file now.
-     */
-    public void saveConfiguration() {
-        store.save();
-    }
-
-    /**
      * Writes a delayed save now instead of later; called on shutdown, so no change of the last moments gets lost.
      */
     public void flushConfiguration() {

@@ -1,18 +1,16 @@
-package art.moodframe.model;
+package art.moodframe.ui.component;
 
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
+import art.moodframe.model.ColorStyle;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Represents a Color Style item for image generation UI display.
  *
- * <p>This class holds the name and color codes for a color style
- * that can be applied to image generation requests. It uses JavaFX properties
- * for UI binding compatibility.</p>
+ * <p>This class holds the name and color codes of a color style ({@link ColorStyle}) for an entry of the palette
+ * selection of the main window.</p>
  *
  * <p>A color style contains 1-5 hex color codes that are displayed
  * as colored boxes in the UI and appended to prompts.</p>
@@ -22,8 +20,8 @@ import java.util.List;
 public class ColorStyleItem {
 
     private final String id;
-    private final StringProperty name;
-    private final ObservableList<String> colors;
+    private final String name;
+    private final List<String> colors;
     private final boolean isDefault;
 
     /**
@@ -57,9 +55,28 @@ public class ColorStyleItem {
      */
     public ColorStyleItem(String id, String name, List<String> colors, boolean isDefault) {
         this.id = id;
-        this.name = new SimpleStringProperty(name);
-        this.colors = FXCollections.observableArrayList(colors != null ? colors : List.of());
+        this.name = name;
+        this.colors = Collections.unmodifiableList(new ArrayList<>(colors != null ? colors : List.of()));
         this.isDefault = isDefault;
+    }
+
+    /**
+     * Creates the item showing a color style.
+     *
+     * @param style the color style
+     * @return a new ColorStyleItem with the same data
+     */
+    public static ColorStyleItem of(ColorStyle style) {
+        return new ColorStyleItem(style.getId(), style.getName(), style.getColors(), style.isDefault());
+    }
+
+    /**
+     * Creates a ColorStyle with the data of this item.
+     *
+     * @return a new ColorStyle with the same data
+     */
+    public ColorStyle toColorStyle() {
+        return new ColorStyle(getName(), new ArrayList<>(getColors()), isDefault());
     }
 
     /** The id of the color style shown, null for an item without one ("None"). */
@@ -67,27 +84,17 @@ public class ColorStyleItem {
         return id;
     }
 
-    // Property getters
-    public StringProperty nameProperty() {
-        return name;
-    }
-
     /**
-     * Gets the observable list of colors for UI binding.
+     * Gets the colors of the style.
      *
-     * @return the observable list of hex color codes
+     * @return the hex color codes, unmodifiable
      */
-    public ObservableList<String> getColors() {
+    public List<String> getColors() {
         return colors;
     }
 
-    // Value getters/setters
     public String getName() {
-        return name.get();
-    }
-
-    public void setName(String name) {
-        this.name.set(name);
+        return name;
     }
 
     /**
@@ -102,48 +109,6 @@ public class ColorStyleItem {
             return (color != null && !color.isEmpty()) ? color : null;
         }
         return null;
-    }
-
-    /**
-     * Checks if a color slot is active (has a color defined).
-     *
-     * @param index the color index (0-4)
-     * @return true if the slot has a valid color
-     */
-    public boolean hasColor(int index) {
-        return getColor(index) != null;
-    }
-
-    /**
-     * Sets a color at a specific index (0-4).
-     *
-     * @param index the color index (0-4)
-     * @param color the hex color code, or null to clear
-     */
-    public void setColor(int index, String color) {
-        if (index < 0 || index > 4) {
-            return;
-        }
-        // Expand list if necessary
-        while (colors.size() <= index) {
-            colors.add(null);
-        }
-        colors.set(index, color);
-    }
-
-    /**
-     * Gets the number of defined colors.
-     *
-     * @return the count of non-null colors
-     */
-    public int getColorCount() {
-        int count = 0;
-        for (String color : colors) {
-            if (color != null && !color.isEmpty()) {
-                count++;
-            }
-        }
-        return count;
     }
 
     public boolean isDefault() {

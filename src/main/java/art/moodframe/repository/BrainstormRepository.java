@@ -121,22 +121,17 @@ public class BrainstormRepository {
     public void updateSortOrders(List<BrainstormSession> sessions) throws SQLException {
         String sql = "UPDATE brainstorm_sessions SET sort_order = ? WHERE id = ?";
 
-        try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            conn.setAutoCommit(false);
-            try {
+        database.inTransaction((Connection conn) -> {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (int i = 0; i < sessions.size(); i++) {
                     stmt.setInt(1, i);
                     stmt.setString(2, sessions.get(i).getId());
                     stmt.addBatch();
                 }
                 stmt.executeBatch();
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
             }
-        }
+            return null;
+        });
     }
 
     /**

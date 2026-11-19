@@ -293,27 +293,6 @@ public class ColorStyleRepository {
     }
 
     /**
-     * Checks if a custom color style with the given name exists.
-     *
-     * @param name the name to check
-     * @return true if a custom color style with this name exists
-     * @throws SQLException if the database fails
-     */
-    public boolean existsCustomByName(String name) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM color_styles WHERE name = ? AND is_default = false";
-
-        try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, name);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        }
-    }
-
-    /**
      * Moves a color style to the trash.
      *
      * @param id the ID of the color style

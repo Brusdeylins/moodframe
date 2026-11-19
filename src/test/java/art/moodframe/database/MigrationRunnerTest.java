@@ -255,12 +255,114 @@ class MigrationRunnerTest {
     }
 
     @Test
+    void aLegacyLibraryWithOnlyTheFirstStatementOfAMigrationGetsTheRestOfIt() throws Exception {
+        /*  a library without migration records whose schema has the first table and index of V001 only  */
+        Path path = tempDir.resolve("legacy-half.db");
+        List<String> v001 = MigrationRunner.parseSqlStatements(migrationSql("V001__Create_chat_tables.sql"));
+        try (Connection connection = new DatabaseManager(path).getConnection();
+             Statement stmt = connection.createStatement()) {
+            stmt.execute(v001.get(0));
+            stmt.execute(v001.stream().filter((String sql) -> sql.contains("idx_chats_deleted_at")).findFirst()
+                    .orElseThrow());
+        }
+
+        new DatabaseManager(path).initialize();
+
+        assertEquals(schemaOfANewLibrary(), schema(path), "the skipped statements only");
+        try (Connection connection = new DatabaseManager(path).getConnection()) {
+            assertEquals(versionsOfANewLibrary(), versions(connection));
+        }
+    }
+
+    @Test
+    void aLegacyLibraryWithAWholeMigrationEndsWithTheSchemaOfANewOne() throws Exception {
+        Path path = tempDir.resolve("legacy-whole.db");
+        try (Connection connection = new DatabaseManager(path).getConnection();
+             Statement stmt = connection.createStatement()) {
+            for (String sql : MigrationRunner.parseSqlStatements(migrationSql("V001__Create_chat_tables.sql")))
+                stmt.execute(sql);
+        }
+
+        new DatabaseManager(path).initialize();
+
+        assertEquals(schemaOfANewLibrary(), schema(path));
+        try (Connection connection = new DatabaseManager(path).getConnection()) {
+            assertEquals(versionsOfANewLibrary(), versions(connection));
+        }
+    }
+
+    @Test
+    void aRealFailureOnTheLegacyPathSurfacesAndRecordsNothingOfItsMigration() throws Exception {
+        Path path = tempDir.resolve("legacy-fails.db");
+        try (Connection connection = new DatabaseManager(path).getConnection();
+             Statement stmt = connection.createStatement()) {
+            for (String sql : MigrationRunner.parseSqlStatements(migrationSql("V001__Create_chat_tables.sql")))
+                stmt.execute(sql);
+            stmt.execute("""
+                    CREATE TABLE schema_migrations (
+                        version TEXT PRIMARY KEY,
+                        description TEXT NOT NULL,
+                        applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )""");
+            stmt.execute("""
+                    CREATE TRIGGER refuse_record
+                    BEFORE INSERT ON schema_migrations WHEN NEW.version = '002'
+                    BEGIN
+                    SELECT RAISE(ABORT, 'record refused');
+                    END;""");
+        }
+
+        assertThrows(SQLException.class, () -> new DatabaseManager(path).initialize());
+        try (Connection connection = new DatabaseManager(path).getConnection()) {
+            assertEquals(List.of("001"), versions(connection));
+            assertEquals(List.of(), names(connection,
+                    "SELECT name FROM sqlite_master WHERE name IN ('style_presets', 'configuration')"),
+                    "the statements of the failed migration are rolled back");
+        }
+    }
+
+    @Test
     void theJavaMigrationsUseNoModelOfTheApplication() throws Exception {
         /*  a price or formula of a later version must not change what a migration books  */
         for (String migration : List.of("FluxCostBackfill.java", "DeletedCostCorrection.java")) {
             String code = java.nio.file.Files.readString(Path.of("src/main/java/art/moodframe/database", migration));
             assertFalse(code.contains("art.moodframe.model"), migration);
         }
+    }
+
+    private static String migrationSql(String file) throws Exception {
+        try (java.io.InputStream in = MigrationRunner.class.getResourceAsStream("/db/migration/" + file)) {
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
+    private List<String> versionsOfANewLibrary() throws Exception {
+        Path path = tempDir.resolve("versions-new.db");
+        new DatabaseManager(path).initialize();
+        try (Connection connection = new DatabaseManager(path).getConnection()) {
+            return versions(connection);
+        }
+    }
+
+    private java.util.Map<String, java.util.Set<String>> schemaOfANewLibrary() throws Exception {
+        Path path = tempDir.resolve("schema-new.db");
+        new DatabaseManager(path).initialize();
+        return schema(path);
+    }
+
+    /*  the tables with their columns, the indexes and the triggers of a library, without the migration records  */
+    private static java.util.Map<String, java.util.Set<String>> schema(Path path) throws SQLException {
+        java.util.Map<String, java.util.Set<String>> schema = new java.util.TreeMap<>();
+        try (Connection connection = new DatabaseManager(path).getConnection()) {
+            for (String table : names(connection, "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    + " AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations'"))
+                schema.put("table " + table, new java.util.TreeSet<>(
+                        names(connection, "SELECT name FROM pragma_table_info('" + table + "')")));
+            schema.put("indexes", new java.util.TreeSet<>(names(connection,
+                    "SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'")));
+            schema.put("triggers", new java.util.TreeSet<>(triggers(connection)));
+        }
+        return schema;
     }
 
     private static List<String> triggers(Connection connection) throws SQLException {
