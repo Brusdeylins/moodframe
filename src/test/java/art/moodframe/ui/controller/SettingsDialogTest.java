@@ -132,6 +132,9 @@ class SettingsDialogTest {
         config = ConfigMocks.fresh();
         config.ui().setUiLanguage("en");
 
+        /*  the titles of the message boxes are compared in English  */
+        onFx(() -> I18nManager.setLocale(Locale.ENGLISH));
+
         /*  The live clients read their keys from the configuration; only the tests of a typed key are answered  */
         bfl = spy(new BflApiServiceImpl(config));
         doReturn(CompletableFuture.completedFuture(true)).when(bfl).testConnection(anyString(), anyString());
@@ -471,7 +474,9 @@ class SettingsDialogTest {
 
         fire("resetSettingsButton");
         waitFor(() -> !prompts.infos.isEmpty(), "the reset is done");
-        assertEquals(List.of("Settings Reset"), prompts.infos);
+
+        /*  in the language of the reset settings  */
+        assertEquals(List.of(I18nManager.getText("settings.data.reset.done.title")), prompts.infos);
         assertEquals("bfl-saved", config.accounts().getApiKey(ApiProvider.BFL));
         assertEquals("gemini-saved", config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
         assertEquals("openai-saved", config.accounts().getApiKey(ApiProvider.OPENAI));

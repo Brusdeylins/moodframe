@@ -116,11 +116,12 @@ public class AdvancedSettingsPane implements SettingsSection {
     private void onExportSettings() {
         ConfigurationExporter exporter = services.exporter();
         if (exporter == null) {
-            services.prompts().error("Export Failed", "Failed to export configuration: no exporter");
+            services.prompts().error(I18nManager.getText("settings.data.export.error.title"),
+                    I18nManager.getText("settings.data.export.error", "-"));
             return;
         }
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Export Configuration");
+        fileChooser.setTitle(I18nManager.getText("settings.data.export.chooser"));
         fileChooser.setInitialFileName(exporter.generateExportFilename());
         File documentsDir = config.paths().documents().toFile();
         if (documentsDir.exists())
@@ -132,11 +133,12 @@ public class AdvancedSettingsPane implements SettingsSection {
         SectionTask.run(dataButtons(), () -> {
             exporter.exportConfiguration(config, exportFile);
             return exportFile.length();
-        }, (length) -> services.prompts().info("Export Successful",
-                String.format("Configuration exported successfully to:\n%s\n\nFile size: %.1f KB",
-                        exportFile.getAbsolutePath(), length / 1024.0)), (e) -> {
+        }, (length) -> services.prompts().info(I18nManager.getText("settings.data.export.done.title"),
+                I18nManager.getText("settings.data.export.done", exportFile.getAbsolutePath(), length / 1024.0)),
+                (e) -> {
             logger.error("Failed to export configuration", e);
-            services.prompts().error("Export Failed", "Failed to export configuration: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.data.export.error.title"),
+                    I18nManager.getText("settings.data.export.error", e.getMessage()));
         });
     }
 
@@ -147,7 +149,7 @@ public class AdvancedSettingsPane implements SettingsSection {
     @FXML
     private void onImportSettings() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Import Configuration");
+        fileChooser.setTitle(I18nManager.getText("settings.data.import.chooser"));
         File documentsDir = config.paths().documents().toFile();
         if (documentsDir.exists())
             fileChooser.setInitialDirectory(documentsDir);
@@ -158,7 +160,8 @@ public class AdvancedSettingsPane implements SettingsSection {
         SectionTask.run(dataButtons(), () -> services.exporter().importConfiguration(importFile, config),
                 this::showImport, (e) -> {
             logger.error("Failed to import configuration", e);
-            services.prompts().error("Import Failed", "Failed to import configuration: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.data.import.error.title"),
+                    I18nManager.getText("settings.data.import.error", e.getMessage()));
         });
     }
 
@@ -166,34 +169,35 @@ public class AdvancedSettingsPane implements SettingsSection {
     private void showImport(ConfigurationExporter.ImportResult result) {
         try {
             if (!result.isSuccess()) {
-                services.prompts().error("Import Failed", result.getMessage());
+                services.prompts().error(I18nManager.getText("settings.data.import.error.title"), result.getMessage());
             } else if (result.getChangeCount() == 0) {
-                services.prompts().info("Import Complete",
-                        "Configuration file imported successfully.\nNo changes were needed - your current settings match the imported configuration.");
+                services.prompts().info(I18nManager.getText("settings.data.import.none.title"),
+                        I18nManager.getText("settings.data.import.none"));
             } else if (confirmImport(result)) {
                 /*  The settings are saved as they are set  */
                 reload.run();
-                services.prompts().info("Import Successful", String.format(
-                        "Configuration imported successfully!\n\n%d settings were updated.\n\nRestart the application to ensure all changes take effect.",
-                        result.getChangeCount()));
+                services.prompts().info(I18nManager.getText("settings.data.import.done.title"),
+                        I18nManager.getText("settings.data.import.done", result.getChangeCount()));
             } else {
                 reload.run();
             }
         } catch (Exception e) {
             logger.error("Failed to import configuration", e);
-            services.prompts().error("Import Failed", "Failed to import configuration: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.data.import.error.title"),
+                    I18nManager.getText("settings.data.import.error", e.getMessage()));
         }
     }
 
     /** Lists the changes of an import and asks whether to keep them. */
     private boolean confirmImport(ConfigurationExporter.ImportResult result) {
         StringBuilder content = new StringBuilder();
-        content.append("The following settings will be updated:\n\n");
+        content.append(I18nManager.getText("settings.data.import.confirm.intro")).append("\n\n");
         for (Map.Entry<String, Object> change : result.getChanges().entrySet())
             content.append(String.format("• %s: %s\n", change.getKey(), change.getValue()));
-        content.append("\nDo you want to apply these changes?");
-        return services.prompts().confirm("Confirm Configuration Import",
-                String.format("Import will change %d settings", result.getChangeCount()), content.toString(), true);
+        content.append("\n").append(I18nManager.getText("settings.data.import.confirm.question"));
+        return services.prompts().confirm(I18nManager.getText("settings.data.import.confirm.title"),
+                I18nManager.getText("settings.data.import.confirm.header", result.getChangeCount()),
+                content.toString(), true);
     }
 
     /**
@@ -202,9 +206,9 @@ public class AdvancedSettingsPane implements SettingsSection {
      */
     @FXML
     private void onResetSettings() {
-        if (!services.prompts().confirm("Reset Settings", "Reset all settings to defaults?",
-                "This will reset all settings except the API keys, the MCP token and the proxy password. "
-                        + "Custom styles will be deleted. This action cannot be undone.", false))
+        if (!services.prompts().confirm(I18nManager.getText("settings.data.reset.title"),
+                I18nManager.getText("settings.data.reset.header"), I18nManager.getText("settings.data.reset.confirm"),
+                false))
             return;
 
         SectionTask.run(dataButtons(), () -> {
@@ -216,11 +220,12 @@ public class AdvancedSettingsPane implements SettingsSection {
             return null;
         }, (done) -> {
             resetAll.run();
-            services.prompts().info("Settings Reset",
-                    "All settings have been reset to defaults. API key and proxy password were preserved.");
+            services.prompts().info(I18nManager.getText("settings.data.reset.done.title"),
+                    I18nManager.getText("settings.data.reset.done"));
         }, (e) -> {
             logger.error("Failed to reset settings", e);
-            services.prompts().error("Reset Failed", "Failed to reset settings: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.data.reset.error.title"),
+                    I18nManager.getText("settings.data.reset.error", e.getMessage()));
         });
     }
 

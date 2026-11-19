@@ -938,9 +938,9 @@ public class MainWindowController implements I18nChangeListener {
             // Show error alert
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.getButtonTypes().setAll(DialogButtons.ok());
-            alert.setTitle("Settings Error");
-            alert.setHeaderText("Could not open settings dialog");
-            alert.setContentText("Error: " + e.getMessage());
+            alert.setTitle(I18nManager.getText("settings.error.open.title"));
+            alert.setHeaderText(I18nManager.getText("settings.error.open.header"));
+            alert.setContentText(I18nManager.getText("settings.error.open", e.getMessage()));
             alert.initOwner(settingsButton.getScene().getWindow());
             alert.showAndWait();
 
