@@ -25,63 +25,63 @@ class OpenAiApiServiceTest {
         String body = "{\"object\":\"list\",\"data\":[{\"id\":\"gpt-4o\"},{\"id\":\"gpt-image-1\"},"
                 + "{\"id\":\"claude\"},{\"id\":\"gpt-image-1\"},{\"id\":\"a,b\"},{\"id\":\"\"}]}";
 
-        assertEquals(List.of("claude", "gpt-4o", "gpt-image-1"), OpenAiApiServiceImpl.parseModelIds(body));
+        assertEquals(List.of("claude", "gpt-4o", "gpt-image-1"), OpenAiAccounts.parseModelIds(body));
     }
 
     @Test
     void knownImageNamesArePreselected() {
         assertEquals(List.of("dall-e-3", "gpt-image-1"),
-                OpenAiApiServiceImpl.imageModelsOf(List.of("claude", "dall-e-3", "gpt-4o", "gpt-image-1")));
-        assertTrue(OpenAiApiServiceImpl.imageModelsOf(List.of("claude", "codestral")).isEmpty());
+                OpenAiAccounts.imageModelsOf(List.of("claude", "dall-e-3", "gpt-4o", "gpt-image-1")));
+        assertTrue(OpenAiAccounts.imageModelsOf(List.of("claude", "codestral")).isEmpty());
     }
 
     @Test
     void modelListToleratesGarbage() {
-        assertTrue(OpenAiApiServiceImpl.parseModelIds("not json").isEmpty());
-        assertTrue(OpenAiApiServiceImpl.parseModelIds("{\"error\":{}}").isEmpty());
+        assertTrue(OpenAiAccounts.parseModelIds("not json").isEmpty());
+        assertTrue(OpenAiAccounts.parseModelIds("{\"error\":{}}").isEmpty());
     }
 
     @Test
     void sizeFollowsTheAspectRatioAndTheModel() {
-        assertEquals("1536x1024", OpenAiApiServiceImpl.sizeFor("gpt-image-1", "16:9", null));
-        assertEquals("1024x1536", OpenAiApiServiceImpl.sizeFor("gpt-image-1", "2:3", null));
-        assertEquals("1024x1024", OpenAiApiServiceImpl.sizeFor("gpt-image-1", "1:1", null));
-        assertEquals("1024x1024", OpenAiApiServiceImpl.sizeFor("gpt-image-1", null, null));
-        assertEquals("1792x1024", OpenAiApiServiceImpl.sizeFor("dall-e-3", "3:2", null));
-        assertEquals("1024x1792", OpenAiApiServiceImpl.sizeFor("dall-e-3", "9:16", null));
-        assertEquals("1024x1024", OpenAiApiServiceImpl.sizeFor("dall-e-2", "3:2", null));
-        assertEquals("1360x768", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "16:9", null));
-        assertEquals("768x1360", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "9:16", null));
-        assertEquals("1184x896", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "4:3", null));
-        assertEquals("1024x1024", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "1:1", null));
-        assertEquals("2736x1536", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "16:9", "2K"));
-        assertEquals("4096x2304", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "16:9", "4K"));
-        assertEquals("2304x4096", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "9:16", "4K"));
-        assertEquals("4096x4096", OpenAiApiServiceImpl.sizeFor("qwen-image-2.1", "1:1", "4K"));
-        assertEquals("1536x1024", OpenAiApiServiceImpl.sizeFor("gpt-image-1", "16:9", "4K"));
+        assertEquals("1536x1024", OpenAiImageClient.sizeFor("gpt-image-1", "16:9", null));
+        assertEquals("1024x1536", OpenAiImageClient.sizeFor("gpt-image-1", "2:3", null));
+        assertEquals("1024x1024", OpenAiImageClient.sizeFor("gpt-image-1", "1:1", null));
+        assertEquals("1024x1024", OpenAiImageClient.sizeFor("gpt-image-1", null, null));
+        assertEquals("1792x1024", OpenAiImageClient.sizeFor("dall-e-3", "3:2", null));
+        assertEquals("1024x1792", OpenAiImageClient.sizeFor("dall-e-3", "9:16", null));
+        assertEquals("1024x1024", OpenAiImageClient.sizeFor("dall-e-2", "3:2", null));
+        assertEquals("1360x768", OpenAiImageClient.sizeFor("qwen-image-2.1", "16:9", null));
+        assertEquals("768x1360", OpenAiImageClient.sizeFor("qwen-image-2.1", "9:16", null));
+        assertEquals("1184x896", OpenAiImageClient.sizeFor("qwen-image-2.1", "4:3", null));
+        assertEquals("1024x1024", OpenAiImageClient.sizeFor("qwen-image-2.1", "1:1", null));
+        assertEquals("2736x1536", OpenAiImageClient.sizeFor("qwen-image-2.1", "16:9", "2K"));
+        assertEquals("4096x2304", OpenAiImageClient.sizeFor("qwen-image-2.1", "16:9", "4K"));
+        assertEquals("2304x4096", OpenAiImageClient.sizeFor("qwen-image-2.1", "9:16", "4K"));
+        assertEquals("4096x4096", OpenAiImageClient.sizeFor("qwen-image-2.1", "1:1", "4K"));
+        assertEquals("1536x1024", OpenAiImageClient.sizeFor("gpt-image-1", "16:9", "4K"));
     }
 
     @Test
     void generationBodyAsksDalleForBase64ButNotGptImage() {
         ImageGenerationRequest gptImage = new ImageGenerationRequest("a cat", "gpt-image-1");
         gptImage.setAspectRatio("3:2");
-        JSONObject body = OpenAiApiServiceImpl.buildGenerationBody(gptImage);
+        JSONObject body = OpenAiImageClient.buildGenerationBody(gptImage);
         assertEquals("gpt-image-1", body.getString("model"));
         assertEquals("a cat", body.getString("prompt"));
         assertEquals(1, body.getInt("n"));
         assertEquals("1536x1024", body.getString("size"));
         assertFalse(body.has("response_format"));
 
-        JSONObject dalle = OpenAiApiServiceImpl.buildGenerationBody(new ImageGenerationRequest("a cat", "dall-e-3"));
+        JSONObject dalle = OpenAiImageClient.buildGenerationBody(new ImageGenerationRequest("a cat", "dall-e-3"));
         assertEquals("b64_json", dalle.getString("response_format"));
     }
 
     @Test
     void imageTypeComesFromTheFirstBytes() {
-        assertEquals("image/png", OpenAiApiServiceImpl.mimeType(
+        assertEquals("image/png", OpenAiImageClient.mimeType(
                 new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0}));
-        assertEquals("image/jpeg", OpenAiApiServiceImpl.mimeType(new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
-        assertEquals("image/webp", OpenAiApiServiceImpl.mimeType(
+        assertEquals("image/jpeg", OpenAiImageClient.mimeType(new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
+        assertEquals("image/webp", OpenAiImageClient.mimeType(
                 new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 0}));
     }
 
@@ -124,7 +124,7 @@ class OpenAiApiServiceTest {
                 .put(new JSONObject().put("role", "user").put("parts", new JSONArray().put(new JSONObject()
                         .put("functionResponse", new JSONObject().put("name", "research").put("response", new JSONObject().put("result", "r"))))));
 
-        JSONObject body = OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, true, false, true);
+        JSONObject body = OpenAiChatClient.buildChatBody("m", "sys", contents, true, false, true);
         JSONArray messages = body.getJSONArray("messages");
 
         assertEquals(4, messages.length());
@@ -147,7 +147,7 @@ class OpenAiApiServiceTest {
                 .put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg").put("data", "QUJD")))
                 .put(new JSONObject().put("text", "Find the blocks."))));
 
-        JSONArray content = OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, false, false, false)
+        JSONArray content = OpenAiChatClient.buildChatBody("m", "sys", contents, false, false, false)
                 .getJSONArray("messages").getJSONObject(1).getJSONArray("content");
 
         assertEquals(2, content.length());
@@ -162,8 +162,8 @@ class OpenAiApiServiceTest {
         JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
                 .put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))));
 
-        assertTrue(!OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, false, false, true).has("tools"));
-        assertEquals("none", OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, true, true, true).getString("tool_choice"));
+        assertTrue(!OpenAiChatClient.buildChatBody("m", "sys", contents, false, false, true).has("tools"));
+        assertEquals("none", OpenAiChatClient.buildChatBody("m", "sys", contents, true, true, true).getString("tool_choice"));
     }
 
     @Test
@@ -171,7 +171,7 @@ class OpenAiApiServiceTest {
         JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
                 .put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))));
 
-        JSONArray withoutVideo = OpenAiApiServiceImpl.buildChatBody("m", "sys", contents, true, false, false)
+        JSONArray withoutVideo = OpenAiChatClient.buildChatBody("m", "sys", contents, true, false, false)
                 .getJSONArray("tools");
         assertEquals(1, withoutVideo.length());
         assertEquals("research", withoutVideo.getJSONObject(0).getJSONObject("function").getString("name"));
@@ -179,7 +179,7 @@ class OpenAiApiServiceTest {
 
     @Test
     void webSearchBodyForcesTheBuiltInSearch() {
-        JSONObject body = OpenAiApiServiceImpl.webSearchBody("m", "question");
+        JSONObject body = OpenAiChatClient.webSearchBody("m", "question");
 
         assertEquals("m", body.getString("model"));
         assertEquals("question", body.getString("input"));
@@ -198,7 +198,7 @@ class OpenAiApiServiceTest {
                                         .put(citation("https://facts.example.org/n"))
                                         .put(citation("https://www.nautilus.example/shell?utm_source=openai"))))))).toString();
 
-        ResearchNote note = OpenAiApiServiceImpl.parseResearch("nautilus", body);
+        ResearchNote note = OpenAiChatClient.parseResearch("nautilus", body);
 
         assertEquals("nautilus", note.query());
         assertEquals("The nautilus has 30 chambers.", note.result());
@@ -212,7 +212,7 @@ class OpenAiApiServiceTest {
         String body = new JSONObject().put("output", new JSONArray()
                 .put(new JSONObject().put("type", "web_search_call").put("status", "completed"))).toString();
 
-        assertThrows(RuntimeException.class, () -> OpenAiApiServiceImpl.parseResearch("q", body));
+        assertThrows(RuntimeException.class, () -> OpenAiChatClient.parseResearch("q", body));
     }
 
     @Test
@@ -224,7 +224,7 @@ class OpenAiApiServiceTest {
                                         .put(citation("https://bad.example/a b{c}"))
                                         .put(citation("https://facts.example.org/n"))))))).toString();
 
-        ResearchNote note = OpenAiApiServiceImpl.parseResearch("nautilus", body);
+        ResearchNote note = OpenAiChatClient.parseResearch("nautilus", body);
 
         assertEquals("The nautilus floats.", note.result());
         assertEquals(List.of(
@@ -238,7 +238,7 @@ class OpenAiApiServiceTest {
                 .put(new JSONObject().put("type", "web_search_call").put("status", "completed"))
                 .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
 
-        assertNull(OpenAiApiServiceImpl.webSearchProblem(200, body));
+        assertNull(OpenAiChatClient.webSearchProblem(200, body));
     }
 
     @Test
@@ -246,7 +246,7 @@ class OpenAiApiServiceTest {
         String body = new JSONObject().put("output", new JSONArray()
                 .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
 
-        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+        assertEquals("The model did not search the web.", OpenAiChatClient.webSearchProblem(200, body));
     }
 
     @Test
@@ -255,7 +255,7 @@ class OpenAiApiServiceTest {
                 .put(new JSONObject().put("type", "web_search_call").put("status", "failed"))
                 .put(new JSONObject().put("type", "message").put("role", "assistant"))).toString();
 
-        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+        assertEquals("The model did not search the web.", OpenAiChatClient.webSearchProblem(200, body));
     }
 
     @Test
@@ -264,16 +264,16 @@ class OpenAiApiServiceTest {
                 .put("message", "Tool 'web_search' is not supported with this model.")).toString();
 
         assertEquals("OpenAI error 400: Tool 'web_search' is not supported with this model.",
-                OpenAiApiServiceImpl.webSearchProblem(400, body));
-        assertEquals("OpenAI error 404", OpenAiApiServiceImpl.webSearchProblem(404, "Not Found"));
+                OpenAiChatClient.webSearchProblem(400, body));
+        assertEquals("OpenAI error 404", OpenAiChatClient.webSearchProblem(404, "Not Found"));
     }
 
     @Test
     void webSearchCheckDecidesNothingOnATransientError() {
         assertEquals(429, assertThrows(ApiHttpException.class,
-                () -> OpenAiApiServiceImpl.webSearchProblem(429, "{}")).getStatusCode());
+                () -> OpenAiChatClient.webSearchProblem(429, "{}")).getStatusCode());
         assertEquals(503, assertThrows(ApiHttpException.class,
-                () -> OpenAiApiServiceImpl.webSearchProblem(503, "Service Unavailable")).getStatusCode());
+                () -> OpenAiChatClient.webSearchProblem(503, "Service Unavailable")).getStatusCode());
     }
 
     @Test
@@ -283,7 +283,7 @@ class OpenAiApiServiceTest {
                 .put(new JSONObject().put("type", "message").put("role", "assistant").put("content", new JSONArray()
                         .put(new JSONObject().put("type", "output_text").put("text", "14:32"))))).toString();
 
-        assertEquals("The model did not search the web.", OpenAiApiServiceImpl.webSearchProblem(200, body));
+        assertEquals("The model did not search the web.", OpenAiChatClient.webSearchProblem(200, body));
     }
 
     private static JSONObject citation(String url) {

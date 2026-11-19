@@ -48,17 +48,17 @@ class ProviderErrorsTest {
 
     @Test
     void openAiHasOneMappingWithTheTextOfTheApi() {
-        ApiHttpException notFound = OpenAiApiServiceImpl.httpError(404, error("No such model"));
+        ApiHttpException notFound = OpenAiTransport.httpError(404, error("No such model"));
         assertTrue(ApiHttpException.isDefinite(notFound));
         assertEquals("OpenAI error 404: No such model", notFound.getMessage(Locale.ENGLISH));
         assertEquals("OpenAI-Fehler 404: No such model", notFound.getMessage(Locale.GERMAN));
         assertEquals("OpenAI: invalid bearer token (401)",
-                OpenAiApiServiceImpl.httpError(401, "").getMessage(Locale.ENGLISH));
+                OpenAiTransport.httpError(401, "").getMessage(Locale.ENGLISH));
     }
 
     @Test
     void theMcpClientsGetTheEnglishMessage() {
-        ApiHttpException failure = OpenAiApiServiceImpl.httpError(401, "");
+        ApiHttpException failure = OpenAiTransport.httpError(401, "");
         CompletionException wrapped = new CompletionException(failure);
         assertEquals("OpenAI: invalid bearer token (401)", ProviderException.messageOf(wrapped, true));
         assertEquals(failure.getMessage(), ProviderException.messageOf(wrapped, false));
