@@ -28,30 +28,15 @@ public class ChatEntry {
      */
     public enum Status {
         /** Initial state, no processing started */
-        PENDING("Pending"),
+        PENDING,
         /** Currently being processed by the API */
-        PROCESSING("Processing"),
+        PROCESSING,
         /** Generation completed successfully */
-        COMPLETED("Completed"),
+        COMPLETED,
         /** Generation failed with error */
-        FAILED("Failed"),
+        FAILED,
         /** Request was cancelled by user */
-        CANCELLED("Cancelled");
-        
-        private final String displayName;
-        
-        Status(String displayName) {
-            this.displayName = displayName;
-        }
-        
-        public String getDisplayName() {
-            return displayName;
-        }
-        
-        @Override
-        public String toString() {
-            return displayName;
-        }
+        CANCELLED
     }
 
     /**
