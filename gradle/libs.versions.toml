@@ -24,13 +24,11 @@ slf4j = "2.0.9"
 ikonli = "12.3.1"
 atlantafx = "2.1.0"
 
-# Testing - JUnit, Mockito, TestFX with Monocle, Hamcrest
+# Testing - JUnit, Mockito, Monocle (headless JavaFX)
 junit = "5.10.1"
 junit-platform = "1.10.1"
 mockito = "5.8.0"
-testfx = "4.0.18"
 monocle = "21.0.2"
-hamcrest = "2.2"
 
 # Build Tools
 openjfx-plugin = "0.1.0"
@@ -67,16 +65,12 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
-testfx-core = { module = "org.testfx:testfx-core", version.ref = "testfx" }
-testfx-junit5 = { module = "org.testfx:testfx-junit5", version.ref = "testfx" }
 openjfx-monocle = { module = "org.testfx:openjfx-monocle", version.ref = "monocle" }
-hamcrest = { module = "org.hamcrest:hamcrest", version.ref = "hamcrest" }
 
 [bundles]
 jackson = ["jackson-core", "jackson-databind", "jackson-datatype-jsr310"]
 ikonli = ["ikonli-javafx", "ikonli-materialdesign2"]
-testing = ["junit-jupiter", "junit-jupiter-engine", "junit-platform-launcher", "mockito-core", "testfx-core",
-    "testfx-junit5", "hamcrest"]
+testing = ["junit-jupiter", "junit-jupiter-engine", "junit-platform-launcher", "mockito-core"]
 
 [plugins]
 javafx = { id = "org.openjfx.javafxplugin", version.ref = "openjfx-plugin" }
