@@ -583,7 +583,19 @@ there are. A new provider is, in this order:
    brainstorm button (`ApiProvider.hasLanguageModel`, `ProviderAccounts.isBrainstormAvailable`), the seed field and
    "Copy seed" (`ImageProvider.usesSeeds()`), the safety level of an entry (`supportsSafetyTolerance`) and the removal
    of the attached images on a switch to a model that takes none or only smaller files (`supportsImageAttachment`,
-   `ApiProvider.getMaxFileSize`).
+   `ApiProvider.getMaxFileSize`);
+6. a language model, if it has one (`hasLanguageModel`), for the brainstorm and the analysis of an image, which
+   name Gemini and OpenAI so far and do not follow the registry: its chat client translating the `ChatTurn`s into
+   its own request and back (D6), a `ChatModel` of it in `service.brainstorm.ChatModel` (`choose` decides between
+   the language models for `BrainstormModels.of` and `MoodAnalysisService`, `MoodframeApplication` hands both the
+   clients), its case in `ProviderAccounts.isBrainstormAvailable` (the check of its chat model and of the web search
+   in `ApiProviderValidator`), and an engine id of its own beside "gemini" and "openai". The id is stored with each
+   brainstorm session (`brainstorm_sessions.engine`, `BrainstormSession.getEngine`) and as the default of the window
+   (`ProviderAccounts.getBrainstormEngine`, which turns any other value into "gemini" today), so the stored ids stay
+   as they are; the engine choice of the brainstorm window lists the two engines by these ids
+   (`ui.brainstorm.BrainstormChatView`: `createEngineBox`, `relabel`, `showEngine`, `chosenEngine`, an item text
+   `brainstorm.engine.<id>`) and its note on YouTube videos, which only Gemini can watch, asks for "openai"
+   (`updateVideoHint`, `changeRange`).
 
 ### D5: Detailed logging as a log level
 
