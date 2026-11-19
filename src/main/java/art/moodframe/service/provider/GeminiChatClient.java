@@ -1,6 +1,5 @@
 package art.moodframe.service.provider;
 
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
@@ -37,31 +36,6 @@ final class GeminiChatClient {
             + "checkable facts (numbers, names, terms), at most 300 words. Question: ";
     private static final String RESEARCH_RETRY_INSTRUCTION = "Use the Google Search tool now, you did not search. ";
 
-    static final JSONArray BRAINSTORM_TOOLS = new JSONArray()
-            .put(new JSONObject()
-                    .put("name", "research")
-                    .put("description", "Searches the web and reads web pages. Use it when the topic needs facts "
-                            + "(data, terms, how something looks or works). Returns a short factual summary.")
-                    .put("parameters", new JSONObject()
-                            .put("type", "object")
-                            .put("properties", new JSONObject().put("query", new JSONObject()
-                                    .put("type", "string")
-                                    .put("description", "What to find out, as a complete question or search request")))
-                            .put("required", new JSONArray().put("query"))))
-            .put(new JSONObject()
-                    .put("name", "analyze_video")
-                    .put("description", "Watches a public YouTube video of this chat again and returns its content "
-                            + "as text. The app already lets you see every video the user links in a message, so use "
-                            + "it only for a new question about such a video that its result does not answer.")
-                    .put("parameters", new JSONObject()
-                            .put("type", "object")
-                            .put("properties", new JSONObject()
-                                    .put("url", new JSONObject().put("type", "string"))
-                                    .put("start_seconds", new JSONObject().put("type", "integer"))
-                                    .put("end_seconds", new JSONObject().put("type", "integer"))
-                                    .put("question", new JSONObject().put("type", "string")
-                                            .put("description", "What to extract from the video")))
-                            .put("required", new JSONArray().put("url").put("question"))));
     private final GeminiTransport transport;
 
     GeminiChatClient(GeminiTransport transport) {
@@ -289,61 +263,116 @@ final class GeminiChatClient {
         }
     }
 
-    CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents, boolean withTools,
+    CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
             boolean noMoreCalls) {
         return transport.async(() -> {
             requireApiKey();
 
-            JSONObject requestBody = buildChatBody(systemPrompt, contents, withTools, noMoreCalls);
+            JSONObject requestBody = buildChatBody(systemPrompt, turns, tools, noMoreCalls);
             JSONObject candidate = postBrainstorm(BRAINSTORM_MODEL, requestBody, TIMEOUT_SECONDS);
             JSONArray parts = candidate.optJSONObject("content") != null
                     ? candidate.getJSONObject("content").optJSONArray("parts") : null;
             if (parts == null) {
                 throw ProviderException.localized("brainstorm.error.no.response");
             }
-
-            StringBuilder text = new StringBuilder();
-            List<BrainstormTurn.Call> calls = new ArrayList<>();
-            for (int i = 0; i < parts.length(); i++) {
-                JSONObject part = parts.getJSONObject(i);
-                text.append(part.optString("text", ""));
-                JSONObject call = part.optJSONObject("functionCall");
-                if (call != null) {
-                    calls.add(new BrainstormTurn.Call(call.optString("name"), call.optJSONObject("args") != null
-                            ? call.getJSONObject("args") : new JSONObject()));
-                }
-            }
-            if (text.length() == 0 && calls.isEmpty()) {
+            ChatTurn.Model answer = parseAnswer(parts);
+            if (answer.text().isEmpty() && answer.calls().isEmpty()) {
                 throw ProviderException.localized("brainstorm.error.no.response");
             }
-            return new BrainstormTurn(text.toString(), parts, calls);
+            return answer;
         });
     }
 
     /**
-     * Builds the body of a generateContent request of the brainstorm chat. The contents go as they are, so an image
-     * reaches the model as an {@code inlineData} part ({@code mimeType}, Base64 {@code data}) of a user turn.
+     * Reads the parts of an answer: the text parts joined, the {@code functionCall} parts as tool calls (with the id
+     * of the call, else {@code call_<index>}), and the parts as they are to send them back unchanged.
+     *
+     * @param parts the parts of the first candidate
+     * @return the answer
+     */
+    static ChatTurn.Model parseAnswer(JSONArray parts) {
+        StringBuilder text = new StringBuilder();
+        List<ChatTurn.ToolCall> calls = new ArrayList<>();
+        for (int i = 0; i < parts.length(); i++) {
+            JSONObject part = parts.getJSONObject(i);
+            text.append(part.optString("text", ""));
+            JSONObject call = part.optJSONObject("functionCall");
+            if (call != null) {
+                JSONObject args = call.optJSONObject("args") != null ? call.getJSONObject("args") : new JSONObject();
+                calls.add(new ChatTurn.ToolCall(call.optString("id", "call_" + i), call.optString("name"), args));
+            }
+        }
+        return new ChatTurn.Model(text.toString(), calls, parts.toString());
+    }
+
+    /**
+     * Builds the body of a generateContent request of a conversation. A user turn becomes a {@code user} content with
+     * its images as {@code inlineData} parts ({@code mimeType}, Base64 {@code data}) before its text; an answer of the
+     * model goes back as Gemini sent it (with the thought signatures of its calls), or, from another model, as text
+     * and {@code functionCall} parts; the tool results become one {@code user} content of {@code functionResponse}
+     * parts.
      *
      * @param systemPrompt the system instruction
-     * @param contents     the conversation in the Gemini format
-     * @param withTools    offer the brainstorm tools
+     * @param turns        the conversation
+     * @param tools        the tools offered, empty for none
      * @param noMoreCalls  forbid further tool calls (only with tools)
      * @return the JSON body
      */
-    static JSONObject buildChatBody(String systemPrompt, JSONArray contents, boolean withTools, boolean noMoreCalls) {
+    static JSONObject buildChatBody(String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
+            boolean noMoreCalls) {
+        JSONArray contents = new JSONArray();
+        for (ChatTurn turn : turns)
+            contents.put(content(turn));
         JSONObject requestBody = new JSONObject()
                 .put("systemInstruction", new JSONObject()
                         .put("parts", new JSONArray().put(new JSONObject().put("text", systemPrompt))))
                 .put("contents", contents)
                 .put("generationConfig", new JSONObject().put("responseMimeType", "application/json"));
-        if (withTools) {
-            requestBody.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", BRAINSTORM_TOOLS)));
+        if (!tools.isEmpty()) {
+            JSONArray declarations = new JSONArray();
+            for (ChatTool tool : tools)
+                declarations.put(new JSONObject().put("name", tool.name()).put("description", tool.description())
+                        .put("parameters", tool.parameters()));
+            requestBody.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", declarations)));
             if (noMoreCalls) {
                 requestBody.put("toolConfig", new JSONObject()
                         .put("functionCallingConfig", new JSONObject().put("mode", "NONE")));
             }
         }
         return requestBody;
+    }
+
+    /** One turn as Gemini content. */
+    private static JSONObject content(ChatTurn turn) {
+        JSONArray parts = new JSONArray();
+        String role = "user";
+        switch (turn) {
+            case ChatTurn.User user -> {
+                for (ChatTurn.Image image : user.images())
+                    parts.put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", image.mimeType())
+                            .put("data", image.base64())));
+                if (!user.text().isEmpty() || user.images().isEmpty())
+                    parts.put(new JSONObject().put("text", user.text()));
+            }
+            case ChatTurn.Model model -> {
+                role = "model";
+                if (model.replay() != null)
+                    parts = new JSONArray(model.replay());
+                else {
+                    if (!model.text().isEmpty())
+                        parts.put(new JSONObject().put("text", model.text()));
+                    for (ChatTurn.ToolCall call : model.calls())
+                        parts.put(new JSONObject().put("functionCall",
+                                new JSONObject().put("name", call.name()).put("args", call.args())));
+                }
+            }
+            case ChatTurn.ToolResults results -> {
+                for (ChatTurn.ToolResult result : results.results())
+                    parts.put(new JSONObject().put("functionResponse", new JSONObject()
+                            .put("name", result.call().name()).put("response", result.response())));
+            }
+        }
+        return new JSONObject().put("role", role).put("parts", parts);
     }
 
     CompletableFuture<String> suggestTitle(String content, String language) {

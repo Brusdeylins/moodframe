@@ -1,12 +1,10 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.IoExecutor;
-import org.json.JSONArray;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -79,9 +77,9 @@ public class OpenAiApiServiceImpl implements OpenAiApiService {
     }
 
     @Override
-    public CompletableFuture<BrainstormTurn> chatTurn(String model, String systemPrompt, JSONArray contents,
-            boolean withTools, boolean noMoreCalls, boolean videoTool) {
-        return chat.chatTurn(model, systemPrompt, contents, withTools, noMoreCalls, videoTool);
+    public CompletableFuture<ChatTurn.Model> chatTurn(String model, String systemPrompt, List<ChatTurn> turns,
+            List<ChatTool> tools, boolean noMoreCalls) {
+        return chat.chatTurn(model, systemPrompt, turns, tools, noMoreCalls);
     }
 
     @Override

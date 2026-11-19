@@ -11,6 +11,8 @@
  * <li>{@link GeminiApiService}: the Gemini client, implemented by {@link GeminiApiServiceImpl}, a facade over the
  * package-private image, Omni and chat clients with their shared transport and error mapping</li>
  * <li>{@link OpenAiApiService}: the OpenAI client, implemented by {@link OpenAiApiServiceImpl}</li>
+ * <li>{@link ChatTurn} and {@link ChatTool}: a conversation with a language model and its tools in the format of no
+ * provider, which each chat client translates</li>
  * <li>{@link ApiProviderValidator}: checks the keys of all providers at the start</li>
  * <li>{@link ProviderPolicy}: which providers may be contacted</li>
  * <li>{@link ProviderException}: a failure of a provider with a localized message, also to be had in English</li>

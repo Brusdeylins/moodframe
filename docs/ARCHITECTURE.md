@@ -396,3 +396,16 @@ The setting "detailed logging" sets the logback logger `art.moodframe` to DEBUG 
 (`config.DetailedLogging`), at startup and on every change. Code logs details with `logger.debug(...)` instead of
 asking the setting, and guards a costly argument with `logger.isDebugEnabled()`. Only the startup, the settings
 dialog and the configuration export read `getLoggingEnabled()`.
+
+### D6: A conversation with a language model in the format of no provider
+
+The brainstorm and the analysis of an image talk to Gemini or to an OpenAI language model, as
+`service.brainstorm.ChatModel` chooses. They hold the conversation as `service.provider.ChatTurn`s: a turn of the user
+(text and images), an answer of the model (text, or tool calls with their ids) and the results of the tools; the tools
+are `ChatTool`s (name, description, JSON Schema of the arguments), which the brainstorm declares and runs. Each chat client translates the
+turns into its own request (`GeminiChatClient.buildChatBody`, `OpenAiChatClient.buildChatBody`) and its answer back,
+so neither client knows the other. Gemini requires the thought signatures of its tool calls back unchanged: its
+answer keeps its parts as `replay`, which only Gemini reads; the answer of another model is built from its text and
+calls. The types live in `service.provider`, which lies below `service.brainstorm`. The stored messages of a session
+stay role and text (`brainstorm_messages`); the tool rounds of a turn exist only while it runs, so the database kept
+its format.

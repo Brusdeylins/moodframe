@@ -3,16 +3,15 @@ package art.moodframe.service.brainstorm;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.net.IoExecutor;
+import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderPolicy;
 import art.moodframe.util.I18nManager;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +160,7 @@ public class MoodAnalysisService {
     }
 
     /** The colors of an image and the request about it; a failure to build the request is kept for the answer. */
-    private record Prepared(List<String> colors, boolean asks, String systemPrompt, JSONArray contents,
+    private record Prepared(List<String> colors, boolean asks, String systemPrompt, List<ChatTurn> contents,
                             Exception failure) {
     }
 
@@ -179,9 +178,9 @@ public class MoodAnalysisService {
     }
 
     /** Sends the image to the language model of the brainstorm, without tools, and returns its JSON text. */
-    private CompletableFuture<String> ask(String systemPrompt, JSONArray contents) {
+    private CompletableFuture<String> ask(String systemPrompt, List<ChatTurn> turns) {
         try {
-            return chatModel().chatTurn(systemPrompt, contents, false, false).thenApply(BrainstormTurn::text);
+            return chatModel().chatTurn(systemPrompt, turns, List.of(), false).thenApply(ChatTurn.Model::text);
         }
         catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
@@ -207,17 +206,14 @@ public class MoodAnalysisService {
     }
 
     /**
-     * The conversation of the analysis in the Gemini format: one user turn with the image as {@code inlineData}
-     * part and the request as text part.
+     * The conversation of the analysis: one user turn with the request and the image.
      *
      * @param jpeg the image as JPEG
-     * @return the contents
+     * @return the turns
      */
-    static JSONArray contents(byte[] jpeg) {
-        JSONObject image = new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg")
-                .put("data", Base64.getEncoder().encodeToString(jpeg)));
-        return new JSONArray().put(new JSONObject().put("role", "user")
-                .put("parts", new JSONArray().put(image).put(new JSONObject().put("text", REQUEST))));
+    static List<ChatTurn> contents(byte[] jpeg) {
+        return List.of(new ChatTurn.User(REQUEST,
+                List.of(new ChatTurn.Image("image/jpeg", Base64.getEncoder().encodeToString(jpeg)))));
     }
 
     /**

@@ -4,7 +4,6 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
-import org.json.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -115,16 +114,19 @@ class OpenAiApiServiceTest {
         assertEquals(1000, OpenAiApiService.promptLimitOf("dall-e-2"));
     }
 
+    private static final ChatTool RESEARCH = new ChatTool("research", "Searches the web.",
+            new JSONObject().put("type", "object"));
+
     @Test
     void chatBodyMapsToolRoundsToToolMessages() {
-        JSONArray contents = new JSONArray()
-                .put(new JSONObject().put("role", "user").put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))))
-                .put(new JSONObject().put("role", "model").put("parts", new JSONArray().put(new JSONObject()
-                        .put("functionCall", new JSONObject().put("name", "research").put("args", new JSONObject().put("query", "q"))))))
-                .put(new JSONObject().put("role", "user").put("parts", new JSONArray().put(new JSONObject()
-                        .put("functionResponse", new JSONObject().put("name", "research").put("response", new JSONObject().put("result", "r"))))));
+        ChatTurn.Model answer = OpenAiChatClient.parseAnswer(new JSONObject().put("content", JSONObject.NULL)
+                .put("tool_calls", new JSONArray().put(new JSONObject().put("id", "call_abc").put("type", "function")
+                        .put("function", new JSONObject().put("name", "research")
+                                .put("arguments", "{\"query\":\"q\"}")))));
+        List<ChatTurn> turns = List.of(new ChatTurn.User("hi"), answer, new ChatTurn.ToolResults(
+                List.of(new ChatTurn.ToolResult(answer.calls().get(0), new JSONObject().put("result", "r")))));
 
-        JSONObject body = OpenAiChatClient.buildChatBody("m", "sys", contents, true, false, true);
+        JSONObject body = OpenAiChatClient.buildChatBody("m", "sys", turns, List.of(RESEARCH), false);
         JSONArray messages = body.getJSONArray("messages");
 
         assertEquals(4, messages.length());
@@ -132,22 +134,26 @@ class OpenAiApiServiceTest {
         assertEquals("user", messages.getJSONObject(1).getString("role"));
         JSONObject assistant = messages.getJSONObject(2);
         assertEquals("assistant", assistant.getString("role"));
-        String id = assistant.getJSONArray("tool_calls").getJSONObject(0).getString("id");
-        assertEquals("research", assistant.getJSONArray("tool_calls").getJSONObject(0).getJSONObject("function").getString("name"));
+        assertEquals("call_abc", assistant.getJSONArray("tool_calls").getJSONObject(0).getString("id"),
+                "the id of OpenAI is kept");
+        assertEquals("research", assistant.getJSONArray("tool_calls").getJSONObject(0).getJSONObject("function")
+                .getString("name"));
+        assertEquals("q", answer.calls().get(0).args().getString("query"));
         assertEquals("tool", messages.getJSONObject(3).getString("role"));
-        assertEquals(id, messages.getJSONObject(3).getString("tool_call_id"));
+        assertEquals("call_abc", messages.getJSONObject(3).getString("tool_call_id"));
+        assertEquals("r", new JSONObject(messages.getJSONObject(3).getString("content")).getString("result"));
         assertEquals("auto", body.getString("tool_choice"));
-        assertEquals(2, body.getJSONArray("tools").length());
+        assertEquals(1, body.getJSONArray("tools").length());
+        assertEquals("research", body.getJSONArray("tools").getJSONObject(0).getJSONObject("function").getString("name"));
         assertEquals("json_object", body.getJSONObject("response_format").getString("type"));
     }
 
     @Test
-    void chatBodyTurnsAnImagePartIntoAnImageUrl() {
-        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user").put("parts", new JSONArray()
-                .put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "image/jpeg").put("data", "QUJD")))
-                .put(new JSONObject().put("text", "Find the blocks."))));
+    void chatBodyTurnsAnImageIntoAnImageUrl() {
+        List<ChatTurn> turns = List.of(new ChatTurn.User("Find the blocks.",
+                List.of(new ChatTurn.Image("image/jpeg", "QUJD"))));
 
-        JSONArray content = OpenAiChatClient.buildChatBody("m", "sys", contents, false, false, false)
+        JSONArray content = OpenAiChatClient.buildChatBody("m", "sys", turns, List.of(), false)
                 .getJSONArray("messages").getJSONObject(1).getJSONArray("content");
 
         assertEquals(2, content.length());
@@ -159,22 +165,22 @@ class OpenAiApiServiceTest {
 
     @Test
     void chatBodyWithoutToolsOffersNone() {
-        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
-                .put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))));
+        List<ChatTurn> turns = List.of(new ChatTurn.User("hi"));
 
-        assertTrue(!OpenAiChatClient.buildChatBody("m", "sys", contents, false, false, true).has("tools"));
-        assertEquals("none", OpenAiChatClient.buildChatBody("m", "sys", contents, true, true, true).getString("tool_choice"));
+        assertFalse(OpenAiChatClient.buildChatBody("m", "sys", turns, List.of(), false).has("tools"));
+        assertEquals("none", OpenAiChatClient.buildChatBody("m", "sys", turns, List.of(RESEARCH), true)
+                .getString("tool_choice"));
     }
 
     @Test
-    void chatBodyOffersTheVideoToolOnlyOnRequest() {
-        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
-                .put("parts", new JSONArray().put(new JSONObject().put("text", "hi"))));
+    void anAnswerWithoutIdsGetsIdsOfItsOwnAndBrokenArgumentsCountAsNone() {
+        ChatTurn.Model answer = OpenAiChatClient.parseAnswer(new JSONObject().put("content", "")
+                .put("tool_calls", new JSONArray().put(new JSONObject().put("function", new JSONObject()
+                        .put("name", "research").put("arguments", "{not json")))));
 
-        JSONArray withoutVideo = OpenAiChatClient.buildChatBody("m", "sys", contents, true, false, false)
-                .getJSONArray("tools");
-        assertEquals(1, withoutVideo.length());
-        assertEquals("research", withoutVideo.getJSONObject(0).getJSONObject("function").getString("name"));
+        assertEquals("call_0", answer.calls().get(0).id());
+        assertTrue(answer.calls().get(0).args().isEmpty());
+        assertNull(answer.replay());
     }
 
     @Test

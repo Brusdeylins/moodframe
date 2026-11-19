@@ -6,11 +6,12 @@ import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormFact;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.Mood;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.library.RepositoryAccess;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.util.I18nManager;
@@ -67,6 +68,25 @@ public class BrainstormService {
             + "look, people, text on screen). Then list the facts shown or said in the video that could go into the "
             + "picture (numbers, names, terms), one per line as \"- [m:ss] fact\", with its time in the whole video. "
             + "Write in %s, at most 300 words.";
+
+    /*  The tools of the assistant: the research on the web, and watching a video, which only Gemini can  */
+    static final ChatTool RESEARCH_TOOL = new ChatTool("research", "Searches the web and reads web pages. Use it when "
+            + "the topic needs facts (data, terms, how something looks or works). Returns a short factual summary.",
+            new JSONObject().put("type", "object")
+                    .put("properties", new JSONObject().put("query", new JSONObject().put("type", "string")
+                            .put("description", "What to find out, as a complete question or search request")))
+                    .put("required", new JSONArray().put("query")));
+    static final ChatTool VIDEO_TOOL = new ChatTool("analyze_video", "Watches a public YouTube video of this chat "
+            + "again and returns its content as text. The app already lets you see every video the user links in a "
+            + "message, so use it only for a new question about such a video that its result does not answer.",
+            new JSONObject().put("type", "object")
+                    .put("properties", new JSONObject()
+                            .put("url", new JSONObject().put("type", "string"))
+                            .put("start_seconds", new JSONObject().put("type", "integer"))
+                            .put("end_seconds", new JSONObject().put("type", "integer"))
+                            .put("question", new JSONObject().put("type", "string")
+                                    .put("description", "What to extract from the video")))
+                    .put("required", new JSONArray().put("url").put("question")));
 
     /*  The threads of the turns, their tool calls and the naming of a session: they wait for the language model and
         the research, which run on the IoExecutor, so they run on virtual threads of their own and never hold a worker
@@ -525,53 +545,53 @@ public class BrainstormService {
     private String askWithTools(BrainstormSession session, String systemPrompt, List<BrainstormMessage> history,
             List<String> videoTurns, List<ResearchNote> notes) {
         String sessionId = session.getId();
-        JSONArray contents = new JSONArray();
+        List<ChatTurn> turns = new ArrayList<>();
         for (BrainstormMessage message : history) {
-            contents.put(new JSONObject()
-                    .put("role", BrainstormMessage.ROLE_ASSISTANT.equals(message.getRole()) ? "model" : "user")
-                    .put("parts", new JSONArray().put(new JSONObject().put("text", message.getContent()))));
+            turns.add(BrainstormMessage.ROLE_ASSISTANT.equals(message.getRole())
+                    ? new ChatTurn.Model(message.getContent()) : new ChatTurn.User(message.getContent()));
         }
         for (String turn : videoTurns) {
-            contents.put(new JSONObject().put("role", "user")
-                    .put("parts", new JSONArray().put(new JSONObject().put("text", turn))));
+            turns.add(new ChatTurn.User(turn));
         }
 
         int calls = 0;
         for (int round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
             ensureNotDeleted(sessionId);
             ChatModel model = chatModel(session);
-            BrainstormTurn turn = model.chatTurn(systemPrompt, contents, true, calls >= MAX_TOOL_CALLS).join();
-            if (turn.calls().isEmpty()) {
-                return turn.text();
+            List<ChatTool> tools = model.watchesVideos() ? List.of(RESEARCH_TOOL, VIDEO_TOOL) : List.of(RESEARCH_TOOL);
+            ChatTurn.Model answer = model.chatTurn(systemPrompt, List.copyOf(turns), tools, calls >= MAX_TOOL_CALLS)
+                    .join();
+            if (answer.calls().isEmpty()) {
+                return answer.text();
             }
 
-            contents.put(new JSONObject().put("role", "model").put("parts", turn.parts()));
+            turns.add(answer);
             // The calls of one turn are independent, so they run in parallel
             List<CompletableFuture<ToolRun>> runs = new ArrayList<>();
-            for (BrainstormTurn.Call call : turn.calls()) {
+            for (ChatTurn.ToolCall call : answer.calls()) {
                 calls++;
                 runs.add(CompletableFuture.supplyAsync(() -> runTool(session, model, call), TURNS));
             }
-            JSONArray responses = new JSONArray();
+            List<ChatTurn.ToolResult> results = new ArrayList<>();
             for (CompletableFuture<ToolRun> run : runs) {
                 ToolRun result = run.join();
                 ensureNotDeleted(sessionId);
-                responses.put(result.response());
+                results.add(result.result());
                 if (result.note() != null) {
                     notes.add(result.note());
                 }
             }
-            contents.put(new JSONObject().put("role", "user").put("parts", responses));
+            turns.add(new ChatTurn.ToolResults(results));
         }
         throw new IllegalStateException(I18nManager.getText("brainstorm.error.no.response"));
     }
 
-    /** The functionResponse part of a tool call and its research note (null if the tool failed). */
-    private record ToolRun(JSONObject response, ResearchNote note) {
+    /** The result of a tool call and its research note (null if the tool failed). */
+    private record ToolRun(ChatTurn.ToolResult result, ResearchNote note) {
     }
 
-    /** Runs one tool call and returns the functionResponse part; a failure is reported to the model as text. */
-    private ToolRun runTool(BrainstormSession session, ChatModel model, BrainstormTurn.Call call) {
+    /** Runs one tool call and returns its result; a failure is reported to the model as text. */
+    private ToolRun runTool(BrainstormSession session, ChatModel model, ChatTurn.ToolCall call) {
         String sessionId = session.getId();
         ResearchNote note = null;
         JSONObject response = new JSONObject();
@@ -609,8 +629,7 @@ public class BrainstormService {
             logger.warn("Brainstorm tool {} failed: {}", call.name(), e.getMessage());
             response.put("error", "The tool failed (" + e.getMessage() + "). Continue without it and tell the user.");
         }
-        return new ToolRun(new JSONObject().put("functionResponse",
-                new JSONObject().put("name", call.name()).put("response", response)), note);
+        return new ToolRun(new ChatTurn.ToolResult(call, response), note);
     }
 
     /**
