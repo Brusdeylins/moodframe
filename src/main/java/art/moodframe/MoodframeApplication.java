@@ -46,6 +46,7 @@ import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.repository.SavedImageRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.UpdateCheckService;
+import art.moodframe.service.brainstorm.BrainstormLibrary;
 import art.moodframe.service.brainstorm.BrainstormModels;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.BrainstormSessions;
@@ -535,12 +536,15 @@ public class MoodframeApplication extends Application {
                         services.getService(OpenAiApiService.class), config));
 
         /*  A brainstorm service for each brainstorm window, on the stored sessions, the language models and the tools,
-            which share one lookup of the YouTube videos  */
+            which share one lookup of the YouTube videos and look up the moods, frames and saved images  */
         services.registerProvider(BrainstormService.Factory.class, () -> {
             GeminiApiService gemini = services.getService(GeminiApiService.class);
             BrainstormSessions sessions = new BrainstormSessions(new BrainstormRepository(database));
             BrainstormModels models = new BrainstormModels(gemini, services.getService(OpenAiApiService.class), config);
-            BrainstormTools tools = new BrainstormTools(gemini, new YouTubeInfoService(config));
+            BrainstormLibrary library = new BrainstormLibrary(services.getService(MoodService.class),
+                    services.getService(FrameService.class), services.getService(FavoriteService.class),
+                    services.getService(SavedImageService.class));
+            BrainstormTools tools = new BrainstormTools(gemini, new YouTubeInfoService(config), library);
             return () -> new BrainstormService(sessions, models, tools);
         });
     }

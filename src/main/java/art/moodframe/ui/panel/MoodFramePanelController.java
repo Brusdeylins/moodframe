@@ -53,6 +53,8 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 import org.slf4j.Logger;
@@ -154,11 +156,23 @@ public class MoodFramePanelController {
     @FXML
     private Button manageMoodsButton;
     @FXML
+    private HBox moodRow;
+    @FXML
     private ComboBox<MoodChoice> moodComboBox;
     @FXML
     private Button moodIncompleteButton;
 
     // Building blocks
+    @FXML
+    private GridPane atmosphereField;
+    @FXML
+    private GridPane styleField;
+    @FXML
+    private GridPane colorField;
+    @FXML
+    private GridPane lightField;
+    @FXML
+    private GridPane cameraField;
     @FXML
     private ComboBox<StylePresetItem> atmosphereComboBox;
     @FXML
@@ -206,15 +220,21 @@ public class MoodFramePanelController {
     @FXML
     private Button manageFramesButton;
     @FXML
+    private HBox frameRow;
+    @FXML
     private ComboBox<FrameChoice> frameComboBox;
     @FXML
     private Label aspectRatioLabel;
+    @FXML
+    private HBox aspectRatioRow;
     @FXML
     private ChoiceBox<String> aspectRatioComboBox;
     @FXML
     private Label aspectRatioHintLabel;
     @FXML
     private Label resolutionLabel;
+    @FXML
+    private HBox resolutionRow;
     @FXML
     private ChoiceBox<String> resolutionChoiceBox;
     @FXML
@@ -354,6 +374,67 @@ public class MoodFramePanelController {
     public Selection selection() {
         return new Selection(chosenMood(), isMoodChanged(), currentMoodFields(), lockedMoodFields(), chosenFrame(),
                 frames.isFrameChanged(), aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue());
+    }
+
+    /**
+     * Shows a choice as another window has it, e.g. the main window for the brainstorm: the mood and the blocks of the
+     * fields exactly, also of a locked field, and the frame with aspect ratio and resolution.
+     *
+     * @param selection the choice
+     */
+    public void showSelection(Selection selection) {
+        updatingMood = true;
+        for (Mood.Field field : Mood.Field.values())
+            selectField(field, selection.blocks().get(field));
+        showChosenMood(selection.mood());
+        updatingMood = false;
+        updateMoodState();
+        frames.takeTargets(selection.frame(), selection.aspectRatio(), selection.resolution());
+    }
+
+    /**
+     * Chooses the entry with this id in a building block field, "None" if the field does not list it; the mood shows
+     * as changed if the field then differs from it.
+     *
+     * @param field the building block field
+     * @param id    the id of the block or palette, null for "None"
+     */
+    public void chooseBlock(Mood.Field field, String id) {
+        selectField(field, id);
+    }
+
+    /**
+     * Shows the checkboxes of an adoption into another window right of the fields, as the brainstorm does for the main
+     * window (see {@link AdoptionColumn}). Call after {@link #init}.
+     *
+     * @param locked  the building block fields locked in the other window, which keep their choice when a mood is
+     *                chosen here as well
+     * @param changed learns of a field the user changed, not of those the groups set themselves (e.g. the blocks of a
+     *                chosen mood)
+     * @return the column of the checkboxes
+     */
+    public AdoptionColumn showAdoptionColumn(Set<Mood.Field> locked, Consumer<AdoptionColumn.Field> changed) {
+        Map<Mood.Field, GridPane> fields = new EnumMap<>(Map.of(Mood.Field.ATMOSPHERE, atmosphereField,
+                Mood.Field.STYLE, styleField, Mood.Field.COLOR, colorField, Mood.Field.LIGHT, lightField,
+                Mood.Field.CAMERA, cameraField));
+        Map<Mood.Field, ToggleButton> locks = new EnumMap<>(Map.of(Mood.Field.ATMOSPHERE, atmosphereLockButton,
+                Mood.Field.STYLE, styleLockButton, Mood.Field.COLOR, colorLockButton, Mood.Field.LIGHT, lightLockButton,
+                Mood.Field.CAMERA, cameraLockButton));
+        List<Node> actions = new ArrayList<>(List.of(moodFromImageButton, saveMoodButton, saveMoodAsButton,
+                manageMoodsButton, saveFrameButton, saveFrameAsButton, manageFramesButton));
+        fields.values().forEach((GridPane field) -> actions.addAll(field.lookupAll(".block-action")));
+        Map<AdoptionColumn.Field, ObservableValue<?>> values = new EnumMap<>(AdoptionColumn.Field.class);
+        values.put(AdoptionColumn.Field.MOOD, moodComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.ATMOSPHERE, atmosphereComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.STYLE, stylePresetsComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.COLOR, colorStyleComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.LIGHT, lightComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.CAMERA, cameraComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.FRAME, frameComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.ASPECT_RATIO, aspectRatioComboBox.valueProperty());
+        values.put(AdoptionColumn.Field.RESOLUTION, resolutionChoiceBox.valueProperty());
+        return new AdoptionColumn(new AdoptionColumn.Nodes(moodRow, fields, locks, frameRow, aspectRatioRow,
+                resolutionRow, actions, values), locked, () -> updatingMood || frames.isUpdating(), changed);
     }
 
     /**
@@ -817,11 +898,16 @@ public class MoodFramePanelController {
                 && item.getName().equals(paletteName)).findFirst()
                 .or(() -> colorStyleComboBox.getItems().stream().filter(blocks.colorChoice()::isEntry).findFirst())
                 .ifPresent(colorStyleComboBox::setValue);
+        showChosenMood(mood);
+        updatingMood = false;
+        updateMoodState();
+    }
+
+    /*  shows a mood, or "No mood" for null, as chosen, without setting its blocks  */
+    private void showChosenMood(Mood mood) {
         moodComboBox.getItems().stream().filter((item) -> mood == null ? item.kind() == MoodChoice.Kind.NONE
                 : item.mood() != null && item.mood().getId().equals(mood.getId()))
                 .findFirst().ifPresent(moodComboBox::setValue);
-        updatingMood = false;
-        updateMoodState();
     }
 
     /**
@@ -1130,7 +1216,7 @@ public class MoodFramePanelController {
         BrainstormContext context = new BrainstormContext(blockService.getAll(PromptBlock.Type.STYLE),
                 blockService.getAll(PromptBlock.Type.ATMOSPHERE), blockService.getAll(PromptBlock.Type.LIGHT),
                 blockService.getAll(PromptBlock.Type.CAMERA), colorService.getAllStyles(),
-                List.of(), List.of(), "", List.of(), lockedMoodFields());
+                List.of(), List.of(), "", List.of(), lockedMoodFields(), List.of(), List.of());
         new MoodImageDialog(window(), moodAnalysis, context, imageFile, this::applyMoodFromImage).show();
     }
 

@@ -3,8 +3,10 @@ package art.moodframe.service.brainstorm;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
+import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.model.SavedImage;
 import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.util.I18nManager;
 import org.slf4j.Logger;
@@ -31,6 +33,8 @@ final class BrainstormConversation {
     private static final Logger logger = LoggerFactory.getLogger(BrainstormConversation.class);
     private static final String TEMPLATE_RESOURCE = "/brainstorm/system-prompt.txt";
     static final int MAX_TOOL_CALLS = 3;
+    /** The most requests of one answer, the lookups of the library included; the last one has to answer. */
+    static final int MAX_ROUNDS = 6;
 
     /**
      * An answer of the assistant.
@@ -108,9 +112,10 @@ final class BrainstormConversation {
 
     /**
      * Asks the model and runs its tool calls until it answers with the JSON reply. After {@value #MAX_TOOL_CALLS}
-     * calls the model has to answer. The turns of a conversation are rebuilt from the stored text messages, the
-     * watched videos and the tool rounds of the current turn exist only here. The language model is read for every
-     * request, so a change of the engine applies at once.
+     * calls of the research and the videos, or in the last of {@value #MAX_ROUNDS} requests, the model has to answer;
+     * the lookups of the library are no research and do not count. The turns of a conversation are rebuilt from the
+     * stored text messages, the watched videos and the tool rounds of the current turn exist only here. The language
+     * model is read for every request, so a change of the engine applies at once.
      */
     private String askWithTools(BrainstormSession session, String systemPrompt, List<BrainstormMessage> history,
             List<String> videoTurns, List<ResearchNote> notes, Consumer<String> status, Runnable check) {
@@ -122,11 +127,11 @@ final class BrainstormConversation {
             turns.add(new ChatTurn.User(turn));
 
         int calls = 0;
-        for (int round = 0; round <= MAX_TOOL_CALLS + 1; round++) {
+        for (int round = 0; round < MAX_ROUNDS; round++) {
             check.run();
             ChatModel model = models.of(session);
             ChatTurn.Model answer = model.chatTurn(systemPrompt, List.copyOf(turns), tools.offeredTo(model),
-                    calls >= MAX_TOOL_CALLS).join();
+                    calls >= MAX_TOOL_CALLS || round == MAX_ROUNDS - 1).join();
             if (answer.calls().isEmpty())
                 return answer.text();
 
@@ -136,7 +141,8 @@ final class BrainstormConversation {
             BrainstormTools.Request request = new BrainstormTools.Request(session.getId(), model, status, check);
             List<CompletableFuture<BrainstormTools.Run>> runs = new ArrayList<>();
             for (ChatTurn.ToolCall call : answer.calls()) {
-                calls++;
+                if (!tools.looksUp(call))
+                    calls++;
                 runs.add(CompletableFuture.supplyAsync(() -> tools.run(request, call), executor));
             }
             List<ChatTurn.ToolResult> results = new ArrayList<>();
@@ -153,8 +159,9 @@ final class BrainstormConversation {
     }
 
     /**
-     * Refers the mood and the building blocks of the draft that name an entry of the lists to that entry by id, so a
-     * stored draft still finds an entry the user renamed later. A name without entry keeps the reference as it is.
+     * Refers the mood, the building blocks and the frame of the draft that name an entry of the lists to that entry by
+     * id, so a stored draft still finds an entry the user renamed later; mood, frame and saved images by their id,
+     * else by name. A name without entry keeps the reference as it is, a saved image without entry is dropped.
      */
     private static void resolveBlocks(BrainstormDraft draft, BrainstormContext context) {
         for (Mood.Field field : BrainstormDraft.FIELDS) {
@@ -163,9 +170,21 @@ final class BrainstormConversation {
             if (id != null)
                 draft.setBlock(field, block.withId(id));
         }
-        BrainstormDraft.Block mood = draft.getMood();
+        Mood mood = BrainstormDraft.Block.find(draft.getMood(), context.moods(), Mood::getId, Mood::getName);
         if (mood != null)
-            context.moods().stream().filter((Mood listed) -> listed.getName().equals(mood.name())).findFirst()
-                    .ifPresent((Mood listed) -> draft.setMood(mood.withId(listed.getId())));
+            draft.setMood(new BrainstormDraft.Block(mood.getId(), mood.getName(), null, List.of(), false));
+        Frame frame = BrainstormDraft.Block.find(draft.getFrame(), context.frames(), Frame::getId, Frame::getName);
+        if (frame != null)
+            draft.setFrame(new BrainstormDraft.Block(frame.getId(), frame.getName(), null, List.of(), false));
+        List<BrainstormDraft.Block> images = new ArrayList<>();
+        for (BrainstormDraft.Block reference : draft.getSavedImages()) {
+            SavedImage image = BrainstormDraft.Block.find(reference, context.savedImages(), SavedImage::id,
+                    SavedImage::name);
+            if (image != null && images.stream()
+                    .noneMatch((BrainstormDraft.Block added) -> added.id().equals(image.id())))
+                images.add(new BrainstormDraft.Block(image.id(), image.name(), null, List.of(), false));
+        }
+        draft.getSavedImages().clear();
+        draft.getSavedImages().addAll(images);
     }
 }

@@ -88,4 +88,9 @@ final class BrainstormWorker {
     Executor fx() {
         return fx;
     }
+
+    /** The worker itself, e.g. for the writes of the groups Mood and Frame. */
+    Executor executor() {
+        return worker;
+    }
 }

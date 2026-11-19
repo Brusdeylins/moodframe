@@ -6,6 +6,7 @@ import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ApiProvider;
+import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Frame;
@@ -14,6 +15,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
+import art.moodframe.model.SavedImage;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.repository.ChatGroupQueries;
 import art.moodframe.repository.ChatRepository;
@@ -23,6 +25,7 @@ import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
+import art.moodframe.repository.SavedImageRepository;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.brainstorm.TestBrainstorm;
@@ -46,6 +49,7 @@ import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.bfl.BflApiService;
@@ -62,6 +66,7 @@ import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.ui.entry.ImagePreviewOverlay;
 import art.moodframe.ui.component.InPlaceEditableLabel;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
+import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -73,6 +78,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Hyperlink;
@@ -171,6 +177,8 @@ class MainWindowFlowsTest {
     private ChatLibrary chats;
     private TrashCenter trash;
     private MoodService moods;
+    private SavedImageService savedImages;
+    private BrainstormRepository brainstormSessions;
     private FrameService frames;
     private ThumbnailManager thumbnails;
     private ImageSizeCheck sizeCheck;
@@ -330,6 +338,9 @@ class MainWindowFlowsTest {
         register(MoodService.class, moods);
         register(FrameService.class, frames);
         register(FavoriteService.class, new FavoriteService(new FavoriteRepository(database), events));
+        savedImages = new SavedImageService(new SavedImageRepository(database), paths.savedImages(), events);
+        register(SavedImageService.class, savedImages);
+        brainstormSessions = new BrainstormRepository(database);
 
         /*  chats, their files and the trash  */
         TrashManager trashManager = new TrashManager(paths, 60);
@@ -1371,5 +1382,90 @@ class MainWindowFlowsTest {
         assertEquals("a lighthouse in a storm, wide angle", prompt().getText());
         assertEquals(model, controller.generationPanel().modelItem());
         assertEquals(0, generations.get(), "nothing went to a provider");
+    }
+
+    /**
+     * A draft of the AI with a mood, a frame and two saved images shows in the groups of the brainstorm, each ticked;
+     * "Adopt" takes over only what stays ticked: the mood without its unticked light, the frame and its resolution
+     * without its unticked aspect ratio, and only the ticked image goes into the attachments.
+     */
+    @Test
+    void theBrainstormAdoptsOnlyTheTickedValuesOfItsDraft() throws Exception {
+        Path png = Files.createTempFile("saved", ".png");
+        Files.write(png, Base64.getDecoder().decode(testImage));
+        SavedImage logo = savedImages.save(png, "ACME Logo", "the company logo").image();
+        Files.write(png, new byte[0]);
+        Path other = Files.createTempFile("saved", ".png");
+        java.awt.image.BufferedImage blue = new java.awt.image.BufferedImage(4, 4,
+                java.awt.image.BufferedImage.TYPE_INT_RGB);
+        blue.setRGB(0, 0, 0x0000FF);
+        javax.imageio.ImageIO.write(blue, "png", other.toFile());
+        SavedImage wordMark = savedImages.save(other, "Word Mark", "the name in letters").image();
+        Frame socialPost = frames.getAll().stream().filter((frame) -> "Social Post".equals(frame.getName()))
+                .findFirst().orElseThrow();
+        String goldenHour = "std:light:golden-hour";
+
+        Chat chat = createChat("Ads");
+        open(chat);
+        config.accounts().setValidated(ApiProvider.GOOGLE_GEMINI, true);
+        config.accounts().setChatOk(ApiProvider.GOOGLE_GEMINI, true);
+        config.accounts().setWebSearch(ApiProvider.GOOGLE_GEMINI, true);
+        onFxThread(() -> {
+            controller.refreshApiKeyStatus();
+            controller.moodFramePanel().chooseBlock(Mood.Field.LIGHT, goldenHour);
+            controller.moodFramePanel().setAspectRatio("16:9");
+            controller.moodFramePanel().setResolution("1K");
+        });
+        assertTrue(GenerationModel.fromLocalizedDisplayName(controller.generationPanel().modelItem())
+                .getMaxInputImages() > 1, "the model takes the images");
+
+        BrainstormSession session = brainstormSessions.createSession("Ads");
+        brainstormSessions.addDraft(session.getId(), new org.json.JSONObject().put("prompt", "an ad with the logo")
+                .put("mood", new org.json.JSONObject().put("id", "std:mood:quiet-morning").put("name", "Quiet Morning"))
+                .put("frame", new org.json.JSONObject().put("id", socialPost.getId()).put("name", "Social Post"))
+                .put("saved_images", new org.json.JSONArray()
+                        .put(new org.json.JSONObject().put("id", logo.id()).put("name", logo.name()))
+                        .put(new org.json.JSONObject().put("id", wordMark.id()).put("name", wordMark.name())))
+                .toString());
+
+        onFxThread(() -> brainstormButton().fire());
+        BrainstormDialog dialog = onFx(() -> Window.getWindows().stream()
+                .filter((window) -> window instanceof BrainstormDialog && window.isShowing())
+                .map(BrainstormDialog.class::cast).findFirst().orElse(null));
+        assertNotNull(dialog, "the brainstorm is open");
+        javafx.scene.Parent brainstorm = dialog.getScene().getRoot();
+        waitUntil("the draft shows", () -> brainstorm.lookupAll(".text-area").stream().map(TextArea.class::cast)
+                .anyMatch((area) -> "an ad with the logo".equals(area.getText())));
+
+        onFxThread(() -> {
+            CheckBox light = (CheckBox) ((javafx.scene.layout.GridPane) brainstorm.lookup("#lightField"))
+                    .getChildren().stream().filter(CheckBox.class::isInstance).findFirst().orElseThrow();
+            CheckBox ratio = (CheckBox) ((javafx.scene.layout.HBox) brainstorm.lookup("#aspectRatioRow"))
+                    .getChildren().getLast();
+            CheckBox frame = (CheckBox) ((javafx.scene.layout.HBox) brainstorm.lookup("#frameRow"))
+                    .getChildren().getLast();
+            assertTrue(light.isSelected() && ratio.isSelected() && frame.isSelected(), "the draft is ticked");
+            light.setSelected(false);
+            ratio.setSelected(false);
+            brainstorm.lookupAll(".check-box").stream().map(CheckBox.class::cast)
+                    .filter((check) -> "Word Mark".equals(check.getText())).findFirst().orElseThrow()
+                    .setSelected(false);
+            brainstorm.lookupAll(".button").stream().map(Button.class::cast)
+                    .filter((button) -> I18nManager.getText("brainstorm.adopt").equals(button.getText()))
+                    .findFirst().orElseThrow().fire();
+        });
+        assertFalse(dialog.isShowing(), "adopting closes the brainstorm");
+
+        MoodFramePanelController.Selection adopted = onFx(() -> controller.moodFramePanel().selection());
+        assertEquals("Quiet Morning", adopted.mood().getName(), "the mood is adopted");
+        assertEquals("std:atmosphere:calm",
+                adopted.blocks().get(Mood.Field.ATMOSPHERE), "with the blocks it sets");
+        assertEquals(goldenHour, adopted.blocks().get(Mood.Field.LIGHT), "the unticked light keeps its block");
+        assertEquals("Social Post", adopted.frame().getName(), "the frame is adopted");
+        assertEquals("2K", adopted.resolution(), "with its resolution");
+        assertEquals("16:9", adopted.aspectRatio(), "the unticked aspect ratio stays");
+        waitUntil("the ticked image is attached", () -> !controller.generationPanel().savedImageIds().isEmpty());
+        assertEquals(List.of(logo.id()), onFx(() -> controller.generationPanel().savedImageIds()),
+                "only the ticked image is attached");
     }
 }

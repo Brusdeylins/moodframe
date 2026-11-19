@@ -8,14 +8,19 @@ import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.TestBrainstorm;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.provider.gemini.GeminiApiService;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -27,12 +32,17 @@ import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Paint;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +73,41 @@ class BrainstormDialogTest {
 
         /*  The toolkit stays when a shown dialog, the last window, closes  */
         Platform.setImplicitExit(false);
+        TestDatabase.open(home.resolve("brainstorm.db").toString());
+    }
+
+    @TempDir
+    static Path home;
+
+    /*  The dialogs a test built: an unshown window never hides, so it is released after the test, as a closed one  */
+    private static final List<BrainstormDialog> built = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    private static BrainstormDialog track(BrainstormDialog dialog) {
+        built.add(dialog);
+        return dialog;
+    }
+
+    @AfterEach
+    void releaseTheDialogs() throws Exception {
+        CountDownLatch released = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            for (BrainstormDialog dialog : built)
+                if (!dialog.isShowing())
+                    dialog.fireEvent(new javafx.stage.WindowEvent(dialog, javafx.stage.WindowEvent.WINDOW_HIDDEN));
+            built.clear();
+            released.countDown();
+        });
+        assertTrue(released.await(10, TimeUnit.SECONDS));
+    }
+
+    /*  The groups Mood and Frame on the standard library, as the main window has them: no mood, no frame  */
+    private static BrainstormDialog.Groups groups(Set<Mood.Field> locked) {
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        ColorStyleService colors = TestLibraryServices.palettes();
+        return new BrainstormDialog.Groups(new MoodFramePanelController.Services(null, blocks, colors,
+                TestLibraryServices.moods(blocks, colors), TestLibraryServices.frames(),
+                TestLibraryServices.favorites(), null),
+                new MoodFramePanelController.Selection(null, false, Map.of(), locked, null, false, "16:9", "1K"));
     }
 
     @Test
@@ -82,8 +127,8 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                new BrainstormDialog(null, null, service, context,
-                        ModelLabels.displayName(GenerationModel.OMNI_720P), result -> { });
+                track(new BrainstormDialog(null, null, service, context,
+                        ModelLabels.displayName(GenerationModel.OMNI_720P), groups(Set.of()), result -> { }));
             } catch (Throwable t) {
                 failure.set(t);
             } finally {
@@ -114,14 +159,15 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
+                BrainstormDialog dialog = track(new BrainstormDialog(null, null, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { }));
                 dialog.getScene().getRoot().applyCss();
                 dialog.getScene().getRoot().layout();
                 grips.set(dialog.getScene().getRoot().lookupAll(".split-pane").stream()
                         .filter((node) -> node.getStyleClass().contains("grip-split-pane"))
                         .map((node) -> ((SplitPane) node).getOrientation().name()).toList());
                 baselines.set(dialog.getScene().getRoot().lookupAll(".title-4").stream().map((node) -> (Label) node)
+                        .filter((label) -> !label.getParent().getStyleClass().contains("panel-group-header"))
                         .map((label) -> label.localToScene(0, label.getBaselineOffset()).getY()).toList());
                 stylesheets.set(List.copyOf(dialog.getScene().getStylesheets()));
             } catch (Throwable t) {
@@ -158,8 +204,8 @@ class BrainstormDialogTest {
                 List<String> found = new ArrayList<>();
                 for (String theme : ThemeManager.getAvailableThemes()) {
                     Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
-                    BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
-                            ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
+                    BrainstormDialog dialog = track(new BrainstormDialog(null, null, service, context,
+                            ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { }));
                     Region root = (Region) dialog.getScene().getRoot();
                     root.applyCss();
                     Region probe = new Region();
@@ -200,7 +246,8 @@ class BrainstormDialogTest {
         BrainstormContext context = new BrainstormContext(List.of(), List.of(calm), List.of(blueHour), List.of(),
                 List.of(new ColorStyle("Ocean Breeze", List.of("#48BDFF"), true)), List.of(morning),
                 List.of(GenerationModel.FLUX2_PRO), "Target model: x",
-                List.of(ModelLabels.displayName(GenerationModel.FLUX2_PRO)), Set.of(Mood.Field.LIGHT));
+                List.of(ModelLabels.displayName(GenerationModel.FLUX2_PRO)), Set.of(Mood.Field.LIGHT), List.of(),
+                List.of());
 
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Leuchtturm",
@@ -223,9 +270,10 @@ class BrainstormDialogTest {
         Platform.runLater(() -> {
             try {
                 /*  The worker runs at once, so the stored session is open when the dialog is built  */
-                BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), adopted::set,
-                        new BrainstormWorker(Runnable::run, Runnable::run));
+                BrainstormDialog dialog = track(new BrainstormDialog(null, null, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of(Mood.Field.LIGHT)),
+                        adopted::set,
+                        new BrainstormWorker(Runnable::run, Runnable::run)));
                 dialog.getScene().getRoot().applyCss();
                 checks.set(dialog.getScene().getRoot().lookupAll(".check-box").stream()
                         .map((node) -> (CheckBox) node).toList());
@@ -246,16 +294,125 @@ class BrainstormDialogTest {
             throw new AssertionError(failure.get());
         }
         String myList = I18nManager.getText("brainstorm.block.mylist");
-        assertEquals(3, checks.get().stream().filter((check) -> myList.equals(check.getText()) && check.isSelected())
-                .count(), "the new style, the new palette and the new camera go into the list of the user");
+        assertEquals(3, checks.get().stream().filter((check) -> check.getTooltip() != null
+                && myList.equals(check.getTooltip().getText()) && check.isSelected()).count(),
+                "the new style, the new palette and the new camera go into the list of the user");
         assertTrue(labels.get().contains(CameraPromptBuilder.build(tele, true)), "a new camera shows its fragment");
-        CheckBox locked = checks.get().stream().filter(CheckBox::isDisabled)
-                .filter((check) -> check.getTooltip() != null).findFirst().orElseThrow();
+        String lockedText = I18nManager.getText("brainstorm.block.locked");
+        CheckBox locked = checks.get().stream().filter(CheckBox::isDisabled).filter((check) -> check.getTooltip() != null
+                && lockedText.equals(check.getTooltip().getText())).findFirst().orElseThrow();
         assertFalse(locked.isSelected(), "the locked light is not adopted");
+        assertEquals("std:mood:quiet-morning", adopted.get().moodId(), "the mood of the draft is adopted");
+        assertEquals("std:atmosphere:calm", adopted.get().blocks().get(Mood.Field.ATMOSPHERE).id(),
+                "the mood ticks the blocks it sets");
         BrainstormDraft.Block camera = adopted.get().blocks().get(Mood.Field.CAMERA);
         assertEquals("Harbor Tele", camera.name());
         assertEquals(tele, camera.settings(), "the new camera is adopted with its settings");
         assertFalse(adopted.get().blocks().containsKey(Mood.Field.LIGHT));
+    }
+
+    /*  the result column alone, recording what it adopts  */
+    private static BrainstormResultForm form(BrainstormContext context, GenerationModel model,
+            AtomicReference<BrainstormDialog.Result> adopted) {
+        return new BrainstormResultForm(context, ModelLabels.displayName(model), groups(Set.of()), Runnable::run,
+                new BrainstormResultForm.Listener() {
+                    @Override
+                    public void changed(org.json.JSONObject event) {
+                    }
+
+                    @Override
+                    public void promptEdited(String prompt) {
+                    }
+
+                    @Override
+                    public void adopted(BrainstormDialog.Result result) {
+                        adopted.set(result);
+                    }
+                });
+    }
+
+    private static void adopt(BrainstormResultForm form) {
+        form.lookupAll(".button").stream().map((node) -> (Button) node)
+                .filter((button) -> I18nManager.getText("brainstorm.adopt").equals(button.getText()))
+                .findFirst().orElseThrow().fire();
+    }
+
+    /*  a checkbox of the form; the scroll pane holds its content only with a skin, which needs a scene  */
+    private static CheckBox check(BrainstormResultForm form, String text) {
+        if (form.getScene() == null)
+            new Scene(form);
+        form.applyCss();
+        return form.lookupAll(".check-box").stream().map((node) -> (CheckBox) node)
+                .filter((check) -> text.equals(check.getText())).findFirst().orElseThrow();
+    }
+
+    @Test
+    void aDraftArrivingWhileTheChatWaitsTicksAndAdoptsItsMood() throws Exception {
+        PromptBlock calm = new PromptBlock("std:atmosphere:calm", PromptBlock.Type.ATMOSPHERE, "Calm", "calm", null,
+                false);
+        Mood morning = new Mood("std:mood:quiet-morning", "Quiet Morning");
+        morning.setReference(Mood.Field.ATMOSPHERE, calm.getId());
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(calm), List.of(), List.of(), List.of(),
+                List.of(morning), List.of(GenerationModel.FLUX2_PRO), "Target model: x",
+                List.of(ModelLabels.displayName(GenerationModel.FLUX2_PRO)), Set.of(), List.of(), List.of());
+        BrainstormDraft draft = new BrainstormDraft();
+        draft.setPrompt("A lighthouse");
+        draft.setMood(new BrainstormDraft.Block("std:mood:quiet-morning", "Quiet Morning", null, List.of(), false));
+        AtomicReference<BrainstormDialog.Result> adopted = new AtomicReference<>();
+
+        onFx(() -> {
+
+            /*  As after a live answer: the window shows the draft before it ends the busy state  */
+            BrainstormResultForm form = form(context, GenerationModel.FLUX2_PRO, adopted);
+            form.setBusy(true);
+            form.show(draft);
+            form.setBusy(false);
+            adopt(form);
+            return null;
+        });
+
+        assertEquals("std:mood:quiet-morning", adopted.get().moodId(), "the mood of a live answer is adopted");
+        assertEquals("std:atmosphere:calm", adopted.get().blocks().get(Mood.Field.ATMOSPHERE).id(),
+                "the blocks of the mood are ticked");
+    }
+
+    @Test
+    void ticksTheProposedSavedImagesOnlyAsFarAsTheTargetModelTakesThem() throws Exception {
+        List<art.moodframe.model.SavedImage> images = List.of(
+                new art.moodframe.model.SavedImage("img-1", "Logo", "logo.png", 200, 100, "a", "the logo", false,
+                        LocalDateTime.now(), null),
+                new art.moodframe.model.SavedImage("img-2", "Product", "product.png", 200, 100, "b", "the product",
+                        false, LocalDateTime.now(), null));
+        List<GenerationModel> models = List.of(GenerationModel.FLUX2_PRO, GenerationModel.OMNI_720P);
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), models, "Target model: x", models.stream().map(ModelLabels::displayName).toList(),
+                Set.of(), List.of(), images);
+        BrainstormDraft draft = new BrainstormDraft();
+        draft.setPrompt("A poster");
+        draft.getSavedImages().add(new BrainstormDraft.Block("img-1", "Logo", null, List.of(), false));
+        draft.getSavedImages().add(new BrainstormDraft.Block("img-2", "Product", null, List.of(), false));
+        AtomicReference<BrainstormDialog.Result> image = new AtomicReference<>();
+        AtomicReference<BrainstormDialog.Result> video = new AtomicReference<>();
+
+        List<Boolean> videoState = onFx(() -> {
+            BrainstormResultForm form = form(context, GenerationModel.FLUX2_PRO, image);
+            form.show(draft);
+            adopt(form);
+
+            /*  Omni takes one image, its start frame: none ticked, and one ticked disables the other  */
+            BrainstormResultForm omni = form(context, GenerationModel.OMNI_720P, video);
+            omni.show(draft);
+            boolean noneTicked = !check(omni, "Logo").isSelected() && !check(omni, "Product").isSelected();
+            check(omni, "Logo").setSelected(true);
+            boolean otherDisabled = check(omni, "Product").isDisable();
+            adopt(omni);
+            return List.of(noneTicked, otherDisabled);
+        });
+
+        assertEquals(List.of("img-1", "img-2"), image.get().savedImageIds(), "an image model takes both");
+        assertTrue(videoState.get(0), "a video model ticks no proposed image");
+        assertTrue(videoState.get(1), "at the limit of the model the other image cannot be ticked");
+        assertEquals(List.of("img-1"), video.get().savedImageIds());
     }
 
     @Test
@@ -280,8 +437,8 @@ class BrainstormDialogTest {
                 "Target model: x");
 
         AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
-        Platform.runLater(() -> dialog.set(new BrainstormDialog(null, null, service, context,
-                ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { })));
+        Platform.runLater(() -> dialog.set(track(new BrainstormDialog(null, null, service, context,
+                ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { }))));
 
         /*  The stored session opens once the worker has read it, its draft fills the prompt  */
         long until = System.currentTimeMillis() + 10_000;
@@ -326,8 +483,8 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
-                BrainstormDialog dialog = new BrainstormDialog(null, config, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
+                BrainstormDialog dialog = track(new BrainstormDialog(null, config, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { }));
                 dialog.getScene().getRoot().applyCss();
                 ComboBox<?> box = (ComboBox<?>) dialog.getScene().getRoot().lookup(".combo-box");
                 items.set(box.getItems().stream().map(String::valueOf).toList());
@@ -363,9 +520,9 @@ class BrainstormDialogTest {
             int listeners = onFx(() -> {
                 I18nManager.setLocale(java.util.Locale.ENGLISH);
                 int before = I18nManager.getChangeListenerCount();
-                dialog.set(new BrainstormDialog(null, config, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
-                        new BrainstormWorker(Runnable::run, Runnable::run)));
+                dialog.set(track(new BrainstormDialog(null, config, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { },
+                        new BrainstormWorker(Runnable::run, Runnable::run))));
                 dialog.get().show();
                 return before;
             });
@@ -377,7 +534,7 @@ class BrainstormDialogTest {
             });
             List<String> texts = texts(dialog);
             for (String key : List.of("brainstorm.history.title", "brainstorm.result.title", "brainstorm.result.model",
-                    "block.type.style", "brainstorm.session.new"))
+                    "params.mood.title", "params.style", "brainstorm.session.new"))
                 assertTrue(texts.contains(I18nManager.getText(key)), key + " in German: " + texts);
             assertEquals(I18nManager.getText("brainstorm.title"), onFx(() -> dialog.get().getTitle()));
             javafx.scene.Parent root = onFx(() -> dialog.get().getScene().getRoot());
@@ -387,10 +544,8 @@ class BrainstormDialogTest {
             ComboBox<?> engines = onFx(() -> (ComboBox<?>) root.lookup(".combo-box"));
             assertEquals(I18nManager.getText("brainstorm.engine.openai", "gpt-x"), onFx(() -> engines.getValue()),
                     "the chosen language model stays chosen");
-            List<String> moods = onFx(() -> root.lookupAll(".choice-box").stream()
-                    .map((node) -> String.valueOf(((javafx.scene.control.ChoiceBox<?>) node).getValue())).toList());
-            assertTrue(moods.contains(I18nManager.getText("brainstorm.none")), "None in German: " + moods);
-            assertFalse(moods.contains(I18nManager.getTextIn(java.util.Locale.ENGLISH, "brainstorm.none")));
+            assertTrue(texts.contains(I18nManager.getText("params.mood.none")), "No mood in German: " + texts);
+            assertFalse(texts.contains(I18nManager.getTextIn(java.util.Locale.ENGLISH, "params.mood.none")));
 
             onFx(() -> {
                 dialog.get().close();
@@ -422,9 +577,9 @@ class BrainstormDialogTest {
         try {
             onFx(() -> {
                 I18nManager.setLocale(java.util.Locale.ENGLISH);
-                dialog.set(new BrainstormDialog(null, null, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
-                        new BrainstormWorker(Runnable::run, Runnable::run)));
+                dialog.set(track(new BrainstormDialog(null, null, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { },
+                        new BrainstormWorker(Runnable::run, Runnable::run))));
                 dialog.get().show();
                 javafx.scene.Parent root = dialog.get().getScene().getRoot();
                 ((javafx.scene.control.TextArea) root.lookup(".text-area")).setText("A lighthouse at dusk");
@@ -481,10 +636,10 @@ class BrainstormDialogTest {
                 new art.moodframe.service.brainstorm.BrainstormSessions(repository);
         BrainstormService closed = new BrainstormService(sessions,
                 new art.moodframe.service.brainstorm.BrainstormModels(gemini, null, null),
-                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null));
+                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null, null));
         BrainstormService reopened = new BrainstormService(sessions,
                 new art.moodframe.service.brainstorm.BrainstormModels(gemini, null, null),
-                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null));
+                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null, null));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
         closed.sendUserMessage(stored, "Ein Leuchtturm", context);
@@ -493,9 +648,9 @@ class BrainstormDialogTest {
                 org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyBoolean());
 
         AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
-        Platform.runLater(() -> dialog.set(new BrainstormDialog(null, null, reopened, context,
-                ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
-                new BrainstormWorker(Runnable::run, Platform::runLater))));
+        Platform.runLater(() -> dialog.set(track(new BrainstormDialog(null, null, reopened, context,
+                ModelLabels.displayName(GenerationModel.FLUX2_PRO), groups(Set.of()), result -> { },
+                new BrainstormWorker(Runnable::run, Platform::runLater)))));
         assertTrue(waitFor(dialog, (texts) -> texts.contains("Ein Leuchtturm")), "the stored question is shown");
         assertFalse(texts(dialog).contains("Ein Licht am Meer?"));
 

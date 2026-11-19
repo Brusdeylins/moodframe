@@ -1,7 +1,5 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.service.generation.ModelLabels;
@@ -16,9 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /** Drives the model choice with the target resolution of the frame on the JavaFX thread without showing it. */
 class ModelFamilySelectorTest {
@@ -51,15 +46,13 @@ class ModelFamilySelectorTest {
     }
 
     @Test
-    void theFamilyTakesTheVariantClosestToTheTargetOverTheRememberedOne() throws Exception {
+    void theFamilyTakesTheVariantClosestToTheTarget() throws Exception {
         ChoiceBox<String> variants = new ChoiceBox<>();
         ChoiceBox<String> families = new ChoiceBox<>();
         ChoiceBox<String> target = new ChoiceBox<>();
-        ApplicationConfig config = ConfigMocks.config();
-        when(config.ui().getModelResolution(anyString())).thenReturn("1K");
 
         onFxThread(() -> {
-            new ModelFamilySelector(variants, families, target, config);
+            new ModelFamilySelector(variants, families, target);
             target.getItems().setAll(ModelFamilies.RESOLUTIONS);
             variants.getItems().setAll(List.of(NANO_BANANA_2_1K, NANO_BANANA_2_4K, NANO_BANANA_PRO_2K,
                     NANO_BANANA_PRO_4K, FLUX_2_PRO));
@@ -69,7 +62,7 @@ class ModelFamilySelectorTest {
         assertEquals(FLUX_2_PRO, variants.getValue(), "a model without resolution choice keeps its fixed size");
 
         onFxThread(() -> families.setValue("Nano Banana 2"));
-        assertEquals(NANO_BANANA_2_4K, variants.getValue(), "the remembered 1K does not override the target");
+        assertEquals(NANO_BANANA_2_4K, variants.getValue(), "the family takes the variant of the target");
 
         onFxThread(() -> target.setValue("2K"));
         assertEquals(NANO_BANANA_2_1K, variants.getValue(), "2K lies as far from 1K as from 4K: the smaller one");
@@ -79,7 +72,6 @@ class ModelFamilySelectorTest {
 
         onFxThread(() -> target.setValue("4K"));
         assertEquals(NANO_BANANA_PRO_4K, variants.getValue());
-        verify(config.ui()).setModelResolution("Nano Banana Pro", "4K");
 
         onFxThread(() -> {
             target.setValue("1K");
@@ -96,7 +88,7 @@ class ModelFamilySelectorTest {
         List<String> seen = new java.util.ArrayList<>();
 
         onFxThread(() -> {
-            new ModelFamilySelector(variants, families, target, null);
+            new ModelFamilySelector(variants, families, target);
             variants.valueProperty().addListener((obs, old, item) -> seen.add(item));
             target.getItems().setAll(ModelFamilies.RESOLUTIONS);
             variants.getItems().setAll(List.of(NANO_BANANA_2_1K, NANO_BANANA_2_4K, NANO_BANANA_PRO_2K,
@@ -122,7 +114,7 @@ class ModelFamilySelectorTest {
         ChoiceBox<String> target = new ChoiceBox<>();
 
         onFxThread(() -> {
-            new ModelFamilySelector(variants, families, target, null);
+            new ModelFamilySelector(variants, families, target);
             target.getItems().setAll(ModelFamilies.RESOLUTIONS);
             variants.getItems().setAll(List.of(NANO_BANANA_PRO_2K, NANO_BANANA_PRO_4K, FLUX_2_PRO));
             target.setValue("4K");

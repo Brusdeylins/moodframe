@@ -90,7 +90,7 @@ class BrainstormPromptBuilderTest {
                 GenerationModel.FLUX3_KLEIN_1K, GenerationModel.FLUX3_KLEIN_4K);
         BrainstormContext flux3 = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), models, "", models.stream().map(ModelLabels::displayName).toList(),
-                Set.of());
+                Set.of(), List.of(), List.of());
 
         String prompt = BrainstormPromptBuilder.build("{{MODELS}}|{{ASPECT_RATIOS}}", "English", flux3, "");
 
@@ -109,17 +109,18 @@ class BrainstormPromptBuilderTest {
                 "", List.of(ModelLabels.displayName(GenerationModel.NANO_BANANA2_1K),
                         ModelLabels.displayName(GenerationModel.NANO_BANANA2_2K),
                         ModelLabels.displayName(GenerationModel.NANO_BANANA2_4K),
-                        GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"), Set.of());
+                        GenerationModel.OPENAI_PREFIX + "qwen-image-2.1"), Set.of(), List.of(), List.of());
 
         String models = BrainstormPromptBuilder.build("{{MODELS}}", "English", variants, "");
 
-        assertTrue(models.contains("- Nano Banana 2 | image | resolutions: 1K ($0.067), 2K ($0.101), 4K ($0.151) |"), models);
+        assertTrue(models.contains("- Nano Banana 2 | image | resolutions: 1K ($0.067), 2K ($0.101), 4K ($0.151) | "
+                + "reference images: " + GenerationModel.NANO_BANANA2_1K.getMaxInputImages() + " |"), models);
         assertTrue(models.contains("- OpenAI · qwen-image-2.1 | image | resolutions: 2K, 4K |"), models);
         assertFalse(models.contains("Nano Banana 2 4K"), models);
     }
 
     @Test
-    void listsAtmospheresLightsCamerasAndTheMoodsWithTheirBlocksInUse() {
+    void listsAtmospheresLightsAndCamerasButNoMoods() throws Exception {
         PromptBlock style = new PromptBlock("std:style:watercolor", PromptBlock.Type.STYLE, "Watercolor",
                 "watercolor painting", PromptBlock.GROUP_ART, false);
         PromptBlock calm = new PromptBlock("std:atmosphere:calm", PromptBlock.Type.ATMOSPHERE, "Calm",
@@ -141,12 +142,21 @@ class BrainstormPromptBuilderTest {
         trashed.setReference(Mood.Field.STYLE, "trashed-style");
 
         BrainstormContext library = new BrainstormContext(List.of(style), List.of(calm), List.of(blueHour),
-                List.of(street), List.of(palette), List.of(morning, trashed), List.of(), "", List.of(), Set.of());
-        String prompt = BrainstormPromptBuilder.build("{{ATMOSPHERES}}|{{LIGHTS}}|{{MOODS}}", "English", library, "");
+                List.of(street), List.of(palette), List.of(morning, trashed), List.of(), "", List.of(), Set.of(),
+                List.of(), List.of());
+        String prompt = BrainstormPromptBuilder.build("{{ATMOSPHERES}}|{{LIGHTS}}", "English", library, "");
 
-        assertEquals("- Calm: calm, quiet, a sense of stillness|- Blue Hour: cool blue twilight|"
-                + "- Quiet Morning: style Watercolor, atmosphere Calm, light Blue Hour, color Arctic Ice, "
-                + "camera Street 35mm", prompt, "a mood without any block in use is left out");
+        assertEquals("- Calm: calm, quiet, a sense of stillness|- Blue Hour: cool blue twilight", prompt);
+
+        /*  The moods come from the tools of the assistant, not from the system prompt  */
+        String template;
+        try (java.io.InputStream in = BrainstormPromptBuilder.class.getResourceAsStream("/brainstorm/system-prompt.txt")) {
+            template = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        String system = BrainstormPromptBuilder.build(template, "English", library, "");
+        assertFalse(system.contains("Quiet Morning"), "no mood is listed");
+        assertFalse(system.contains("{{"), "every placeholder is filled");
+        assertTrue(system.contains("list_moods"), "the tools of the moods are named");
 
         String cameras = BrainstormPromptBuilder.build("{{CAMERAS}}|{{CAMERA_SETTINGS}}", "English", library, "");
         assertTrue(cameras.startsWith("- Street 35mm: {"), cameras);

@@ -80,7 +80,7 @@ Allowed dependency directions:
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.component`, `ui.entry`,
   `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
   `ui.controller` on top, so no view uses a controller and the entry cards build on the generic controls; the order
-  allows the brainstorm dialog to show the groups of `ui.panel`, which it does not do yet (planned with ticket 136).
+  allows the brainstorm dialog to show the groups of `ui.panel`, which its result form does.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -264,7 +264,8 @@ takes the registered library services, so an import reaches the main window; `Th
 `SavedImageService` its repository, the folder of the saved images from `LibraryPaths` and the events;
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
 the shared `BrainstormSessions` (the stored sessions and the queue of each session), `BrainstormModels` (the
-language model of a session) and `BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
+language model of a session) and `BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService` and
+the `BrainstormLibrary` on the moods, frames, favorites and saved images).
 `RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
 `GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
 I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.
@@ -289,7 +290,8 @@ up the services once and hand them to their parts, which hand them on to the dia
 (`ArchitectureTest`): the managers and editors of moods, frames, blocks and palettes take their services in the
 constructor, the trash windows open through `TrashWindow.Opener` (with the worker of the window), the entry cards
 and the images view get the
-thumbnails, the decoded thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
+thumbnails, the decoded thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the
+configuration, the brainstorm dialog also the services of its groups Mood and Frame (`BrainstormDialog.Groups`).
 `MoodframeApplication` hands `ThemeManager` the configuration at the start.
 
 ## The main window
@@ -318,7 +320,8 @@ messages through `ui.support.StatusSink`, where an error is told by the caller, 
 coordinator carries
 out what spans parts: sending, the brainstorm, reusing and editing an entry, the changes of the library, the trash and
 the running generations. On a change of the language it calls `updateTexts()` of every part, which relabels itself.
-`PanelGroups` folds the three groups of the right panel, `CornerCloud` draws the cloud behind the window.
+`ui.panel.PanelGroups` folds the three groups of the right panel (and Mood and Frame in the brainstorm),
+`CornerCloud` draws the cloud behind the window.
 
 The sidebar shows the chats from a list of its own, which follows `ChatLibrary.chats()` after its own changes and
 on every reported change of a chat, removing, inserting and sorting only what differs so the selection stays. When
@@ -327,9 +330,10 @@ the language (its own, the full view's and the cards'), of the theme, the genera
 and the account checks, the timelines of the memory display and the clipboard watch, and its worker; a closed window
 stays reachable from nowhere.
 
-`ui.panel.MoodFramePanelController` is self-contained, so that another window can show the same fields; the
-brainstorm dialog, which `ui.panel` lies below, may reuse it in its result form, which is planned (ticket 136) and not
-done yet. It takes its services as `MoodFramePanelController.Services` (with the trash) and the worker that writes the
+`ui.panel.MoodFramePanelController` is self-contained, so that another window can show the same fields; the result
+form of the brainstorm, which lies above `ui.panel`, shows them with `showSelection` as the main window has them and
+with a column of checkboxes (`showAdoptionColumn`, `ui.panel.AdoptionColumn`), which hides the actions of the groups.
+It takes its services as `MoodFramePanelController.Services` (with the trash) and the worker that writes the
 library, follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
@@ -365,10 +369,14 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
 `ui.brainstorm.BrainstormDialog` composes three parts, like the main window: `BrainstormHistory` (the stored
 sessions: open, rename, move, delete, new chat), `BrainstormChatView` (title, steps, messages with the research and
 the linked videos, quick replies, input and the choice of the language model) and `BrainstormResultForm` (the draft
-of the shown chat mapped onto the lists of the main window, the checkboxes of the adoption and "Adopt"). Each part
-reports through a listener interface of its own; the dialog keeps one `BrainstormChat` per session, so an answer
-lands in the chat that asked, sends the requests and hands each answer to the chat view and the form. The result
-form is the place where the groups of `ui.panel` can replace the fields of the mood and the frame (ticket 136).
+of the shown chat in the groups Mood and Frame of `ui.panel`, loaded from the same FXML as in the main window and
+folded with `PanelGroups`, the target model, the duration, the saved images to attach, the checkboxes of the adoption
+and "Adopt"). Each part reports through a listener interface of its own; the dialog keeps one `BrainstormChat` per
+session, so an answer lands in the chat that asked, sends the requests and hands each answer to the chat view and the
+form. The groups start as the main window has them and show each draft over that: what the draft sets is ticked, an
+unticked field shows what the main window keeps; their services carry no configuration, so the brainstorm remembers
+no choice. The assistant learns the moods, frames and saved images through the tools of `BrainstormLibrary` instead
+of the system prompt; the lookups count against none of the research calls of a turn.
 
 ## Folders and settings
 

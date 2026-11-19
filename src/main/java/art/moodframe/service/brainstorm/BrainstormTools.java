@@ -21,8 +21,8 @@ import java.util.function.Consumer;
 /**
  * The tools of the brainstorm assistant: their declarations for the language model and what they do. The research
  * asks the language model of the session to search the web; Gemini watches a YouTube video, on a tool call or before
- * the answer to a message that links one. A new tool is a declaration in {@link #offeredTo} and a case in
- * {@link #run}.
+ * the answer to a message that links one; the moods, frames and saved images of the library are looked up by
+ * {@link BrainstormLibrary}. A new tool is a declaration in {@link #offeredTo} and a case in {@link #run}.
  *
  * @since 2.1.3
  */
@@ -83,6 +83,7 @@ public class BrainstormTools {
 
     private final GeminiApiService gemini;
     private final YouTubeInfoService youTube;
+    private final BrainstormLibrary library;
     private final Executor executor;
 
     /**
@@ -90,9 +91,10 @@ public class BrainstormTools {
      *
      * @param gemini  the Gemini client, which watches the videos
      * @param youTube the lookup of the titles and previews of the videos, null for none
+     * @param library the moods, frames and saved images of the library, null for no tools on them
      */
-    public BrainstormTools(GeminiApiService gemini, YouTubeInfoService youTube) {
-        this(gemini, youTube, BrainstormService.TURNS);
+    public BrainstormTools(GeminiApiService gemini, YouTubeInfoService youTube, BrainstormLibrary library) {
+        this(gemini, youTube, library, BrainstormService.TURNS);
     }
 
     /**
@@ -100,22 +102,40 @@ public class BrainstormTools {
      *
      * @param gemini   the Gemini client, which watches the videos
      * @param youTube  the lookup of the titles and previews of the videos, null for none
+     * @param library  the moods, frames and saved images of the library, null for no tools on them
      * @param executor the threads the videos of a message are watched on, in parallel
      */
-    BrainstormTools(GeminiApiService gemini, YouTubeInfoService youTube, Executor executor) {
+    BrainstormTools(GeminiApiService gemini, YouTubeInfoService youTube, BrainstormLibrary library,
+            Executor executor) {
         this.gemini = gemini;
         this.youTube = youTube;
+        this.library = library;
         this.executor = executor;
     }
 
     /**
-     * The tools a language model is offered: the research, and the video for a model that watches videos.
+     * The tools a language model is offered: the research, the video for a model that watches videos and the
+     * lookups of the library.
      *
      * @param model the language model
      * @return the declarations
      */
     List<ChatTool> offeredTo(ChatModel model) {
-        return model.watchesVideos() ? List.of(RESEARCH, ANALYZE_VIDEO) : List.of(RESEARCH);
+        List<ChatTool> offered = new ArrayList<>(model.watchesVideos() ? List.of(RESEARCH, ANALYZE_VIDEO)
+                : List.of(RESEARCH));
+        if (library != null)
+            offered.addAll(library.tools());
+        return offered;
+    }
+
+    /**
+     * Tells whether a call looks up the library, which costs no research and counts against no limit of it.
+     *
+     * @param call the call of the model
+     * @return whether it is a tool on the library
+     */
+    boolean looksUp(ChatTurn.ToolCall call) {
+        return library != null && library.offers(call.name());
     }
 
     /**
@@ -129,6 +149,16 @@ public class BrainstormTools {
         ResearchNote note = null;
         JSONObject response = new JSONObject();
         request.check().run();
+        if (looksUp(call)) {
+            try {
+                response = library.run(call, request.status());
+            }
+            catch (RuntimeException e) {
+                logger.warn("Brainstorm tool {} failed: {}", call.name(), e.getMessage());
+                response.put("error", e.getMessage());
+            }
+            return new Run(new ChatTurn.ToolResult(call, response), null);
+        }
         try {
             if (RESEARCH.name().equals(call.name())) {
                 String query = call.args().optString("query");

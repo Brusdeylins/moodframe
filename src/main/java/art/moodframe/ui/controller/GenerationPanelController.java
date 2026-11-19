@@ -171,9 +171,6 @@ public class GenerationPanelController {
     private StatusSink status;
     private Listener listener;
 
-    /*  The model dropdown lists families, the target resolution of the frame chooses the variant  */
-    private art.moodframe.ui.component.ModelFamilySelector modelFamilySelector;
-
     // Track the currently selected model to survive language changes
     private GenerationModel currentSelectedModel;
 
@@ -269,8 +266,9 @@ public class GenerationPanelController {
         else
             videoDurationChoiceBox.setValue("8s");
         parameters.setUp(config, this::updateCostDisplay);
-        modelFamilySelector = new art.moodframe.ui.component.ModelFamilySelector(modelComboBox,
-                modelFamilyChoiceBox, resolution, config);
+
+        /*  The model dropdown lists families, the target resolution of the frame chooses the variant  */
+        new art.moodframe.ui.component.ModelFamilySelector(modelComboBox, modelFamilyChoiceBox, resolution);
 
         /*  The summary of the group follows model, count, duration and attachments  */
         modelComboBox.valueProperty().addListener((obs, oldVal, newVal) -> updateGenerationSummary());
@@ -381,13 +379,14 @@ public class GenerationPanelController {
     }
 
     /**
-     * Remembers the resolution of the family of a variant for the brainstorm popup, as if it was chosen.
+     * Attaches saved images of the library into the free squares, those not attached yet, as many as the model takes;
+     * the brainstorm proposes them.
      *
-     * @param item       the item of the variant
-     * @param resolution the resolution
+     * @param ids the ids of the saved images
+     * @return how many of them are no longer in use
      */
-    public void rememberResolution(String item, String resolution) {
-        modelFamilySelector.remember(item, resolution);
+    public int attachSavedImages(java.util.List<String> ids) {
+        return attachments.reattach(ids);
     }
 
     /**

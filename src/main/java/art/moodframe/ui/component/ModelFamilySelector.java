@@ -1,6 +1,5 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ModelFamilies;
 import javafx.application.Platform;
 import javafx.beans.value.ObservableValue;
@@ -11,11 +10,10 @@ import java.util.List;
 
 /**
  * Lets the user choose a model as family, while a hidden choice keeps the full variant name (for example
- * "Nano Banana 2 2K ...") that the main window works with. The variant is always the one of its family closest to
- * the target resolution of the frame ({@link ModelFamilies#variantForTarget}): when the family is chosen, when the
- * target changes, when a variant is set elsewhere (attachment filter, saved selection, reused entry, brainstorm) and
- * when the list of variants is rebuilt. Whoever wants another resolution sets it as target. The resolution each family
- * takes is remembered in the configuration for the brainstorm popup, but never chooses the variant here.
+ * "Nano Banana 2 2K ...") that the main window and the brainstorm work with. The variant is always the one of its
+ * family closest to the target resolution of the frame ({@link ModelFamilies#variantForTarget}): when the family is
+ * chosen, when the target changes, when a variant is set elsewhere (attachment filter, saved selection, reused entry,
+ * brainstorm) and when the list of variants is rebuilt. Whoever wants another resolution sets it as target.
  *
  * @since 1.9.1
  */
@@ -24,7 +22,6 @@ public class ModelFamilySelector {
     private final ChoiceBox<String> variants;
     private final ChoiceBox<String> families;
     private final ObservableValue<String> target;
-    private final ApplicationConfig config;
 
     private boolean syncing;
     private boolean rebuildPending;
@@ -35,11 +32,9 @@ public class ModelFamilySelector {
      * @param variants the hidden choice of variants
      * @param families the visible choice of families
      * @param target   the choice of the target resolution, one of {@link ModelFamilies#RESOLUTIONS}
-     * @param config   remembers the resolution of each family (may be null)
      */
-    public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families, ChoiceBox<String> target,
-            ApplicationConfig config) {
-        this(variants, families, target.valueProperty(), config);
+    public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families, ChoiceBox<String> target) {
+        this(variants, families, target.valueProperty());
     }
 
     /**
@@ -48,26 +43,13 @@ public class ModelFamilySelector {
      * @param variants the hidden choice of variants
      * @param families the visible choice of families
      * @param target   the target resolution, one of {@link ModelFamilies#RESOLUTIONS}
-     * @param config   remembers the resolution of each family (may be null)
      */
-    public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families, ObservableValue<String> target,
-            ApplicationConfig config) {
+    public ModelFamilySelector(ChoiceBox<String> variants, ChoiceBox<String> families,
+            ObservableValue<String> target) {
         this.variants = variants;
         this.families = families;
         this.target = target;
-        this.config = config;
         bind();
-    }
-
-    /**
-     * Remembers the resolution of the family of a variant, as if it was chosen.
-     *
-     * @param variant    the variant
-     * @param resolution the resolution
-     */
-    public void remember(String variant, String resolution) {
-        if (config != null)
-            config.ui().setModelResolution(ModelFamilies.familyOf(variant), resolution);
     }
 
     /** Keeps the choices in step: a new variant list rebuilds the families, family, target and variant align. */
@@ -88,7 +70,7 @@ public class ModelFamilySelector {
         });
         target.addListener((obs, old, resolution) -> {
             if (resolution != null && variants.getValue() != null)
-                onTargetChosen(resolution);
+                alignVariant();
         });
         rebuildFamilyChoices();
     }
@@ -130,13 +112,5 @@ public class ModelFamilySelector {
     private void alignVariant() {
         if (target.getValue() != null && variants.getValue() != null)
             onFamilyChosen(ModelFamilies.familyOf(variants.getValue()));
-    }
-
-    /** Switches to the variant of the family closest to the new target and remembers the resolution it takes. */
-    private void onTargetChosen(String resolution) {
-        alignVariant();
-        String taken = ModelFamilies.nearestForItem(resolution, variants.getItems(), variants.getValue());
-        if (taken != null)
-            remember(variants.getValue(), taken);
     }
 }

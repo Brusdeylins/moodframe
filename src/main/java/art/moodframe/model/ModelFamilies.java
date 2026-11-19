@@ -56,16 +56,6 @@ public final class ModelFamilies {
     }
 
     /**
-     * Gets the config key under which the resolution of a family is remembered.
-     *
-     * @param family the family name
-     * @return the key
-     */
-    public static String resolutionKey(String family) {
-        return "ui.resolution." + family.replaceAll("[^A-Za-z0-9]+", "_");
-    }
-
-    /**
      * Gets the items of a family.
      *
      * @param items all dropdown items

@@ -1,10 +1,8 @@
 package art.moodframe.service.brainstorm;
 
-import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ModelFamilies;
@@ -13,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -38,7 +35,8 @@ public final class BrainstormPromptBuilder {
      *
      * @param template the template with {@code {{...}}} placeholders
      * @param uiLanguage language name the chat is held in, for example "German"
-     * @param context the selectable building blocks, moods and models and the current main window state
+     * @param context the selectable building blocks and models and the current main window state; the moods and
+     *                frames the assistant looks up with its tools
      * @param currentDraft the current draft as JSON text, or empty if there is none yet
      * @return the system prompt
      */
@@ -51,7 +49,6 @@ public final class BrainstormPromptBuilder {
                 .replace("{{CAMERAS}}", cameras(context.cameras()))
                 .replace("{{CAMERA_SETTINGS}}", cameraSettings())
                 .replace("{{COLOR_STYLES}}", colorStyles(context))
-                .replace("{{MOODS}}", moods(context))
                 .replace("{{ASPECT_RATIOS}}", aspectRatios())
                 .replace("{{MODELS}}", models(context))
                 .replace("{{CURRENT_STATE}}", context.currentState())
@@ -96,22 +93,6 @@ public final class BrainstormPromptBuilder {
         return Arrays.stream(values).map(Enum::name).collect(Collectors.joining(", "));
     }
 
-    /** One line per mood with the names of its blocks in use; a mood without any is left out. */
-    private static String moods(BrainstormContext context) {
-        List<String> lines = new ArrayList<>();
-        for (Mood mood : context.moods()) {
-            List<String> parts = new ArrayList<>();
-            for (Mood.Field field : BrainstormDraft.FIELDS) {
-                String name = context.nameOf(field, mood.getReference(field));
-                if (name != null)
-                    parts.add(field.name().toLowerCase(Locale.ROOT) + " " + name);
-            }
-            if (!parts.isEmpty())
-                lines.add("- " + mood.getName() + ": " + String.join(", ", parts));
-        }
-        return String.join("\n", lines);
-    }
-
     private static String colorStyles(BrainstormContext context) {
         return context.colorStyles().stream()
                 .map((ColorStyle style) -> "- " + style.getName() + ": " + String.join(", ", style.getColors()))
@@ -128,7 +109,10 @@ public final class BrainstormPromptBuilder {
                 + "- Video models (Gemini Omni): " + String.join(", ", AspectRatios.VIDEO);
     }
 
-    /** One line per model family with its resolutions and their prices, as the model dropdown offers them. */
+    /**
+     * One line per model family with its resolutions and their prices, as the model dropdown offers them, and the
+     * number of reference images it takes.
+     */
     private static String models(BrainstormContext context) {
         Map<String, List<Integer>> families = new LinkedHashMap<>();
         IntStream.range(0, context.models().size()).forEach((int i) -> families
@@ -146,6 +130,7 @@ public final class BrainstormPromptBuilder {
                     }).toList();
             return "- " + family.getKey() + " | " + (first.isVideoModel() ? "video" : "image") + " | "
                     + (resolutions.isEmpty() ? "" : "resolutions: " + String.join(", ", resolutions) + " | ")
+                    + (first.getMaxInputImages() > 0 ? "reference images: " + first.getMaxInputImages() + " | " : "")
                     + first.getDescription();
         }).collect(Collectors.joining("\n"));
     }

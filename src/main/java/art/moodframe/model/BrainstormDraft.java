@@ -4,13 +4,15 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * The current result of a brainstorm session: the prompt and the suggested settings.
  *
  * <p>All settings are optional ({@code null} or empty means "no suggestion"). The look comes from a mood and the
  * building blocks of {@link #FIELDS}: each is an entry of the lists or a new block the AI proposes, a new camera with
- * its settings instead of a text. Its JSON form, which the language model writes and the session stores, is
+ * its settings instead of a text. A frame of the list sets aspect ratio and resolution, saved images of the library
+ * are attached. Its JSON form, which the language model writes and the session stores, is
  * {@code service.brainstorm.BrainstormJson}.</p>
  *
  * @since 1.7.0
@@ -49,6 +51,25 @@ public class BrainstormDraft {
         public Block withId(String entryId) {
             return new Block(entryId, name, text, colors, settings, isNew);
         }
+
+        /**
+         * The entry of a list a block of the draft names, by id, else by name.
+         *
+         * @param reference the block, may be null
+         * @param entries   the entries of the list
+         * @param idOf      the id of an entry
+         * @param nameOf    the name of an entry
+         * @param <T>       the type of the entries
+         * @return the entry, null if the block is null or names none of them
+         */
+        public static <T> T find(Block reference, List<T> entries, Function<T, String> idOf,
+                Function<T, String> nameOf) {
+            if (reference == null)
+                return null;
+            return entries.stream().filter((T entry) -> idOf.apply(entry).equals(reference.id())).findFirst()
+                    .orElseGet(() -> entries.stream().filter((T entry) -> nameOf.apply(entry).equals(reference.name()))
+                            .findFirst().orElse(null));
+        }
     }
 
     private String mediaType = "image";
@@ -56,6 +77,8 @@ public class BrainstormDraft {
     private Block mood;
     private final Map<Mood.Field, Block> blocks = new EnumMap<>(Mood.Field.class);
     private String styleReason = "";
+    private Block frame;
+    private final List<Block> savedImages = new ArrayList<>();
     private String aspectRatio;
     private String targetModel;
     private String resolution;
@@ -122,6 +145,20 @@ public class BrainstormDraft {
 
     public void setStyleReason(String styleReason) {
         this.styleReason = styleReason;
+    }
+
+    /** The frame the AI chose (an entry of the list), null for none. */
+    public Block getFrame() {
+        return frame;
+    }
+
+    public void setFrame(Block frame) {
+        this.frame = frame;
+    }
+
+    /** The saved images of the library the AI proposes to attach, by id and name; empty for none. */
+    public List<Block> getSavedImages() {
+        return savedImages;
     }
 
     public String getAspectRatio() {

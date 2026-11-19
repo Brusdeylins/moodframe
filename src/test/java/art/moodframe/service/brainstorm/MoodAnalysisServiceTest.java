@@ -53,7 +53,8 @@ class MoodAnalysisServiceTest {
             List.of(block("std:light:golden-hour", PromptBlock.Type.LIGHT, "Golden Hour", "low warm sun")),
             List.of(PromptBlockService.camera("std:camera:classic-portrait", "Classic Portrait", new CameraSettings(
                     CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85, null, null, null, null, null))),
-            List.of(palette("std:color:ocean", "Ocean")), List.of(), List.of(), "", List.of(), Set.of());
+            List.of(palette("std:color:ocean", "Ocean")), List.of(), List.of(), "", List.of(), Set.of(), List.of(),
+            List.of());
 
     private GeminiApiService gemini;
     private OpenAiApiService openAi;

@@ -6,13 +6,14 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryGroup;
+import art.moodframe.model.Frame;
 import art.moodframe.model.FrameGroup;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.model.SavedImage;
 import art.moodframe.service.UpdateCheckService;
 import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormService;
@@ -41,6 +42,7 @@ import art.moodframe.ui.SplashScreen;
 import art.moodframe.ui.brainstorm.BrainstormDialog;
 import art.moodframe.ui.dialog.UpdateDialog;
 import art.moodframe.ui.panel.MoodFramePanelController;
+import art.moodframe.ui.panel.PanelGroups;
 import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
@@ -162,6 +164,9 @@ public class MainWindowController implements I18nChangeListener {
     private PromptBlockService blockService;
     private ColorStyleService colorService;
     private MoodService moodService;
+    private FrameService frameService;
+    private FavoriteService favoriteService;
+    private SavedImageService savedImageService;
     private BrainstormService.Factory brainstorms;
 
     /*  Whether all parts are set up: until then, a change in one part does not update the others  */
@@ -202,6 +207,9 @@ public class MainWindowController implements I18nChangeListener {
         blockService = services.getService(PromptBlockService.class);
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
+        frameService = services.getService(FrameService.class);
+        favoriteService = services.getService(FavoriteService.class);
+        savedImageService = services.findService(SavedImageService.class).orElse(null);
         brainstorms = services.getService(BrainstormService.Factory.class);
         ChatLibrary chatLibrary = services.getService(ChatLibrary.class);
         validator = services.findService(ApiProviderValidator.class).orElse(null);
@@ -719,21 +727,31 @@ public class MainWindowController implements I18nChangeListener {
 
             /*  the building blocks and the mood as chosen, a locked field keeps its choice on "Adopt"  */
             Set<Mood.Field> locked = moodFramePanelController.lockedMoodFields();
+            Frame frame = moodFramePanelController.selection().frame();
+            List<SavedImage> savedImages = savedImageService != null ? savedImageService.getAll() : List.of();
+            List<String> attached = generationPanelController.savedImageIds();
             String currentState = new BrainstormContext.WindowState(
                     generationPanelController.modelItem(), moodFramePanelController.modelResolution(),
                     moodFramePanelController.describe(), moodFramePanelController.modelAspectRatio(),
+                    frame != null ? frame.getName() : null,
+                    savedImages.stream().filter((SavedImage image) -> attached.contains(image.id()))
+                            .map(SavedImage::name).toList(),
                     inputBar.prompt()).describe();
 
             BrainstormContext brainstormContext = new BrainstormContext(
                     blockService.getAll(PromptBlock.Type.STYLE), blockService.getAll(PromptBlock.Type.ATMOSPHERE),
                     blockService.getAll(PromptBlock.Type.LIGHT), blockService.getAll(PromptBlock.Type.CAMERA),
                     colorService.getAllStyles(), moodService != null ? moodService.getAll() : List.of(),
-                    models, currentState, modelNames, locked);
+                    models, currentState, modelNames, locked, frameService.getAll(), savedImages);
             BrainstormService brainstormService = brainstorms.create();
 
+            /*  The groups Mood and Frame of the brainstorm start as chosen here and remember nothing  */
+            BrainstormDialog.Groups groups = new BrainstormDialog.Groups(new MoodFramePanelController.Services(null,
+                    blockService, colorService, moodService, frameService, favoriteService, null),
+                    moodFramePanelController.selection());
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-            new BrainstormDialog(ownerStage, config, brainstormService,
-                    brainstormContext, generationPanelController.modelItem(), this::applyBrainstormResult).show();
+            new BrainstormDialog(ownerStage, config, brainstormService, brainstormContext,
+                    generationPanelController.modelItem(), groups, this::applyBrainstormResult).show();
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
         }
@@ -741,25 +759,28 @@ public class MainWindowController implements I18nChangeListener {
 
     /**
      * Applies the values adopted in the brainstorm popup. The target model is set first, as it decides which aspect
-     * ratios and video parameters are available.
+     * ratios, video parameters and how many attached images are available.
      *
      * @param result the adopted values; a {@code null} value is left unchanged
      */
     private void applyBrainstormResult(BrainstormDialog.Result result) {
         generationPanelController.setModel(result.targetModel());
 
-        /*  The adopted resolution (or the one of a model without resolution variants) as remembered choice of the
-            family and as target, of which the model takes the same; any other leaves the target as it is  */
+        /*  The frame sets aspect ratio and resolution; a target not adopted keeps the one of the window, as a block
+            not adopted keeps its block when a mood is. The model takes the variant of the target resolution  */
+        MoodFramePanelController.Selection before = moodFramePanelController.selection();
+        if (result.frameId() != null)
+            moodFramePanelController.chooseFrameById(result.frameId());
         String resolution = result.resolution() != null ? result.resolution()
-                : ModelFamilies.resolutionOf(result.targetModel());
-        if (resolution != null) {
-            generationPanelController.rememberResolution(result.targetModel(), resolution);
-            moodFramePanelController.setResolution(resolution);
-        }
+                : result.frameId() != null ? before.resolution() : null;
+        String aspectRatio = result.aspectRatio() != null ? result.aspectRatio()
+                : result.frameId() != null ? before.aspectRatio() : null;
+        moodFramePanelController.setResolution(resolution);
         inputBar.setPrompt(result.prompt());
         moodFramePanelController.adoptBrainstorm(result.moodId(), result.blocks());
-        moodFramePanelController.setAspectRatio(result.aspectRatio());
+        moodFramePanelController.setAspectRatio(aspectRatio);
         generationPanelController.setVideoSeconds(result.durationSeconds());
+        generationPanelController.attachSavedImages(result.savedImageIds());
         if (result.saveMood())
             moodFramePanelController.saveMoodAsNew();
         inputBar.focusPrompt();

@@ -7,7 +7,8 @@
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <!-- The groups Mood and Frame of the right panel of the main window, a part of its own that a dialog can show as well:
-     the building blocks of the image and its target aspect ratio and resolution -->
+     the building blocks of the image and its target aspect ratio and resolution. Each field sits in a row of its own
+     (the ids ending in Row and Field), where the brainstorm puts its checkbox of the adoption right of the field -->
 <VBox xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="art.moodframe.ui.panel.MoodFramePanelController"
       spacing="10.0">
@@ -64,7 +65,7 @@
             <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
 
             <!-- "No mood" and the moods; the warning leads to a block of the mood in the trash -->
-            <HBox alignment="CENTER_LEFT" spacing="4.0">
+            <HBox fx:id="moodRow" alignment="CENTER_LEFT" spacing="4.0">
                 <ComboBox fx:id="moodComboBox" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" />
                 <Button fx:id="moodIncompleteButton" styleClass="icon-button, mood-incomplete"
                         onAction="#onMoodIncompleteClicked" visible="false" managed="false">
@@ -80,7 +81,7 @@
 
             <!-- Atmosphere; in each field the list comes first, so Tab leads from it to the actions and the
                  lock in the row above -->
-            <GridPane vgap="5.0" styleClass="block-field">
+            <GridPane fx:id="atmosphereField" vgap="5.0" styleClass="block-field">
                 <columnConstraints>
                     <ColumnConstraints hgrow="ALWAYS" />
                 </columnConstraints>
@@ -97,7 +98,7 @@
             </GridPane>
 
             <!-- Style -->
-            <GridPane vgap="5.0" styleClass="block-field">
+            <GridPane fx:id="styleField" vgap="5.0" styleClass="block-field">
                 <columnConstraints>
                     <ColumnConstraints hgrow="ALWAYS" />
                 </columnConstraints>
@@ -114,7 +115,7 @@
             </GridPane>
 
             <!-- Color -->
-            <GridPane vgap="5.0" styleClass="block-field">
+            <GridPane fx:id="colorField" vgap="5.0" styleClass="block-field">
                 <columnConstraints>
                     <ColumnConstraints hgrow="ALWAYS" />
                 </columnConstraints>
@@ -131,7 +132,7 @@
             </GridPane>
 
             <!-- Light -->
-            <GridPane vgap="5.0" styleClass="block-field">
+            <GridPane fx:id="lightField" vgap="5.0" styleClass="block-field">
                 <columnConstraints>
                     <ColumnConstraints hgrow="ALWAYS" />
                 </columnConstraints>
@@ -153,7 +154,7 @@
             </GridPane>
 
             <!-- Camera -->
-            <GridPane vgap="5.0" styleClass="block-field">
+            <GridPane fx:id="cameraField" vgap="5.0" styleClass="block-field">
                 <columnConstraints>
                     <ColumnConstraints hgrow="ALWAYS" />
                 </columnConstraints>
@@ -218,7 +219,9 @@
 
         <!-- Always shown: "No frame" and the frames -->
         <VBox styleClass="panel-group-summary">
-            <ComboBox fx:id="frameComboBox" maxWidth="Infinity" minWidth="0" />
+            <HBox fx:id="frameRow" alignment="CENTER_LEFT" spacing="4.0">
+                <ComboBox fx:id="frameComboBox" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" />
+            </HBox>
         </VBox>
 
         <!-- Folded: aspect ratio and resolution -->
@@ -228,7 +231,9 @@
                  cannot do the target -->
             <VBox spacing="5.0">
                 <Label fx:id="aspectRatioLabel" text="Aspect Ratio:" styleClass="text-bold" />
-                <ChoiceBox fx:id="aspectRatioComboBox" maxWidth="Infinity" minWidth="0" />
+                <HBox fx:id="aspectRatioRow" alignment="CENTER_LEFT" spacing="4.0">
+                    <ChoiceBox fx:id="aspectRatioComboBox" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" />
+                </HBox>
                 <Label fx:id="aspectRatioHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true"
                    visible="false" managed="false" />
             </VBox>
@@ -237,7 +242,9 @@
                  do the target or has a fixed size -->
             <VBox spacing="5.0">
                 <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
-                <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" minWidth="0" />
+                <HBox fx:id="resolutionRow" alignment="CENTER_LEFT" spacing="4.0">
+                    <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" />
+                </HBox>
                 <Label fx:id="resolutionHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true"
                    visible="false" managed="false" />
             </VBox>

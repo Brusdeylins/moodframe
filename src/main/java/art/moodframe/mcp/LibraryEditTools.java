@@ -337,7 +337,7 @@ class LibraryEditTools {
         BrainstormContext context = new BrainstormContext(blocks.getAll(PromptBlock.Type.STYLE),
                 blocks.getAll(PromptBlock.Type.ATMOSPHERE), blocks.getAll(PromptBlock.Type.LIGHT),
                 blocks.getAll(PromptBlock.Type.CAMERA), colors.getAllStyles(), List.of(), List.of(), "", List.of(),
-                Set.of());
+                Set.of(), List.of(), List.of());
         MoodAnalysisService.Analysis found = analysis.analyze(MoodAnalysisService.scaledDown(image), context,
                 true).join();
 

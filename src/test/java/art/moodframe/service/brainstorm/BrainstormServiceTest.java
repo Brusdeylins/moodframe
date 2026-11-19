@@ -179,7 +179,7 @@ class BrainstormServiceTest {
                 "Classic Portrait", "85mm", null, false);
         BrainstormContext library = new BrainstormContext(List.of(), List.of(calm), List.of(), List.of(portrait),
                 List.of(), List.of(new Mood("std:mood:wild-north", "Wild North")), List.of(), "state", List.of(),
-                java.util.Set.of());
+                java.util.Set.of(), List.of(), List.of());
         answers(text("{\"step\": 7, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"mood\": \"Wild North\", "
                 + "\"atmosphere\": {\"name\": \"My Calm\", \"is_new\": false}, "
                 + "\"camera\": {\"name\": \"Classic Portrait\", \"is_new\": false}, "
@@ -193,6 +193,28 @@ class BrainstormServiceTest {
         assertEquals("std:camera:classic-portrait", draft.getBlock(Mood.Field.CAMERA).id());
         assertNull(draft.getBlock(Mood.Field.LIGHT).id(), "a name without entry keeps its reference");
         assertNull(draft.getBlock(Mood.Field.STYLE).id(), "a new block has no entry yet");
+    }
+
+    @Test
+    void refersTheFrameAndTheSavedImagesOfTheDraftToTheirEntriesAndDropsAnUnknownImage() {
+        art.moodframe.model.Frame banner = new art.moodframe.model.Frame("own-banner", "Shop Banner");
+        banner.setAspectRatio("21:9");
+        art.moodframe.model.SavedImage logo = new art.moodframe.model.SavedImage("img-1", "ACME Logo", "a.png", 8, 8,
+                "sha", "the logo", false, LocalDateTime.now(), null);
+        BrainstormContext library = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(new Mood("std:mood:wild-north", "Wild North")), List.of(), "state", List.of(),
+                java.util.Set.of(), List.of(banner), List.of(logo));
+        answers(text("{\"step\": 2, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", "
+                + "\"mood\": {\"id\": \"gone\", \"name\": \"Wild North\"}, \"frame\": \"Shop Banner\", "
+                + "\"saved_images\": [{\"id\": \"img-1\", \"name\": \"ACME Logo\"}, {\"id\": \"img-9\", "
+                + "\"name\": \"Old Logo\"}, {\"id\": \"x\", \"name\": \"ACME Logo\"}]}}"));
+
+        BrainstormDraft draft = service.sendUserMessage(session, "Ein Werbemotiv", library).join().getDraft();
+
+        assertEquals("std:mood:wild-north", draft.getMood().id(), "a wrong id falls back to the name");
+        assertEquals("own-banner", draft.getFrame().id());
+        assertEquals(List.of("img-1"), draft.getSavedImages().stream().map(BrainstormDraft.Block::id).toList(),
+                "an image not in the library is dropped, one named twice is listed once");
     }
 
     @Test
@@ -387,6 +409,26 @@ class BrainstormServiceTest {
 
         verify(gemini, times(3)).research("more");
         verify(gemini, times(1)).chatTurn(anyString(), anyList(), withTools(), eq(true));
+    }
+
+    @Test
+    void lookupsOfTheLibraryCountNoResearchAndTheLastRequestHasToAnswer() {
+        BrainstormLibrary library = mock(BrainstormLibrary.class);
+        when(library.tools()).thenReturn(List.of(BrainstormLibrary.LIST_MOODS));
+        when(library.offers("list_moods")).thenReturn(true);
+        when(library.run(any(), any())).thenReturn(new JSONObject().put("moods", new JSONArray()));
+        BrainstormService withLibrary = new BrainstormService(new BrainstormSessions(repository),
+                new BrainstormModels(gemini, null, null), new BrainstormTools(gemini, null, library));
+        when(gemini.chatTurn(anyString(), anyList(), withTools(), anyBoolean())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture((boolean) invocation.getArgument(3)
+                        ? text(VALID_REPLY) : call("list_moods", new JSONObject())));
+
+        withLibrary.sendUserMessage(session, "Thema", context).join();
+
+        verify(library, times(BrainstormConversation.MAX_ROUNDS - 1)).run(any(), any());
+        verify(gemini, times(BrainstormConversation.MAX_ROUNDS - 1)).chatTurn(anyString(), anyList(), withTools(),
+                eq(false));
+        verify(gemini, never()).research(anyString());
     }
 
     @Test
@@ -779,7 +821,7 @@ class BrainstormServiceTest {
     /** A service of another window on the same sessions, as the factory of the composition root creates it. */
     private BrainstormService otherWindow(BrainstormSessions sessions) {
         return new BrainstormService(sessions, new BrainstormModels(gemini, null, null),
-                new BrainstormTools(gemini, null));
+                new BrainstormTools(gemini, null, null));
     }
 
     @Test

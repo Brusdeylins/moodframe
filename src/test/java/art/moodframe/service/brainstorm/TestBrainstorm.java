@@ -33,6 +33,6 @@ public final class TestBrainstorm {
     public static BrainstormService service(BrainstormRepository repository, GeminiApiService gemini,
             OpenAiApiService openAi, ApplicationConfig config) {
         return new BrainstormService(new BrainstormSessions(repository), new BrainstormModels(gemini, openAi, config),
-                new BrainstormTools(gemini, null));
+                new BrainstormTools(gemini, null, null));
     }
 }

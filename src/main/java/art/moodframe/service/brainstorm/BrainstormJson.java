@@ -33,7 +33,8 @@ public final class BrainstormJson {
 
     /**
      * Reads a draft from its JSON form (the "draft" object of an AI reply, or a stored draft). Older drafts name the
-     * style and the palette only ({@code "style"}, {@code "color_style"}); they are read as references by name.
+     * style and the palette only ({@code "style"}, {@code "color_style"}); they are read as references by name. A
+     * mood, a frame and a saved image are referred to by name or as an object with id and name.
      *
      * @param json the draft JSON object
      * @return the parsed draft
@@ -50,6 +51,13 @@ public final class BrainstormJson {
         if (!json.has(key(Mood.Field.COLOR)))
             draft.setBlock(Mood.Field.COLOR, block(json.opt("color_style")));
         draft.setStyleReason(json.optString("style_reason", ""));
+        draft.setFrame(block(json.opt("frame")));
+        JSONArray imageArray = json.optJSONArray("saved_images");
+        for (int i = 0; imageArray != null && i < imageArray.length(); i++) {
+            BrainstormDraft.Block image = block(imageArray.opt(i));
+            if (image != null && !image.isNew())
+                draft.getSavedImages().add(image);
+        }
         draft.setAspectRatio(optText(json, "aspect_ratio"));
         draft.setTargetModel(optText(json, "target_model"));
         draft.setResolution(optText(json, "resolution"));
@@ -88,6 +96,10 @@ public final class BrainstormJson {
         for (Mood.Field field : BrainstormDraft.FIELDS)
             json.put(key(field), draft.getBlock(field) != null ? toJson(draft.getBlock(field)) : JSONObject.NULL);
         json.put("style_reason", draft.getStyleReason());
+        json.put("frame", draft.getFrame() == null ? JSONObject.NULL : toJson(draft.getFrame()));
+        JSONArray imageArray = new JSONArray();
+        draft.getSavedImages().forEach((BrainstormDraft.Block image) -> imageArray.put(toJson(image)));
+        json.put("saved_images", imageArray);
         json.put("aspect_ratio", orNull(draft.getAspectRatio()));
         json.put("target_model", orNull(draft.getTargetModel()));
         json.put("resolution", orNull(draft.getResolution()));

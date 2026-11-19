@@ -9,6 +9,7 @@ import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormReply;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -36,7 +37,8 @@ import java.util.function.Supplier;
 /**
  * Popup of the brainstorm assistant: a guided AI chat that develops a prompt together with the suggested settings.
  * The window composes three parts: the history of the sessions on the left ({@link BrainstormHistory}), the chat in
- * the middle ({@link BrainstormChatView}) and the result on the right ({@link BrainstormResultForm}). It keeps the
+ * the middle ({@link BrainstormChatView}) and the result on the right ({@link BrainstormResultForm}), which shows the
+ * groups Mood and Frame of the main window. It keeps the
  * chats, sends the requests of the shown chat and hands every answer to the chat that asked.
  *
  * <p>Every chat has its own {@link BrainstormChat}: several chats can wait for the AI at the same time, the answer
@@ -63,14 +65,26 @@ public class BrainstormDialog extends Stage {
      * @param moodId the id of the mood, which sets its blocks before the adopted blocks
      * @param blocks the adopted building blocks by field: an entry of the lists with its id, or a new block for the
      *               list of the user; a field that is not adopted is missing
-     * @param aspectRatio the aspect ratio
+     * @param frameId the id of the frame, which sets aspect ratio and resolution before the adopted ones
+     * @param aspectRatio the target aspect ratio
      * @param durationSeconds the video duration in seconds
-     * @param resolution the resolution of a model without resolution variants (1K, 2K, 4K), else null
+     * @param resolution the target resolution (1K, 2K, 4K), which the model takes its variant by
+     * @param savedImageIds the ids of the saved images to attach, empty for none
      * @param saveMood whether the fields are saved as a new mood afterwards
      */
     public record Result(String prompt, String targetModel, String moodId,
-                         Map<Mood.Field, BrainstormDraft.Block> blocks, String aspectRatio, Integer durationSeconds,
-                         String resolution, boolean saveMood) {
+                         Map<Mood.Field, BrainstormDraft.Block> blocks, String frameId, String aspectRatio,
+                         Integer durationSeconds, String resolution, List<String> savedImageIds, boolean saveMood) {
+    }
+
+    /**
+     * The groups Mood and Frame of the main window, which the result shows as well.
+     *
+     * @param services  the services of the groups; without the configuration, so nothing chosen in the brainstorm is
+     *                  remembered, and without trash and analysis of an image, which the brainstorm does not offer
+     * @param selection what the main window has chosen, which the groups start from
+     */
+    public record Groups(MoodFramePanelController.Services services, MoodFramePanelController.Selection selection) {
     }
 
     private final BrainstormService service;
@@ -94,30 +108,32 @@ public class BrainstormDialog extends Stage {
      * Creates the dialog.
      *
      * @param owner the owner window
-     * @param config the accounts and the remembered resolutions (may be null: none)
+     * @param config the accounts with the engine of the brainstorm (may be null: none)
      * @param service the brainstorm service
      * @param context the selectable values and the current main window state
      * @param currentModel localized display name of the model currently selected in the main window
+     * @param groups the groups Mood and Frame as the main window has them
      * @param onAdopt called with the adopted values when the user clicks "Adopt"
      */
     public BrainstormDialog(Stage owner, ApplicationConfig config, BrainstormService service,
-                            BrainstormContext context, String currentModel, Consumer<Result> onAdopt) {
-        this(owner, config, service, context, currentModel, onAdopt, BrainstormWorker.create());
+                            BrainstormContext context, String currentModel, Groups groups, Consumer<Result> onAdopt) {
+        this(owner, config, service, context, currentModel, groups, onAdopt, BrainstormWorker.create());
     }
 
     /**
      * Creates the dialog with the worker of its blocking work.
      *
      * @param owner the owner window
-     * @param config the accounts and the remembered resolutions (may be null: none)
+     * @param config the accounts with the engine of the brainstorm (may be null: none)
      * @param service the brainstorm service
      * @param context the selectable values and the current main window state
      * @param currentModel localized display name of the model currently selected in the main window
+     * @param groups the groups Mood and Frame as the main window has them
      * @param onAdopt called with the adopted values when the user clicks "Adopt"
-     * @param worker reads and writes the stored sessions off the JavaFX thread
+     * @param worker reads and writes the stored sessions off the JavaFX thread, and the library for the groups
      */
     BrainstormDialog(Stage owner, ApplicationConfig config, BrainstormService service, BrainstormContext context,
-            String currentModel, Consumer<Result> onAdopt, BrainstormWorker worker) {
+            String currentModel, Groups groups, Consumer<Result> onAdopt, BrainstormWorker worker) {
         this.worker = worker;
         this.config = config;
         this.service = service;
@@ -131,15 +147,17 @@ public class BrainstormDialog extends Stage {
         history = new BrainstormHistory(service, worker,
                 (BrainstormSession listed) -> chatOf(listed).markerProperty(), new HistoryListener());
         chatView = new BrainstormChatView(config, service, new ChatListener());
-        resultForm = new BrainstormResultForm(config, context, currentModel, new ResultListener());
+        resultForm = new BrainstormResultForm(context, currentModel, groups, worker.executor(), new ResultListener());
         SplitPane root = new SplitPane(history, chatView, resultForm);
         root.getStyleClass().add("grip-split-pane");
         root.setDividerPositions(0.19, 0.70);
         SplitPane.setResizableWithParent(history, false);
         SplitPane.setResizableWithParent(resultForm, false);
         setScene(new Scene(root, DIALOG_WIDTH, DIALOG_HEIGHT));
+        /*  The groups Mood and Frame look as in the main window, with its styles  */
         getScene().getStylesheets().addAll(
                 BrainstormDialog.class.getResource("/css/logo-colors.css").toExternalForm(),
+                BrainstormDialog.class.getResource("/css/main-window.css").toExternalForm(),
                 BrainstormDialog.class.getResource("/css/split-pane-grips.css").toExternalForm());
         setMinWidth(800);
         setMinHeight(520);

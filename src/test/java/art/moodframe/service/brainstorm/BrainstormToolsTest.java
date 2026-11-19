@@ -25,7 +25,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class BrainstormToolsTest {
 
     private final GeminiApiService gemini = mock(GeminiApiService.class);
-    private final BrainstormTools tools = new BrainstormTools(gemini, null, Runnable::run);
+    private final BrainstormTools tools = new BrainstormTools(gemini, null, null, Runnable::run);
 
     private static BrainstormTools.Request request(ChatModel model, List<String> status) {
         return new BrainstormTools.Request("s1", model, status::add, () -> { });
@@ -42,12 +42,12 @@ class BrainstormToolsTest {
 
     @Test
     void anUnknownToolIsReportedToTheModelAsError() {
-        ChatTurn.ToolCall call = new ChatTurn.ToolCall("call_0", "list_moods", new JSONObject());
+        ChatTurn.ToolCall call = new ChatTurn.ToolCall("call_0", "paint_picture", new JSONObject());
 
         BrainstormTools.Run run = tools.run(request(ChatModel.gemini(gemini), new ArrayList<>()), call);
 
         assertSame(call, run.result().call());
-        assertTrue(run.result().response().getString("error").contains("Unknown tool list_moods"));
+        assertTrue(run.result().response().getString("error").contains("Unknown tool paint_picture"));
         assertNull(run.note());
     }
 

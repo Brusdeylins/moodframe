@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.panel;
 
 import art.moodframe.config.ApplicationConfig;
 import javafx.beans.InvalidationListener;
@@ -19,14 +19,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The groups of the right panel of the main window (Mood, Frame, Generation): each always shows its summary field,
- * the arrow or the title unfold its detail fields and fold the other groups, or fold it again; the unfolded group is
- * remembered. A line in the color of the group joins title, summary and detail fields. With the scroll bar of the
- * panel, the groups get narrower and keep a gap to it.
+ * The groups of the right panel of the main window (Mood, Frame, Generation), or of another window that shows Mood and
+ * Frame (the brainstorm): each always shows its summary field, the arrow or the title unfold its detail fields and fold
+ * the other groups, or fold it again; the unfolded group is remembered. A line in the color of the group joins title,
+ * summary and detail fields. With the scroll bar of the panel, the groups get narrower and keep a gap to it.
  *
  * @since 2.1.3
  */
-final class PanelGroups {
+public final class PanelGroups {
 
     /*  the gap of the groups to the scroll bar of the right panel, in place of their padding to the window edge  */
     private static final double PANEL_SCROLL_BAR_GAP = 6.0;
@@ -49,14 +49,15 @@ final class PanelGroups {
      * @param panelScrollPane the scroll pane of the panel
      * @param mood            the group Mood
      * @param frame           the group Frame
-     * @param generation      the group Generation, whose line runs straight
-     * @param config          remembers the unfolded group (may be null)
+     * @param generation      the group Generation, whose line runs straight (may be null: none)
+     * @param config          remembers the unfolded group (may be null: Mood unfolds, nothing is remembered)
      */
-    PanelGroups(ScrollPane panelScrollPane, VBox mood, VBox frame, VBox generation, ApplicationConfig config) {
+    public PanelGroups(ScrollPane panelScrollPane, VBox mood, VBox frame, VBox generation, ApplicationConfig config) {
         this.config = config;
         panelGroups.put("mood", mood);
         panelGroups.put("frame", frame);
-        panelGroups.put("generation", generation);
+        if (generation != null)
+            panelGroups.put("generation", generation);
         panelGroups.forEach((group, pane) -> {
             Runnable toggle = () -> open(pane.lookup(".panel-group-details").isVisible() ? "" : group);
             ((Button) pane.lookup(".panel-group-arrow")).setOnAction((event) -> toggle.run());
@@ -100,7 +101,7 @@ final class PanelGroups {
      *
      * @param open the name of the group to unfold, empty to fold all
      */
-    void open(String open) {
+    public void open(String open) {
         show(open);
         if (config != null)
             config.ui().setOpenPanelGroup(open);

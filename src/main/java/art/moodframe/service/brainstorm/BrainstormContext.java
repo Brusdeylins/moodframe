@@ -1,9 +1,11 @@
 package art.moodframe.service.brainstorm;
 
 import art.moodframe.model.ColorStyle;
+import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.model.SavedImage;
 import art.moodframe.service.generation.ModelLabels;
 
 import java.util.List;
@@ -17,12 +19,14 @@ import java.util.Set;
  * @param lights all light blocks
  * @param cameras all camera blocks
  * @param colorStyles all color styles
- * @param moods all moods
+ * @param moods all moods, which the draft refers to; the assistant looks them up with its tools
  * @param models the models that can be selected in the main window
  * @param currentState text description of the current main window selection, see {@link WindowState#describe()}
  * @param modelNames the name of each model as the main window shows it (parallel to {@code models}); the OpenAI
  *                   models share one placeholder constant and differ only by this name
  * @param locked the building block fields locked in the main window, which keep their choice on "Adopt"
+ * @param frames all frames, which the draft refers to; the assistant looks them up with its tools
+ * @param savedImages the saved images of the library, which the draft proposes to attach
  * @since 1.7.0
  */
 public record BrainstormContext(
@@ -35,7 +39,9 @@ public record BrainstormContext(
         List<GenerationModel> models,
         String currentState,
         List<String> modelNames,
-        Set<Mood.Field> locked) {
+        Set<Mood.Field> locked,
+        List<Frame> frames,
+        List<SavedImage> savedImages) {
 
     /**
      * What the main window has chosen when the brainstorm opens, which the assistant starts from.
@@ -45,9 +51,12 @@ public record BrainstormContext(
      * @param look         the mood and the building blocks with their locks, one line each, every line starting with
      *                     a line break
      * @param aspectRatio  the chosen aspect ratio
+     * @param frame        the name of the chosen frame, null for none
+     * @param savedImages  the names of the saved images attached
      * @param prompt       the text in the input field
      */
-    public record WindowState(String targetModel, String resolution, String look, String aspectRatio, String prompt) {
+    public record WindowState(String targetModel, String resolution, String look, String aspectRatio, String frame,
+            List<String> savedImages, String prompt) {
 
         /**
          * Describes the state for the system prompt of the assistant, in English.
@@ -59,6 +68,8 @@ public record BrainstormContext(
                     + (resolution != null ? "\nResolution: " + resolution : "")
                     + look
                     + "\nAspect ratio: " + aspectRatio
+                    + (frame != null ? "\nFrame: " + frame : "")
+                    + (savedImages.isEmpty() ? "" : "\nAttached saved images: " + String.join(", ", savedImages))
                     + "\nText currently in the input field: " + (prompt.isBlank() ? "(empty)" : prompt.trim());
         }
     }
@@ -67,7 +78,7 @@ public record BrainstormContext(
     public BrainstormContext(List<PromptBlock> styles, List<ColorStyle> colorStyles, List<GenerationModel> models,
             String currentState) {
         this(styles, List.of(), List.of(), List.of(), colorStyles, List.of(), models, currentState,
-                models.stream().map(ModelLabels::displayName).toList(), Set.of());
+                models.stream().map(ModelLabels::displayName).toList(), Set.of(), List.of(), List.of());
     }
 
     /**

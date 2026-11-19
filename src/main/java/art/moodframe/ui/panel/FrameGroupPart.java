@@ -154,6 +154,11 @@ final class FrameGroupPart {
         return frameChanged;
     }
 
+    /** @return whether the group sets its fields itself, e.g. aspect ratio and resolution of a chosen frame */
+    boolean isUpdating() {
+        return updatingFrame;
+    }
+
     /** "Save" is not available for a standard frame, which can only be saved as a new one. */
     private boolean isFrameSaveLocked() {
         Frame frame = chosenFrame();
