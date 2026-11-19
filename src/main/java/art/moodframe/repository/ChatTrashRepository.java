@@ -443,19 +443,7 @@ public class ChatTrashRepository {
         return new ArrayList<>(entries.values());
     }
 
-    /**
-     * Finds the deleted images of an entry.
-     *
-     * @param entryId the entry
-     * @return the images of the entry in the trash
-     * @throws SQLException if query fails
-     */
-    public List<GeneratedImage> findDeletedImagesByEntry(String entryId) throws SQLException {
-        try (Connection conn = databaseManager.getConnection()) {
-            return findDeletedImagesByEntry(conn, entryId);
-        }
-    }
-
+    /*  the deleted images of an entry  */
     private static List<GeneratedImage> findDeletedImagesByEntry(Connection conn, String entryId)
             throws SQLException {
         String sql = "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL "

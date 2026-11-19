@@ -280,14 +280,8 @@ public class BrainstormRepository {
         return countDrafts(sessionId);
     }
 
-    /**
-     * Returns the number of draft versions of a session.
-     *
-     * @param sessionId the session id
-     * @return the number of versions
-     * @throws SQLException if the database fails
-     */
-    public int countDrafts(String sessionId) throws SQLException {
+    /*  the number of draft versions of a session  */
+    private int countDrafts(String sessionId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM brainstorm_drafts WHERE session_id = ?";
 
         try (Connection conn = database.getConnection();
