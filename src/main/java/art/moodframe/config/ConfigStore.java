@@ -63,7 +63,7 @@ class ConfigStore {
         this.paths = paths;
         this.configPath = paths.configFile();
         this.encryption = new EncryptionUtil(paths.secretKey());
-        initializeDirectories();
+        createRoot();
         load();
     }
 
@@ -72,15 +72,12 @@ class ConfigStore {
         return paths;
     }
 
-    /*  The folders of the library, the database, the logs and the images  */
-    private void initializeDirectories() {
+    /*  The folder of the file; the database, the logs and the configured images folder are created by their writers  */
+    private void createRoot() {
         try {
             Files.createDirectories(paths.root());
-            Files.createDirectories(paths.databaseDirectory());
-            Files.createDirectories(paths.logs());
-            Files.createDirectories(paths.images());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create configuration directories", e);
+            throw new RuntimeException("Failed to create the folder of the configuration " + paths.root(), e);
         }
     }
 

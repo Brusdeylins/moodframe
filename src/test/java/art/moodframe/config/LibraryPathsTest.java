@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The folders of the library: where they are by default and that the configured images folder counts. */
 class LibraryPathsTest {
@@ -43,6 +45,12 @@ class LibraryPathsTest {
         assertNull(store.get("path.database"));
         assertNull(store.get("path.logs"));
         assertEquals(paths, config.paths());
+
+        /*  the database, the logs and the images get their folders from their writers  */
+        assertTrue(Files.exists(paths.configFile()));
+        assertFalse(Files.exists(paths.databaseDirectory()));
+        assertFalse(Files.exists(paths.logs()));
+        assertFalse(Files.exists(paths.images()));
     }
 
     @Test

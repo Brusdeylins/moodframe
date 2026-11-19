@@ -197,7 +197,8 @@ palette or mood of the user that is named like a standard one the next free name
 standard names (so this is no one-time migration); the moods last, as they refer to blocks and palettes. The
 `TrashCleanupService` starts its cleanup every 6 hours in `start()`, which the startup calls when it creates it. The
 folders of the thumbnails and the trash are created by the first file written there, not by `ThumbnailManager` or
-`TrashManager`.
+`TrashManager`; so are the database (`DatabaseManager`), the logs (logback) and the configured images folder
+(`ImageFileStore`), while the configuration creates only `~/.moodframe` for its file.
 
 The locator is left to the coordinators of the user interface: `MainWindowController` and `SettingsController` look
 up the services once and hand them to their parts, which hand them on to the dialogs and components they open
