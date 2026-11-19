@@ -145,6 +145,8 @@ class FrameServiceTest {
 
         assertTrue(frames.restore(frame.getId()));
         assertEquals("Trash Me (1)", frames.find(frame.getId()).getName());
+        assertFalse(frames.deletePermanently(frame.getId()), "a restored frame stays");
+        assertTrue(frames.moveToTrash(frame.getId()));
         assertTrue(frames.deletePermanently(frame.getId()));
         assertNull(frames.find(frame.getId()));
     }

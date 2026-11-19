@@ -273,10 +273,10 @@ public class FrameService {
     }
 
     /**
-     * Removes a frame of the user for good.
+     * Removes a frame of the user in the trash for good; a frame in use stays.
      *
      * @param id the frame id
-     * @return true if it is gone
+     * @return true if it was in the trash and is gone
      */
     public synchronized boolean deletePermanently(String id) {
         return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)

@@ -187,7 +187,11 @@ class ChatRepositoryTransactionTest {
         assertNotNull(repository.findChatById(chat.getId()).orElseThrow().getDeletedAt());
         assertTrue(withFiles.restoreChat(chat.getId()));
         assertNull(repository.findChatById(chat.getId()).orElseThrow().getDeletedAt());
+        assertFalse(withFiles.deleteChatPermanently(chat.getId()), "a restored chat survives a removal from the trash");
+        assertNull(rowGoneBeforeFiles.get(), "and keeps its files");
+        assertTrue(repository.findChatById(chat.getId()).isPresent());
 
+        assertTrue(trash.softDeleteChat(chat.getId()));
         assertTrue(withFiles.deleteChatPermanently(chat.getId()), "removed although a file stays on disk");
         assertEquals(Boolean.TRUE, rowGoneBeforeFiles.get(), "the files go after the rows");
         assertFalse(withFiles.deleteChatPermanently(chat.getId()));

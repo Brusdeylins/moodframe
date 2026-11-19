@@ -96,15 +96,16 @@ public class PromptBlockRepository {
     }
 
     /**
-     * Removes a stored block.
+     * Removes a block in the trash for good; a block in use, e.g. restored meanwhile, stays.
      *
      * @param id the block id
-     * @return true if it was removed
+     * @return true if it was in the trash and is removed
      * @throws SQLException if the database fails
      */
     public boolean delete(String id) throws SQLException {
         try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE id = ?")) {
+             PreparedStatement stmt = conn.prepareStatement(
+                     "DELETE FROM prompt_blocks WHERE id = ? AND deleted_at IS NOT NULL")) {
             stmt.setString(1, id);
             return stmt.executeUpdate() > 0;
         }

@@ -499,7 +499,7 @@ public class ColorStyleService {
     }
 
     /**
-     * Removes a custom color style for good.
+     * Removes a custom color style in the trash for good; a style in use stays.
      */
     public synchronized boolean deleteStylePermanently(String id) {
         return changed(id != null && !id.startsWith("std:")

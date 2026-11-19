@@ -38,10 +38,11 @@ public interface TrashGroup {
     boolean restore(String id);
 
     /**
-     * Removes an item for good.
+     * Removes an item in the trash for good. An item no longer in the trash, e.g. restored meanwhile by the main
+     * window or an agent, stays.
      *
      * @param id the ID of the item, or of one of its parts
-     * @return true if the item is gone
+     * @return true if the item was in the trash and is gone
      */
     boolean deletePermanently(String id);
 }

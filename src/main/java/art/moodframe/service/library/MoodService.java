@@ -347,10 +347,10 @@ public class MoodService implements BlockUsage {
     }
 
     /**
-     * Removes a mood of the user for good.
+     * Removes a mood of the user in the trash for good; a mood in use stays.
      *
      * @param id the mood id
-     * @return true if it is gone
+     * @return true if it was in the trash and is gone
      */
     public synchronized boolean deletePermanently(String id) {
         return changed(id != null && !id.startsWith(PromptBlock.STANDARD_PREFIX)

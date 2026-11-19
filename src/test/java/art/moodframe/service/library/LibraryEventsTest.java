@@ -111,6 +111,10 @@ class LibraryEventsTest {
         assertEquals(once(LibraryEvents.Kind.MOOD, mood.getId()), reported());
         assertTrue(moods.restore(mood.getId()));
         assertEquals(once(LibraryEvents.Kind.MOOD, mood.getId()), reported());
+        assertFalse(moods.deletePermanently(mood.getId()), "a mood in use is not removed for good");
+        assertEquals(List.of(), reported());
+        assertTrue(moods.moveToTrash(mood.getId()));
+        reported();
         assertTrue(moods.deletePermanently(mood.getId()));
         assertEquals(once(LibraryEvents.Kind.MOOD, mood.getId()), reported());
 
@@ -134,10 +138,12 @@ class LibraryEventsTest {
 
         assertTrue(frames.moveToTrash(frame.getId()));
         assertTrue(frames.restore(frame.getId()));
+        assertFalse(frames.deletePermanently(frame.getId()), "a frame in use is not removed for good");
+        assertTrue(frames.moveToTrash(frame.getId()));
         assertTrue(frames.deletePermanently(frame.getId()));
         assertEquals(List.of(new Change(LibraryEvents.Kind.FRAME, frame.getId()),
                 new Change(LibraryEvents.Kind.FRAME, frame.getId()), new Change(LibraryEvents.Kind.FRAME,
-                        frame.getId())), reported());
+                        frame.getId()), new Change(LibraryEvents.Kind.FRAME, frame.getId())), reported());
 
         assertFalse(frames.moveToTrash("std:frame:social-post"));
         assertEquals(List.of(), reported());
@@ -189,10 +195,12 @@ class LibraryEventsTest {
 
         assertTrue(palettes.deleteCustomStyle("Event Palette 2"));
         assertTrue(palettes.restoreStyle(palette.getId()));
+        assertFalse(palettes.deleteStylePermanently(palette.getId()), "a palette in use is not removed for good");
+        assertTrue(palettes.deleteCustomStyle("Event Palette 2"));
         assertTrue(palettes.deleteStylePermanently(palette.getId()));
         assertEquals(List.of(new Change(LibraryEvents.Kind.COLOR, palette.getId()),
                 new Change(LibraryEvents.Kind.COLOR, palette.getId()), new Change(LibraryEvents.Kind.COLOR,
-                        palette.getId())), reported());
+                        palette.getId()), new Change(LibraryEvents.Kind.COLOR, palette.getId())), reported());
 
         assertFalse(palettes.deleteCustomStyle("Event Palette 2"));
         assertEquals(List.of(), reported());
@@ -257,6 +265,7 @@ class LibraryEventsTest {
         java.io.File file = tempDir.resolve("events-backup.json").toFile();
         exporter.exportConfiguration(art.moodframe.config.ConfigMocks.config(), file,
                 java.util.Set.of(ConfigurationExporter.ConfigCategory.MOODS));
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
         reported();
 

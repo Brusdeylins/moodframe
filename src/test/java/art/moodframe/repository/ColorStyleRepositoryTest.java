@@ -14,7 +14,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The trash of the palettes: a palette goes in and comes back once, the finders answer with an Optional. */
+/**
+ * The trash of the palettes: a palette goes in and comes back once, only a palette in the trash is removed for good,
+ * the finders answer with an Optional.
+ */
 class ColorStyleRepositoryTest {
 
     @TempDir
@@ -44,5 +47,11 @@ class ColorStyleRepositoryTest {
         assertFalse(repository.restore(style.getId()));
         assertEquals("Harbor Blues", repository.findById(style.getId()).orElseThrow().getName());
         assertTrue(repository.findInTrash(style.getId()).isEmpty());
+
+        assertFalse(repository.delete(style.getId()), "a restored palette survives a removal from the trash");
+        assertTrue(repository.findById(style.getId()).isPresent());
+        assertTrue(repository.moveToTrash(style.getId()));
+        assertTrue(repository.delete(style.getId()));
+        assertFalse(repository.existsById(style.getId()));
     }
 }

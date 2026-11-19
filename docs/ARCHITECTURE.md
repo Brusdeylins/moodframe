@@ -303,7 +303,9 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
 - **Transactions** begin IMMEDIATE (`DatabaseManager.inTransaction`): a write that depends on a read reads inside
   the transaction, guards its update (`AND deleted_at IS NULL`, checked row counts) and moves files only after the
   commit. Every move to the trash and back is guarded this way, for chats, entries, images, moods, frames, blocks
-  and palettes.
+  and palettes, and so is every removal for good: it removes only rows still in the trash
+  (`AND deleted_at IS NOT NULL`) and answers false otherwise, so an item restored by the main window or an agent
+  after the cleanup listed it survives with its entries, images and files.
 - **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its

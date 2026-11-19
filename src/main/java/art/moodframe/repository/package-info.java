@@ -10,7 +10,8 @@
  * <p>Transactions: a write that depends on what it reads runs in
  * {@link art.moodframe.database.DatabaseManager#inTransaction}, which begins IMMEDIATE, reads inside the transaction
  * and guards its updates ({@code AND deleted_at IS NULL}, checked row counts), so a deletion from the main window and
- * one from an agent at the same time book once. Files are moved or removed after the commit, by
+ * one from an agent at the same time book once. A removal for good removes only rows still in the trash
+ * ({@code AND deleted_at IS NOT NULL}), so an item restored meanwhile survives. Files are moved or removed after the commit, by
  * {@link ChatTrashRepository} alone, with the rows its transaction changed.</p>
  *
  * <p>Time columns: {@code created_at}, {@code deleted_at} and {@code updated_at} of the chats, entries, images and
