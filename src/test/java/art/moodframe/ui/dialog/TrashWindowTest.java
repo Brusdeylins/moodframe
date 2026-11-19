@@ -143,7 +143,8 @@ class TrashWindowTest {
             assertEquals(List.of(
                     I18nManager.getText("trash.tab.chats", 2), I18nManager.getText("trash.tab.images", 0),
                     I18nManager.getText("trash.tab.blocks", 1), I18nManager.getText("trash.tab.moods", 0),
-                    I18nManager.getText("trash.tab.frames", 0)), onFxThread(() -> tabTexts(tabs)));
+                    I18nManager.getText("trash.tab.frames", 0), I18nManager.getText("trash.tab.saved_images", 0)),
+                    onFxThread(() -> tabTexts(tabs)));
             assertEquals(TrashGroup.Kind.BLOCKS.ordinal(),
                     (int) onFxThread(() -> tabs.getSelectionModel().getSelectedIndex()));
             assertEquals("b1", onFxThread(() -> list(tabs, TrashGroup.Kind.BLOCKS).getSelectionModel()

@@ -9,6 +9,8 @@
  * <li>{@link BlockManageDialog}: manages the building blocks of the user; {@link MoodManageDialog} and
  *     {@link FrameManageDialog} the moods and frames</li>
  * <li>{@link MoodImageDialog}: derives a mood from an image</li>
+ * <li>{@link SavedImageSaveDialog}: saves an image in the library or edits a saved one;
+ *     {@link SavedImageManageDialog} manages the saved images</li>
  * <li>{@link TrashWindow}: the central trash</li>
  * <li>{@link UpdateDialog}: the installed and the available version</li>
  * </ul>

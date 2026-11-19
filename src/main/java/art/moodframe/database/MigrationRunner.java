@@ -72,7 +72,8 @@ final class MigrationRunner {
             new Migration("028", "Add_source_to_chat_entries"),
             new Migration("029", "Backfill_flux_costs", "FluxCostBackfill.java", FluxCostBackfill::apply),
             new Migration("030", "Correct_deleted_costs", "DeletedCostCorrection.java", DeletedCostCorrection::apply),
-            new Migration("031", "Drop_chat_timestamp_triggers"));
+            new Migration("031", "Drop_chat_timestamp_triggers"),
+            new Migration("032", "Add_saved_images"));
 
     private MigrationRunner() {
     }

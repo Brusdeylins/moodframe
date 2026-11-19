@@ -7,7 +7,8 @@
  * <li>{@link McpService}: starts and stops the server as the settings say</li>
  * <li>{@link McpServer}: transport and JSON-RPC</li>
  * <li>{@link McpTools}: the tools with their input schemas</li>
- * <li>{@link ChatTools}: the reading tools of the chats, {@link LibraryTools} those of the library</li>
+ * <li>{@link ChatTools}: the reading tools of the chats, {@link LibraryTools} those of the library,
+ *     {@link SavedImageTools} that of the saved images</li>
  * <li>{@link ChatEditTools}: the tools that change chats, {@link LibraryEditTools} those that change the
  *     library</li>
  * <li>{@link GenerateTools}: preview and generation</li>

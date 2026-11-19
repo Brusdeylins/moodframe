@@ -8,6 +8,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -68,6 +69,7 @@ public class ChatEntry {
     private EntryMood mood;
     private EntryFrame frame;
     private Source source = Source.UI;
+    private List<String> savedImageIds = List.of();
     private boolean promptUpsampling;
     private int safetyTolerance;
     private long seed;
@@ -116,6 +118,7 @@ public class ChatEntry {
         private EntryMood mood = null;
         private EntryFrame frame = null;
         private Source source = Source.UI;
+        private List<String> savedImageIds = List.of();
         private boolean promptUpsampling = false;
         private int safetyTolerance = 2;
         private long seed = -1;
@@ -218,6 +221,11 @@ public class ChatEntry {
             return this;
         }
 
+        public Builder savedImageIds(List<String> savedImageIds) {
+            this.savedImageIds = savedImageIds;
+            return this;
+        }
+
         public Builder cost(double cost) {
             this.cost = cost;
             return this;
@@ -250,6 +258,7 @@ public class ChatEntry {
             entry.setMood(mood);
             entry.setFrame(frame);
             entry.setSource(source);
+            entry.setSavedImageIds(savedImageIds);
             entry.setPromptUpsampling(promptUpsampling);
             entry.setSafetyTolerance(safetyTolerance);
             entry.setSeed(seed);
@@ -412,6 +421,15 @@ public class ChatEntry {
 
     public void setSource(Source source) {
         this.source = source;
+    }
+
+    /** The IDs of the saved images attached to the order, in their order; empty for none. */
+    public List<String> getSavedImageIds() {
+        return savedImageIds;
+    }
+
+    public void setSavedImageIds(List<String> savedImageIds) {
+        this.savedImageIds = savedImageIds != null ? List.copyOf(savedImageIds) : List.of();
     }
 
     public boolean isPromptUpsampling() {

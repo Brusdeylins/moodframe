@@ -24,11 +24,22 @@ import java.util.List;
  * @param attachment the attached image file, null for none
  * @param referenceImages the Base64 data of the reference images, in their order
  * @param source who placed the order, kept in the entry: the send button or the MCP server
+ * @param savedImages the IDs of the saved images among the reference images, in their order, kept in the entry
  * @since 2.1.0
  */
 public record GenerationOrder(Chat chat, String prompt, PromptComposer.Selection blocks, Mood mood,
         boolean moodChanged, Target target, String modelId, int imageCount, Parameters parameters, File attachment,
-        List<String> referenceImages, ChatEntry.Source source) {
+        List<String> referenceImages, ChatEntry.Source source, List<String> savedImages) {
+
+    /**
+     * Creates an order without saved images.
+     */
+    public GenerationOrder(Chat chat, String prompt, PromptComposer.Selection blocks, Mood mood, boolean moodChanged,
+            Target target, String modelId, int imageCount, Parameters parameters, File attachment,
+            List<String> referenceImages, ChatEntry.Source source) {
+        this(chat, prompt, blocks, mood, moodChanged, target, modelId, imageCount, parameters, attachment,
+                referenceImages, source, List.of());
+    }
 
     /**
      * Whether the order has at least one reference image, attached as file or as Base64 data.

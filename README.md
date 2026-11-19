@@ -59,6 +59,8 @@ Google and BFL are not checked. A compatible gateway takes part as soon as it an
 
 - **Combine and edit:** attach up to 10 images (depending on the model) for a collage, a combination or an edit with a
   new prompt or mood
+- **Saved images:** save a logo, a word mark or a product photo once with a description and attach it again with two
+  clicks; "Reuse" attaches it as well
 - **Infographics:** Brainstorm gathers the facts from the web or a YouTube video and lays them out as an infographic,
   with the frame Text in Image
 - **Camera dialog:** camera type, lens, aperture, perspective and shot size, with an example image for every stage
@@ -97,9 +99,10 @@ claude mcp add --transport http moodframe http://127.0.0.1:8765/mcp --header "Au
 The tools:
 
 - **Read:** `list_chats`, `get_chat`, `get_entry`, `get_image`, `get_capabilities`, `list_moods`, `get_mood`,
-  `list_blocks`, `get_block`, `list_frames` and `list_trash` read the chats, the images, the library, the trash and the
-  models you can generate with. `get_entry`, `get_image` and `generate` tell each image's `downloadName`, the file name
-  the download button gives it, like "Lighthouse series 2026-11-16 17.36.17.png".
+  `list_blocks`, `get_block`, `list_frames`, `list_saved_images` and `list_trash` read the chats, the images, the
+  library, the saved images (e.g. logos), the trash and the models you can generate with. `get_entry`, `get_image`
+  and `generate` tell each image's `downloadName`, the file name the download button gives it, like
+  "Lighthouse series 2026-11-16 17.36.17.png".
 - **Download:** `download_image` copies an image or video like the download button, into `~/Downloads` or another
   folder, numbered if the name is taken; the status bar tells the download.
 - **Chats:** `create_chat`, `rename_chat`, `delete_chat`, `delete_entry`, `delete_image` and `cancel_generation` manage
@@ -111,7 +114,7 @@ The tools:
 - **Favorites and trash:** `set_favorite` marks favorites, `restore` takes anything out of the trash; deleting always
   goes to the trash.
 - **Generate:** `preview_generation` shows prompt, format and estimated cost without any request, `generate` creates
-  images or a video in a chat like the send button.
+  images or a video in a chat like the send button; `savedImages` attaches saved images by their names.
 
 > **Costs:** `generate` costs money at the provider, just like the send button; `preview_generation` tells the estimate
 > first.

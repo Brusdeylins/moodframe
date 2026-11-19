@@ -116,8 +116,9 @@ class LibraryTools {
         tools.add("list_frames", "Lists the frames: id, name, aspect ratio, resolution, standard or own, favorite.",
                 McpTools.input(none), this::listFrames);
 
-        tools.add("list_trash", "Lists the content of the trash by kind (chats, images, blocks, moods, frames): id, "
-                + "name, deleted at, context and the IDs of its parts.", McpTools.input(none), this::listTrash);
+        tools.add("list_trash", "Lists the content of the trash by kind (chats, images, blocks, moods, frames, "
+                + "saved_images): id, name, deleted at, context and the IDs of its parts.", McpTools.input(none),
+                this::listTrash);
     }
 
     /*  ===== Models =====  */

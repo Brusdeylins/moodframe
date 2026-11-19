@@ -278,8 +278,9 @@ public class ChatRepository {
                 INSERT INTO chat_entries (
                     id, chat_id, user_prompt, enhanced_prompt, status, error_message,
                     created_at, completed_at, sort_order, model, size, format, style,
-                    prompt_upsampling, steps, guidance, seed, cost, mood_json, mood_id, frame_json, frame_id, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    prompt_upsampling, steps, guidance, seed, cost, mood_json, mood_id, frame_json, frame_id, source,
+                    saved_image_ids
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -307,6 +308,7 @@ public class ChatRepository {
             stmt.setString(21, entry.getFrame() != null ? entry.getFrame().toJson() : null);
             stmt.setString(22, entry.getFrame() != null ? entry.getFrame().frameId() : null);
             stmt.setString(23, entry.getSource().name());
+            stmt.setString(24, entry.getSavedImageIds().isEmpty() ? null : String.join(",", entry.getSavedImageIds()));
 
             stmt.executeUpdate();
         }
@@ -777,6 +779,7 @@ public class ChatRepository {
                 .mood(EntryMood.fromJson(rs.getString("mood_json")))
                 .frame(EntryFrame.fromJson(rs.getString("frame_json")))
                 .source(ChatEntry.Source.valueOf(rs.getString("source")))
+                .savedImageIds(savedImageIds(rs.getString("saved_image_ids")))
                 .promptUpsampling(rs.getBoolean("prompt_upsampling"))
                 .safetyTolerance((int) rs.getDouble("guidance")) // repurposed guidance column
                 .seed(rs.getLong("seed"))
@@ -790,6 +793,11 @@ public class ChatRepository {
         builder.deletedAt(readDeletedAt(rs));
 
         return builder.build();
+    }
+
+    /*  the IDs of the saved images of an entry, stored comma separated; null for none  */
+    private static List<String> savedImageIds(String column) {
+        return column == null || column.isBlank() ? List.of() : List.of(column.split(","));
     }
 
     /**

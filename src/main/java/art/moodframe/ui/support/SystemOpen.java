@@ -55,6 +55,27 @@ public final class SystemOpen {
     }
 
     /**
+     * Shows a file in the file manager of the system (the Finder on macOS), in the background; without that support
+     * it opens the folder of the file. A failure is only logged.
+     *
+     * @param file the file to show
+     */
+    public static void reveal(Path file) {
+        if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
+            open(file.getParent());
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                Desktop.getDesktop().browseFileDirectory(file.toFile());
+            }
+            catch (RuntimeException e) {
+                logger.warn("Could not show {}: {}", file, e.getMessage());
+            }
+        }, DiskWorker.get());
+    }
+
+    /**
      * Opens a web page in the default browser, in the background; a failure is only logged.
      *
      * @param url the http or https URL to open, anything else is ignored

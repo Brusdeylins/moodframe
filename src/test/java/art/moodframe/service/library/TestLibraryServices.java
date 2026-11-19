@@ -7,6 +7,9 @@ import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
+import art.moodframe.repository.SavedImageRepository;
+
+import java.nio.file.Path;
 
 /**
  * Library services for tests on the database a test opened with {@code TestDatabase.open}, on repositories of
@@ -92,5 +95,14 @@ public final class TestLibraryServices {
      */
     public static MoodService moods(PromptBlockService blocks, ColorStyleService colors, LibraryEvents events) {
         return new MoodService(new MoodRepository(database()), blocks, colors, events);
+    }
+
+    /**
+     * @param folder where the files of the saved images are kept
+     * @param events where the writes are reported
+     * @return the saved images
+     */
+    public static SavedImageService savedImages(Path folder, LibraryEvents events) {
+        return new SavedImageService(new SavedImageRepository(database()), folder, events);
     }
 }

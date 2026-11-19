@@ -6,3 +6,18 @@
     -fx-padding: 3px 4px 3px 4px;
     -fx-spacing: 1px;
 }
+
+/*  The name of a saved image of the library over its attached image: a pill in the accent color, readable on any
+    image and in every theme  */
+.saved-image-chip {
+    -fx-background-color: -color-accent-emphasis;
+    -fx-background-radius: 8px;
+    -fx-padding: 1px 7px 1px 5px;
+    -fx-graphic-text-gap: 3px;
+    -fx-text-fill: -color-fg-emphasis;
+    -fx-font-size: 11px;
+}
+
+.saved-image-chip .ikonli-font-icon {
+    -fx-icon-color: -color-fg-emphasis;
+}

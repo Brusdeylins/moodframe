@@ -92,6 +92,17 @@ class ChatRepositoryTest {
     }
 
     @Test
+    void keepsTheSavedImagesAnEntryWasOrderedWith() throws Exception {
+        ChatEntry entry = save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a poster with the logo")
+                .savedImageIds(List.of("logo-1", "word-mark-2")).build());
+        assertEquals(List.of("logo-1", "word-mark-2"),
+                repository.findChatEntryById(entry.getId()).orElseThrow().getSavedImageIds());
+
+        ChatEntry without = save(new ChatEntry.Builder().chatId(chat().getId()).userPrompt("a poster").build());
+        assertEquals(List.of(), repository.findChatEntryById(without.getId()).orElseThrow().getSavedImageIds());
+    }
+
+    @Test
     void readsEntriesWithoutCopyAndKeepsTheirStyle() throws Exception {
         Chat chat = chat();
         ChatEntry plain = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("no blocks").build());

@@ -31,6 +31,7 @@ import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
@@ -235,6 +236,8 @@ public class MainWindowController implements I18nChangeListener {
         moodFramePanelController.followModel(generationPanelController.modelProperty());
         generationPanelController.init(config, generationService, services.getService(ImageAttachmentService.class),
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
+        services.findService(SavedImageService.class).ifPresent((SavedImageService savedImages) ->
+                generationPanelController.useSavedImages(savedImages, worker, trash));
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
                 moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
                 services.getService(MoodAnalysisService.class), trash), worker,
@@ -555,6 +558,7 @@ public class MainWindowController implements I18nChangeListener {
                     librarySidebarController.refreshGroups();
                 }
                 case FAVORITE -> moodFramePanelController.onLibraryChanged(kind);
+                case SAVED_IMAGE -> generationPanelController.savedImagesChanged();
                 case CHAT -> {
                     librarySidebarController.showChatChange(id);
                     updateUIState();
@@ -665,7 +669,7 @@ public class MainWindowController implements I18nChangeListener {
                             selection.resolution()),
                     modelId, generationPanelController.imageCount(), generationPanelController.parameters(),
                     generationPanelController.attachedImage(), generationPanelController.attachedImagesBase64(),
-                    ChatEntry.Source.UI));
+                    ChatEntry.Source.UI, generationPanelController.savedImageIds()));
         } catch (GenerationService.GenerationException e) {
             switch (e.getFailure()) {
                 case PROMPT_TOO_LONG -> statusBarController.error(I18nManager.getText("status.error.prompt.too.long",
@@ -772,14 +776,14 @@ public class MainWindowController implements I18nChangeListener {
         boolean all = part == ChatEntryCard.Reuse.ALL;
         if (all || part == ChatEntryCard.Reuse.PROMPT)
             inputBar.setPrompt(entry.getUserPrompt());
-        if (all)
-            generationPanelController.reuse(entry);
+        int missing = all ? generationPanelController.reuse(entry) : 0;
         if (all || part == ChatEntryCard.Reuse.FRAME)
             moodFramePanelController.reuseFrame(entry);
         if (all || part == ChatEntryCard.Reuse.MOOD)
             moodFramePanelController.reuseMood(entry);
         if (all)
-            statusBarController.status(I18nManager.getText("status.entry.reused"));
+            statusBarController.status(missing > 0 ? I18nManager.getText("status.entry.reused.missing", missing)
+                    : I18nManager.getText("status.entry.reused"));
         inputBar.focusPrompt();
     }
 

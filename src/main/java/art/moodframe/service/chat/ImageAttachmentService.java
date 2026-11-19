@@ -81,11 +81,13 @@ public class ImageAttachmentService {
         }
 
         /*  Too large (e.g. a 4K PNG) or too many pixels: attach a JPEG copy within the limits  */
+        File source = file;
         if (file.length() > maxFileSize || pixelsOf(file) > MAX_PIXELS)
             file = shrinkToLimit(file, maxFileSize);
 
         // Create initial AttachedImage
         AttachedImage attachment = new AttachedImage(file);
+        attachment.setSourceFile(source);
         
         // Extract image dimensions
         try {

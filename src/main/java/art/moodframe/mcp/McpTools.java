@@ -10,6 +10,7 @@ import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.provider.ProviderException;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.trash.TrashCenter;
@@ -115,6 +116,7 @@ public class McpTools {
      * @param colors      the palettes
      * @param frames      the frames
      * @param favorites   the favorites
+     * @param savedImages the saved images
      * @param trash       the trash
      * @param events      where a download is reported for the status bar
      * @param providers   the providers: their models to choose from and their prompt limits
@@ -122,37 +124,40 @@ public class McpTools {
      */
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, LibraryEvents events, ProviderRegistry providers) {
+            SavedImageService savedImages, TrashCenter trash, LibraryEvents events, ProviderRegistry providers) {
         McpTools tools = new McpTools();
         new ChatTools(chats, events, config.paths().downloads()).addTo(tools);
         new LibraryTools(config, moods, blocks, colors, frames, favorites, trash, providers).addTo(tools);
+        new SavedImageTools(savedImages).addTo(tools);
         return tools;
     }
 
     /**
      * Creates all tools: those that read, those that change the chats and the library, and those that generate.
      *
-     * @param config     the configuration (enabled providers, keys, defaults of the parameters)
-     * @param chats      the chats of the main window
-     * @param moods      the moods
-     * @param blocks     the text building blocks
-     * @param colors     the palettes
-     * @param frames     the frames
-     * @param favorites  the favorites
-     * @param trash      the trash
-     * @param events     where a download is reported for the status bar
-     * @param generation carries out and cancels the generation orders
-     * @param analysis   finds the building blocks of an image
+     * @param config      the configuration (enabled providers, keys, defaults of the parameters)
+     * @param chats       the chats of the main window
+     * @param moods       the moods
+     * @param blocks      the text building blocks
+     * @param colors      the palettes
+     * @param frames      the frames
+     * @param favorites   the favorites
+     * @param savedImages the saved images
+     * @param trash       the trash
+     * @param events      where a download is reported for the status bar
+     * @param generation  carries out and cancels the generation orders
+     * @param analysis    finds the building blocks of an image
      * @return the tools
      */
     public static McpTools all(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, LibraryEvents events, GenerationService generation, MoodAnalysisService analysis) {
-        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
+            SavedImageService savedImages, TrashCenter trash, LibraryEvents events, GenerationService generation,
+            MoodAnalysisService analysis) {
+        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, savedImages, trash, events,
                 generation.providers());
         new ChatEditTools(chats, generation).addTo(tools);
         new LibraryEditTools(chats, moods, blocks, colors, frames, favorites, trash, analysis).addTo(tools);
-        new GenerateTools(config, chats, moods, blocks, colors, frames, generation).addTo(tools);
+        new GenerateTools(config, chats, moods, blocks, colors, frames, savedImages, generation).addTo(tools);
         return tools;
     }
 

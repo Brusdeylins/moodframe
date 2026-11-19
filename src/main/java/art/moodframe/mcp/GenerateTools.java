@@ -13,6 +13,7 @@ import art.moodframe.model.ModelParameter;
 import art.moodframe.model.ModelParameters;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.model.SavedImage;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationOrder;
@@ -21,6 +22,7 @@ import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.prompt.PromptComposer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -63,6 +65,7 @@ class GenerateTools {
     private final PromptBlockService blocks;
     private final ColorStyleService colors;
     private final FrameService frames;
+    private final SavedImageService savedImages;
     private final GenerationService generation;
 
     /**
@@ -73,17 +76,20 @@ class GenerateTools {
      * @param moods      the moods
      * @param blocks     the text building blocks
      * @param colors     the palettes
-     * @param frames     the frames
-     * @param generation carries out the orders
+     * @param frames      the frames
+     * @param savedImages the saved images, attached by their names
+     * @param generation  carries out the orders
      */
     GenerateTools(ApplicationConfig config, ChatLibrary chats, MoodService moods, PromptBlockService blocks,
-            ColorStyleService colors, FrameService frames, GenerationService generation) {
+            ColorStyleService colors, FrameService frames, SavedImageService savedImages,
+            GenerationService generation) {
         this.config = config;
         this.chats = chats;
         this.moods = moods;
         this.blocks = blocks;
         this.colors = colors;
         this.frames = frames;
+        this.savedImages = savedImages;
         this.generation = generation;
     }
 
@@ -117,6 +123,9 @@ class GenerateTools {
         order.set("count", McpTools.integer("The number of images; a video is always one", 1, MAX_COUNT, 1));
         order.set("referenceImages", McpTools.strings("Reference images: IDs of images (see get_entry) or absolute "
                 + "paths of image files, at most get_capabilities.maxReferenceImages of the model", MAX_REFERENCES));
+        order.set("savedImages", McpTools.strings("Saved images attached after the reference images, by name or ID "
+                + "(see list_saved_images), e.g. a logo; they count against maxReferenceImages and the entry keeps "
+                + "them", MAX_REFERENCES));
         ObjectNode params = McpTools.JSON.createObjectNode().put("type", "object")
                 .put("description", "The parameters of the model as get_capabilities lists them for it; a missing "
                         + "one takes the default of MoodFrame")
@@ -307,10 +316,28 @@ class GenerateTools {
                 || frame.getResolution() != null && !frame.getResolution().equals(resolution));
 
         int count = model.isVideoModel() ? 1 : McpTools.number(arguments, "count", 1, MAX_COUNT, 1);
+        List<SavedImage> saved = savedImages(arguments.get("savedImages"));
         return new GenerationOrder(chat, prompt, moods.selection(combination), mood, moodChanged,
                 new GenerationOrder.Target(frame, frameChanged, aspectRatio, resolution), modelId, count,
-                parameters(arguments.get("params"), model), null, references(arguments.get("referenceImages"), model,
-                encode), ChatEntry.Source.MCP);
+                parameters(arguments.get("params"), model), null, references(arguments.get("referenceImages"), saved,
+                model, encode), ChatEntry.Source.MCP, saved.stream().map(SavedImage::id).toList());
+    }
+
+    /*  the saved images by their names or IDs, in their order  */
+    private List<SavedImage> savedImages(JsonNode references) throws McpTools.ToolException {
+        if (references == null || references.isNull() || references.isEmpty())
+            return List.of();
+        if (!references.isArray())
+            throw new McpTools.ToolException("The argument 'savedImages' must be a list of names of saved images");
+        List<SavedImage> saved = new ArrayList<>();
+        for (JsonNode reference : references) {
+            SavedImage image = reference.isTextual() ? savedImages.find(reference.asText().trim()) : null;
+            if (image == null)
+                throw new McpTools.ToolException("No saved image with the name or ID '" + reference.asText()
+                        + "', see list_saved_images");
+            saved.add(image);
+        }
+        return saved;
     }
 
     /*  the parameters the model takes, as get_capabilities lists them; a missing one takes the default  */
@@ -390,26 +417,32 @@ class GenerateTools {
         return names;
     }
 
-    /*  the reference images as Base64, within the limits of the model; unless encoded, only checked and their paths
-        stand in, so a preview counts them like the order sent  */
-    private List<String> references(JsonNode images, GenerationModel model, boolean encode)
+    /*  the reference images as Base64, those of the IDs or paths and then the saved images, within the limits of the
+        model; unless encoded, only checked and their paths stand in, so a preview counts them like the order sent  */
+    private List<String> references(JsonNode images, List<SavedImage> saved, GenerationModel model, boolean encode)
             throws McpTools.ToolException, IOException {
-        if (images == null || images.isNull() || images.isEmpty())
+        if ((images == null || images.isNull() || images.isEmpty()) && saved.isEmpty())
             return List.of();
-        if (!images.isArray())
+        if (images != null && !images.isNull() && !images.isArray())
             throw new McpTools.ToolException("The argument 'referenceImages' must be a list of image IDs or paths");
         int limit = model.supportsMultiImage() ? model.getMaxInputImages() : 0;
-        if (images.size() > limit)
+        if ((images != null ? images.size() : 0) + saved.size() > limit)
             throw new McpTools.ToolException("The model " + model.name() + " takes at most " + limit
                     + " reference images");
+        List<Path> files = new ArrayList<>();
+        if (images != null)
+            for (JsonNode image : images) {
+                if (!image.isTextual())
+                    throw new McpTools.ToolException("A reference image is an image ID or an absolute path");
+                files.add(ChatTools.imageFile(chats, image.asText()));
+            }
+        for (SavedImage image : saved)
+            files.add(savedImages.fileOf(image));
 
         ImageAttachmentService attachments = new ImageAttachmentService();
         long maxFileSize = GenerationModel.getMaxFileSize(model.getProvider());
         List<String> encoded = new ArrayList<>();
-        for (JsonNode image : images) {
-            if (!image.isTextual())
-                throw new McpTools.ToolException("A reference image is an image ID or an absolute path");
-            Path file = ChatTools.imageFile(chats, image.asText());
+        for (Path file : files) {
             if (!encode) {
                 encoded.add(file.toString());
                 continue;
@@ -418,7 +451,7 @@ class GenerateTools {
                 encoded.add(attachments.attachImage(file.toFile(), maxFileSize).getBase64Data());
             }
             catch (IllegalArgumentException e) {
-                throw new McpTools.ToolException("The reference image '" + image.asText() + "': " + e.getMessage());
+                throw new McpTools.ToolException("The reference image '" + file + "': " + e.getMessage());
             }
         }
         return encoded;

@@ -15,7 +15,7 @@ public interface TrashGroup {
 
     /** The groups of the trash, in the order of their tabs. */
     enum Kind {
-        CHATS, IMAGES, BLOCKS, MOODS, FRAMES
+        CHATS, IMAGES, BLOCKS, MOODS, FRAMES, SAVED_IMAGES
     }
 
     /**

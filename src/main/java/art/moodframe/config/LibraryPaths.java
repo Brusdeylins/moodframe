@@ -77,6 +77,11 @@ public record LibraryPaths(Path home, Path root, Path images) {
         return root.resolve("thumbnails");
     }
 
+    /** @return the folder of the saved images, e.g. logos attached to an order again and again */
+    public Path savedImages() {
+        return root.resolve("library-images");
+    }
+
     /** @return the trash folder of image and thumbnail files */
     public Path trash() {
         return root.resolve("trash");

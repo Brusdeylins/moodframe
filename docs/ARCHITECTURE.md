@@ -94,7 +94,8 @@ The subpackages of `service`, each using only those above it in the table (no cy
 | `service.provider.validation` | the check of the accounts of all providers (`ApiProviderValidator`)                  |
 | `service.prompt`              | the prompt text: `PromptComposer`, `CameraPromptBuilder`                             |
 | `service.trash`               | the central trash (`TrashCenter`, `TrashGroup`), its cleanup, the trash directory    |
-| `service.library`             | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
+| `service.library`             | moods, frames, building blocks, palettes, favorites, saved images, `LibraryEvents`,  |
+|                               | trash groups                                                                         |
 | `service.chat`                | the chats with their entries, files, thumbnail files, attachments, their trash       |
 |                               | groups; no JavaFX                                                                    |
 | `service.generation`          | carries out a generation order: entry, request, job polling, image files             |
@@ -160,7 +161,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **Database writes** run off the JavaFX thread, as a write may wait up to the busy timeout of 5 s for one of the MCP
   server: a generation on its own worker (see below); the chats, the trash and the groups Mood and Frame on the worker
   of the main window (`ui.panel.PanelWorker`: moods, frames, building blocks, palettes and favorites of the lists, and
-  the "Manage…" windows of the building blocks, moods and frames, which wait meanwhile); the backup, its import and
+  the "Manage…" windows of the building blocks, moods and frames, which wait meanwhile; the saved images of the
+  attachments: their files, their saving and their window); the backup, its import and
   the reset of the settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled
   meanwhile; the brainstorm on its session queue and its window's worker (see "Brainstorm"). The panel shows the
   outcome afterwards, a saved mood or frame as chosen. Reads that feed what is shown at once (the lists of the panel and of
@@ -259,6 +261,7 @@ every service its dependencies in the constructor, which is also how tests pass 
 `ChatRepository`, `ChatTrashRepository` and `ChatGroupQueries`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
+`SavedImageService` its repository, the folder of the saved images from `LibraryPaths` and the events;
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
 the shared `BrainstormSessions` (the stored sessions and the queue of each session), `BrainstormModels` (the
 language model of a session) and `BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
@@ -370,11 +373,11 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
 ## Folders and settings
 
 - **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with
-  `config.properties`, `secret.key`, `db/`, `images/`, `thumbnails/`, `trash/`, `logs/`, `certificates/`, and the
-  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to the
-  one `ApplicationConfig`, which the splash and the services share; `ApplicationConfig.paths()` returns it with the
-  images folder of the setting `path.images` (whose default is `~/.moodframe/images`), and that instance is
-  registered for the services. The database, the
+  `config.properties`, `secret.key`, `db/`, `images/`, `library-images/` (the saved images), `thumbnails/`, `trash/`,
+  `logs/`, `certificates/`, and the user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from
+  `user.home` and hands it to the one `ApplicationConfig`, which the splash and the services share;
+  `ApplicationConfig.paths()` returns it with the images folder of the setting `path.images` (whose default is
+  `~/.moodframe/images`), and that instance is registered for the services. The database, the
   logs and the images of a generation come from these paths. The only folder setting is `path.images`: former
   versions also wrote `path.database` and `path.logs`, which no dialog ever offered; they are ignored and no longer
   written. Tests use the paths of a temporary home. Only `logback.xml` still reads `user.home` itself, because
@@ -425,8 +428,9 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   remove these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`,
   `chat_entries.completed_at`, `generated_images.downloaded_at`), of the brainstorm sessions (`created_at`,
-  `updated_at`; a session has no trash and is deleted for good) and the `deleted_at` of moods, frames, blocks and
-  palettes hold epoch milliseconds of the local time (`setTimestamp`);
+  `updated_at`; a session has no trash and is deleted for good), the `created_at` and `deleted_at` of the saved images
+  and the `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time
+  (`setTimestamp`);
   `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read counts as deleted now
   (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames, blocks and palettes are
   still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates); nothing reads them.
@@ -456,14 +460,17 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   adds only what is missing, in one transaction.
 - **Triggers**: only the favorites cleanup of V027. V031 dropped V001's triggers on `chats.updated_at`, which never
   ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
-- **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
-  (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
+- **Soft delete**: chats, moods, frames, building blocks, palettes and saved images get `deleted_at`; the central
+  trash (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory;
+  the file of a saved image stays in `library-images/`, named by its SHA-256, until it is removed for good.
   Brainstorm sessions have no trash: deleting one removes it with its messages and drafts.
 - **Former columns**: `chat_entries.guidance` and `generated_images.guidance` hold the safety tolerance of the
   generation (the column of the former FLUX guidance, reused), and `steps` is always written as 0; `ChatRepository`
   maps them.
 - **Files**: images and videos live in the images folder of `LibraryPaths` (by default `~/.moodframe/images`),
-  thumbnails under `~/.moodframe/thumbnails`; the database stores their paths.
+  thumbnails under `~/.moodframe/thumbnails`; the database stores their paths. A saved image keeps a copy of its file
+  in `~/.moodframe/library-images` (`saved_images.file`, the same content once), a chat entry the ids of the saved
+  images it was ordered with (`chat_entries.saved_image_ids`), so "Reuse" attaches them again.
 - **Settings** are a properties file `~/.moodframe/config.properties`, not part of the database (see "Folders and
   settings").
 

@@ -35,7 +35,9 @@ import java.util.Set;
  * <ul>
  *   <li>Header: Left="Bild 1", Right="1024x1024 (2,4 MB)" when image present</li>
  *   <li>Square preview area (height = width), clickable for upload</li>
- *   <li>Remove button as overlay, only visible on hover when image present</li>
+ *   <li>Remove button as overlay, only visible on hover when image present, beside the bookmark that saves the
+ *       image in the library</li>
+ *   <li>A saved image shows its name as a chip</li>
  *   <li>No separate upload button or info label</li>
  * </ul>
  */
@@ -47,7 +49,6 @@ class ImageSlot extends VBox {
 
     private final MultiImageAttachmentPanel panel;
 
-    private final int index;
     private AttachedImage attachment;
 
     // UI components
@@ -58,10 +59,12 @@ class ImageSlot extends VBox {
     private VBox placeholder;
     private ImageView imageView;
     private Button removeButton;
+    private Button saveButton;
+    private FontIcon saveIcon;
+    private Label savedChip;
 
-    ImageSlot(MultiImageAttachmentPanel panel, int index) {
+    ImageSlot(MultiImageAttachmentPanel panel) {
         this.panel = panel;
-        this.index = index;
         initSlotUI();
     }
 
@@ -170,18 +173,43 @@ class ImageSlot extends VBox {
         removeButton.setGraphic(removeIcon);
         removeButton.setTooltip(new Tooltip(I18nManager.getText("attachment.remove")));
 
-        /*  Over the image the button sits on the dark bar of the actions of an image, shown with the button  */
-        HBox removeBar = new HBox(removeButton);
+        /*  The bookmark saves the image in the library, filled for a saved image  */
+        saveIcon = new FontIcon("mdi2b-bookmark-plus-outline");
+        saveIcon.setIconSize(14);
+        saveIcon.getStyleClass().addAll("ikonli-font-icon");
+        saveButton = new Button(null, saveIcon);
+        saveButton.getStyleClass().add("icon-button");
+        saveButton.setOnAction((event) -> {
+            if (attachment != null && panel.onSaveImage != null)
+                panel.onSaveImage.accept(attachment);
+        });
+
+        /*  Over the image the buttons sit on the dark bar of the actions of an image, shown with the remove button  */
+        String actionBarCss = MultiImageAttachmentPanel.class.getResource("/css/image-action-bar.css")
+                .toExternalForm();
+        HBox removeBar = new HBox(saveButton, removeButton);
         removeBar.getStyleClass().add("image-action-bar");
-        removeBar.getStylesheets().add(
-                MultiImageAttachmentPanel.class.getResource("/css/image-action-bar.css").toExternalForm());
+        removeBar.getStylesheets().add(actionBarCss);
         removeBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         removeBar.visibleProperty().bind(removeButton.visibleProperty());
 
         StackPane.setAlignment(removeBar, Pos.TOP_RIGHT);
         StackPane.setMargin(removeBar, new Insets(4));
 
-        previewContainer.getChildren().addAll(placeholder, imageView, removeBar);
+        /*  The name of a saved image, always shown  */
+        FontIcon chipIcon = new FontIcon("mdi2b-bookmark");
+        chipIcon.setIconSize(11);
+        chipIcon.getStyleClass().add("ikonli-font-icon");
+        savedChip = new Label(null, chipIcon);
+        savedChip.getStyleClass().add("saved-image-chip");
+        savedChip.getStylesheets().add(actionBarCss);
+        savedChip.setMouseTransparent(true);
+        savedChip.setMaxWidth(Region.USE_PREF_SIZE);
+        savedChip.setVisible(false);
+        StackPane.setAlignment(savedChip, Pos.BOTTOM_LEFT);
+        StackPane.setMargin(savedChip, new Insets(4));
+
+        previewContainer.getChildren().addAll(placeholder, imageView, savedChip, removeBar);
 
         // Hover effect: show remove button only when image present (but not during drag)
         previewContainer.setOnMouseEntered(e -> {
@@ -249,7 +277,7 @@ class ImageSlot extends VBox {
                 if (isValidImageFile(imageFile)) {
                     previewContainer.getStyleClass().removeAll("drag-over-valid", "drag-over-invalid");
                     previewContainer.getStyleClass().add("drop-success");
-                    panel.attachImageToSlot(index, imageFile);
+                    panel.attachImageToSlot(panel.imageSlots.indexOf(this), imageFile);
                     success = true;
                 }
                 else {
@@ -337,6 +365,27 @@ class ImageSlot extends VBox {
         return attachment != null;
     }
 
+    /** @return the attached image, null for an empty slot */
+    AttachedImage attachment() {
+        return attachment;
+    }
+
+    /**
+     * Shows whether the image is saved in the library: its name as a chip and a filled bookmark; the bookmark only
+     * while the panel saves images.
+     */
+    void updateSaved() {
+        String id = attachment != null ? attachment.getSavedImageId() : null;
+        String name = id != null ? panel.savedImageNames.apply(id) : null;
+        savedChip.setText(name);
+        savedChip.setVisible(name != null);
+        saveIcon.setIconLiteral(name != null ? "mdi2b-bookmark" : "mdi2b-bookmark-plus-outline");
+        saveButton.setTooltip(new Tooltip(name != null ? I18nManager.getText("attachment.saved.tooltip", name)
+                : I18nManager.getText("attachment.save.tooltip")));
+        saveButton.setVisible(panel.onSaveImage != null);
+        saveButton.setManaged(panel.onSaveImage != null);
+    }
+
     private void updateUI() {
         boolean hasImage = attachment != null;
 
@@ -374,6 +423,7 @@ class ImageSlot extends VBox {
         int slotNumber = panel.imageSlots.indexOf(this) + 1;
         boolean showHeader = panel.maxImages.get() > 1;
         updateHeaderLabel(slotNumber, showHeader);
+        updateSaved();
     }
 
     private void loadPreviewImage() {
@@ -403,30 +453,18 @@ class ImageSlot extends VBox {
         File selectedFile = fileChooser.showOpenDialog(window);
 
         if (selectedFile != null) {
-            panel.attachImageToSlot(index, selectedFile);
+            panel.attachImageToSlot(panel.imageSlots.indexOf(this), selectedFile);
         }
     }
 
+    /*  removes the image; the slot goes with it unless it is the first one, which always stays (even if empty)  */
     private void removeImage() {
-        int currentIndex = panel.imageSlots.indexOf(this);
-        if (currentIndex >= 0) {
-            panel.removeImageAt(currentIndex);
-
-            // Remove this slot from UI if it's not the first one
-            // The first slot always stays (even if empty)
-            if (currentIndex > 0) {
-                panel.imageSlots.remove(this);
-                panel.slotsContainer.getChildren().remove(this);
-                dispose();
-                panel.updateSlotNumbers();
-            }
-
-            panel.updateAddButtonVisibility();
-        }
+        panel.removeSlot(this);
     }
 
     void updateTexts() {
         removeButton.setTooltip(new Tooltip(I18nManager.getText("attachment.remove")));
+        updateSaved();
         // Update header label
         int slotNumber = panel.imageSlots.indexOf(this) + 1;
         boolean showHeader = panel.maxImages.get() > 1;

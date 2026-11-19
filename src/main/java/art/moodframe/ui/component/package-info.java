@@ -4,7 +4,8 @@
  *
  * <p>Main classes:</p>
  * <ul>
- * <li>{@link MultiImageAttachmentPanel}: the attached reference images, each in an {@link ImageSlot}</li>
+ * <li>{@link MultiImageAttachmentPanel}: the attached reference images, each in an {@link ImageSlot}, and
+ *     {@link SavedImageChoice}, the choice of the saved images over them</li>
  * <li>{@link FavoriteStar}: the favorite star of a row</li>
  * <li>{@link DialogButtons}: the standard dialog buttons in the language of the app</li>
  * <li>{@link MoodChoice}: an entry of the mood selection; likewise {@link FrameChoice} and {@link BlockChoice}</li>

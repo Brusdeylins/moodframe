@@ -19,6 +19,7 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.model.SavedImage;
 import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
@@ -37,6 +38,8 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.MoodTrashGroup;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
+import art.moodframe.service.library.SavedImageTrashGroup;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.provider.MockProviders;
@@ -94,6 +97,7 @@ class McpEditToolsTest {
     private static ColorStyleService colors;
     private static FrameService frames;
     private static FavoriteService favorites;
+    private static SavedImageService savedImages;
     private static Provider provider;
     private static McpTools tools;
     private static final List<String> reported = new CopyOnWriteArrayList<>();
@@ -126,12 +130,14 @@ class McpEditToolsTest {
         moods = TestLibraryServices.moods(blocks, colors, events);
         frames = TestLibraryServices.frames(events);
         favorites = TestLibraryServices.favorites(events);
+        savedImages = TestLibraryServices.savedImages(tempDir.resolve("library-images"), events);
         TrashCenter trash = new TrashCenter();
         trash.register(new ChatTrashGroup(chatTrash));
         trash.register(new ImageTrashGroup(repository, chatTrash, null, null));
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));
         trash.register(new FrameTrashGroup(frames));
+        trash.register(new SavedImageTrashGroup(savedImages));
         trash.addListener(chats);
 
         /*  Only BFL is enabled with a key; no language model for the analysis of images  */
@@ -147,8 +153,8 @@ class McpEditToolsTest {
         provider = new Provider(repository);
         GenerationService generation = new GenerationService(config, chats, moods, provider,
                 MockProviders.preparing(config), Runnable::run);
-        tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
-                new MoodAnalysisService(null, null, config));
+        tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, savedImages, trash, events,
+                generation, new MoodAnalysisService(null, null, config));
     }
 
     @AfterAll
@@ -509,6 +515,40 @@ class McpEditToolsTest {
         String reference = JSON.writeValueAsString(result.path("images").get(1).path("path").asText());
         assertTrue(error("preview_generation", "{\"prompt\":\"x\",\"model\":\"" + MODEL + "\",\"referenceImages\":["
                 + String.join(",", Collections.nCopies(9, reference)) + "]}").contains("at most 8"));
+    }
+
+    @Test
+    void listsTheSavedImagesAndGeneratesWithOneByItsName() throws Exception {
+        File logo = tempDir.resolve("acme-logo.png").toFile();
+        ImageIO.write(new BufferedImage(48, 24, BufferedImage.TYPE_INT_ARGB), "png", logo);
+        SavedImage saved = savedImages.save(logo.toPath(), "ACME Logo", "white logo, small in the lower right")
+                .image();
+
+        JsonNode listed = call("list_saved_images", "{}").path("savedImages");
+        JsonNode first = StreamSupport.stream(listed.spliterator(), false)
+                .filter((JsonNode item) -> item.path("name").asText().equals("ACME Logo")).findFirst().orElseThrow();
+        assertEquals(saved.id(), first.path("id").asText());
+        assertEquals(48, first.path("width").asInt());
+        assertEquals(24, first.path("height").asInt());
+        assertEquals("PNG", first.path("format").asText());
+        assertEquals("white logo, small in the lower right", first.path("description").asText());
+        assertTrue(Files.isRegularFile(Path.of(first.path("path").asText())));
+
+        /*  The saved image goes to the provider as reference and the entry keeps it  */
+        String chatId = call("create_chat", "{\"name\":\"Logos\"}").path("id").asText();
+        JsonNode generated = call("generate", "{\"chatId\":\"" + chatId + "\",\"prompt\":\"a poster with the logo\","
+                + "\"model\":\"" + MODEL + "\",\"savedImages\":[\"ACME Logo\"],\"wait\":10}");
+        assertEquals("COMPLETED", generated.path("status").asText());
+        assertEquals(1, provider.sent.get(provider.sent.size() - 1).getInputImageCount());
+        assertEquals(List.of(saved.id()), chats.findEntry(generated.path("entryId").asText()).getSavedImageIds());
+
+        /*  An unknown name and more images than the model takes are refused  */
+        assertTrue(error("generate", "{\"chatId\":\"" + chatId + "\",\"prompt\":\"x\",\"model\":\"" + MODEL
+                + "\",\"savedImages\":[\"No Logo\"]}").contains("list_saved_images"));
+        String reference = JSON.writeValueAsString(logo.getPath());
+        assertTrue(error("preview_generation", "{\"prompt\":\"x\",\"model\":\"" + MODEL + "\",\"referenceImages\":["
+                + String.join(",", Collections.nCopies(8, reference)) + "],\"savedImages\":[\"ACME Logo\"]}")
+                .contains("at most 8"));
     }
 
     @Test

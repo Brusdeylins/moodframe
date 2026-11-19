@@ -17,6 +17,7 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
@@ -37,8 +38,10 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.imageio.ImageIO;
 
 /**
@@ -52,6 +55,7 @@ import javax.imageio.ImageIO;
  *   <li>Drag &amp; Drop support per slot</li>
  *   <li>Upload and remove controls per image</li>
  *   <li>"+" button to add more slots</li>
+ *   <li>Saved images of the library: the bookmark of a slot saves its image, a saved image shows its name</li>
  * </ul>
  *
  * @since 1.5.0 - FLUX.2 Multi-Image Support
@@ -72,6 +76,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     VBox slotsContainer;
     final List<ImageSlot> imageSlots = new ArrayList<>();
     private Label headerLabel;
+    private HBox headerBox;
     private Button pasteButton;
     private Timeline clipboardPoller;
     private Button addSlotButton;
@@ -83,6 +88,10 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     private Runnable onAllImagesRemoved;
     Consumer<String> onError;
     Consumer<File> onMoodFromImage;
+    Consumer<AttachedImage> onSaveImage;
+
+    /*  the name of a saved image by its id, null for one not in use  */
+    Function<String, String> savedImageNames = (id) -> null;
 
     // Service
     private ImageAttachmentService attachmentService;
@@ -148,7 +157,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
         Region headerSpacer = new Region();
         HBox.setHgrow(headerSpacer, Priority.ALWAYS);
-        HBox headerBox = new HBox(headerLabel, headerSpacer, pasteButton);
+        headerBox = new HBox(2.0, headerLabel, headerSpacer, pasteButton);
         headerBox.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(headerBox, slotsContainer, addSlotButton, maxReachedLabel);
@@ -226,8 +235,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             }
         }
 
-        int slotIndex = imageSlots.size();
-        ImageSlot slot = new ImageSlot(this, slotIndex);
+        ImageSlot slot = new ImageSlot(this);
         imageSlots.add(slot);
         slotsContainer.getChildren().add(slot);
 
@@ -292,6 +300,11 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
      * @return completes on the JavaFX thread with whether the image is in the slot now
      */
     public CompletableFuture<Boolean> attachImageToSlot(int slotIndex, File imageFile) {
+        return attachImageToSlot(slotIndex, imageFile, null);
+    }
+
+    /*  attaches an image to a slot, as the saved image of this id (null for none)  */
+    private CompletableFuture<Boolean> attachImageToSlot(int slotIndex, File imageFile, String savedImageId) {
         if (slotIndex < 0 || slotIndex >= imageSlots.size()) {
             logger.warn("Invalid slot index: {}", slotIndex);
             return CompletableFuture.completedFuture(false);
@@ -307,8 +320,10 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
         attachmentService.createAttachmentAsync(imageFile, getCurrentMaxFileSize())
             .thenAccept(attachment -> Platform.runLater(() -> {
                 boolean valid = attachment != null && attachment.isValid();
-                if (valid)
+                if (valid) {
+                    attachment.setSavedImageId(savedImageId);
                     setImageAtSlot(slotIndex, attachment);
+                }
                 attached.complete(valid);
             }))
             .exceptionally(e -> {
@@ -395,14 +410,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
 
     /*  Attaches a pasted image, always appended: into the first empty slot, else a new slot  */
     private void attachPasted(File tempFile) {
-        int slotIndex = -1;
-        for (int i = 0; i < imageSlots.size() && slotIndex < 0; i++)
-            if (!imageSlots.get(i).hasImage())
-                slotIndex = i;
-        if (slotIndex < 0 && imageSlots.size() < maxImages.get()) {
-            addNewSlot();
-            slotIndex = imageSlots.size() - 1;
-        }
+        int slotIndex = freeSlot();
         if (slotIndex < 0) {
             tempFile.delete();
             if (onError != null)
@@ -410,6 +418,82 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             return;
         }
         attachImageToSlot(slotIndex, tempFile);
+    }
+
+    /*  the first empty slot, else a new slot as long as the model takes more images; -1 at its limit  */
+    private int freeSlot() {
+        for (int i = 0; i < imageSlots.size(); i++)
+            if (!imageSlots.get(i).hasImage())
+                return i;
+        if (imageSlots.size() < maxImages.get()) {
+            addNewSlot();
+            return imageSlots.size() - 1;
+        }
+        return -1;
+    }
+
+    /**
+     * Attaches a saved image of the library into the first empty slot, else a new slot, as long as the model takes
+     * more images; at its limit the error callback tells it.
+     *
+     * @param imageFile    the file of the saved image
+     * @param savedImageId the id of the saved image
+     * @return completes on the JavaFX thread with whether the image is in a slot now
+     */
+    public CompletableFuture<Boolean> attachSavedImage(File imageFile, String savedImageId) {
+        int slotIndex = freeSlot();
+        if (slotIndex < 0) {
+            if (onError != null)
+                onError.accept(I18nManager.getText("attachment.max.reached", maxImages.get()));
+            return CompletableFuture.completedFuture(false);
+        }
+        return attachImageToSlot(slotIndex, imageFile, savedImageId);
+    }
+
+    /**
+     * Removes the attached images of a saved image, with their slots.
+     *
+     * @param savedImageId the id of the saved image
+     */
+    public void removeSavedImage(String savedImageId) {
+        for (ImageSlot slot : List.copyOf(imageSlots))
+            if (slot.hasImage() && savedImageId.equals(slot.attachment().getSavedImageId()))
+                removeSlot(slot);
+    }
+
+    /**
+     * Tells which saved images are attached.
+     *
+     * @return their ids in the order of the slots
+     */
+    public List<String> savedImageIds() {
+        return getAttachedImages().stream().map(AttachedImage::getSavedImageId).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Marks an attached image as the saved image of the library it is now, which its slot shows.
+     *
+     * @param attachment   the attached image
+     * @param savedImageId the id of the saved image
+     */
+    public void markSaved(AttachedImage attachment, String savedImageId) {
+        attachment.setSavedImageId(savedImageId);
+        refreshSavedImages();
+    }
+
+    /** Shows the names of the saved images in their slots anew, e.g. after a rename in the library. */
+    public void refreshSavedImages() {
+        for (ImageSlot slot : imageSlots)
+            slot.updateSaved();
+    }
+
+    /**
+     * Puts controls into the header beside the title, before the paste button.
+     *
+     * @param actions the controls, e.g. the choice of the saved images
+     */
+    public void addHeaderActions(Node... actions) {
+        headerBox.getChildren().addAll(headerBox.getChildren().indexOf(pasteButton), List.of(actions));
     }
 
     /**
@@ -441,6 +525,31 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
     }
 
     /**
+     * Removes the image of a slot; a slot but the first goes with it, and the images behind it move up with their
+     * slots.
+     *
+     * @param slot the slot
+     */
+    void removeSlot(ImageSlot slot) {
+        int position = imageSlots.indexOf(slot);
+        if (position < 0)
+            return;
+        if (position == 0)
+            removeImageAt(0);
+        else {
+            imageSlots.remove(slot);
+            slotsContainer.getChildren().remove(slot);
+            slot.dispose();
+            if (position < attachedImages.size()) {
+                attachedImages.remove(position);
+                imagesRemoved();
+            }
+            updateSlotNumbers();
+        }
+        updateAddButtonVisibility();
+    }
+
+    /**
      * Removes an image at a specific slot index.
      */
     void removeImageAt(int slotIndex) {
@@ -453,7 +562,11 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
         if (slotIndex < imageSlots.size()) {
             imageSlots.get(slotIndex).clearAttachment();
         }
+        imagesRemoved();
+    }
 
+    /*  settles the list after an image went: drops its empty places at the end and tells the callbacks  */
+    private void imagesRemoved() {
         // Compact the list (remove trailing nulls)
         while (!attachedImages.isEmpty() && attachedImages.get(attachedImages.size() - 1) == null) {
             attachedImages.remove(attachedImages.size() - 1);
@@ -605,6 +718,27 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
      */
     public void setOnError(Consumer<String> onError) {
         this.onError = onError;
+    }
+
+    /**
+     * Sets the callback of the bookmark of an attached image, which saves it in the library; without it, the slots
+     * show no bookmark.
+     *
+     * @param onSaveImage takes the attached image
+     */
+    public void setOnSaveImage(Consumer<AttachedImage> onSaveImage) {
+        this.onSaveImage = onSaveImage;
+        refreshSavedImages();
+    }
+
+    /**
+     * Sets where the slots find the name of a saved image.
+     *
+     * @param savedImageNames the name by the id of a saved image, null for one not in use
+     */
+    public void setSavedImageNames(Function<String, String> savedImageNames) {
+        this.savedImageNames = savedImageNames;
+        refreshSavedImages();
     }
 
     /**

@@ -43,6 +43,7 @@ import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
+import art.moodframe.repository.SavedImageRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.UpdateCheckService;
 import art.moodframe.service.brainstorm.BrainstormModels;
@@ -75,6 +76,8 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.MoodTrashGroup;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.SavedImageService;
+import art.moodframe.service.library.SavedImageTrashGroup;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.bfl.BflApiService;
 import art.moodframe.service.provider.bfl.BflApiServiceImpl;
@@ -235,7 +238,7 @@ public class MoodframeApplication extends Application {
         ServiceFactory services = ServiceFactory.getInstance();
         for (Class<?> type : List.of(PromptBlockService.class,
                 ColorStyleService.class, MoodService.class,
-                FrameService.class, FavoriteService.class,
+                FrameService.class, FavoriteService.class, SavedImageService.class,
                 ChatHistoryService.class,
                 GenerationService.class,
                 UpdateCheckService.class, ImageSizeCheck.class,
@@ -306,7 +309,7 @@ public class MoodframeApplication extends Application {
             /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
             ExecutorService io = IoExecutor.get();
 
-            registerLibrary(database, events);
+            registerLibrary(paths, database, events);
             registerProviders(config, io);
             registerChats(paths, database, events);
             registerGeneration(config, io);
@@ -349,8 +352,9 @@ public class MoodframeApplication extends Application {
         I18nManager.setLocale("de".equals(userLanguage) ? Locale.GERMAN : Locale.ENGLISH);
     }
 
-    /*  The moods, frames, building blocks, palettes and favorites with the backup of the settings and the library  */
-    private static void registerLibrary(DatabaseManager database, LibraryEvents events) {
+    /*  The moods, frames, building blocks, palettes, favorites and saved images with the backup of the settings and the
+        library  */
+    private static void registerLibrary(LibraryPaths paths, DatabaseManager database, LibraryEvents events) {
         ServiceFactory services = ServiceFactory.getInstance();
 
         // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
@@ -372,6 +376,10 @@ public class MoodframeApplication extends Application {
         /*  The favorites among moods, frames and building blocks, shown first in their lists  */
         services.registerProvider(FavoriteService.class,
                 () -> new FavoriteService(new FavoriteRepository(database), events));
+
+        /*  The saved images, e.g. logos attached again and again, with their files in a folder of the library  */
+        services.registerProvider(SavedImageService.class,
+                () -> new SavedImageService(new SavedImageRepository(database), paths.savedImages(), events));
 
         /*  Backup of the settings and the library; an import reaches the main window through the events  */
         services.registerProvider(ConfigurationExporter.class,
@@ -441,6 +449,7 @@ public class MoodframeApplication extends Application {
             MoodService moodService = services.getService(MoodService.class);
             trashCenter.register(new MoodTrashGroup(moodService));
             trashCenter.register(new FrameTrashGroup(services.getService(FrameService.class)));
+            trashCenter.register(new SavedImageTrashGroup(services.getService(SavedImageService.class)));
             moodService.followTrash(trashCenter);
             return trashCenter;
         });
@@ -508,9 +517,10 @@ public class MoodframeApplication extends Application {
             ColorStyleService colors = services.getService(ColorStyleService.class);
             FrameService frames = services.getService(FrameService.class);
             FavoriteService favorites = services.getService(FavoriteService.class);
+            SavedImageService savedImages = services.getService(SavedImageService.class);
             TrashCenter trash = services.getService(TrashCenter.class);
-            return new McpService(config, McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash,
-                    events, services.getService(GenerationService.class),
+            return new McpService(config, McpTools.all(config, chats, moods, blocks, colors, frames, favorites,
+                    savedImages, trash, events, services.getService(GenerationService.class),
                     services.getService(MoodAnalysisService.class)));
         });
     }

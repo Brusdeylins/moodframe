@@ -19,6 +19,8 @@ public class AttachedImage {
     private int width;
     private int height;
     private String base64Data;
+    private File sourceFile;
+    private String savedImageId;
 
     /**
      * Creates a new AttachedImage instance.
@@ -193,6 +195,42 @@ public class AttachedImage {
         this.base64Data = base64Data;
     }
     
+    /**
+     * Gets the file the user attached, before a copy within the limits of the provider was made of it.
+     *
+     * @return the file as attached, the image file itself if it was not shrunk
+     */
+    public File getSourceFile() {
+        return sourceFile != null ? sourceFile : imageFile;
+    }
+
+    /**
+     * Sets the file the user attached, of which the image file is a copy within the limits of the provider.
+     *
+     * @param sourceFile the file as attached
+     */
+    public void setSourceFile(File sourceFile) {
+        this.sourceFile = sourceFile;
+    }
+
+    /**
+     * Gets the saved image of the library the attachment shows, see {@link SavedImage}.
+     *
+     * @return its id, null for an image that is not saved
+     */
+    public String getSavedImageId() {
+        return savedImageId;
+    }
+
+    /**
+     * Sets the saved image of the library the attachment shows.
+     *
+     * @param savedImageId its id, null for an image that is not saved
+     */
+    public void setSavedImageId(String savedImageId) {
+        this.savedImageId = savedImageId;
+    }
+
     /**
      * Checks if the attachment is ready for API transmission.
      * 

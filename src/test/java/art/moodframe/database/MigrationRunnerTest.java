@@ -197,7 +197,7 @@ class MigrationRunnerTest {
                  Statement stmt = connection.createStatement();
                  ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(rs.next());
-                assertEquals(31 - 1, rs.getInt(1), "V001 to V031 without V012, each once");
+                assertEquals(32 - 1, rs.getInt(1), "V001 to V032 without V012, each once");
             }
         }
     }

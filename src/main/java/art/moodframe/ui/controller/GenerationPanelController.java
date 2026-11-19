@@ -8,7 +8,9 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.library.SavedImageService;
 import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -29,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.concurrent.Executor;
 
 /**
  * The group Generation of the right panel of the main window ({@code GenerationPanel.fxml}): the model as family and
@@ -286,6 +289,33 @@ public class GenerationPanelController {
         updateGenerationSummary();
     }
 
+    /**
+     * Offers the saved images of the library over the attached images: their choice, the bookmark of an attached image
+     * and the window of the saved images.
+     *
+     * @param savedImages the saved images
+     * @param worker      the worker of the window, which writes the library
+     * @param trash       opens the trash on the saved images
+     */
+    public void useSavedImages(SavedImageService savedImages, Executor worker, TrashWindow.Opener trash) {
+        attachments.useSavedImages(savedImages, worker, trash);
+    }
+
+    /** Shows a change of the saved images, whoever made it. */
+    public void savedImagesChanged() {
+        attachments.savedImagesChanged();
+    }
+
+    /** The ids of the attached saved images, in their order, which the entry keeps. */
+    public java.util.List<String> savedImageIds() {
+        return attachments.savedImageIds();
+    }
+
+    /** The part of the attached images, for the tests. */
+    GenerationAttachments attachments() {
+        return attachments;
+    }
+
     /** The group, a card of the right panel. */
     public VBox group() {
         return generationGroupPane;
@@ -498,6 +528,7 @@ public class GenerationPanelController {
         updateGenerationSummary();
         seedLabel.setText(I18nManager.getText("params.seed"));
         clearSeedTooltip.setText(I18nManager.getText("params.seed.clear.tooltip"));
+        attachments.updateTexts();
         updateModelNames();
         parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
         updateCostDisplay();
@@ -529,12 +560,14 @@ public class GenerationPanelController {
     }
 
     /**
-     * Chooses the model of a chat entry, as long as it is offered.
+     * Chooses the model of a chat entry, as long as it is offered, and attaches its saved images again.
      *
      * @param entry the chat entry
+     * @return how many saved images of the entry are no longer in use
      */
-    public void reuse(ChatEntry entry) {
+    public int reuse(ChatEntry entry) {
         reuseModel(entry);
+        return attachments.reattach(entry.getSavedImageIds());
     }
 
     /** Releases the attachment panel, which watches the clipboard. */

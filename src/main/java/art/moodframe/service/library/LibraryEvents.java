@@ -21,7 +21,7 @@ public class LibraryEvents {
 
     /** What changed; {@link #DOWNLOAD} changes nothing, an image was copied into a folder for the status bar. */
     public enum Kind {
-        MOOD, FRAME, ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR, FAVORITE, CHAT, ENTRY, DOWNLOAD;
+        MOOD, FRAME, ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR, FAVORITE, CHAT, ENTRY, DOWNLOAD, SAVED_IMAGE;
 
         /**
          * Tells the kind of a text building block.

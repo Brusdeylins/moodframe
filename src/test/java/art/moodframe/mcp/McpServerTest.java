@@ -187,7 +187,8 @@ class McpServerTest {
             port = free.getLocalPort();
         }
         server = new McpServer(port, TOKEN, McpTools.reading(config, chats, moods, blocks, colors, frames, favorites,
-                trash, events, art.moodframe.service.provider.MockProviders.preparing()));
+                TestLibraryServices.savedImages(tempDir.resolve("library-images"), events), trash, events,
+                art.moodframe.service.provider.MockProviders.preparing()));
         server.start();
     }
 
@@ -342,7 +343,8 @@ class McpServerTest {
     void listsEveryReadingToolWithItsSchema() throws Exception {
         JsonNode tools = rpc("tools/list", "{}").path("result").path("tools");
         assertEquals(List.of("list_chats", "get_chat", "get_entry", "get_image", "download_image", "get_capabilities",
-                "list_moods", "get_mood", "list_blocks", "get_block", "list_frames", "list_trash"),
+                "list_moods", "get_mood", "list_blocks", "get_block", "list_frames", "list_trash",
+                "list_saved_images"),
                 texts(tools, "name"));
         for (JsonNode tool : tools) {
             assertFalse(tool.path("description").asText().isBlank(), tool.path("name").asText());
