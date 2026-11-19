@@ -111,7 +111,7 @@ class McpEditToolsTest {
         Path database = tempDir.resolve("db").resolve("edit.db");
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
         ChatRepository repository = new ChatRepository(new DatabaseManager(database));
         chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
         blocks = new PromptBlockService(TestLibraryServices.database(), events);

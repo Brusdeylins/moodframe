@@ -168,6 +168,7 @@ class MainWindowFlowsTest {
     private final AtomicInteger generations = new AtomicInteger();
     private final AtomicInteger loads = new AtomicInteger();
     private final List<String> deletions = new CopyOnWriteArrayList<>();
+    private final List<String> chatWrites = new CopyOnWriteArrayList<>();
 
     /*  the window of a test  */
     private int languageListeners;
@@ -222,10 +223,29 @@ class MainWindowFlowsTest {
         return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
     }
 
-    /*  the chats of the library, which note the thread every deletion runs on and count their loads  */
+    /*  the chats of the library, which note the thread every deletion and every write of a chat (trash, order, name)
+        runs on and count their loads  */
     private static ChatLibrary recording(ChatHistoryService history, LibraryEvents events, List<String> deletions,
-                                         AtomicInteger loads) {
+                                         List<String> chatWrites, AtomicInteger loads) {
         return new ChatLibrary(history, events) {
+            @Override
+            public boolean moveToTrash(Chat chat) throws SQLException {
+                chatWrites.add(Thread.currentThread().getName());
+                return super.moveToTrash(chat);
+            }
+
+            @Override
+            public void moveChat(Chat chat, Chat before) throws SQLException {
+                chatWrites.add(Thread.currentThread().getName());
+                super.moveChat(chat, before);
+            }
+
+            @Override
+            public void renameChat(Chat chat, String name) throws SQLException {
+                chatWrites.add(Thread.currentThread().getName());
+                super.renameChat(chat, name);
+            }
+
             @Override
             public void load() {
                 loads.incrementAndGet();
@@ -309,7 +329,7 @@ class MainWindowFlowsTest {
         trash.register(new ChatTrashGroup(repository));
         trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
         ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
-        chats = recording(history, events, deletions, loads);
+        chats = recording(history, events, deletions, chatWrites, loads);
         trash.addListener(chats);
 
         /*  the start loads the chats before the window opens  */
@@ -755,6 +775,8 @@ class MainWindowFlowsTest {
             name.confirmEdit();
         });
         assertEquals("Renamed chat", full.getName());
+        waitUntil("the rename is stored", () -> java.text.MessageFormat.format(
+                I18nManager.getText("status.chat.renamed"), "Renamed chat").equals(status().getText()));
         assertEquals("Renamed chat", header().getText());
         assertEquals("Renamed chat", repository.findChatById(full.getId()).orElseThrow().getName());
 
@@ -763,7 +785,7 @@ class MainWindowFlowsTest {
         int index = before.indexOf(full);
         onFxThread(() -> Event.fireEvent(chatList(), new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.DOWN, false,
                 false, true, false)));
-        assertEquals(index + 1, chatList().getItems().indexOf(full), "moved one place down");
+        waitUntil("the chat moved one place down", () -> chatList().getItems().indexOf(full) == index + 1);
         assertEquals(full, chatList().getSelectionModel().getSelectedItem(), "and still open");
         Chat below = before.get(index + 1);
         assertTrue(repository.findChatById(full.getId()).orElseThrow().getSortOrder()
@@ -772,9 +794,12 @@ class MainWindowFlowsTest {
         /*  to the trash with the button of its row: it leaves the list, the trash lists it  */
         assertFalse(prompt().isDisabled());
         onFxThread(() -> buttons(chatCell(full), TRASH_ICON).get(0).fire());
+        waitUntil("the chat is in the trash", () -> I18nManager.getText("status.chat.moved.trash")
+                .equals(status().getText()));
         assertTrue(full.isDeleted());
         assertFalse(chatList().getItems().contains(full));
-        assertEquals(I18nManager.getText("status.chat.moved.trash"), status().getText());
+        assertEquals(List.of("MainWindowWorker", "MainWindowWorker", "MainWindowWorker"), chatWrites,
+                "rename, move and trash ran on the worker");
         assertNull(chatList().getSelectionModel().getSelectedItem(), "the open chat closed");
         assertEquals(I18nManager.getText("chat.select"), header().getText());
         assertTrue(prompt().isDisabled(), "no chat takes the prompt");

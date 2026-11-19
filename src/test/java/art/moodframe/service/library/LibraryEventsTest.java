@@ -72,7 +72,7 @@ class LibraryEventsTest {
         events.addListener((kind, id) -> {
             assertTrue(Platform.isFxApplicationThread(), "the listeners learn of a change on the JavaFX thread");
             changes.add(new Change(kind, id));
-        });
+        }, Platform::runLater);
     }
 
     /*  the changes reported since the last call, once the JavaFX thread handled all of them  */

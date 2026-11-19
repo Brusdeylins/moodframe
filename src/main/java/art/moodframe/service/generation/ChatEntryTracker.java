@@ -5,7 +5,6 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.ProviderException;
-import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +84,7 @@ public class ChatEntryTracker {
     private static <T> void dispatch(List<Consumer<T>> listeners, T value, String kind) {
         if (listeners.isEmpty())
             return;
-        Platform.runLater(() -> {
+        FxModel.later(() -> {
             for (Consumer<T> listener : listeners) {
                 try {
                     listener.accept(value);
