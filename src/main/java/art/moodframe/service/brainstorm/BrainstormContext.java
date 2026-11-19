@@ -19,7 +19,7 @@ import java.util.Set;
  * @param colorStyles all color styles
  * @param moods all moods
  * @param models the models that can be selected in the main window
- * @param currentState text description of the current main window selection
+ * @param currentState text description of the current main window selection, see {@link WindowState#describe()}
  * @param modelNames the name of each model as the main window shows it (parallel to {@code models}); the OpenAI
  *                   models share one placeholder constant and differ only by this name
  * @param locked the building block fields locked in the main window, which keep their choice on "Adopt"
@@ -36,6 +36,32 @@ public record BrainstormContext(
         String currentState,
         List<String> modelNames,
         Set<Mood.Field> locked) {
+
+    /**
+     * What the main window has chosen when the brainstorm opens, which the assistant starts from.
+     *
+     * @param targetModel  the item of the chosen model, as the main window shows it
+     * @param resolution   the chosen resolution, null if the model has none to choose
+     * @param look         the mood and the building blocks with their locks, one line each, every line starting with
+     *                     a line break
+     * @param aspectRatio  the chosen aspect ratio
+     * @param prompt       the text in the input field
+     */
+    public record WindowState(String targetModel, String resolution, String look, String aspectRatio, String prompt) {
+
+        /**
+         * Describes the state for the system prompt of the assistant, in English.
+         *
+         * @return the lines
+         */
+        public String describe() {
+            return "Target model: " + targetModel
+                    + (resolution != null ? "\nResolution: " + resolution : "")
+                    + look
+                    + "\nAspect ratio: " + aspectRatio
+                    + "\nText currently in the input field: " + (prompt.isBlank() ? "(empty)" : prompt.trim());
+        }
+    }
 
     /** Creates the context with styles and color styles only, no field locked, the display name of each model. */
     public BrainstormContext(List<PromptBlock> styles, List<ColorStyle> colorStyles, List<GenerationModel> models,
