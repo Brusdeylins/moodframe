@@ -3,6 +3,7 @@ package art.moodframe.ui.component;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -186,6 +188,44 @@ class ChatEntryCardTest {
         assertEquals(1, failed[2]);
         assertEquals(generating, failed[3]);
         assertEquals("Blocked by the safety filter", ChatEntryCard.failure(images.get(0)));
+    }
+
+    /**
+     * An image deleted on another thread (the worker of the window, an MCP thread) while the card shows it: the width
+     * of the tiles follows on the JavaFX thread only, never on the thread that changed the list.
+     */
+    @Test
+    void anImageDeletedOnAnotherThreadResizesTheTilesOnlyOnTheFxThread() throws Exception {
+        ChatEntry entry = new ChatEntry.Builder().userPrompt("a quay at night").model("Nano Banana Pro")
+                .size("1:1").build();
+        List<String> offFxThread = new CopyOnWriteArrayList<>();
+        List<Double> widths = new CopyOnWriteArrayList<>();
+        ChatEntryCard card = onFxThread(() -> {
+            ChatEntryCard shown = new ChatEntryCard(entry);
+            new Scene(new VBox(shown), 500, 2000);
+            request(entry, 2);
+            return shown;
+        });
+        double before = onFxThread(() -> {
+            height(card);
+            ImageView view = (ImageView) card.lookupAll(".image-view").iterator().next();
+            view.fitWidthProperty().addListener((obs, oldWidth, width) -> {
+                widths.add(width.doubleValue());
+                if (!Platform.isFxApplicationThread())
+                    offFxThread.add(Thread.currentThread().getName());
+            });
+            return view.getFitWidth();
+        });
+
+        Thread worker = new Thread(() -> ModelLock.change(() -> entry.getImages().remove(1)), "window-worker");
+        worker.start();
+        worker.join(10_000);
+        onFxThread(() -> tiles(card));
+
+        assertEquals(List.of(), offFxThread, "the threads that changed the scene graph besides the FX thread");
+        assertEquals(1, onFxThread(() -> tiles(card)));
+        assertFalse(widths.isEmpty(), "the tiles follow the number of images");
+        assertTrue(widths.get(widths.size() - 1) > before, "one image takes the whole row");
     }
 
     @Test

@@ -19,7 +19,9 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.DoubleBinding;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ObservableNumberValue;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
@@ -124,6 +126,10 @@ public class ChatEntryCard extends ManagedComponent {
     private final DoubleProperty availableWidth = new SimpleDoubleProperty();
     private final DoubleProperty maxTileSize = new SimpleDoubleProperty(MAX_TILE_SIZE);
     private final DoubleBinding tileWidth;
+
+    /*  The number of images, set on the JavaFX thread: the list of the entry changes on other threads as well, so the
+        width of the tiles must not follow it directly  */
+    private final IntegerProperty imageCount = new SimpleIntegerProperty();
 
 
     /*  The action bar of each image by image id, to enable its actions once the file is there  */
@@ -314,12 +320,13 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.managedProperty().bind(imagesContainer.visibleProperty());
 
         availableWidth.bind(widthProperty());
+        imageCount.set(ChatLibrary.imagesOf(chatEntry).size());
         this.tileWidth = Bindings.createDoubleBinding(() -> {
-            int count = Math.max(1, ChatLibrary.imagesOf(chatEntry).size());
+            int count = Math.max(1, imageCount.get());
             double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
                     - IMAGE_GAP * (count - 1);
             return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
-        }, availableWidth, maxTileSize, chatEntry.getImages());
+        }, availableWidth, maxTileSize, imageCount);
 
         /*  The context menu takes over the mood of the entry; on an image it offers "Use mood" or "Mood from image"  */
         promptContainer.setOnContextMenuRequested(this::showMoodMenu);
@@ -641,6 +648,7 @@ public class ChatEntryCard extends ManagedComponent {
         imageBars.clear();
 
         List<GeneratedImage> images = ChatLibrary.imagesOf(chatEntry);
+        imageCount.set(images.size());
         if (images.isEmpty()) {
             imagesContainer.setVisible(false);
             return;
