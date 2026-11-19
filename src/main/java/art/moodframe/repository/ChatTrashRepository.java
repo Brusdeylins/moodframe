@@ -31,10 +31,11 @@ import static art.moodframe.repository.ChatRepository.now;
  * booking of the deleted costs (see {@link ChatCost}).
  *
  * <p>It is the one owner of the files of these deletions: each write reads what it changes inside its transaction,
- * guards its update ({@code AND deleted_at IS NULL}) and hands the files of exactly the rows it changed to
- * {@link ChatFiles} after the commit; the file of an image a generation delivered after its entry or chat went to
- * the trash, which has no row, it removes as well ({@link #dropLateImage}). The writes run one after the other, each with the moves of its files, so the
- * files follow the commits in their order. A file that does not move is logged, the rows stay as committed.</p>
+ * guards its update ({@code AND deleted_at IS NULL}) and hands {@link ChatFiles} the files that follow the rows it
+ * changed after the commit (of a chat the images in use, as those deleted on their own lie in the trash already); the
+ * file of an image a generation delivered after its entry or chat went to the trash, which has no row, it removes as
+ * well ({@link #dropLateImage}). The writes run one after the other, each with the moves of its files, so the files
+ * follow the commits in their order. A file that does not move is logged, the rows stay as committed.</p>
  *
  * @since 2.1.3
  */
@@ -62,8 +63,9 @@ public class ChatTrashRepository {
     }
 
     /**
-     * Soft deletes a chat by setting the deleted_at timestamp. After the commit its files move to the trash; a file
-     * that does not move is logged, the chat is in the trash anyway.
+     * Soft deletes a chat by setting the deleted_at timestamp. After the commit the files of its images in use move to
+     * the trash (those deleted on their own are there already); a file that does not move is logged, the chat is in
+     * the trash anyway.
      *
      * @param chatId the chat ID to soft delete
      * @return true if chat was marked as deleted
@@ -80,7 +82,7 @@ public class ChatTrashRepository {
                     if (stmt.executeUpdate() == 0)
                         return null;
                 }
-                return findAllGeneratedImagesForChat(conn, chatId);
+                return findAllNonDeletedImagesForChat(conn, chatId);
             });
             if (images == null)
                 return false;

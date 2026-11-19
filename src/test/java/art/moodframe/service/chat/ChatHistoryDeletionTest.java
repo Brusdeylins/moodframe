@@ -108,6 +108,22 @@ class ChatHistoryDeletionTest {
     }
 
     @Test
+    void aChatMovesOnlyTheFilesOfItsImagesInUse() throws Exception {
+        Chat chat = chat("Ganz");
+        ChatEntry entry = entry(chat, 0.08, 2);
+        ChatEntry deleted = entry(chat, 0.04, 1);
+        List<GeneratedImage> images = repository.findGeneratedImagesByEntry(entry.getId());
+        history.deleteImage(entry.getId(), images.get(0));
+        history.deleteEntry(deleted.getId());
+        moved.clear();
+
+        assertTrue(history.softDeleteChat(chat.getId()));
+
+        assertEquals(List.of(chat.getId() + ":" + images.get(1).getId()), moved,
+                "the images deleted on their own lie in the trash already");
+    }
+
+    @Test
     void anImageThatIsNotStoredMovesNoFile() throws Exception {
         Chat chat = chat("Ungespeichert");
         ChatEntry entry = entry(chat, 0.04, 1);

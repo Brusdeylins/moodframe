@@ -384,15 +384,17 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   settings, which removes the style blocks of the user for good, in use and in the trash
   (`PromptBlockRepository.deleteAll`), as its confirmation says; the moods lose their references to them in the
   same transaction.
-- **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
-  chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
-  commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
-  file. Its writes run one after the other, each with the moves of its files, so a deletion and an immediate
-  restore from another thread move the files in the order of their commits. An image a generation delivers after its
-  entry or chat went to the trash is not saved (`ChatRepository.saveGeneratedImage` answers false); its file, written
-  into the folder of the images in use, is removed by `ChatTrashRepository.dropLateImage` the same way, after the
-  writes before. An image whose entry is not stored at all (its insert failed) keeps its file and fails. The
-  services and the other repositories never move or remove these files themselves.
+- **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed chat,
+  entry or image: after the commit it hands `repository.ChatFiles` the images whose files follow its change (those its
+  transaction deleted, restored or removed; of a chat the images in use, as those deleted on their own lie in the
+  trash already, and all of them when it is removed for good), so an image another caller deleted before is not moved
+  twice and a row that was not deleted keeps its file. Its writes run one after the other, each with the moves of its
+  files, so a deletion and an immediate restore from another thread move the files in the order of their commits. An
+  image a generation delivers after its entry or chat went to the trash is not saved
+  (`ChatRepository.saveGeneratedImage` answers false); its file, written into the folder of the images in use, is
+  removed by `ChatTrashRepository.dropLateImage` the same way, after the writes before. An image whose entry is not
+  stored at all (its insert failed) keeps its file and fails. The services and the other repositories never move or
+  remove these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
   brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
   `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
@@ -490,10 +492,10 @@ are one table, `model.ModelParameters`, which the MCP schema, the MCP validation
 Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
 OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
 `OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). The dropdown and the MCP tools offer them from the
-registry (`GenerationService.availableItems`), the same source `ProviderRegistry.isOrderable` accepts them from. `GenerationModel.constantOf` tells a constant from
-such an id, `ProviderRegistry.isOrderable` and `ProviderRegistry.apiModelId` decide for the generation, so no class
-of `service` but the OpenAI client names the placeholder (`ArchitectureTest`). A second provider with listed models
-would need an item prefix of its own.
+registry (`GenerationService.availableItems`), the same source `ProviderRegistry.isOrderable` accepts them from.
+`GenerationModel.constantOf` tells a constant from such an id, `ProviderRegistry.isOrderable` and
+`ProviderRegistry.apiModelId` decide for the generation, so no class of `service` but the OpenAI client names the
+placeholder (`ArchitectureTest`). A second provider with listed models would need an item prefix of its own.
 
 Errors follow one rule: every failure of a provider or a generation the user reads is a `ProviderException` with an
 i18n key and its arguments (`ApiHttpException` with the HTTP status), or carries one: a job a provider answers as
