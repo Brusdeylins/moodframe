@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.ui.dnd.ImageDragExporter;
@@ -82,9 +82,6 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
     private static final Logger logger = LoggerFactory.getLogger(ImagePreviewOverlay.class);
 
-    // Zoom constants
-    private static final double ZOOM_FACTOR = 1.2;
-
     // UI Components - Two completely independent layers
     private StackPane displayLayer; // Black background + image (can zoom/pan)
     private StackPane navigationLayer; // Transparent + fixed buttons
@@ -126,10 +123,9 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private List<String> imagePaths;
     private List<String> captions; // the line of each image in the gallery, null when opened from a chat
     private int currentImageIndex = 0;
-    private double currentZoom = 1.0;
-    private double maxZoomForCurrentImage = 1.0;
-    private double minZoomForCurrentImage = 0.1;
-    private double baseScaleToFit = 1.0; // Scale factor to fit image in preview area
+
+    /*  the zoom of the image and its limits  */
+    private final ZoomLevel zoom = new ZoomLevel();
     private double lastPanX = 0;
     private double lastPanY = 0;
     private boolean isDragging = false;
@@ -531,7 +527,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Only when fit-to-screen (not zoomed) so it doesn't conflict with pan-drag, and not for videos.
         navigationLayer.setOnDragDetected(e -> {
             if (!video.isActive() &&
-                    currentZoom <= minZoomForCurrentImage + 0.001 &&
+                    zoom.zoom() <= zoom.min() + 0.001 &&
                     imagePaths != null && !imagePaths.isEmpty() &&
                     currentImageIndex >= 0 && currentImageIndex < imagePaths.size()) {
                 File imageFile = new File(imagePaths.get(currentImageIndex));
@@ -680,10 +676,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * Zooms the image in.
      */
     private void zoomIn() {
-        if (currentZoom < maxZoomForCurrentImage) {
-            currentZoom *= ZOOM_FACTOR;
-            // Don't go above maximum zoom (1:1 pixel ratio)
-            currentZoom = Math.min(currentZoom, maxZoomForCurrentImage);
+        if (zoom.zoomIn()) {
             applyZoom();
             constrainImagePosition();
         }
@@ -693,10 +686,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * Zooms the image out.
      */
     private void zoomOut() {
-        if (currentZoom > minZoomForCurrentImage) {
-            currentZoom /= ZOOM_FACTOR;
-            // Don't go below minimum zoom (fit-to-preview)
-            currentZoom = Math.max(currentZoom, minZoomForCurrentImage);
+        if (zoom.zoomOut()) {
             applyZoom();
             constrainImagePosition();
         }
@@ -708,8 +698,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private void applyZoom() {
         applyZoomAndSize();
 
-        // Reset pan position when at minimum zoom (fit-to-preview)
-        if (currentZoom <= baseScaleToFit + 0.01) {
+        /*  The fitted image lies centered  */
+        if (zoom.zoom() <= zoom.fit() + 0.01) {
             imageView.setTranslateX(0);
             imageView.setTranslateY(0);
         }
@@ -723,8 +713,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
     /**
      * Applies zoom by setting actual pixel size of the image.
-     * currentZoom = 1.0 means original pixel size (1:1 ratio)
-     * currentZoom = baseScaleToFit means scaled to fit preview area
+     * Zoom 1.0 means original pixel size (1:1 ratio), the fit zoom scaled to fit the preview area.
      */
     private void applyZoomAndSize() {
         if (imageView.getImage() == null)
@@ -735,8 +724,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         double originalHeight = imageView.getImage().getHeight();
 
         /*  The display size at the zoom level, rounded to whole device pixels  */
-        double displayWidth = displayLayer.snapPositionX(originalWidth * currentZoom);
-        double displayHeight = displayLayer.snapPositionY(originalHeight * currentZoom);
+        double displayWidth = displayLayer.snapPositionX(originalWidth * zoom.zoom());
+        double displayHeight = displayLayer.snapPositionY(originalHeight * zoom.zoom());
 
         // Set the ImageView to display at exact pixel size
         imageView.setFitWidth(displayWidth);
@@ -815,42 +804,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             return;
         }
 
-        // Get current image display dimensions (already scaled via fitWidth/fitHeight)
-        double imageWidth = imageView.getFitWidth();
-        double imageHeight = imageView.getFitHeight();
-
-        // Get safe area dimensions
-        Bounds area = safeArea();
-        double areaWidth = area.getWidth();
-        double areaHeight = area.getHeight();
-
-        // If image is smaller than or equal to the safe area, center it and prevent panning
-        if (imageWidth <= areaWidth && imageHeight <= areaHeight) {
-            imageView.setTranslateX(0);
-            imageView.setTranslateY(0);
-            return;
-        }
-
         /*  Per axis, a larger image pans until its edge lies on the edge of the safe area, where frame and glow fill
             the gap to the buttons; along an axis it fits, it stays centered  */
-        double maxTranslateX = imageWidth  > areaWidth  ? (imageWidth  - areaWidth)  / 2 : 0;
-        double maxTranslateY = imageHeight > areaHeight ? (imageHeight - areaHeight) / 2 : 0;
-
-        // Constrain X position using imageView
-        double currentX = imageView.getTranslateX();
-        if (currentX > maxTranslateX) {
-            imageView.setTranslateX(maxTranslateX);
-        } else if (currentX < -maxTranslateX) {
-            imageView.setTranslateX(-maxTranslateX);
-        }
-
-        // Constrain Y position using imageView
-        double currentY = imageView.getTranslateY();
-        if (currentY > maxTranslateY) {
-            imageView.setTranslateY(maxTranslateY);
-        } else if (currentY < -maxTranslateY) {
-            imageView.setTranslateY(-maxTranslateY);
-        }
+        Bounds area = safeArea();
+        imageView.setTranslateX(ZoomLevel.clampPan(imageView.getTranslateX(), imageView.getFitWidth(),
+                area.getWidth()));
+        imageView.setTranslateY(ZoomLevel.clampPan(imageView.getTranslateY(), imageView.getFitHeight(),
+                area.getHeight()));
     }
 
     /**
@@ -860,33 +820,13 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      */
     private void calculateZoomLimits(Image image) {
         if (image == null) {
-            maxZoomForCurrentImage = 1.0;
-            minZoomForCurrentImage = 0.1;
-            baseScaleToFit = 1.0;
+            zoom.clear();
             return;
         }
 
-        // Get image original pixel dimensions
-        double originalWidth = image.getWidth();
-        double originalHeight = image.getHeight();
-
         /*  The available preview area is the safe area between the buttons  */
         Bounds area = safeArea();
-
-        // Calculate scale factor needed to fit image in preview area
-        double scaleToFitWidth = area.getWidth() / originalWidth;
-        double scaleToFitHeight = area.getHeight() / originalHeight;
-        baseScaleToFit = Math.min(scaleToFitWidth, scaleToFitHeight);
-
-        // Ensure we don't scale UP small images to fit
-        baseScaleToFit = Math.min(1.0, baseScaleToFit);
-
-        // Maximum zoom is 1.0 (original pixel size, 1:1 ratio)
-        maxZoomForCurrentImage = 1.0;
-
-        /*  Minimum zoom is the scale needed to fit in preview area, also below 0.1 in a very small window  */
-        minZoomForCurrentImage = baseScaleToFit;
-
+        zoom.limit(image.getWidth(), image.getHeight(), area.getWidth(), area.getHeight());
     }
 
     /**
@@ -971,20 +911,16 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             return;
         }
 
-        // Check if we can zoom to 100% (1.0)
-        boolean canZoomTo100 = (1.0 <= maxZoomForCurrentImage) && (Math.abs(currentZoom - 1.0) > 0.05);
-
-        // Check if we can zoom to fit-to-screen (baseScaleToFit)
-        boolean canZoomToFit = (baseScaleToFit >= minZoomForCurrentImage)
-                && (Math.abs(currentZoom - baseScaleToFit) > 0.05);
+        boolean canZoomTo100 = zoom.canZoomToOriginal();
+        boolean canZoomToFit = zoom.canZoomToFit();
 
         // Determine toggle action based on current zoom and available operations
-        if (Math.abs(currentZoom - 1.0) < 0.05) {
+        if (zoom.isOriginal()) {
             // We're at 100%, switch to fit-to-screen if possible
             if (canZoomToFit) {
                 zoomToFit();
             }
-        } else if (Math.abs(currentZoom - baseScaleToFit) < 0.05) {
+        } else if (zoom.isFit()) {
             // We're at fit-to-screen, switch to 100% if possible
             if (canZoomTo100) {
                 zoomTo100();
@@ -1006,7 +942,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * Zooms image to 100% (1:1 pixel ratio).
      */
     private void zoomTo100() {
-        currentZoom = 1.0;
+        zoom.toOriginal();
         applyZoom();
         constrainImagePosition();
         updateZoomButtonState();
@@ -1016,7 +952,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * Zooms image to fit the screen (same as minimum zoom).
      */
     private void zoomToFit() {
-        currentZoom = baseScaleToFit;
+        zoom.toFit();
         applyZoom();
         // Reset position when fitting to screen
         imageView.setTranslateX(0);
@@ -1102,15 +1038,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
 
         zoom100Button.setVisible(true);
 
-        // Check if we can zoom to 100% (1.0)
-        boolean canZoomTo100 = (1.0 <= maxZoomForCurrentImage) && (Math.abs(currentZoom - 1.0) > 0.05);
-
-        // Check if we can zoom to fit-to-screen (baseScaleToFit)
-        boolean canZoomToFit = (baseScaleToFit >= minZoomForCurrentImage)
-                && (Math.abs(currentZoom - baseScaleToFit) > 0.05);
-
-        // Check if any zoom operation is possible
-        boolean canZoom = canZoomTo100 || canZoomToFit;
+        /*  Whether the button can show the image in its own pixels or fit it  */
+        boolean canZoom = zoom.canZoomToOriginal() || zoom.canZoomToFit();
 
         if (!canZoom) {
             // No zoom operations possible - show simple magnify icon and disable
@@ -1123,7 +1052,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
             zoom100Button.setOpacity(1.0);
 
             // Determine icon based on current zoom state
-            if (Math.abs(currentZoom - 1.0) < 0.05) {
+            if (zoom.isOriginal()) {
                 // We're at 100%, next action would be fit-to-screen
                 updateZoomButtonIcon(false); // Show magnify-minus icon (fit-to-screen)
             } else {
@@ -1271,8 +1200,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * Resets image zoom and pan to default state (fit to preview area).
      */
     private void resetImageTransform() {
-        // Start with fit-to-preview-area zoom level
-        currentZoom = baseScaleToFit;
+        /*  Start fitted into the preview area  */
+        zoom.toFit();
 
         // Reset pan position - center the image
         imageView.setTranslateX(0);
@@ -1479,82 +1408,21 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         if (imageView.getImage() == null)
             return;
 
-        /*  Fitted is the fit zoom of the size before, which the limits of the new size replace  */
-        boolean fitted = currentZoom <= baseScaleToFit * 1.001;
-        calculateZoomLimits(imageView.getImage());
-        currentZoom = fitted ? baseScaleToFit
-                : Math.max(minZoomForCurrentImage, Math.min(currentZoom, maxZoomForCurrentImage));
+        Bounds area = safeArea();
+        zoom.refit(imageView.getImage().getWidth(), imageView.getImage().getHeight(), area.getWidth(),
+                area.getHeight());
         applyZoom();
         constrainImagePosition();
     }
 
-    /**
-     * Forces all button icons to be white using direct programmatic approach.
-     * This method is called after UI setup to override any theme styles.
-     */
+    /*  The icons of the buttons are white on the dark overlay, whatever the theme says  */
     private void forceWhiteIcons() {
-        // Force close button icon to white
-        if (closeButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) closeButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force prev image button icon to white
-        if (prevImageButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) prevImageButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force next image button icon to white
-        if (nextImageButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) nextImageButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force prev chat button icon to white
-        if (prevChatButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) prevChatButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force next chat button icon to white
-        if (nextChatButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) nextChatButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force download button icon to white
-        if (downloadButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) downloadButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force edit this button icon to white
-        if (editThisButton.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) editThisButton.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force zoom100 button icon to white
-        if (zoom100Button.getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) zoom100Button.getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
-
-        // Force play/pause button icon to white
-        if (video.playPauseButton().getGraphic() instanceof FontIcon) {
-            FontIcon icon = (FontIcon) video.playPauseButton().getGraphic();
-            icon.setIconColor(javafx.scene.paint.Color.WHITE);
-            icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
-        }
+        for (Button button : List.of(closeButton, prevImageButton, nextImageButton, prevChatButton, nextChatButton,
+                downloadButton, editThisButton, zoom100Button, video.playPauseButton()))
+            if (button.getGraphic() instanceof FontIcon icon) {
+                icon.setIconColor(javafx.scene.paint.Color.WHITE);
+                icon.setStyle("-fx-icon-color: white; -ikonli-icon-color: white;");
+            }
     }
 
     /**

@@ -11,6 +11,7 @@
  * <li>{@link Subscription}: removable listeners, collected in {@link CompositeDisposable}</li>
  * <li>{@link CoalescedLoad}: loads data for the JavaFX thread on a worker, one query per burst of requests</li>
  * <li>{@link ImageCache}: the decoded JavaFX images of the thumbnails, loaded once per file without a global lock</li>
+ * <li>{@link DiskWorker}: the bounded pool of the blocking disk and process work of the views</li>
  * <li>{@link FxI18n}: registers views for the change of the language, a dialog or window until it closes</li>
  * <li>{@link ListReorder}: reorders the items of a list by dragging, in the main window and the brainstorm</li>
  * <li>{@link BoxInset}: the common inset of the boxes of the main window and the brainstorm dialog</li>

@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
@@ -34,6 +34,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -81,7 +82,7 @@ class ChatEntryCardTest {
 
     /*  The card of a new entry, as the chat shows it right after sending: without images yet, 900 px wide  */
     private static ChatEntryCard show(ChatEntry entry) {
-        ChatEntryCard card = new ChatEntryCard(entry);
+        ChatEntryCard card = new ChatEntryCard(entry, false, null, ImageSources.NONE, ChatEntryCard.Actions.NONE);
         new Scene(new VBox(card), 900, 2000);
         return card;
     }
@@ -187,7 +188,7 @@ class ChatEntryCardTest {
         assertEquals(1, failed[1]);
         assertEquals(1, failed[2]);
         assertEquals(generating, failed[3]);
-        assertEquals("Blocked by the safety filter", ChatEntryCard.failure(images.get(0)));
+        assertEquals("Blocked by the safety filter", ImageDetails.failure(images.get(0)));
     }
 
     /**
@@ -201,7 +202,7 @@ class ChatEntryCardTest {
         List<String> offFxThread = new CopyOnWriteArrayList<>();
         List<Double> widths = new CopyOnWriteArrayList<>();
         ChatEntryCard card = onFxThread(() -> {
-            ChatEntryCard shown = new ChatEntryCard(entry);
+            ChatEntryCard shown = new ChatEntryCard(entry, false, null, ImageSources.NONE, ChatEntryCard.Actions.NONE);
             new Scene(new VBox(shown), 500, 2000);
             request(entry, 2);
             return shown;
@@ -264,9 +265,9 @@ class ChatEntryCardTest {
     void aFailedImageWithoutMessageNamesTheFailedStatus() {
         GeneratedImage image = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.FAILED)
                 .build();
-        assertEquals(I18nManager.getText("entry.status.failed"), ChatEntryCard.failure(image));
+        assertEquals(I18nManager.getText("entry.status.failed"), ImageDetails.failure(image));
         image.setFailureReason("Moderated");
-        assertEquals("Moderated", ChatEntryCard.failure(image));
+        assertEquals("Moderated", ImageDetails.failure(image));
     }
 
     /**
@@ -288,5 +289,16 @@ class ChatEntryCardTest {
 
     private static GeneratedImage image(String model, long seed) {
         return new GeneratedImage.Builder().model(model).seed(seed).build();
+    }
+
+    /** The placeholders of a picture that cannot show speak the language of the app. */
+    @Test
+    void thePlaceholdersOfAPictureHaveTheirTextInBothLanguages() {
+        for (EntryTilePictures.Placeholder placeholder : EntryTilePictures.Placeholder.values())
+            for (Locale locale : List.of(Locale.ENGLISH, Locale.GERMAN))
+                assertNotEquals(placeholder.key(), I18nManager.getTextIn(locale, placeholder.key()),
+                        placeholder + " in " + locale);
+        assertEquals("Datei nicht gefunden",
+                I18nManager.getTextIn(Locale.GERMAN, EntryTilePictures.Placeholder.MISSING.key()));
     }
 }

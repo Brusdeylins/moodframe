@@ -16,7 +16,8 @@ import java.util.function.Function;
 /**
  * The decoded JavaFX images of the thumbnails (and of originals shown in their place) by the path of their file, so
  * scrolling shows them again without reading the disk. The least recently used give way once the cache holds more
- * pixels than its limit; the newest one always stays.
+ * pixels than its limit; the newest one always stays. The main window creates one and hands it to its views with the
+ * thumbnail files ({@code ImageSources}).
  *
  * <p>A file is decoded on the calling thread, never on the JavaFX thread, and only one caller decodes it at a time:
  * others asking for the same file wait for that load, loads of other files run in parallel. No lock is held while a
@@ -31,8 +32,6 @@ public final class ImageCache {
     /*  as many as 200 thumbnails of 400 by 400 px or 50 of 800 by 800 px, about 128 MB  */
     private static final double DEFAULT_PIXELS = 32_000_000.0;
 
-    private static final ImageCache SHARED = new ImageCache(DEFAULT_PIXELS);
-
     private final double maxPixels;
     private final Function<String, Image> decoder;
 
@@ -41,6 +40,11 @@ public final class ImageCache {
 
     /*  the loads in progress by path, so a file is decoded once  */
     private final Map<String, CompletableFuture<Image>> loading = new ConcurrentHashMap<>();
+
+    /** Creates a cache of about 128 MB. */
+    public ImageCache() {
+        this(DEFAULT_PIXELS);
+    }
 
     /**
      * Creates a cache.
@@ -58,12 +62,14 @@ public final class ImageCache {
     }
 
     /**
-     * The cache of the application, shared by the chat entries, the images view and the full view.
+     * The number of images the cache holds, for the memory display.
      *
-     * @return the cache
+     * @return the number of decoded images
      */
-    public static ImageCache shared() {
-        return SHARED;
+    public int size() {
+        synchronized (images) {
+            return images.size();
+        }
     }
 
     /**

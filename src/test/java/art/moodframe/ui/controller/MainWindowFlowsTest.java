@@ -35,6 +35,7 @@ import art.moodframe.service.chat.FileManagerService;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ImageTrashGroup;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
@@ -55,8 +56,8 @@ import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.service.trash.TrashManager;
 import art.moodframe.ui.cell.ChatListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
-import art.moodframe.ui.component.ChatEntryCard;
-import art.moodframe.ui.component.ImagePreviewOverlay;
+import art.moodframe.ui.entry.ChatEntryCard;
+import art.moodframe.ui.entry.ImagePreviewOverlay;
 import art.moodframe.ui.component.InPlaceEditableLabel;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.ui.brainstorm.BrainstormDialog;
@@ -131,6 +132,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -811,6 +813,11 @@ class MainWindowFlowsTest {
                 "rename, move and trash ran on the worker");
         assertNull(chatList().getSelectionModel().getSelectedItem(), "the open chat closed");
         assertEquals(I18nManager.getText("chat.select"), header().getText());
+        Locale language = I18nManager.getCurrentLocale();
+        Locale other = "de".equals(language.getLanguage()) ? Locale.ENGLISH : Locale.GERMAN;
+        onFxThread(() -> I18nManager.setLocale(other));
+        assertEquals(I18nManager.getTextIn(other, "chat.select"), header().getText(), "it asks in the new language");
+        onFxThread(() -> I18nManager.setLocale(language));
         assertTrue(prompt().isDisabled(), "no chat takes the prompt");
         assertTrue(trash.list(TrashGroup.Kind.CHATS).stream().map(TrashEntry::id).toList().contains(full.getId()));
 
@@ -1032,6 +1039,36 @@ class MainWindowFlowsTest {
         assertFalse(enabled.isDisable(), "a model of BFL takes the seed");
         onFxThread(enabled::fire);
         assertEquals("4242", ((TextField) root.lookup("#seedTextField")).getText());
+    }
+
+    /**
+     * A generation changes only the card of its entry, and that one in place: the card of another entry stays, as
+     * does the card of the entry when its generation reports a change, which shows the cost it does not follow itself.
+     */
+    @Test
+    void aGenerationBuildsNoCardAnew() throws Exception {
+        Chat chat = createChat("Cards");
+        open(chat);
+        chooseGemini();
+        ChatEntry other = addEntry(chat, "a fox", FLUX, 1, 1);
+        waitUntil("the card shows its image", () -> showsItsImages(card(other), other));
+        ChatEntryCard otherCard = card(other);
+
+        ChatEntry sent = send(chat, "a lynx");
+        assertSame(otherCard, card(other), "the generation leaves the card of another entry alone");
+
+        ChatEntryCard sentCard = card(sent);
+        GeneratedImage image = sent.getImages().get(0);
+        onFxThread(() -> {
+            ModelLock.change(() -> sent.setCost(1.23));
+            controller.chatView().entryUpdated(sent);
+            controller.chatView().imageUpdated(image);
+        });
+        assertSame(sentCard, card(sent), "the card of the entry stays");
+        assertSame(otherCard, card(other));
+        assertTrue(sentCard.lookupAll(".label").stream().anyMatch((node) -> ((Label) node).getText() != null
+                && ((Label) node).getText().contains("$" + dollars(1.23))), "the card shows the new cost");
+        waitUntil("the tile of the changed image is built anew", () -> showsItsImages(sentCard, sent));
     }
 
     /** Opens the menu of the first image of an entry and finds an item of it; the menu closes again. */

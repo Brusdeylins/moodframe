@@ -1,4 +1,4 @@
-package art.moodframe.ui.component;
+package art.moodframe.ui.entry;
 
 import art.moodframe.model.GeneratedImage;
 import javafx.application.Platform;
@@ -161,12 +161,12 @@ class ImageSizeLabelTest {
     @Test
     void theTooltipNamesTheSizeOnlyIfTheLineGivesWay() {
         GeneratedImage image = image(2752, 1536, 42);
-        assertEquals("Seed: 42", ChatEntryCard.imageDetails(image, false));
-        assertEquals("2752 × 1536 · PNG\nSeed: 42", ChatEntryCard.imageDetails(image, true));
+        assertEquals("Seed: 42", ImageDetails.text(image, false));
+        assertEquals("2752 × 1536 · PNG\nSeed: 42", ImageDetails.text(image, true));
         image.setBaseCost(0.13);
         image.setSearchCost(0.01);
         assertEquals("Seed: 42\nBase Generation: $0.13\nGoogle Search: $0.01\nTotal: $0.14",
-                ChatEntryCard.imageDetails(image, false).replace(',', '.'));
+                ImageDetails.text(image, false).replace(',', '.'));
     }
 
     @Test
@@ -179,7 +179,7 @@ class ImageSizeLabelTest {
                 GeneratedImage image = image(2752, 1536, 0);
                 ImageSizeLabel size = new ImageSizeLabel(image);
                 size.attachTo(tile, null);
-                ChatEntryCard.installDetails(tile, view, image, size);
+                ImageDetails.install(tile, view, image, size);
                 hover(tile, true);
                 found[i] = view.getProperties().get("javafx.scene.control.Tooltip");
             }

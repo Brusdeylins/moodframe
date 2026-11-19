@@ -82,6 +82,10 @@ class ImageCacheTest {
         assertNull(cache.getIfCached(paths[9]));
         assertNotNull(cache.getIfCached(paths[10]));
         assertNotNull(cache.getIfCached(paths[59]));
+        assertEquals(50, cache.size(), "the memory display counts the images held, not the ones loaded once");
+
+        cache.remove(paths[59]);
+        assertEquals(49, cache.size());
     }
 
     @Test

@@ -3,6 +3,7 @@ package art.moodframe.ui.dnd;
 import art.moodframe.model.AttachedImage;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.support.DiskWorker;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
@@ -22,8 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -62,7 +61,6 @@ public class DragDropHandler {
     private final ImageAttachmentService attachmentService;
     private final Node dropTarget;
     private final BooleanProperty isDragOver = new SimpleBooleanProperty(false);
-    private final ExecutorService executorService = ForkJoinPool.commonPool();
     private final Supplier<Long> maxFileSizeSupplier;
 
     private Consumer<AttachedImage> onImageAttached;
@@ -241,7 +239,7 @@ public class DragDropHandler {
                 logger.error("Failed to process dropped image", e);
                 throw new CompletionException(e);
             }
-        }, executorService)
+        }, DiskWorker.get())
         .thenAcceptAsync(attachedImage -> {
             if (onImageAttached != null) {
                 onImageAttached.accept(attachedImage);

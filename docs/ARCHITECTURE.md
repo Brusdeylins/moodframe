@@ -8,8 +8,8 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, dialog, brainstorm, cell,         mcp
-     component, dnd, support)
+ ui (controller, panel, brainstorm, dialog,       mcp
+     cell, entry, component, dnd, support)
             \                                      /
              +--------------> service <-----------+
                                  |          \
@@ -22,12 +22,14 @@ the persistence and the main decisions. The `package-info.java` of each package 
 
 | Package      | Role                                                                                   |
 |--------------|----------------------------------------------------------------------------------------|
-| `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
-|              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.panel` the     |
-|              | groups Mood and Frame, which several windows show; `ui.support` the helpers that need   |
-|              | JavaFX or the desktop: themes, videos, opening files and web pages, listener cleanup,   |
-|              | `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`, `ListReorder`,       |
-|              | `BoxInset`, `StatusSink`; the root holds only `SplashScreen`, shown before the window)  |
+| `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop         |
+|              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.entry` the    |
+|              | chat entries with their images: cards, images view, full view; `ui.panel` the groups   |
+|              | Mood and Frame, which several windows show; `ui.component` the generic controls;       |
+|              | `ui.support` the helpers that need JavaFX or the desktop: themes, videos, opening      |
+|              | files and web pages, listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded          |
+|              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`; the root holds    |
+|              | only `SplashScreen`, shown before the window)                                          |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -69,8 +71,9 @@ Allowed dependency directions:
   `HttpClients` and `CertificateStore`, and that no class imports a package of the application with a wildcard,
   from the imports and fully qualified names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
-  `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
-  `ui.controller` on top, so no view uses a controller and the brainstorm dialog may show the groups of `ui.panel`.
+  `ui.entry`, `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`),
+  `ui.controller.settings` and `ui.controller` on top, so no view uses a controller, the entry cards build on the
+  generic controls and the brainstorm dialog may show the groups of `ui.panel`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -91,7 +94,7 @@ items in `service.chat` and `service.library`, so the trash depends on none of t
 
 Known deviations: two model classes carry what the views observe while a generation runs, as JavaFX properties and
 lists. `ChatEntry` has its status and prompt as properties and its images as an `ObservableList`: the entry card
-(`ui.component.ChatEntryCard`) follows all three, the images view (`ui.component.ImageGrid`) the list of images.
+(`ui.entry.ChatEntryCard`) follows all three, the images view (`ui.entry.ImageGrid`) the list of images.
 `GeneratedImage` has its download status as a property, which both follow, and its four sizes (`width`, `height`,
 `imageWidth`, `imageHeight`), from which the entry card shapes the tile. Every other value of the two, and all of
 `Chat` (whose entries the views read as copies), are plain fields; `ArchitectureTest` names the two classes. The
@@ -139,6 +142,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
   of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
   analysis of an image into a mood composes the answer of the language model instead of waiting for it.
+- **Disk work of the views**: the views read and decode pictures, write and compare attached files and run ffmpeg
+  and the other programs of the desktop on `ui.support.DiskWorker`, a pool of at most four named daemon threads
+  (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
@@ -157,12 +163,13 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
   generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
   thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
-- **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
-  the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
-  held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files. The full view
-  decodes a full-size image in the background (`new Image(url, true)`), keeps the image shown before until it is done
-  and then fits zoom and pan to its pixel size; the previews of the attachments and of "Mood from image" load in the
-  background as well.
+- **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels; the main window
+  creates one and hands it to the cards and the images view with `ImageSources`, the memory display of the status bar
+  counts its images. A file is decoded on the calling worker, once even when several ask for it at the same time;
+  other files load meanwhile, and no lock is held while a file is read. `service.chat.ThumbnailManager` only creates
+  and finds the thumbnail files. The full view decodes a full-size image in the background (`new Image(url, true)`),
+  keeps the image shown before until it is done and then fits zoom and pan to its pixel size; the previews of the
+  attachments and of "Mood from image" load in the background as well.
 - **Views and the chat models**: a view reads the entries and images of a chat as a copy taken under the lock
   (`ChatLibrary.entriesOf`, `imagesOf`), and a list listener copies what it needs out of the change on the thread of
   the change before it hands its work to the JavaFX thread.
@@ -205,7 +212,7 @@ up the services once and hand them to their parts, which hand them on to the dia
 (`ArchitectureTest`): the managers and editors of moods, frames, blocks and palettes take their services in the
 constructor, the trash windows open through `TrashWindow.Opener` (with the worker of the window), the entry cards
 and the images view get the
-thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
+thumbnails, the decoded thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
 `MoodframeApplication` hands `ThemeManager` the configuration at the start.
 
 ## The main window
@@ -253,7 +260,10 @@ favorites, locks and dialogs) and `FrameGroupPart` (frame, aspect ratio, resolut
 `GenerationPanelController` likewise hands the attached images to `GenerationAttachments` and the fields of BFL and
 Gemini to `ProviderParameters`; `ChatViewController` its full view with the steps from entry to entry to
 `EntryFullView`; `ChatEntryCard` loads the pictures of its tiles with `EntryTilePictures` and builds its context
-menus with `EntryMenus`; the full view (`ImagePreviewOverlay`) plays a video with `VideoPlayback`.
+menus with `EntryMenus`; the full view (`ImagePreviewOverlay`) plays a video with `VideoPlayback`. A cell of the chat
+keeps its card while it shows the same entry: the card follows status, prompt and images of its entry itself, and a
+change a generation reports reaches only the card of its entry (its cost, the tile of a changed image), so no other
+card is built anew and an open context menu stays.
 
 ## Settings dialog
 

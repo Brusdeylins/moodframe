@@ -6,7 +6,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryGroup;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ChatLibrary;
-import art.moodframe.ui.component.ImagePreviewOverlay;
+import art.moodframe.ui.entry.ImagePreviewOverlay;
 import art.moodframe.util.I18nManager;
 import javafx.scene.layout.StackPane;
 import org.slf4j.Logger;

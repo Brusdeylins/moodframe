@@ -190,8 +190,8 @@ class ArchitectureTest {
 
     /*  The subpackages of ui, each using only those before it: support at the bottom, the controllers on top, so no
         view uses a controller  */
-    private static final List<String> UI = List.of("ui.support", "ui.dnd", "ui.component", "ui.cell", "ui.dialog",
-            "ui.panel", "ui.brainstorm", "ui", "ui.controller.settings", "ui.controller");
+    private static final List<String> UI = List.of("ui.support", "ui.dnd", "ui.component", "ui.entry",
+            "ui.cell", "ui.dialog", "ui.panel", "ui.brainstorm", "ui", "ui.controller.settings", "ui.controller");
 
     @Test
     void everyPartOfTheUserInterfaceUsesOnlyThePartsBelowIt() {

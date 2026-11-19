@@ -1,5 +1,6 @@
 package art.moodframe.ui.component;
 
+import art.moodframe.ui.support.ImageCache;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -20,7 +21,7 @@ import org.slf4j.LoggerFactory;
  * <p><strong>Displayed Metrics:</strong></p>
  * <ul>
  * <li><strong>Memory Usage</strong>: Current JVM memory usage percentage and MB</li>
- * <li><strong>Loaded Images</strong>: Number of thumbnail images currently loaded in ImageViews</li>
+ * <li><strong>Loaded Images</strong>: Number of decoded thumbnails the window holds in its {@link ImageCache}</li>
  * </ul>
  *
  * @since 1.2.0 - Simplified Memory Monitoring
@@ -48,6 +49,9 @@ public class MemoryStatusComponent extends HBox {
 
     // Update timeline
     private final Timeline updateTimeline;
+
+    /*  the decoded thumbnails counted, none until the window hands them  */
+    private ImageCache images;
 
 
     /**
@@ -98,6 +102,16 @@ public class MemoryStatusComponent extends HBox {
         logger.debug("MemoryStatusComponent initialized with image and listener tracking");
     }
     
+    /**
+     * Counts the decoded thumbnails of a window from now on.
+     *
+     * @param images the decoded thumbnails
+     */
+    public void countImagesOf(ImageCache images) {
+        this.images = images;
+        updateStatus();
+    }
+
     /**
      * Sets up the UI layout and styling.
      */
@@ -182,7 +196,7 @@ public class MemoryStatusComponent extends HBox {
      * Shows: number of loaded thumbnail images
      */
     private void updateTasksStatus() {
-        int loadedImages = art.moodframe.ui.component.ChatEntryCard.getTotalLoadedImages();
+        int loadedImages = images != null ? images.size() : 0;
 
         tasksLabel.setText(String.format("%d imgs", loadedImages));
 

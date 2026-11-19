@@ -93,7 +93,8 @@ public final class VideoRemedy {
     public static synchronized CompletableFuture<Remedy> detect() {
         if (detected == null)
             detected = CompletableFuture
-                    .supplyAsync(() -> detect(System.getProperty("os.name", ""), OS_RELEASE, LIBRARY_DIRS))
+                    .supplyAsync(() -> detect(System.getProperty("os.name", ""), OS_RELEASE, LIBRARY_DIRS),
+                            DiskWorker.get())
                     .exceptionally((Throwable error) -> {
                         logger.warn("Cannot tell what helps to play videos on this system: {}", error.getMessage());
                         return null;

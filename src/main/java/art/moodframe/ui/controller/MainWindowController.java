@@ -32,9 +32,10 @@ import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.BoxInset;
-import art.moodframe.ui.component.ChatEntryCard;
+import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
-import art.moodframe.ui.component.ImageSources;
+import art.moodframe.ui.entry.ImageSources;
+import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.ui.support.FxI18n;
 import art.moodframe.ui.support.FxLibraryEvents;
@@ -205,8 +206,10 @@ public class MainWindowController implements I18nChangeListener {
         inputBar = chatViewController.inputBar();
         TrashWindow.Opener trash = new TrashWindow.Opener(services.getService(TrashCenter.class),
                 services.findService(TrashCleanupService.class).orElse(null), worker);
+        ImageCache images = new ImageCache();
         chatViewController.useImageSources(new ImageSources(services.getService(ThumbnailManager.class),
-                services.getService(ImageSizeCheck.class)));
+                services.getService(ImageSizeCheck.class), images));
+        statusBarController.countImagesOf(images);
         chatViewController.init(config, chatLibrary, chatHistory, worker, (StackPane) mainBorderPane.getParent(),
                 librarySidebarController::currentChat, librarySidebarController::shownGroup, statusBarController,
                 chatActions());
@@ -391,9 +394,6 @@ public class MainWindowController implements I18nChangeListener {
             @Override
             public void modelChanged() {
                 updateUIState();
-
-                /*  "Copy seed" at an image applies only while a model of BFL is chosen  */
-                chatViewController.refreshEntries();
             }
 
             @Override
@@ -815,6 +815,11 @@ public class MainWindowController implements I18nChangeListener {
     /** The group Generation, for the tests of the window. */
     GenerationPanelController generationPanel() {
         return generationPanelController;
+    }
+
+    /** The chat area, for the tests of the window. */
+    ChatViewController chatView() {
+        return chatViewController;
     }
 
     /**

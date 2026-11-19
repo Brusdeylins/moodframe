@@ -275,7 +275,7 @@ public class ChatEntry {
         }
     }
     
-    /*  The prompt, the status and the images are observed by the entry card ({@code ui.component.ChatEntryCard}),
+    /*  The prompt, the status and the images are observed by the entry card ({@code ui.entry.ChatEntryCard}),
         the images also by the images view; every other value is plain  */
 
     public StringProperty userPromptProperty() {
