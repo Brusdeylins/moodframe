@@ -183,4 +183,19 @@ public interface BflApiService extends ImageProvider {
      * @return a CompletableFuture that completes with true if SSL handshake succeeds
      */
     CompletableFuture<Boolean> testSslConnection();
+
+    /**
+     * Gets the base URL of the API in a region.
+     *
+     * @param region {@code EU}, {@code US} or {@code Global} (may be null)
+     * @return the base URL, that of the global endpoint for any other region
+     * @since 2.1.3
+     */
+    static String endpointOf(String region) {
+        return switch (region != null ? region : "Global") {
+            case "EU" -> "https://api.eu.bfl.ai";
+            case "US" -> "https://api.us.bfl.ai";
+            default -> "https://api.bfl.ai";
+        };
+    }
 }

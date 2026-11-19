@@ -360,20 +360,9 @@ public class BflApiServiceImpl implements BflApiService {
     
     /*  the base URL of the API in the chosen region  */
     String getApiBaseUrl() {
-        if (config != null) {
-            // Use API region to determine the correct endpoint
-            String region = fixedRegion != null ? fixedRegion : config.getApiRegion();
-            switch (region) {
-                case "EU":
-                    return "https://api.eu.bfl.ai";
-                case "US":
-                    return "https://api.us.bfl.ai";
-                case "Global":
-                default:
-                    return DEFAULT_BASE_URL; // Global endpoint
-            }
-        }
-        return DEFAULT_BASE_URL;
+        if (config == null)
+            return DEFAULT_BASE_URL;
+        return BflApiService.endpointOf(fixedRegion != null ? fixedRegion : config.getApiRegion());
     }
     
     /**
