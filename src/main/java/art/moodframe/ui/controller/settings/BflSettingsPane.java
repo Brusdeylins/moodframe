@@ -193,6 +193,8 @@ public class BflSettingsPane implements SettingsSection {
         if (apiKeyField != null)
             apiKeyField.setPromptText(I18nManager.getText("settings.api.key.placeholder"));
         showApiKeyButton.setTooltip(new Tooltip(I18nManager.getText("settings.api.key.toggle.tooltip")));
+        bflProviderEnabledCheckBox.setText(I18nManager.getText("settings.bfl.enable"));
+        bflProviderEnabledCheckBox.setTooltip(new Tooltip(I18nManager.getText("settings.bfl.enable.tooltip")));
     }
 
     /** Shows the key as text or hidden, switching between a text field and a password field. */

@@ -280,6 +280,24 @@ class SettingsDialogTest {
     }
 
     @Test
+    void theProviderSectionsFollowTheLanguage() throws Exception {
+        open();
+        onFx(() -> I18nManager.setLocale(Locale.GERMAN));
+        assertEquals(I18nManager.getText("settings.bfl.enable"),
+                onFx(() -> this.<CheckBox>node("bflProviderEnabledCheckBox").getText()));
+        assertEquals(I18nManager.getText("settings.gemini.enable"),
+                onFx(() -> this.<CheckBox>node("geminiProviderEnabledCheckBox").getText()));
+        assertEquals(I18nManager.getText("settings.openai.enable"),
+                onFx(() -> this.<CheckBox>node("openaiProviderEnabledCheckBox").getText()));
+        assertEquals(I18nManager.getText("settings.gemini.title"),
+                onFx(() -> this.<Label>node("geminiTitleLabel").getText()));
+        assertEquals(I18nManager.getText("settings.openai.chat.label"),
+                onFx(() -> this.<Label>node("openaiChatLabel").getText()));
+        assertEquals("Gemini-Anbieter aktivieren",
+                onFx(() -> this.<CheckBox>node("geminiProviderEnabledCheckBox").getText()));
+    }
+
+    @Test
     void aClosedDialogNoLongerFollowsTheLanguage() throws Exception {
         open();
         onFx(stage::close);

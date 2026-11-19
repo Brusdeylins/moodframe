@@ -22,8 +22,8 @@
         </padding>
         <!-- OpenAI API Section -->
         <VBox spacing="8.0">
-            <Label styleClass="text-bold" text="%settings.openai.title" />
-            <Label text="%settings.openai.description" />
+            <Label fx:id="openaiTitleLabel" styleClass="text-bold" text="%settings.openai.title" />
+            <Label fx:id="openaiDescriptionLabel" text="%settings.openai.description" />
 
             <TextField fx:id="openaiBaseUrlField" promptText="%settings.openai.baseurl.placeholder" />
 
@@ -54,9 +54,9 @@
 
             <!-- OpenAI Image Model Selection -->
             <VBox fx:id="openaiModelsContainer" spacing="4.0" visible="false" managed="false">
-                <Label text="%settings.openai.models.label" />
+                <Label fx:id="openaiModelsLabel" text="%settings.openai.models.label" />
                 <ListView fx:id="openaiModelList" minHeight="150.0" prefHeight="150.0" maxHeight="150.0" />
-                <Label text="%settings.openai.chat.label" />
+                <Label fx:id="openaiChatLabel" text="%settings.openai.chat.label" />
                 <ComboBox fx:id="openaiChatModelBox" maxWidth="Infinity" />
             </VBox>
 

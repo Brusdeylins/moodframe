@@ -18,6 +18,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -41,6 +42,14 @@ public class OpenAiSettingsPane implements SettingsSection {
 
     private static final Logger logger = LoggerFactory.getLogger(OpenAiSettingsPane.class);
 
+    @FXML
+    private Label openaiTitleLabel;
+    @FXML
+    private Label openaiDescriptionLabel;
+    @FXML
+    private Label openaiModelsLabel;
+    @FXML
+    private Label openaiChatLabel;
     @FXML
     private TextField openaiBaseUrlField;
     @FXML
@@ -196,6 +205,20 @@ public class OpenAiSettingsPane implements SettingsSection {
         showOpenaiModels(List.of(), List.of());
         openaiProviderEnabledCheckBox.setDisable(true);
         openaiProviderEnabledCheckBox.setSelected(false);
+    }
+
+    @Override
+    public void relabel() {
+        openaiTitleLabel.setText(I18nManager.getText("settings.openai.title"));
+        openaiDescriptionLabel.setText(I18nManager.getText("settings.openai.description"));
+        openaiBaseUrlField.setPromptText(I18nManager.getText("settings.openai.baseurl.placeholder"));
+        openaiApiKeyInputControl.setPromptText(I18nManager.getText("settings.openai.key.placeholder"));
+        showOpenaiApiKeyButton.setTooltip(new Tooltip(I18nManager.getText("settings.openai.key.toggle.tooltip")));
+        testOpenaiConnectionButton.setText(I18nManager.getText("settings.openai.test"));
+        openaiModelsLabel.setText(I18nManager.getText("settings.openai.models.label"));
+        openaiChatLabel.setText(I18nManager.getText("settings.openai.chat.label"));
+        openaiProviderEnabledCheckBox.setText(I18nManager.getText("settings.openai.enable"));
+        openaiProviderEnabledCheckBox.setTooltip(new Tooltip(I18nManager.getText("settings.openai.enable.tooltip")));
     }
 
     /** Shows the token as text or hidden, switching between a text field and a password field. */
