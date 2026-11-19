@@ -8,6 +8,7 @@ import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,13 +16,15 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Writes generated images to the images directory: decodes Base64 answers, downloads the result of a BFL
- * job, names and detects the files. The methods touch no JavaFX property, so they may run on a worker thread;
+ * Writes generated images and videos to the images directory: decodes Base64 answers, downloads the result of a
+ * BFL job and generated videos (the one download path of the generation), names and detects the files. The methods touch no JavaFX property, so they may run on a worker thread;
  * applying the result to the image object the UI is bound to is {@link StoredImage#applyTo} on the FX thread.
  *
  * @since 1.9.1
@@ -29,6 +32,9 @@ import java.util.function.Supplier;
 public class ImageFileStore {
 
     private static final Logger logger = LoggerFactory.getLogger(ImageFileStore.class);
+
+    private static final Duration IMAGE_TIMEOUT = Duration.ofSeconds(60);
+    private static final Duration VIDEO_TIMEOUT = Duration.ofSeconds(120);
 
     private final ApplicationConfig config;
     private final Supplier<HttpClient> downloadClient;
@@ -60,7 +66,7 @@ public class ImageFileStore {
      * Creates the store.
      *
      * @param config         the application configuration (images directory)
-     * @param downloadClient the client for the download of finished BFL jobs
+     * @param downloadClient the client for the downloads of finished BFL jobs and videos
      */
     public ImageFileStore(ApplicationConfig config, Supplier<HttpClient> downloadClient) {
         this.config = config;
@@ -83,23 +89,8 @@ public class ImageFileStore {
         Path imagesDir = Paths.get(config.getImagesPath());
         Files.createDirectories(imagesDir);
 
-        HttpRequest downloadRequest;
-        try {
-            downloadRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(imageUrl))
-                    .timeout(Duration.ofSeconds(60)) // Longer timeout for image download
-                    .GET()
-                    .build();
-        }
-        catch (IllegalArgumentException e) {
-            /*  The message quotes the rejected URL, which carries the signature of the download  */
-            throw new java.io.IOException(Secrets.redact(e.getMessage()));
-        }
-        HttpResponse<byte[]> downloadResponse = downloadClient.get().send(
-                downloadRequest, HttpResponse.BodyHandlers.ofByteArray());
-        if (downloadResponse.statusCode() != 200)
-            throw new java.io.IOException("Failed to download image: HTTP " + downloadResponse.statusCode());
-
+        HttpResponse<byte[]> downloadResponse = fetch(imageUrl, Map.of(), IMAGE_TIMEOUT,
+                HttpResponse.BodyHandlers.ofByteArray(), "Failed to download image");
         byte[] imageBytes = downloadResponse.body();
 
         // Detect actual format from bytes so extension, format and UI match reality
@@ -128,6 +119,80 @@ public class ImageFileStore {
             logger.debug("Image download completed: {} ({}x{}, {} bytes)", filename, width, height,
                     Files.size(imagePath));
         return new StoredImage(imagePath, filename, format, mimeType, width, height, Files.size(imagePath));
+    }
+
+    /**
+     * Downloads a generated video into the images directory as {@code .mp4}, streamed to the file. Touches no JavaFX
+     * property, so it runs on a worker.
+     *
+     * @param videoUrl       the URL of the video
+     * @param headers        the headers the provider needs for its files, e.g. its key
+     * @param generatedImage the placeholder of the video, read for the file name only
+     * @return the written file, without dimensions
+     * @throws HttpStatusException if the server does not answer 200
+     * @throws Exception           if the video cannot be fetched or the file cannot be written
+     */
+    public StoredImage downloadVideo(String videoUrl, Map<String, String> headers, GeneratedImage generatedImage)
+            throws Exception {
+        Path imagesDir = imagesDirectory();
+        Files.createDirectories(imagesDir);
+        String filename = filenameWithoutExtension(generatedImage) + ".mp4";
+        Path videoPath = imagesDir.resolve(filename);
+        logger.info("Downloading video to: {}", videoPath);
+
+        HttpResponse<InputStream> response = fetch(videoUrl, headers, VIDEO_TIMEOUT,
+                HttpResponse.BodyHandlers.ofInputStream(), "Video download failed");
+        try (InputStream video = response.body()) {
+            Files.copy(video, videoPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return new StoredImage(videoPath, filename, "mp4", "video/mp4", 0, 0, Files.size(videoPath));
+    }
+
+    /*  the directory of the images and videos  */
+    private Path imagesDirectory() {
+        return Paths.get(config.getImagesPath());
+    }
+
+    /*  the one download of the store: GET with the headers of the provider, a status other than 200 fails with the
+        message and the status; a rejected URL fails without quoting it, as it carries the signature of the file  */
+    private <T> HttpResponse<T> fetch(String url, Map<String, String> headers, Duration timeout,
+            HttpResponse.BodyHandler<T> body, String failure) throws Exception {
+        HttpRequest request;
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url)).timeout(timeout);
+            headers.forEach(builder::header);
+            request = builder.GET().build();
+        }
+        catch (IllegalArgumentException e) {
+            throw new java.io.IOException(Secrets.redact(e.getMessage()));
+        }
+        HttpResponse<T> response = downloadClient.get().send(request, body);
+        if (response.statusCode() != 200) {
+            if (response.body() instanceof java.io.Closeable closeable)
+                closeable.close();
+            throw new HttpStatusException(failure, response.statusCode());
+        }
+        return response;
+    }
+
+    /** A download the server did not answer with 200. */
+    public static final class HttpStatusException extends java.io.IOException {
+
+        private final int statusCode;
+
+        HttpStatusException(String failure, int statusCode) {
+            super(failure + ": HTTP " + statusCode);
+            this.statusCode = statusCode;
+        }
+
+        /**
+         * Gets the HTTP status the server answered with.
+         *
+         * @return the status code
+         */
+        public int getStatusCode() {
+            return statusCode;
+        }
     }
 
     /**

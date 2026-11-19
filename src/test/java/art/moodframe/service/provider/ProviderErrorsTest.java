@@ -48,20 +48,31 @@ class ProviderErrorsTest {
 
     @Test
     void openAiHasOneMappingWithTheTextOfTheApi() {
-        ApiHttpException notFound = OpenAiApiServiceImpl.httpError(404, error("No such model"));
+        ApiHttpException notFound = OpenAiTransport.httpError(404, error("No such model"));
         assertTrue(ApiHttpException.isDefinite(notFound));
         assertEquals("OpenAI error 404: No such model", notFound.getMessage(Locale.ENGLISH));
         assertEquals("OpenAI-Fehler 404: No such model", notFound.getMessage(Locale.GERMAN));
         assertEquals("OpenAI: invalid bearer token (401)",
-                OpenAiApiServiceImpl.httpError(401, "").getMessage(Locale.ENGLISH));
+                OpenAiTransport.httpError(401, "").getMessage(Locale.ENGLISH));
     }
 
     @Test
     void theMcpClientsGetTheEnglishMessage() {
-        ApiHttpException failure = OpenAiApiServiceImpl.httpError(401, "");
+        ApiHttpException failure = OpenAiTransport.httpError(401, "");
         CompletionException wrapped = new CompletionException(failure);
         assertEquals("OpenAI: invalid bearer token (401)", ProviderException.messageOf(wrapped, true));
         assertEquals(failure.getMessage(), ProviderException.messageOf(wrapped, false));
         assertEquals("plain", ProviderException.messageOf(new IllegalStateException("plain"), true));
+    }
+
+    @Test
+    void theMessageComesFromAProviderFailureWrappedAnyDeep() {
+        ProviderException noKey = ProviderException.noKey("OpenAI");
+        RuntimeException wrapped = new CompletionException(new RuntimeException("Failed to submit", noKey));
+        assertEquals("OpenAI: no API key configured. Please enter it in the settings.",
+                ProviderException.messageOf(wrapped, true));
+        assertEquals(noKey.getMessage(), ProviderException.messageOf(wrapped, false));
+        assertEquals("Failed to submit", ProviderException.messageOf(
+                new CompletionException(new RuntimeException("Failed to submit")), true));
     }
 }

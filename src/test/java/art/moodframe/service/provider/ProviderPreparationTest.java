@@ -12,6 +12,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -28,8 +29,17 @@ class ProviderPreparationTest {
     void eachProviderTellsItsPromptLimit() {
         assertEquals(2000, providers.get(GenerationModel.FLUX2_PRO.getProvider()).maxPromptLength("flux.2-pro"));
         assertEquals(250_000, providers.forModel("gemini-3-pro-image").maxPromptLength("gemini-3-pro-image"));
-        assertEquals(GenerationModel.openAiMaxPromptLength("dall-e-3"),
-                providers.get(GenerationModel.OPENAI_IMAGE.getProvider()).maxPromptLength("dall-e-3"));
+        assertEquals(4000, providers.get(GenerationModel.OPENAI_IMAGE.getProvider()).maxPromptLength("dall-e-3"));
+    }
+
+    @Test
+    void theProviderChecksThePromptAgainstItsLimit() {
+        ImageGenerationRequest flux = new ImageGenerationRequest("x".repeat(2001), "flux.2-pro");
+        IllegalArgumentException tooLong = assertThrows(IllegalArgumentException.class,
+                () -> providers.forModel("flux.2-pro").checkPromptLength(flux));
+        assertEquals("Prompt cannot exceed 2000 characters (BFL (Blackforest Labs) limit)", tooLong.getMessage());
+        ImageGenerationRequest gemini = new ImageGenerationRequest("x".repeat(2001), "gemini-3-pro-image");
+        providers.forModel("gemini-3-pro-image").checkPromptLength(gemini);
     }
 
     @Test

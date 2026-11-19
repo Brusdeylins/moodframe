@@ -78,7 +78,7 @@ final class GeminiImageClient {
     CompletableFuture<GenerationJobInfo> submit(ImageGenerationRequest request) {
         return transport.async(() -> {
             if (!transport.hasKey()) {
-                throw new IllegalStateException("Gemini API key not configured");
+                throw ProviderException.noKey("Gemini");
             }
 
             try {
@@ -161,64 +161,9 @@ final class GeminiImageClient {
         parts.put(textPart);
 
         // Image Parts (Gemini supports up to 14 reference images)
-        // Add primary image and additional images (input_image_2 through input_image_8)
-        int imageCount = 0;
-        if (request.hasInputImage()) {
-            addGeminiImagePart(parts, request.getInputImage());
-            imageCount++;
-        }
-        if (request.getInputImage2() != null && !request.getInputImage2().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage2());
-            imageCount++;
-        }
-        if (request.getInputImage3() != null && !request.getInputImage3().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage3());
-            imageCount++;
-        }
-        if (request.getInputImage4() != null && !request.getInputImage4().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage4());
-            imageCount++;
-        }
-        if (request.getInputImage5() != null && !request.getInputImage5().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage5());
-            imageCount++;
-        }
-        if (request.getInputImage6() != null && !request.getInputImage6().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage6());
-            imageCount++;
-        }
-        if (request.getInputImage7() != null && !request.getInputImage7().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage7());
-            imageCount++;
-        }
-        if (request.getInputImage8() != null && !request.getInputImage8().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage8());
-            imageCount++;
-        }
-        if (request.getInputImage9() != null && !request.getInputImage9().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage9());
-            imageCount++;
-        }
-        if (request.getInputImage10() != null && !request.getInputImage10().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage10());
-            imageCount++;
-        }
-        if (request.getInputImage11() != null && !request.getInputImage11().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage11());
-            imageCount++;
-        }
-        if (request.getInputImage12() != null && !request.getInputImage12().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage12());
-            imageCount++;
-        }
-        if (request.getInputImage13() != null && !request.getInputImage13().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage13());
-            imageCount++;
-        }
-        if (request.getInputImage14() != null && !request.getInputImage14().isEmpty()) {
-            addGeminiImagePart(parts, request.getInputImage14());
-            imageCount++;
-        }
+        int imageCount = request.getInputImageCount();
+        for (String image : request.getInputImages())
+            addGeminiImagePart(parts, image);
 
         if (imageCount > 0) {
             logger.info("Gemini request includes {} input image(s)", imageCount);

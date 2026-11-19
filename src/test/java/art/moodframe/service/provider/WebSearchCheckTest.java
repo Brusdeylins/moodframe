@@ -176,10 +176,11 @@ class WebSearchCheckTest {
 
     @Test
     void openAiResearchWaitsAtMost60Seconds() throws Exception {
-        Field client = OpenAiApiServiceImpl.class.getDeclaredField("researchClient");
-        client.setAccessible(true);
+        Field transport = OpenAiApiServiceImpl.class.getDeclaredField("transport");
+        transport.setAccessible(true);
 
-        Supplier<?> research = (Supplier<?>) client.get(new OpenAiApiServiceImpl(config));
-        assertEquals(60_000, ((OkHttpClient) research.get()).readTimeoutMillis());
+        Supplier<OkHttpClient> research = ((OpenAiTransport) transport.get(new OpenAiApiServiceImpl(config)))
+                .researchClient();
+        assertEquals(60_000, research.get().readTimeoutMillis());
     }
 }

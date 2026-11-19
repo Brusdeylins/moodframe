@@ -48,10 +48,23 @@ public interface OpenAiApiService extends ImageProvider {
     @Override
     OpenAiApiService withCredentials(String apiKey, String endpoint);
 
-    /** The prompt limit of the model: 1,000 to 32,000 characters. */
+    /** The prompt limit of the model: 1,000 to 32,000 characters, see {@link #promptLimitOf(String)}. */
     @Override
     default int maxPromptLength(String apiModelId) {
-        return GenerationModel.openAiMaxPromptLength(apiModelId);
+        return promptLimitOf(apiModelId);
+    }
+
+    /**
+     * Gets the prompt limit in characters of an OpenAI image model.
+     *
+     * @param modelId the OpenAI model id (may be null)
+     * @return 32,000 for gpt-image models and the models of a gateway, 4,000 for dall-e-3 and 1,000 for dall-e-2
+     */
+    static int promptLimitOf(String modelId) {
+        String lower = modelId == null ? "" : modelId.toLowerCase(java.util.Locale.ROOT);
+        if (lower.equals("dall-e-2"))
+            return 1000;
+        return lower.startsWith("dall-e") ? 4000 : 32000;
     }
 
     /**

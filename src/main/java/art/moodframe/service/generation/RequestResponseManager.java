@@ -10,7 +10,6 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.ImageProvider;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.ImageEncoder;
@@ -20,17 +19,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -159,11 +151,12 @@ public class RequestResponseManager implements RequestResponseService {
                     processAttachedImage(request, attachedImageFile);
                 }
 
-                // Validate request
+                // Validate request, the prompt against the limit of the provider
                 request.validate();
 
                 // The provider of the model decides about seeds and the flow
                 ImageProvider provider = providers.forModel(request.getModel());
+                provider.checkPromptLength(request);
 
                 // Update chat entry status and create placeholder images (ensure on FX thread)
                 FxModel.change(() -> {
@@ -206,9 +199,9 @@ public class RequestResponseManager implements RequestResponseService {
                 int imageCount = request.getImageCount() != null ? request.getImageCount() : 1;
 
                 GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
-                if (model != null && model.isOmniModel()) {
-                    // Gemini Omni: synchronous video generation (always 1 video per request)
-                    handleOmniGeneration(request, chatEntry, 0);
+                if (model != null && model.isVideoModel()) {
+                    // Video: the provider answers with the finished video to download (always 1 per request)
+                    handleVideoGeneration(provider, request, chatEntry, 0);
                 } else if (provider.answersWithImage()) {
                     // Gemini, OpenAI: Synchronous flow - submit multiple parallel requests, one image per request
                     for (int i = 0; i < imageCount; i++) {
@@ -315,23 +308,25 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Handles Gemini Omni video generation. The API call is synchronous and returns when the video exists,
-     * so there is no polling: generate → download video from URL → save as .mp4.
+     * Handles a video generation. The provider answers when the video exists, so there is no polling:
+     * generate → download the video from its URL → save as .mp4.
      * The placeholder is only persisted at the end (like Gemini images), a crash leaves no pending row behind.
      *
+     * @param provider   the provider of the video model
      * @param request    the image generation request with video parameters
      * @param chatEntry  the chat entry to update
-     * @param imageIndex the index of the video in the batch (always 0 for Omni)
+     * @param imageIndex the index of the video in the batch (always 0)
      */
-    private void handleOmniGeneration(ImageGenerationRequest request, ChatEntry chatEntry, int imageIndex) {
-        logger.info("Starting Gemini Omni video generation: model={}, resolution={}, duration={}s",
+    private void handleVideoGeneration(ImageProvider provider, ImageGenerationRequest request, ChatEntry chatEntry,
+            int imageIndex) {
+        logger.info("Starting video generation: model={}, resolution={}, duration={}s",
                 request.getModel(), request.getVideoResolution(), request.getVideoDuration());
 
         // Queued behind the placeholder creation of submitImageGeneration()
         FxModel.change(() -> {
             GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
             if (placeholder == null) {
-                logger.error("No placeholder found for Omni video at index {}", imageIndex);
+                logger.error("No placeholder found for video at index {}", imageIndex);
                 return;
             }
 
@@ -346,29 +341,30 @@ public class RequestResponseManager implements RequestResponseService {
             tracker.notifyImageUpdated(placeholder);
         });
 
-        providers.get(ApiProvider.GOOGLE_GEMINI, GeminiApiService.class).submitOmniGenerationRequest(request)
+        provider.submitGenerationRequest(request)
             .thenAccept(jobInfo -> {
                 if (jobInfo.isFailed()) {
-                    failOmniVideo(chatEntry, imageIndex, jobInfo.getErrorMessage());
+                    failVideo(chatEntry, imageIndex, jobInfo.getErrorMessage());
                     return;
                 }
 
                 FxModel.change(() -> {
                     GeneratedImage placeholder = placeholder(chatEntry, imageIndex);
                     if (placeholder == null) {
-                        logger.error("No placeholder found for Omni video at index {}", imageIndex);
+                        logger.error("No placeholder found for video at index {}", imageIndex);
                         return;
                     }
 
                     placeholder.setGenerationJobId(jobInfo.getJobId());
                     placeholder.setDownloadStatus(GeneratedImage.DownloadStatus.DOWNLOADING);
                     tracker.notifyImageUpdated(placeholder);
-                    downloadVideoFromUrl(jobInfo.getVideoDownloadUrl(), placeholder, chatEntry, request);
+                    String videoUrl = jobInfo.getVideoDownloadUrl();
+                    downloadVideo(videoUrl, provider.downloadHeaders(videoUrl), placeholder, chatEntry, request);
                 });
             })
             .exceptionally(throwable -> {
-                logger.error("Omni generation failed", throwable);
-                failOmniVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
+                logger.error("Video generation failed", throwable);
+                failVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                 return null;
             });
     }
@@ -384,9 +380,9 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Marks the placeholder of an Omni video as failed and stores it, so the error stays visible.
+     * Marks the placeholder of a video as failed and stores it, so the error stays visible.
      */
-    private void failOmniVideo(ChatEntry chatEntry, int imageIndex, String errorMessage) {
+    private void failVideo(ChatEntry chatEntry, int imageIndex, String errorMessage) {
         FxModel.change(() -> {
             GeneratedImage img = placeholder(chatEntry, imageIndex);
             if (img != null) {
@@ -401,88 +397,51 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Downloads a video file from a URL and saves it as .mp4.
+     * Downloads a video through the {@link ImageFileStore} and applies it to its placeholder.
      *
      * @param videoUrl       the URL to download the video from
+     * @param headers        the headers the provider needs for its files
      * @param generatedImage the GeneratedImage to update with file info
      * @param chatEntry      the parent ChatEntry
      * @param request        the original request for cost metadata
      */
-    private void downloadVideoFromUrl(String videoUrl, GeneratedImage generatedImage,
-                                       ChatEntry chatEntry, ImageGenerationRequest request) {
+    private void downloadVideo(String videoUrl, Map<String, String> headers, GeneratedImage generatedImage,
+            ChatEntry chatEntry, ImageGenerationRequest request) {
         CompletableFuture.runAsync(() -> {
             try {
-                // Create images directory (videos stored alongside images)
-                String imagesPath = config.getImagesPath();
-                Path imagesDir = Paths.get(imagesPath);
-                Files.createDirectories(imagesDir);
+                ImageFileStore.StoredImage stored = imageFiles.downloadVideo(videoUrl, headers, generatedImage);
 
-                // Generate filename for the video
-                String baseFilename = ImageFileStore.filenameWithoutExtension(generatedImage);
-                String filename = baseFilename + ".mp4";
-                Path videoPath = imagesDir.resolve(filename);
+                /*  The video is bound to the UI, so it is changed on the FX thread, then stored  */
+                FxModel.change(() -> {
+                    stored.applyTo(generatedImage);
+                    generatedImage.setDownloadedAt(LocalDateTime.now());
+                    generatedImage.setSeed(0); // video has no seed
+                    generatedImage.setBaseCost(request.getBaseCostPerImage() != null
+                            ? request.getBaseCostPerImage() : 0.0);
 
-                logger.info("Downloading video from: {} to: {}", videoUrl, videoPath);
+                    tracker.saveImage(generatedImage);
+                    logger.info("Video saved: {} ({} bytes, {}s, audio={})",
+                            stored.filename(), stored.size(),
+                            generatedImage.getVideoDurationSeconds(),
+                            generatedImage.hasAudio());
 
-                // Download video file, with the headers the provider needs for its files (e.g. its key)
-                HttpRequest.Builder downloadBuilder = HttpRequest.newBuilder()
-                        .uri(URI.create(videoUrl))
-                        .timeout(Duration.ofSeconds(120)); // Longer timeout for video download
-                providers.forModel(request.getModel()).downloadHeaders(videoUrl).forEach(downloadBuilder::header);
-                HttpRequest downloadRequest = downloadBuilder.GET().build();
-
-                HttpResponse<InputStream> downloadResponse = downloadClient.get().send(
-                        downloadRequest,
-                        HttpResponse.BodyHandlers.ofInputStream());
-
-                if (downloadResponse.statusCode() == 200) {
-                    // Save video to file
-                    try (InputStream inputStream = downloadResponse.body()) {
-                        Files.copy(inputStream, videoPath, StandardCopyOption.REPLACE_EXISTING);
-                    }
-
-                    long fileSize = Files.size(videoPath);
-
-                    /*  The video is bound to the UI, so it is changed on the FX thread, then stored  */
-                    FxModel.change(() -> {
-                        generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
-                        generatedImage.setLocalFilePath(videoPath.toString());
-                        generatedImage.setFileName(filename);
-                        generatedImage.setFileSizeBytes(fileSize);
-                        generatedImage.setFormat("mp4");
-                        generatedImage.setMimeType("video/mp4");
-                        generatedImage.setDownloadedAt(LocalDateTime.now());
-                        generatedImage.setSeed(0); // video has no seed
-                        generatedImage.setBaseCost(request.getBaseCostPerImage() != null
-                                ? request.getBaseCostPerImage() : 0.0);
-
-                        tracker.saveImage(generatedImage);
-                        logger.info("Video saved: {} ({} bytes, {}s, audio={})",
-                                filename, fileSize,
-                                generatedImage.getVideoDurationSeconds(),
-                                generatedImage.hasAudio());
-
-                        tracker.notifyEntryUpdated(chatEntry);
-                        tracker.notifyImageUpdated(generatedImage);
-                        tracker.refresh(chatEntry);
-                    });
-
-                } else {
-                    logger.error("Failed to download video: HTTP {}", downloadResponse.statusCode());
-                    FxModel.change(() -> {
-                        generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                        generatedImage.setErrorMessage("Video download failed: HTTP " + downloadResponse.statusCode());
-                        tracker.saveImage(generatedImage);
-                        tracker.notifyImageUpdated(generatedImage);
-                        tracker.refresh(chatEntry);
-                    });
-                }
+                    tracker.notifyEntryUpdated(chatEntry);
+                    tracker.notifyImageUpdated(generatedImage);
+                    tracker.refresh(chatEntry);
+                });
 
             } catch (Exception e) {
-                logger.error("Failed to download video", e);
+                String error;
+                if (e instanceof ImageFileStore.HttpStatusException status) {
+                    logger.error("Failed to download video: HTTP {}", status.getStatusCode());
+                    error = e.getMessage();
+                } else {
+                    logger.error("Failed to download video", e);
+                    error = "Video download error: " + e.getMessage();
+                }
                 FxModel.change(() -> {
                     generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                    generatedImage.setErrorMessage("Video download error: " + e.getMessage());
+                    generatedImage.setErrorMessage(error);
                     tracker.saveImage(generatedImage);
                     tracker.notifyImageUpdated(generatedImage);
                     tracker.refresh(chatEntry);

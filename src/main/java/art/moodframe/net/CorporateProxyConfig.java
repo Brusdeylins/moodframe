@@ -47,11 +47,9 @@ public class CorporateProxyConfig {
     private String proxyUsername;
     private String proxyPassword;
     private boolean proxyEnabled;
-    private boolean autoDetectProxy;
     
     // Certificate Management
     private List<Path> certificatePaths;
-    private boolean validateCertificateChain;
     
     /**
      * Creates a new corporate proxy configuration instance.
@@ -61,8 +59,6 @@ public class CorporateProxyConfig {
     public CorporateProxyConfig(ApplicationConfig applicationConfig) {
         this.applicationConfig = applicationConfig;
         this.certificatePaths = new ArrayList<>();
-        this.validateCertificateChain = true;
-        this.autoDetectProxy = true;
         
         // Initialize configuration from multiple sources
         loadProxyConfiguration();
@@ -94,7 +90,7 @@ public class CorporateProxyConfig {
         loadCertificatePaths();
         
         // Auto-detection as fallback
-        if (autoDetectProxy && !isProxyConfigured()) {
+        if (!isProxyConfigured()) {
             detectSystemProxy();
         }
     }
@@ -251,31 +247,8 @@ public class CorporateProxyConfig {
         applicationConfig.proxy().setProxyEnabled(proxyEnabled);
     }
     
-    public boolean isAutoDetectProxy() {
-        return autoDetectProxy;
-    }
-    
-    public void setAutoDetectProxy(boolean autoDetectProxy) {
-        this.autoDetectProxy = autoDetectProxy;
-    }
-    
     public List<Path> getCertificatePaths() {
         return new ArrayList<>(certificatePaths);
-    }
-    
-    public void addCertificatePath(Path certificatePath) {
-        if (certificatePath != null && isCertificateFile(certificatePath)) {
-            certificatePaths.add(certificatePath);
-            logger.debug("Added certificate path: {}", certificatePath);
-        }
-    }
-    
-    public boolean isValidateCertificateChain() {
-        return validateCertificateChain;
-    }
-    
-    public void setValidateCertificateChain(boolean validateCertificateChain) {
-        this.validateCertificateChain = validateCertificateChain;
     }
     
     
@@ -291,35 +264,5 @@ public class CorporateProxyConfig {
      */
     public String getConfigurationSource() {
         return applicationConfig.proxy().getProxyConfigurationSource();
-    }
-    
-    /**
-     * Checks if proxy configuration can be edited through UI.
-     */
-    public boolean isConfigurationEditable() {
-        return applicationConfig.proxy().isProxyConfigurationEditable();
-    }
-    
-    /**
-     * Gets configuration summary for logging and debugging.
-     */
-    public String getConfigurationSummary() {
-        StringBuilder summary = new StringBuilder();
-        summary.append("Corporate Proxy Configuration:\n");
-        summary.append("  Enabled: ").append(proxyEnabled).append("\n");
-        summary.append("  Source: ").append(getConfigurationSource()).append("\n");
-        
-        if (isProxyConfigured()) {
-            summary.append("  Host: ").append(proxyHost).append("\n");
-            summary.append("  Port: ").append(proxyPort).append("\n");
-            summary.append("  Authentication: ").append(hasProxyAuthentication() ? "Yes" : "No").append("\n");
-        } else {
-            summary.append("  Status: Not configured\n");
-        }
-        
-        summary.append("  Certificates: ").append(certificatePaths.size()).append(" loaded\n");
-        summary.append("  Validation: ").append(validateCertificateChain ? "Enabled" : "Disabled");
-        
-        return summary.toString();
     }
 }
