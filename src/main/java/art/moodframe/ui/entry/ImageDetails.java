@@ -75,16 +75,18 @@ final class ImageDetails {
         if (searchCost > 0 || reasoningCost > 0) {
             double baseCost = generatedImage.getBaseCost() != null ? generatedImage.getBaseCost() : 0.0;
             if (baseCost > 0)
-                details.add("Base Generation: $" + I18nManager.formatCost(baseCost));
+                details.add(I18nManager.getText("cost.detail.base", I18nManager.formatCost(baseCost)));
             if (searchCost > 0)
-                details.add("Google Search: $" + I18nManager.formatCost(searchCost));
+                details.add(I18nManager.getText("cost.detail.search", I18nManager.formatCost(searchCost)));
             if (reasoningCost > 0) {
                 Integer thinkingTokens = generatedImage.getThinkingTokens();
-                details.add("Reasoning: $" + I18nManager.formatCost(reasoningCost)
-                        + (thinkingTokens != null && thinkingTokens > 0
-                        ? String.format(I18nManager.getCurrentLocale(), " (%,d tokens)", thinkingTokens) : ""));
+                details.add(thinkingTokens != null && thinkingTokens > 0
+                        ? I18nManager.getText("cost.detail.reasoning.tokens", I18nManager.formatCost(reasoningCost),
+                                thinkingTokens)
+                        : I18nManager.getText("cost.detail.reasoning", I18nManager.formatCost(reasoningCost)));
             }
-            details.add("Total: $" + I18nManager.formatCost(baseCost + searchCost + reasoningCost));
+            details.add(I18nManager.getText("cost.detail.total",
+                    I18nManager.formatCost(baseCost + searchCost + reasoningCost)));
         }
         return String.join("\n", details);
     }

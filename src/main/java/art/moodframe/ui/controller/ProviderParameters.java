@@ -328,7 +328,7 @@ final class ProviderParameters {
         if (flux2GuidanceLabel != null) {
             // Use getText with parameter - i18n uses MessageFormat {0} syntax
             String labelText = I18nManager.getText(
-                    "params.flux2.guidance", String.format("%.1f", value));
+                    "params.flux2.guidance", String.format(I18nManager.getCurrentLocale(), "%.1f", value));
             flux2GuidanceLabel.setText(labelText);
         }
     }
