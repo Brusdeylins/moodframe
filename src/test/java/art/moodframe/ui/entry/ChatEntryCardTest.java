@@ -81,7 +81,7 @@ class ChatEntryCardTest {
 
     /*  The card of a new entry, as the chat shows it right after sending: without images yet, 900 px wide  */
     private static ChatEntryCard show(ChatEntry entry) {
-        ChatEntryCard card = new ChatEntryCard(entry);
+        ChatEntryCard card = new ChatEntryCard(entry, false, null, ImageSources.NONE, ChatEntryCard.Actions.NONE);
         new Scene(new VBox(card), 900, 2000);
         return card;
     }
@@ -201,7 +201,7 @@ class ChatEntryCardTest {
         List<String> offFxThread = new CopyOnWriteArrayList<>();
         List<Double> widths = new CopyOnWriteArrayList<>();
         ChatEntryCard card = onFxThread(() -> {
-            ChatEntryCard shown = new ChatEntryCard(entry);
+            ChatEntryCard shown = new ChatEntryCard(entry, false, null, ImageSources.NONE, ChatEntryCard.Actions.NONE);
             new Scene(new VBox(shown), 500, 2000);
             request(entry, 2);
             return shown;

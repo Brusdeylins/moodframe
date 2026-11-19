@@ -493,6 +493,69 @@ public class ChatViewController {
         }
     }
 
+    /*  What the cards ask: the full view, downloads and deletes here, the rest of the window  */
+    private final ChatEntryCard.Actions cardActions = new ChatEntryCard.Actions() {
+        @Override
+        public void reuse(ChatEntry entry, ChatEntryCard.Reuse part) {
+            actions.reuse(entry, part);
+        }
+
+        @Override
+        public void open(ChatEntry entry, int imageIndex) {
+            fullView.showEntry(entry, imageIndex);
+        }
+
+        @Override
+        public void edit(String imagePath) {
+            actions.edit(imagePath);
+        }
+
+        @Override
+        public void download(String imagePath) {
+            downloadImageFromPath(imagePath);
+        }
+
+        @Override
+        public void deleteEntry(ChatEntry entry) {
+            handleDeleteEntry(entry.getId());
+        }
+
+        @Override
+        public void deleteImage(ChatEntry entry, GeneratedImage image) {
+            handleDeleteImage(entry.getId(), image.getId());
+        }
+
+        @Override
+        public void copySeed(long seed) {
+            actions.copySeed(seed);
+        }
+
+        @Override
+        public boolean seedApplies() {
+            return actions.seedApplies();
+        }
+
+        @Override
+        public void takeOverMood(ChatEntry entry, boolean save) {
+            actions.takeOverMood(entry, save);
+        }
+
+        @Override
+        public void saveFrame(ChatEntry entry) {
+            actions.saveFrame(entry);
+        }
+
+        @Override
+        public void moodFromImage(File image) {
+            actions.moodFromImage(image);
+        }
+
+        @Override
+        public void useImageMood(ChatEntry entry) {
+            actions.useImageMood(entry);
+        }
+    };
+
     /*  The card showing an entry, null if it is out of view  */
     private ChatEntryCard cardOf(ChatEntry entry) {
         return shownCards.stream().filter((card) -> card.entry() == entry).findFirst().orElse(null);
@@ -708,50 +771,18 @@ public class ChatViewController {
                 if (empty || entry == null) {
                     setGraphic(null);
                     setText(null);
-                } else {
+                }
+                else {
                     cardInTrash = isChatDeleted;
                     cardOrigin = origin;
-                    currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory,
-                            imageSources);
+                    currentCard = new ChatEntryCard(entry, isChatDeleted, chatHistory, imageSources, cardActions);
                     shownCards.add(currentCard);
-
-                    // CRITICAL: Card must also fill width
                     currentCard.setMaxWidth(Double.MAX_VALUE);
-
-                    // Set up callbacks
-                    currentCard.setOnSeedCopy(actions::copySeed);
-
-                    currentCard.setOnReuse((reusedEntry, part) -> actions.reuse(reusedEntry, part));
 
                     /*  The images share the width of the cell, which a reused cell knows from the start, each at most
                         as large as the image size of the chat header  */
                     currentCard.bindAvailableWidth(this);
                     currentCard.bindTileSize(imageSizeSlider.valueProperty());
-
-                    currentCard.setOnImageClick((clickedEntry, imageIndex) -> {
-                        fullView.showEntry(clickedEntry, imageIndex);
-                    });
-
-                    currentCard.setOnImageDownload(filePath -> {
-                        downloadImageFromPath(filePath);
-                    });
-
-                    currentCard.setOnImageEdit(filePath -> {
-                        actions.edit(filePath);
-                    });
-
-                    currentCard.setOnEntryDelete(entryId -> {
-                        handleDeleteEntry(entryId);
-                    });
-
-                    currentCard.setOnImageDelete((entryId, imageId) -> {
-                        handleDeleteImage(entryId, imageId);
-                    });
-
-                    currentCard.setOnMoodTakeOver(actions::takeOverMood);
-                    currentCard.setOnFrameSave(actions::saveFrame);
-                    currentCard.setOnMoodFromImage(actions::moodFromImage);
-                    currentCard.setOnImageMood(actions::useImageMood);
 
                     /*  The entries of a group name their chat and lead to it  */
                     if (origin != null)

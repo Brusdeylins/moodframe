@@ -51,7 +51,6 @@ import org.slf4j.LoggerFactory;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.io.File;
 
 /**
@@ -107,6 +106,146 @@ public class ChatEntryCard extends ManagedComponent {
         ALL, PROMPT, MOOD, FRAME
     }
 
+    /** What the card asks of its host: the actions at the entry and at its images. */
+    public interface Actions {
+
+        /** Does nothing, e.g. in a test. */
+        Actions NONE = new Actions() {
+            @Override
+            public void reuse(ChatEntry entry, Reuse part) {
+            }
+
+            @Override
+            public void open(ChatEntry entry, int imageIndex) {
+            }
+
+            @Override
+            public void edit(String imagePath) {
+            }
+
+            @Override
+            public void download(String imagePath) {
+            }
+
+            @Override
+            public void deleteEntry(ChatEntry entry) {
+            }
+
+            @Override
+            public void deleteImage(ChatEntry entry, GeneratedImage image) {
+            }
+
+            @Override
+            public void copySeed(long seed) {
+            }
+
+            @Override
+            public boolean seedApplies() {
+                return false;
+            }
+
+            @Override
+            public void takeOverMood(ChatEntry entry, boolean save) {
+            }
+
+            @Override
+            public void saveFrame(ChatEntry entry) {
+            }
+
+            @Override
+            public void moodFromImage(File image) {
+            }
+
+            @Override
+            public void useImageMood(ChatEntry entry) {
+            }
+        };
+
+        /**
+         * Takes over the entry, or one of its parts, into the input and the right panel ("Reuse").
+         *
+         * @param entry the entry
+         * @param part  what to take over
+         */
+        void reuse(ChatEntry entry, Reuse part);
+
+        /**
+         * Opens the full view on an image.
+         *
+         * @param entry      the entry
+         * @param imageIndex the index of the image in the entry
+         */
+        void open(ChatEntry entry, int imageIndex);
+
+        /**
+         * Attaches an image to edit it.
+         *
+         * @param imagePath the file of the image
+         */
+        void edit(String imagePath);
+
+        /**
+         * Copies an image into the downloads.
+         *
+         * @param imagePath the file of the image
+         */
+        void download(String imagePath);
+
+        /**
+         * Deletes the entry with its images.
+         *
+         * @param entry the entry
+         */
+        void deleteEntry(ChatEntry entry);
+
+        /**
+         * Deletes one image of the entry.
+         *
+         * @param entry the entry
+         * @param image the image
+         */
+        void deleteImage(ChatEntry entry, GeneratedImage image);
+
+        /**
+         * Takes over the seed of an image.
+         *
+         * @param seed the seed
+         */
+        void copySeed(long seed);
+
+        /** Whether a seed applies to the chosen model, a model of BFL; asked whenever the menu of an image opens. */
+        boolean seedApplies();
+
+        /**
+         * Takes over the mood of the entry into the panel, or saves it as a new mood first.
+         *
+         * @param entry the entry
+         * @param save  whether to save the building blocks as a new mood
+         */
+        void takeOverMood(ChatEntry entry, boolean save);
+
+        /**
+         * Saves aspect ratio and resolution of the entry as a new frame.
+         *
+         * @param entry the entry
+         */
+        void saveFrame(ChatEntry entry);
+
+        /**
+         * Opens "Mood from image" on an image.
+         *
+         * @param image the image file in full resolution
+         */
+        void moodFromImage(File image);
+
+        /**
+         * "Use mood" at an image: takes over the mood saved at the entry without analyzing the image.
+         *
+         * @param entry the entry
+         */
+        void useImageMood(ChatEntry entry);
+    }
+
     private final ChatEntry chatEntry;
     private final boolean isChatDeleted;
 
@@ -136,85 +275,25 @@ public class ChatEntryCard extends ManagedComponent {
     /*  The action bar of each image by image id, to enable its actions once the file is there  */
     private final java.util.Map<String, ImageActionBar> imageBars = new java.util.HashMap<>();
 
-    // Callback functions
-    private Consumer<Long> onSeedCopy;
-    private java.util.function.BiConsumer<ChatEntry, Reuse> onReuse;
-    private java.util.function.BiConsumer<ChatEntry, Integer> onImageClick;
-    private Consumer<String> onImageDownload; // Callback for downloading image by file path
-    private Consumer<String> onImageEdit; // Callback for editing image by file path
-    private Consumer<ChatEntry> onEntryDelete; // Callback for deleting entire entry
-    private Consumer<GeneratedImage> onImageDelete; // Callback for deleting single image
-    private java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver;
-    private Consumer<ChatEntry> onFrameSave;
-    private Consumer<File> onMoodFromImage;
-    private Consumer<ChatEntry> onImageMood;
-    private java.util.function.Supplier<Boolean> isFluxModelSelected; // Check if FLUX model is currently selected
+    /*  carries out the actions at the entry and its images  */
+    private final Actions actions;
 
     /**
-     * Creates a new ChatEntryCard for the given ChatEntry.
+     * Creates the card of an entry, which shows the thumbnails of its images.
      *
-     * @param chatEntry the ChatEntry to display
+     * @param chatEntry     the entry
+     * @param isChatDeleted whether its chat lies in the trash
+     * @param history       finds the files of the images, in the trash for a chat there (may be null: the files where
+     *                      they were generated)
+     * @param sources       the thumbnails and the size check of the images
+     * @param actions       carries out the actions at the entry and its images
      */
-    public ChatEntryCard(ChatEntry chatEntry) {
-        this(chatEntry, false, null);
-    }
-
-    /**
-     * Creates a new ChatEntryCard for the given ChatEntry.
-     *
-     * @param chatEntry     the ChatEntry to display
-     * @param isChatDeleted whether the parent chat is deleted (in trash)
-     */
-    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted) {
-        this(chatEntry, isChatDeleted, null);
-    }
-
-    /**
-     * Creates a new ChatEntryCard for the given ChatEntry.
-     *
-     * @param chatEntry            the ChatEntry to display
-     * @param isChatDeleted        whether the parent chat is deleted (in trash)
-     * @param isFluxModelSelected  supplier that returns true if FLUX model is currently selected
-     */
-    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
-                         java.util.function.Supplier<Boolean> isFluxModelSelected) {
-        this(chatEntry, isChatDeleted, isFluxModelSelected, null);
-    }
-
-    /**
-     * Creates a new ChatEntryCard for the given ChatEntry, which finds the files of its images with the history.
-     *
-     * @param chatEntry            the ChatEntry to display
-     * @param isChatDeleted        whether the parent chat is deleted (in trash)
-     * @param isFluxModelSelected  supplier that returns true if a FLUX model, which takes a seed, is selected
-     * @param history              finds the files of the images, in the trash for a chat there (may be null: the
-     *                             files where they were generated)
-     */
-    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
-                         java.util.function.Supplier<Boolean> isFluxModelSelected, ChatHistoryService history) {
-        this(chatEntry, isChatDeleted, isFluxModelSelected, history, ImageSources.NONE);
-    }
-
-    /**
-     * Creates a new ChatEntryCard for the given ChatEntry, which shows the thumbnails of its images.
-     *
-     * @param chatEntry            the ChatEntry to display
-     * @param isChatDeleted        whether the parent chat is deleted (in trash)
-     * @param isFluxModelSelected  supplier that returns true if a FLUX model, which takes a seed, is selected
-     * @param history              finds the files of the images, in the trash for a chat there (may be null: the
-     *                             files where they were generated)
-     * @param sources              the thumbnails and the size check of the images
-     */
-    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
-                         java.util.function.Supplier<Boolean> isFluxModelSelected, ChatHistoryService history,
-                         ImageSources sources) {
-        super(); // Initialize ManagedComponent
+    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted, ChatHistoryService history, ImageSources sources,
+                         Actions actions) {
         this.history = history;
-        this.pictures = new EntryTilePictures(chatEntry, isChatDeleted, history, sources, (int index) -> {
-            if (onImageClick != null)
-                onImageClick.accept(chatEntry, index);
-        });
-        this.isFluxModelSelected = isFluxModelSelected;
+        this.actions = actions;
+        this.pictures = new EntryTilePictures(chatEntry, isChatDeleted, history, sources,
+                (int index) -> actions.open(chatEntry, index));
         this.chatEntry = chatEntry;
         this.isChatDeleted = isChatDeleted;
 
@@ -263,26 +342,20 @@ public class ChatEntryCard extends ManagedComponent {
 
         FontIcon moreIcon = new FontIcon("mdi2d-dots-horizontal");
         moreIcon.setIconSize(14);
-        MenuItem saveMood = EntryMenus.item("entry.mood.save", () -> {
-            if (onMoodTakeOver != null)
-                onMoodTakeOver.accept(chatEntry, true);
-        });
+        MenuItem saveMood = EntryMenus.item("entry.mood.save", () -> actions.takeOverMood(chatEntry, true));
         MenuItem saveFrame = EntryMenus.item("entry.frame.save", this::saveFrame);
         this.moreButton = new MenuButton(null, moreIcon, EntryMenus.item("entry.reuse.all", () -> reuse(Reuse.ALL)),
                 EntryMenus.item("entry.reuse.prompt", () -> reuse(Reuse.PROMPT)),
                 EntryMenus.item("entry.reuse.mood", () -> reuse(Reuse.MOOD)),
                 EntryMenus.item("entry.reuse.frame", () -> reuse(Reuse.FRAME)), new SeparatorMenuItem(), saveMood, saveFrame,
-                new SeparatorMenuItem(), EntryMenus.item("entry.delete", () -> {
-                    if (onEntryDelete != null)
-                        onEntryDelete.accept(chatEntry);
-                }));
+                new SeparatorMenuItem(), EntryMenus.item("entry.delete", () -> actions.deleteEntry(chatEntry)));
         moreButton.getStyleClass().addAll("icon-button", "no-arrow");
         moreButton.setMinWidth(Region.USE_PREF_SIZE);
 
         /*  Saving is available for an entry that carries a mood or a frame  */
         moreButton.setOnShowing((event) -> {
-            saveMood.setDisable(onMoodTakeOver == null || !EntryMenus.hasMood(chatEntry));
-            saveFrame.setDisable(onFrameSave == null || chatEntry.getFrame() == null);
+            saveMood.setDisable(!EntryMenus.hasMood(chatEntry));
+            saveFrame.setDisable(chatEntry.getFrame() == null);
         });
 
         promptContainer.getChildren().addAll(promptLabel, reuseButton, moreButton);
@@ -345,14 +418,12 @@ public class ChatEntryCard extends ManagedComponent {
 
     /** Hands the entry to "Reuse" or to one of its single parts. */
     private void reuse(Reuse part) {
-        if (onReuse != null)
-            onReuse.accept(chatEntry, part);
+        actions.reuse(chatEntry, part);
     }
 
     /** Hands the entry to "Save as frame...". */
     private void saveFrame() {
-        if (onFrameSave != null)
-            onFrameSave.accept(chatEntry);
+        actions.saveFrame(chatEntry);
     }
 
     /**
@@ -801,31 +872,23 @@ public class ChatEntryCard extends ManagedComponent {
         String path = action == ImageActionBar.Action.VIEW || action == ImageActionBar.Action.DELETE ? null
                 : pictures.getActualImagePath(generatedImage, false);
         switch (action) {
-            case VIEW -> {
-                if (onImageClick != null)
-                    onImageClick.accept(chatEntry, imageIndex);
-            }
+            case VIEW -> actions.open(chatEntry, imageIndex);
             case EDIT -> {
-                if (onImageEdit != null && path != null)
-                    onImageEdit.accept(path);
+                if (path != null)
+                    actions.edit(path);
             }
             case DOWNLOAD -> {
-                if (onImageDownload != null && path != null)
-                    onImageDownload.accept(path);
+                if (path != null)
+                    actions.download(path);
             }
             case MOOD -> {
                 /*  An entry with its building blocks hands over its mood, an older one has the image analyzed  */
-                if (chatEntry.getMood() != null) {
-                    if (onImageMood != null)
-                        onImageMood.accept(chatEntry);
-                }
-                else if (onMoodFromImage != null && path != null && new File(path).exists())
-                    onMoodFromImage.accept(new File(path));
+                if (chatEntry.getMood() != null)
+                    actions.useImageMood(chatEntry);
+                else if (path != null && new File(path).exists())
+                    actions.moodFromImage(new File(path));
             }
-            case DELETE -> {
-                if (onImageDelete != null)
-                    onImageDelete.accept(generatedImage);
-            }
+            case DELETE -> actions.deleteImage(chatEntry, generatedImage);
         }
     }
 
@@ -912,24 +975,6 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Sets the callback for when a seed copy button is clicked.
-     *
-     * @param onSeedCopy the callback that receives the seed value
-     */
-    public void setOnSeedCopy(Consumer<Long> onSeedCopy) {
-        this.onSeedCopy = onSeedCopy;
-    }
-
-    /**
-     * Sets the callback of "Reuse" and of the single parts in the menu of the entry.
-     *
-     * @param onReuse the callback that receives the entry and what to take over
-     */
-    public void setOnReuse(java.util.function.BiConsumer<ChatEntry, Reuse> onReuse) {
-        this.onReuse = onReuse;
-    }
-
-    /**
      * Lets the images share the width of the cell holding the card, less its insets, which a reused cell knows before
      * the card is laid out, so that the card has its height from the start.
      *
@@ -951,92 +996,13 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Sets the callback for when an image is clicked.
-     * 
-     * @param onImageClick the callback that receives the ChatEntry and image index
-     */
-    public void setOnImageClick(java.util.function.BiConsumer<ChatEntry, Integer> onImageClick) {
-        this.onImageClick = onImageClick;
-    }
-
-    /**
-     * Sets the callback to be called when an image download button is clicked.
-     * 
-     * @param onImageDownload the callback that receives the image file path
-     */
-    public void setOnImageDownload(Consumer<String> onImageDownload) {
-        this.onImageDownload = onImageDownload;
-    }
-
-    /**
-     * Sets the callback to be called when an image edit button is clicked.
-     * 
-     * @param onImageEdit the callback that receives the image file path
-     */
-    public void setOnImageEdit(Consumer<String> onImageEdit) {
-        this.onImageEdit = onImageEdit;
-    }
-
-    /**
-     * Sets the callback for when the entry delete button is clicked.
-     * 
-     * @param onEntryDelete the callback that receives the entry ID
-     */
-    public void setOnEntryDelete(Consumer<String> onEntryDelete) {
-        // Convert to accept ChatEntry but pass just the ID
-        this.onEntryDelete = entry -> {
-            if (onEntryDelete != null) {
-                onEntryDelete.accept(entry.getId());
-            }
-        };
-    }
-
-    /**
-     * Sets the callback for when an image delete button is clicked.
-     *
-     * @param onImageDelete the callback that receives entry ID and image ID
-     */
-    public void setOnImageDelete(java.util.function.BiConsumer<String, String> onImageDelete) {
-        // Convert to accept GeneratedImage but pass entry and image IDs
-        this.onImageDelete = image -> {
-            if (onImageDelete != null && image != null) {
-                String imageId = image.getId();
-                logger.debug("setOnImageDelete callback invoked - entryId: {}, imageId: {} (length: {})",
-                        chatEntry.getId(), imageId, imageId != null ? imageId.length() : "null");
-                onImageDelete.accept(chatEntry.getId(), imageId);
-            }
-        };
-    }
-
-    /**
-     * Sets the callback of the context menu of the entry, which takes over the mood and the building blocks of the
-     * entry into the panel.
-     *
-     * @param onMoodTakeOver the callback that receives the entry and whether to save the blocks as a new mood
-     */
-    public void setOnMoodTakeOver(java.util.function.BiConsumer<ChatEntry, Boolean> onMoodTakeOver) {
-        this.onMoodTakeOver = onMoodTakeOver;
-    }
-
-    /**
      * Shows the context menu with "Use mood" and "Save as mood...", available for an entry with building blocks
      * or with a former look style (1.x), which lives on as the standard mood of its name.
      */
     private void showMoodMenu(ContextMenuEvent event) {
-        if (onMoodTakeOver == null)
-            return;
-        EntryMenus.moodMenu(EntryMenus.hasMood(chatEntry), () -> onMoodTakeOver.accept(chatEntry, false),
-                () -> onMoodTakeOver.accept(chatEntry, true)).show(this, event.getScreenX(), event.getScreenY());
+        EntryMenus.moodMenu(EntryMenus.hasMood(chatEntry), () -> actions.takeOverMood(chatEntry, false),
+                () -> actions.takeOverMood(chatEntry, true)).show(this, event.getScreenX(), event.getScreenY());
         event.consume();
-    }
-
-    /**
-     * Sets the callback of "Save as frame...", which stores aspect ratio and resolution of the entry as a new frame.
-     *
-     * @param onFrameSave the callback that receives the entry
-     */
-    public void setOnFrameSave(Consumer<ChatEntry> onFrameSave) {
-        this.onFrameSave = onFrameSave;
     }
 
     /**
@@ -1044,28 +1010,8 @@ public class ChatEntryCard extends ManagedComponent {
      * for an entry that carries its frame.
      */
     private void showFrameMenu(ContextMenuEvent event) {
-        EntryMenus.frameMenu(() -> reuse(Reuse.FRAME), onFrameSave != null && chatEntry.getFrame() != null
-                ? this::saveFrame : null).show(this, event.getScreenX(), event.getScreenY());
+        EntryMenus.frameMenu(() -> reuse(Reuse.FRAME), chatEntry.getFrame() != null ? this::saveFrame : null).show(this, event.getScreenX(), event.getScreenY());
         event.consume();
-    }
-
-    /**
-     * Sets the callback of the context menu of an image, which opens the dialog "Mood from image" with it.
-     *
-     * @param onMoodFromImage the callback that receives the image file in full resolution
-     */
-    public void setOnMoodFromImage(Consumer<File> onMoodFromImage) {
-        this.onMoodFromImage = onMoodFromImage;
-    }
-
-    /**
-     * Sets the callback of "Use mood" at an image, which takes over the mood saved at the entry without analyzing the
-     * image; an entry without building blocks offers "Mood from image" instead.
-     *
-     * @param onImageMood the callback that receives the entry
-     */
-    public void setOnImageMood(Consumer<ChatEntry> onImageMood) {
-        this.onImageMood = onImageMood;
     }
 
     /**
@@ -1074,14 +1020,12 @@ public class ChatEntryCard extends ManagedComponent {
      */
     private void showImageMenu(GeneratedImage generatedImage, ContextMenuEvent event) {
         String path = pictures.getActualImagePath(generatedImage, false);
-        Runnable useMood = chatEntry.getMood() != null && onImageMood != null
-                ? () -> onImageMood.accept(chatEntry) : null;
-        Runnable fromImage = chatEntry.getMood() == null && onMoodFromImage != null && path != null
-                && new File(path).exists() ? () -> onMoodFromImage.accept(new File(path)) : null;
-        Runnable copySeed = onSeedCopy != null && EntryMenus.offersSeed(generatedImage)
-                ? () -> onSeedCopy.accept(generatedImage.getSeed()) : null;
-        ContextMenu menu = EntryMenus.imageMenu(useMood, fromImage, copySeed,
-                isFluxModelSelected != null && isFluxModelSelected.get());
+        Runnable useMood = chatEntry.getMood() != null ? () -> actions.useImageMood(chatEntry) : null;
+        Runnable fromImage = chatEntry.getMood() == null && path != null && new File(path).exists()
+                ? () -> actions.moodFromImage(new File(path)) : null;
+        Runnable copySeed = EntryMenus.offersSeed(generatedImage)
+                ? () -> actions.copySeed(generatedImage.getSeed()) : null;
+        ContextMenu menu = EntryMenus.imageMenu(useMood, fromImage, copySeed, actions.seedApplies());
         if (menu == null)
             return;
         menu.show(this, event.getScreenX(), event.getScreenY());
@@ -1114,13 +1058,6 @@ public class ChatEntryCard extends ManagedComponent {
         tileWidth.dispose();
         availableWidth.unbind();
         maxTileSize.unbind();
-
-        // Clear callback references to prevent potential memory leaks
-        onSeedCopy = null;
-        onReuse = null;
-        onImageClick = null;
-        onImageDownload = null;
-        onImageEdit = null;
 
         logger.trace("ChatEntryCard disposed for entry: {}", chatEntry.getId());
     }
