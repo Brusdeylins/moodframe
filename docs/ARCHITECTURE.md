@@ -139,9 +139,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
   analysis of an image into a mood composes the answer of the language model instead of waiting for it.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
-  and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
-  keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
-  executor, the BFL polling on named daemon threads. The listeners learn of an entry that ended (completed, failed,
+  and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry` on the store
+  thread of `GenerationWorkers`), so the writes keep the order of the changes and never run on the JavaFX thread;
+  requests, downloads and files run on the I/O executor, the BFL polling on the named daemon threads of
+  `GenerationWorkers`. The listeners learn of an entry that ended (completed, failed,
   cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
   queries then include it.
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
@@ -181,7 +182,10 @@ dependencies in the constructor, which is also how tests pass mocks: the provide
 `ChatRepository`, `ChatTrashRepository` and `ChatGroupQueries`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
-`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
+`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window;
+`RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
+`GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
+I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.
 No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the

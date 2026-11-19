@@ -2,6 +2,7 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
+import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;
@@ -75,6 +76,13 @@ public interface GeminiApiService extends ImageProvider {
             case NANO_BANANA2_512 -> "512";
             default -> "1K";
         };
+    }
+
+    /** The Google Search grounding of the request and the thinking tokens the answer reports. */
+    @Override
+    default ExtraCosts extraCosts(ImageGenerationRequest request, GenerationJobInfo job) {
+        return new ExtraCosts(GenerationCost.search(GenerationModel.fromApiModelId(request.getModel()),
+                request.getEnableGoogleSearch()), GenerationCost.reasoning(job.getThinkingTokens()));
     }
 
     /**

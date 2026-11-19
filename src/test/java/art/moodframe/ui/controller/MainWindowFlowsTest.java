@@ -38,6 +38,7 @@ import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.generation.RequestResponseManager;
+import art.moodframe.service.generation.TestRequests;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -376,7 +377,7 @@ class MainWindowFlowsTest {
             thread.setDaemon(true);
             return thread;
         });
-        requests = new RequestResponseManager(config, repository, providers, io);
+        requests = TestRequests.create(config, repository, providers, io);
         register(RequestResponseManager.class, requests);
         register(GenerationService.class, new GenerationService(config, chats, moods, requests, providers));
 

@@ -2,6 +2,8 @@ package art.moodframe;
 
 import java.io.IOException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +30,7 @@ import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
 import art.moodframe.net.CorporateProxyConfig;
+import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.repository.ChatGroupQueries;
@@ -51,7 +54,10 @@ import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ImageTrashGroup;
 import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.generation.ChatEntryTracker;
 import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.GenerationWorkers;
+import art.moodframe.service.generation.ImageFileStore;
 import art.moodframe.service.generation.RequestResponseManager;
 import art.moodframe.service.library.BlockTrashGroup;
 import art.moodframe.service.library.BlockUsage;
@@ -293,6 +299,9 @@ public class MoodframeApplication extends Application {
         // Create the directory of the corporate certificates at the start
         new CorporateProxyConfig(config);
 
+        /*  The HTTP clients with proxy and certificates of the services built here  */
+        ServiceFactory.getInstance().registerService(HttpClients.class, new HttpClients(config));
+
         // Initialize I18n with user's preferred language
         String userLanguage = config.ui().getUiLanguage();
         I18nManager.setLocale("de".equals(userLanguage) ? Locale.GERMAN : Locale.ENGLISH);
@@ -434,11 +443,20 @@ public class MoodframeApplication extends Application {
     private static void registerGeneration(ApplicationConfig config, ExecutorService io) {
         ServiceFactory services = ServiceFactory.getInstance();
 
-        // Initialize RequestResponseManager for real API integration
+        /*  The threads of the polling and of the database writes, shared by the requests and the orders  */
+        services.registerProvider(GenerationWorkers.class, GenerationWorkers::new);
+
+        /*  The requests to the providers: the tracker writes on the store thread, the files come from the downloads
+            of the shared HTTP clients  */
         services.registerProvider(RequestResponseManager.class, () -> {
             try {
-                return new RequestResponseManager(config, services.getService(ChatRepository.class),
-                        services.getService(ProviderRegistry.class), io);
+                GenerationWorkers workers = services.getService(GenerationWorkers.class);
+                ImageFileStore files = new ImageFileStore(config, services.getService(HttpClients.class)
+                        .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
+                                .followRedirects(HttpClient.Redirect.NORMAL).build()));
+                return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
+                        new ChatEntryTracker(services.getService(ChatRepository.class), workers.store()), files,
+                        workers, io);
             } catch (Exception e) {
                 logger.error("Failed to create RequestResponseManager with database integration", e);
                 return null;

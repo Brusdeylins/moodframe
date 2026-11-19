@@ -131,6 +131,22 @@ public class ChatEntryTracker {
     }
 
     /**
+     * Finds the placeholder of an image by its sort order, not its list position, as the answers arrive in any order.
+     * Call on the FX thread.
+     *
+     * @param chatEntry  the entry
+     * @param imageIndex the index of the image in the entry
+     * @return the image, null if the entry has none of that index
+     */
+    static GeneratedImage placeholder(ChatEntry chatEntry, int imageIndex) {
+        for (GeneratedImage image : chatEntry.getImages()) {
+            if (image.getSortOrder() == imageIndex)
+                return image;
+        }
+        return null;
+    }
+
+    /**
      * Gets the message of a failure for an entry: in English for an entry of the MCP server, whose client reads it,
      * else in the language of the user interface.
      *

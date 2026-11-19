@@ -184,6 +184,30 @@ public interface ImageProvider {
     }
 
     /**
+     * The costs of an image a provider answered with, beyond the price per image of its request.
+     *
+     * @param search    the price of the grounding in a web search, in US dollars
+     * @param reasoning the price of the thinking tokens, in US dollars
+     */
+    record ExtraCosts(double search, double reasoning) {
+
+        /** No costs beyond the price per image. */
+        public static final ExtraCosts NONE = new ExtraCosts(0.0, 0.0);
+    }
+
+    /**
+     * Gets the costs of an image this provider {@link #answersWithImage() answered with} beyond the price per image of
+     * the request, e.g. the Google Search and the thinking tokens of Gemini.
+     *
+     * @param request the request of the image
+     * @param job     the answer with the image
+     * @return the costs, {@link ExtraCosts#NONE} if there are none
+     */
+    default ExtraCosts extraCosts(ImageGenerationRequest request, GenerationJobInfo job) {
+        return ExtraCosts.NONE;
+    }
+
+    /**
      * Checks if the images of this provider have a seed that repeats the image.
      *
      * @return true if the provider takes and reports seeds

@@ -61,7 +61,7 @@ class RequestDispatchTest {
         ProviderRegistry providers = new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS), jobs,
                 mock(OpenAiApiService.class, CALLS_REAL_METHODS));
         ChatRepository repository = mock(ChatRepository.class);
-        requests = new RequestResponseManager(ConfigMocks.config(), repository, providers, Runnable::run);
+        requests = TestRequests.create(ConfigMocks.config(), repository, providers, Runnable::run);
 
         ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).build();
         ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",

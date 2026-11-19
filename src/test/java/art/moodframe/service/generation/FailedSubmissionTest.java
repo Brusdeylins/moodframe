@@ -63,7 +63,7 @@ class FailedSubmissionTest {
                 .submitGenerationRequest(any());
         ProviderRegistry providers = new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS), gemini,
                 mock(OpenAiApiService.class, CALLS_REAL_METHODS));
-        requests = new RequestResponseManager(ConfigMocks.config(), repository, providers, Runnable::run);
+        requests = TestRequests.create(ConfigMocks.config(), repository, providers, Runnable::run);
 
         ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).source(source).build();
         CompletableFuture<ChatEntry.Status> told = new CompletableFuture<>();
