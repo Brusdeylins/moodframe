@@ -718,15 +718,13 @@ public class MoodframeApplication extends Application {
 
         String themeToApply;
         if (systemTheme != null) {
-            // No user preference set, apply the system-preferred theme
+            /*  No theme chosen: the system decides; it is stored, not as a choice, so the next start asks again  */
             themeToApply = systemTheme;
-
-            // If system theme differs from config, update the config
-            if (!themeToApply.equals(configuredTheme)) {
-                config.ui().setUiTheme(themeToApply);
-            }
-        } else {
-            // User has set a preference, use it
+            if (!themeToApply.equals(configuredTheme))
+                config.ui().setSystemTheme(themeToApply);
+        }
+        else {
+            /*  The theme the user chose  */
             themeToApply = configuredTheme;
         }
 
