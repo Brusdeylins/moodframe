@@ -82,14 +82,14 @@ public class FrameRepository {
     }
 
     /**
-     * Removes a stored frame for good.
+     * Removes a frame in the trash for good; a frame in use, e.g. restored meanwhile, stays.
      *
      * @param id the frame id
-     * @return true if it was removed
+     * @return true if it was in the trash and is removed
      * @throws SQLException if the database fails
      */
     public boolean delete(String id) throws SQLException {
-        return execute("DELETE FROM frames WHERE id = ?", id) > 0;
+        return execute("DELETE FROM frames WHERE id = ? AND deleted_at IS NOT NULL", id) > 0;
     }
 
     /**

@@ -18,9 +18,10 @@ class ApplicationConfigThemeTest {
     @Test
     void freshConfigurationDefaultsToPrimerDark() {
         /*  the defaults a first start writes  */
-        ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        ApplicationConfig config = new ApplicationConfig(store);
         assertEquals("primer-dark", config.ui().getUiTheme());
-        assertEquals("primer-dark", config.getProperty("ui.theme"));
+        assertEquals("primer-dark", store.get("ui.theme"));
         assertFalse(config.ui().hasUserSetTheme());
     }
 

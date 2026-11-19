@@ -49,6 +49,8 @@ class MoodRepositoryTest {
         assertFalse(stored.isDefault());
         assertTrue(repository.findByName("Harbor Dawn").isEmpty());
 
+        assertFalse(repository.delete(mood.getId()), "a mood in use is not removed for good");
+        assertTrue(repository.moveToTrash(mood.getId()));
         assertTrue(repository.delete(mood.getId()));
         assertTrue(repository.findById(mood.getId()).isEmpty());
         assertFalse(repository.exists(mood.getId()));
@@ -73,6 +75,8 @@ class MoodRepositoryTest {
         assertTrue(repository.restore(trashed.getId()));
         assertTrue(repository.findById(trashed.getId()).isPresent());
         assertNull(deleted(trashed.getId()));
+        assertFalse(repository.delete(trashed.getId()), "a restored mood survives a removal from the trash");
+        assertTrue(repository.findById(trashed.getId()).isPresent());
     }
 
     @Test

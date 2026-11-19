@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -40,14 +42,37 @@ class ApplicationConfigResetTest {
 
     @Test
     void keepsNoSecretThatWasNotThere() {
-        ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        ApplicationConfig config = new ApplicationConfig(store);
         config.accounts().setApiKey(ApiProvider.BFL, "bfl-key");
 
         config.resetToDefaults();
 
         assertEquals("bfl-key", config.accounts().getApiKey(ApiProvider.BFL));
         assertNull(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
-        assertNull(config.getProperty("gemini.api.key"));
+        assertNull(store.get("gemini.api.key"));
         assertNull(config.mcp().getMcpToken());
+    }
+
+    @Test
+    void aReaderNeverSeesTheSettingsEmptyDuringAReset() throws Exception {
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicInteger missing = new AtomicInteger();
+        Thread reader = new Thread(() -> {
+            while (!done.get())
+                if (store.get("ui.theme") == null || store.get("api.base_url") == null)
+                    missing.incrementAndGet();
+        });
+        reader.start();
+        try {
+            for (int i = 0; i < 100; i++)
+                store.resetToDefaults();
+        }
+        finally {
+            done.set(true);
+            reader.join();
+        }
+        assertEquals(0, missing.get(), "a reader saw the settings in the middle of a reset");
     }
 }

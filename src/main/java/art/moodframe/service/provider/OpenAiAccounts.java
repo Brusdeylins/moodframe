@@ -40,8 +40,8 @@ final class OpenAiAccounts {
             if (account.works() && !transport.detached()) {
                 if (!account.baseUrl().equals(transport.getBaseUrl()))
                     transport.foundVersioned(account.baseUrl());
-                transport.config().setOpenAiAvailableModels(account.models());
-                transport.config().setOpenAiModels(account.selected());
+                transport.config().accounts().setOpenAiAvailableModels(account.models());
+                transport.config().accounts().setOpenAiModels(account.selected());
             }
             return account.works();
         });

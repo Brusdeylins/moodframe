@@ -75,6 +75,8 @@ class FrameRepositoryTest {
                 "a frame without resolution keeps it as is");
         assertTrue(repository.findByName("Instagram Story").isEmpty());
 
+        assertFalse(repository.delete(frame.getId()), "a frame in use is not removed for good");
+        assertTrue(repository.moveToTrash(frame.getId()));
         assertTrue(repository.delete(frame.getId()));
         assertTrue(repository.findById(frame.getId()).isEmpty());
         assertFalse(repository.exists(frame.getId()));
@@ -102,6 +104,8 @@ class FrameRepositoryTest {
         assertTrue(repository.restore(trashed.getId()));
         assertTrue(repository.findById(trashed.getId()).isPresent());
         assertTrue(repository.findDeleted().stream().noneMatch((Frame frame) -> frame.getId().equals(trashed.getId())));
+        assertFalse(repository.delete(trashed.getId()), "a restored frame survives a removal from the trash");
+        assertTrue(repository.findById(trashed.getId()).isPresent());
     }
 
     @Test

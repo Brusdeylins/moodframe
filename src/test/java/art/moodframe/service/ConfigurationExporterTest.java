@@ -50,6 +50,7 @@ class ConfigurationExporterTest {
                 Set.of(ConfigurationExporter.ConfigCategory.MOODS));
 
         /*  A restore after the mood was lost brings it back under its id and name  */
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
         ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
@@ -82,6 +83,7 @@ class ConfigurationExporterTest {
                 Set.of(ConfigurationExporter.ConfigCategory.FRAMES));
 
         /*  A restore after the frame was lost brings it back under its id and name  */
+        assertTrue(frames.moveToTrash(frame.getId()));
         assertTrue(frames.deletePermanently(frame.getId()));
         ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
@@ -135,6 +137,7 @@ class ConfigurationExporterTest {
         /*  Block and mood are lost, the backup brings both back and the mood points at the block again  */
         assertTrue(blocks.deleteCustom(style.getId()));
         assertTrue(blocks.deletePermanently(style.getId()));
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
         ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());

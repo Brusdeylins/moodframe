@@ -37,16 +37,17 @@ class ArchitectureTest {
 
     private static final Pattern COMMENTS = Pattern.compile("/\\*.*?\\*/|//[^\\n]*", Pattern.DOTALL);
 
-    /*  The layers below service and the adapters, with the layers each may use besides itself  */
+    /*  The layers below service and the adapters, with the layers each may use besides itself; the services reach
+        the database only through the repositories, the MCP server the network only through the services  */
     private static final Map<String, Set<String>> ALLOWED = Map.of(
             "model", Set.of(),
             "util", Set.of("config"),
-            "config", Set.of("model", "util"),
+            "config", Set.of("model"),
             "database", Set.of("config", "model", "util"),
             "repository", Set.of("database", "config", "model", "util"),
             "net", Set.of("config", "util"),
-            "service", Set.of("repository", "database", "net", "config", "model", "util"),
-            "mcp", Set.of("service", "net", "config", "model", "util"),
+            "service", Set.of("repository", "net", "config", "model", "util"),
+            "mcp", Set.of("service", "config", "model", "util"),
             "ui", Set.of("service", "mcp", "net", "config", "model", "util"));
 
     /*  The subpackages of service, each using only those before it; service itself comes last  */

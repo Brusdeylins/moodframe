@@ -36,9 +36,9 @@ class ApplicationConfigPanelGroupTest {
 
     @Test
     void ignoresTheFormerFoldStateOfEachGroup() {
-        ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
-        config.setProperty("ui.panel.mood.expanded", "false");
-        config.setProperty("ui.panel.frame.expanded", "true");
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        store.set("ui.panel.mood.expanded", "false");
+        store.set("ui.panel.frame.expanded", "true");
         assertEquals("mood", stored().getOpenPanelGroup());
     }
 }

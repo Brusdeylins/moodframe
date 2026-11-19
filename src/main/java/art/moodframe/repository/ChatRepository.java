@@ -27,6 +27,14 @@ import java.util.Optional;
  * <p>Their trash with the booking of the deleted costs and the files lives in {@link ChatTrashRepository}, the
  * groups of the entries by mood and by frame in {@link ChatGroupQueries}; both use the mapping of this class.</p>
  *
+ * <p>The trash: the finders of one row by id ({@link #findChatById}, {@link #findChatEntryById},
+ * {@link #findGeneratedImageById}) also answer a row in the trash, with its {@code deleted_at} set, as the trash, its
+ * restore and a deletion look the rows up by id; the finders of lists skip the rows in the trash, except
+ * {@link #findDeletedChats()}.</p>
+ *
+ * <p>Former columns: {@code guidance} of the entries and images holds the safety tolerance of the generation (the
+ * column of the former FLUX guidance, reused); {@code steps} is always written as 0.</p>
+ *
  * @since 1.0.0
  */
 public class ChatRepository {
@@ -152,10 +160,10 @@ public class ChatRepository {
     }
 
     /**
-     * Finds a chat by ID.
+     * Finds a chat by ID, also one in the trash (its deleted_at set).
      *
      * @param chatId the chat ID
-     * @return optional containing the chat if found
+     * @return optional containing the chat if it is stored, in use or in the trash
      * @throws SQLException if query fails
      */
     public Optional<Chat> findChatById(String chatId) throws SQLException {
@@ -333,10 +341,10 @@ public class ChatRepository {
     }
 
     /**
-     * Finds a chat entry by ID.
+     * Finds a chat entry by ID, also one in the trash or of a chat in the trash.
      *
      * @param entryId the entry ID
-     * @return optional containing the entry if found
+     * @return optional containing the entry if it is stored, in use or in the trash
      * @throws SQLException if query fails
      */
     public Optional<ChatEntry> findChatEntryById(String entryId) throws SQLException {
@@ -355,7 +363,7 @@ public class ChatRepository {
     }
 
     /**
-     * Finds all chat entries for a specific chat.
+     * Finds the chat entries of a chat that are not in the trash on their own.
      *
      * @param chatId the chat ID
      * @return list of chat entries
@@ -573,7 +581,7 @@ public class ChatRepository {
 
 
     /**
-     * Finds all generated images for a specific chat entry.
+     * Finds the generated images of a chat entry that are not in the trash on their own.
      *
      * @param chatEntryId the chat entry ID
      * @return list of generated images
@@ -606,7 +614,7 @@ public class ChatRepository {
     }
 
     /**
-     * Finds all generated images for multiple chat entries in a single query.
+     * Finds the generated images of several chat entries that are not in the trash, in a single query.
      * This solves the N+1 problem by loading all images at once instead of
      * one query per entry.
      *
@@ -648,10 +656,10 @@ public class ChatRepository {
     }
 
     /**
-     * Finds a generated image by ID, also one in the trash.
+     * Finds a generated image by ID, also one in the trash or of an entry or chat in the trash.
      *
      * @param imageId the image ID
-     * @return optional containing the image if found
+     * @return optional containing the image if it is stored, in use or in the trash
      * @throws SQLException if query fails
      */
     public Optional<GeneratedImage> findGeneratedImageById(String imageId) throws SQLException {

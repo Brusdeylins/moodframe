@@ -10,10 +10,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs against a fresh SQLite database, so migration V014 is applied together with all earlier ones. */
@@ -100,5 +104,18 @@ class BrainstormRepositoryTest {
         assertTrue(repository.findMessages(session.getId()).isEmpty());
         assertTrue(repository.findLatestDraft(session.getId()).isEmpty());
         assertFalse(repository.findAllSessions().stream().anyMatch(s -> s.getId().equals(session.getId())));
+    }
+
+    @Test
+    void storesAMessageOnlyTogetherWithTheTimeOfTheSession() throws Exception {
+        BrainstormSession session = repository.createSession("Kaputt");
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE TRIGGER refuse_touch BEFORE UPDATE OF updated_at ON brainstorm_sessions "
+                    + "WHEN NEW.title = 'Kaputt' BEGIN SELECT RAISE(ABORT, 'refused'); END");
+        }
+
+        assertThrows(SQLException.class, () -> repository.addMessage(session.getId(),
+                new BrainstormMessage(BrainstormMessage.ROLE_USER, "lost")));
+        assertTrue(repository.findMessages(session.getId()).isEmpty(), "the message goes back with the session");
     }
 }

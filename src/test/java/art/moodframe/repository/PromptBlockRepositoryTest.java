@@ -69,8 +69,11 @@ class PromptBlockRepositoryTest {
         assertTrue(repository.findByName(PromptBlock.Type.LIGHT, "Harbor Fog").isEmpty(),
                 "names are looked up per type");
 
+        assertFalse(repository.delete(block.getId()), "a block in use is not removed for good");
+        assertTrue(repository.moveToTrash(block.getId()));
         assertTrue(repository.delete(block.getId()));
         assertTrue(repository.findById(block.getId()).isEmpty());
+        assertFalse(repository.existsById(block.getId()));
     }
 
     @Test
@@ -99,6 +102,8 @@ class PromptBlockRepositoryTest {
         assertEquals(deletedAt, repository.findInTrash(block.getId()).orElseThrow().getDeletedAt());
         assertTrue(repository.restore(block.getId()));
         assertFalse(repository.restore(block.getId()));
+        assertTrue(repository.findById(block.getId()).isPresent());
+        assertFalse(repository.delete(block.getId()), "a restored block survives a removal from the trash");
         assertTrue(repository.findById(block.getId()).isPresent());
     }
 

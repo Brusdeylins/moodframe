@@ -24,9 +24,8 @@ public final class ConfigMocks {
 
     /*  the methods of ApplicationConfig that only pass a call to a section  */
     private static final Set<String> SHORTCUTS = Set.of("getApiRegion", "getApiTimeoutSeconds", "getOpenAiBaseUrl",
-            "setOpenAiBaseUrl", "getOpenAiModels", "setOpenAiModels", "hasOpenAiModelSelection",
-            "setOpenAiAvailableModels", "getOpenAiChatModel", "getDefaultModel", "getFlux2SafetyTolerance",
-            "setFlux2SafetyTolerance", "getFlux2FlexGuidance", "getFlux2FlexSteps", "isProxyEnabled");
+            "setOpenAiBaseUrl", "getOpenAiModels", "hasOpenAiModelSelection", "getOpenAiChatModel", "getDefaultModel",
+            "getFlux2SafetyTolerance", "setFlux2SafetyTolerance", "isProxyEnabled");
 
     private ConfigMocks() {
     }

@@ -17,6 +17,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -132,6 +137,42 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection()) {
             assertEquals(TRIGGERS, triggers(connection));
             assertTrue(versions(connection).contains("031"));
+        }
+    }
+
+    @Test
+    void twoInstancesStartingOnANewLibraryAtOnceApplyEveryMigrationOnce() throws Exception {
+        for (int round = 0; round < 3; round++) {
+            DatabaseManager database = new DatabaseManager(tempDir.resolve("twice-" + round + ".db"));
+            try (Connection connection = database.getConnection(); Statement stmt = connection.createStatement()) {
+                stmt.execute("PRAGMA journal_mode = WAL");
+            }
+            CountDownLatch start = new CountDownLatch(1);
+            ExecutorService instances = Executors.newFixedThreadPool(2);
+            try {
+                List<Future<?>> started = new ArrayList<>();
+                for (int i = 0; i < 2; i++)
+                    started.add(instances.submit(() -> {
+                        try (Connection connection = database.getConnection()) {
+                            start.await();
+                            MigrationRunner.run(connection);
+                        }
+                        return null;
+                    }));
+                start.countDown();
+                for (Future<?> instance : started)
+                    instance.get(60, TimeUnit.SECONDS);
+            }
+            finally {
+                instances.shutdownNow();
+            }
+
+            try (Connection connection = database.getConnection();
+                 Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
+                assertTrue(rs.next());
+                assertEquals(31 - 1, rs.getInt(1), "V001 to V031 without V012, each once");
+            }
         }
     }
 

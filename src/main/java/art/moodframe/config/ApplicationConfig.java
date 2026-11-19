@@ -20,10 +20,15 @@ import org.slf4j.LoggerFactory;
  * </ul>
  *
  * <p>This class itself keeps what belongs to the whole application: the folders of the library, detailed logging,
- * the update hint, the raw properties and the reset. A few getters of the sections are repeated here for the
- * callers in {@code service.provider}, {@code service.generation} and {@code mcp.LibraryTools}.</p>
+ * the update hint and the reset. A few methods of the sections are repeated here for the provider clients in
+ * {@code service.provider} and the generation in {@code service.generation}; every other caller goes through the
+ * section.</p>
  *
  * <p>If no configuration file exists, one is created with the defaults.</p>
+ *
+ * <p>Thread safety: the configuration may be read and written from any thread; each value is read and written
+ * atomically and a reset replaces all values at once (see {@link ConfigStore}), but a group of values is not
+ * changed together.</p>
  *
  * @since 1.0.0
  */
@@ -165,38 +170,7 @@ public class ApplicationConfig {
         return store.unreadableCopy();
     }
 
-    /*  ===== Raw properties, reset and writing =====  */
-
-    /**
-     * Sets a configuration property and writes the file. Secrets go through their section, never through here.
-     *
-     * @param key   the property key
-     * @param value the property value
-     */
-    public void setProperty(String key, String value) {
-        store.set(key, value);
-    }
-
-    /**
-     * Gets a configuration property.
-     *
-     * @param key the property key
-     * @return the value, or null if not set
-     */
-    public String getProperty(String key) {
-        return store.get(key);
-    }
-
-    /**
-     * Gets a configuration property.
-     *
-     * @param key          the property key
-     * @param defaultValue the value if none is set
-     * @return the value
-     */
-    public String getProperty(String key, String defaultValue) {
-        return store.get(key, defaultValue);
-    }
+    /*  ===== Reset and writing =====  */
 
     /**
      * Resets all settings to their defaults, except every stored secret: the API keys of all providers, the MCP
@@ -216,7 +190,7 @@ public class ApplicationConfig {
         store.flush();
     }
 
-    /*  ===== Shortcuts to the sections for service.provider, service.generation and mcp.LibraryTools =====  */
+    /*  ===== Shortcuts to the sections for service.provider and service.generation =====  */
 
     /** @return see {@link ProviderAccounts#getApiRegion()} */
     public String getApiRegion() {
@@ -243,19 +217,9 @@ public class ApplicationConfig {
         return accounts().getOpenAiModels();
     }
 
-    /** @param models see {@link ProviderAccounts#setOpenAiModels(List)} */
-    public void setOpenAiModels(List<String> models) {
-        accounts().setOpenAiModels(models);
-    }
-
     /** @return see {@link ProviderAccounts#hasOpenAiModelSelection()} */
     public boolean hasOpenAiModelSelection() {
         return accounts().hasOpenAiModelSelection();
-    }
-
-    /** @param models see {@link ProviderAccounts#setOpenAiAvailableModels(List)} */
-    public void setOpenAiAvailableModels(List<String> models) {
-        accounts().setOpenAiAvailableModels(models);
     }
 
     /** @return see {@link ProviderAccounts#getOpenAiChatModel()} */
@@ -276,16 +240,6 @@ public class ApplicationConfig {
     /** @param safetyTolerance see {@link GenerationDefaults#setFlux2SafetyTolerance(int)} */
     public void setFlux2SafetyTolerance(int safetyTolerance) {
         generation().setFlux2SafetyTolerance(safetyTolerance);
-    }
-
-    /** @return see {@link GenerationDefaults#getFlux2FlexGuidance()} */
-    public double getFlux2FlexGuidance() {
-        return generation().getFlux2FlexGuidance();
-    }
-
-    /** @return see {@link GenerationDefaults#getFlux2FlexSteps()} */
-    public int getFlux2FlexSteps() {
-        return generation().getFlux2FlexSteps();
     }
 
     /** @return see {@link ProxySettings#isProxyEnabled()} */

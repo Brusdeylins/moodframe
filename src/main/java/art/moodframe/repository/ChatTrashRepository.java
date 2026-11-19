@@ -117,12 +117,12 @@ public class ChatTrashRepository {
     }
 
     /**
-     * Permanently deletes a chat and all its associated data, when it expires from the trash. The rows go first, in
-     * one transaction (cascading to entries and images); the files follow after the commit, as a file left over is
-     * harmless and a row without its file is not.
+     * Permanently deletes a chat in the trash and all its associated data, e.g. when it expires from the trash. The
+     * rows go first, in one transaction (cascading to entries and images); the files follow after the commit, as a
+     * file left over is harmless and a row without its file is not. A chat in use, e.g. restored meanwhile, stays.
      *
      * @param chatId the chat ID to delete
-     * @return true if chat was deleted
+     * @return true if the chat was in the trash and is deleted
      * @throws SQLException if database operation fails
      */
     public boolean deleteChatPermanently(String chatId) throws SQLException {
@@ -130,13 +130,14 @@ public class ChatTrashRepository {
 
         List<GeneratedImage> images = databaseManager.inTransaction((Connection conn) -> {
             List<GeneratedImage> all = findAllGeneratedImagesForChat(conn, chatId);
-            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM chats WHERE id = ?")) {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "DELETE FROM chats WHERE id = ? AND deleted_at IS NOT NULL")) {
                 stmt.setString(1, chatId);
                 return stmt.executeUpdate() > 0 ? all : null;
             }
         });
         if (images == null) {
-            logger.warn("No chat found to delete with ID: {}", chatId);
+            logger.warn("No chat in the trash to delete with ID: {}", chatId);
             return false;
         }
         logger.debug("Permanently deleted chat from database: {}", chatId);

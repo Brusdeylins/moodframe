@@ -110,6 +110,9 @@ class FavoriteServiceTest {
         assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(TestLibraryServices.favorites().isFavorite(FavoriteService.Kind.MOOD, mood.getId()));
 
+        assertTrue(frames.moveToTrash(frame.getId()));
+        assertTrue(blocks.moveToTrash(light.getId()));
+        assertTrue(palettes.moveToTrash(palette.getId()));
         assertTrue(moods.delete(mood.getId()));
         assertTrue(frames.delete(frame.getId()));
         assertTrue(blocks.delete(light.getId()));

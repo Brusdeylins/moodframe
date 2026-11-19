@@ -26,9 +26,9 @@ import java.util.UUID;
  * <li>Support for 1-5 hex color codes per style</li>
  * </ul>
  *
- * <p>The finders skip color styles in the trash ({@code deleted_at} set); the name checks do not,
- * as such a name stays taken (unique column) until the style is deleted for good. A finder of one style answers
- * with an {@link Optional}.</p>
+ * <p>The finders skip color styles in the trash ({@code deleted_at} set), except those for the trash itself
+ * ({@link #findDeleted()}, {@link #findInTrash}); the checks of names and ids do not, as such a name stays taken
+ * (unique column) until the style is deleted for good. A finder of one style answers with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
@@ -131,14 +131,14 @@ public class ColorStyleRepository {
     }
 
     /**
-     * Deletes a color style from the database.
+     * Removes a color style in the trash for good; a style in use, e.g. restored meanwhile, stays.
      *
      * @param id the ID of the color style to delete
-     * @return true if deletion was successful, false otherwise
+     * @return true if it was in the trash and is removed
      * @throws SQLException if the database fails
      */
     public boolean delete(String id) throws SQLException {
-        String sql = "DELETE FROM color_styles WHERE id = ?";
+        String sql = "DELETE FROM color_styles WHERE id = ? AND deleted_at IS NOT NULL";
 
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {

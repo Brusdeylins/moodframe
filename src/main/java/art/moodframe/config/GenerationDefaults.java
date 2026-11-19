@@ -148,16 +148,6 @@ public class GenerationDefaults {
         store.set("flux2.flex.steps", String.valueOf(Math.max(1, Math.min(50, steps))));
     }
 
-    /** @return true if FLUX.2 searches the web for the prompt (default off) */
-    public boolean getFlux2GroundingSearchEnabled() {
-        return store.getBoolean("flux2.grounding_search", false);
-    }
-
-    /** @param enabled true to let FLUX.2 search the web for the prompt */
-    public void setFlux2GroundingSearchEnabled(boolean enabled) {
-        store.set("flux2.grounding_search", String.valueOf(enabled));
-    }
-
     /** @return true if BFL upsamples the prompt (default off) */
     public boolean getDefaultBflPromptUpsampling() {
         return store.getBoolean("generation.bfl_prompt_upsampling", false);
@@ -200,15 +190,5 @@ public class GenerationDefaults {
     /** @param duration the duration of a video, like "8s" */
     public void setDefaultVideoDuration(String duration) {
         store.set("veo.default_duration", duration);
-    }
-
-    /** @return true if a video gets sound (default off) */
-    public boolean isVideoAudioEnabled() {
-        return store.getBoolean("veo.audio_enabled", false);
-    }
-
-    /** @param enabled true to give a video sound */
-    public void setVideoAudioEnabled(boolean enabled) {
-        store.set("veo.audio_enabled", String.valueOf(enabled));
     }
 }

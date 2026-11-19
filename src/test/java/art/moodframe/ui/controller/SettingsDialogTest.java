@@ -421,6 +421,7 @@ class SettingsDialogTest {
         ChoiceBox<String> region = node("regionComboBox");
         onFx(() -> region.setValue("EU"));
         config.accounts().setApiRegion("EU");
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
         List<LibraryEvents.Kind> changed = new CopyOnWriteArrayList<>();
         events.addListener((kind, id) -> changed.add(kind), Platform::runLater);

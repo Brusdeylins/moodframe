@@ -434,11 +434,12 @@ public class ChatHistoryService {
         return trash.softDeleteChat(chatId);
     }
 
-    /** Finds a chat without its entries, like an empty one that comes back from the trash. */
+    /** Finds a chat without its entries, like an empty one that comes back from the trash; also one in the trash. */
     public Optional<Chat> findChat(String chatId) throws SQLException {
         return chatRepository.findChatById(chatId);
     }
 
+    /** Finds an entry without its images, also one in the trash (see {@link ChatRepository#findChatEntryById}). */
     public Optional<ChatEntry> findChatEntryById(String entryId) throws SQLException {
         return chatRepository.findChatEntryById(entryId);
     }
@@ -461,10 +462,12 @@ public class ChatHistoryService {
         };
     }
 
+    /** Lists the images of an entry that are not in the trash. */
     public List<GeneratedImage> findGeneratedImagesByEntry(String entryId) throws SQLException {
         return chatRepository.findGeneratedImagesByEntry(entryId);
     }
 
+    /** Finds an image, also one in the trash (see {@link ChatRepository#findGeneratedImageById}). */
     public Optional<GeneratedImage> findGeneratedImageById(String imageId) throws SQLException {
         return chatRepository.findGeneratedImageById(imageId);
     }

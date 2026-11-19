@@ -399,19 +399,16 @@ public class PromptBlockService {
     }
 
     /**
-     * Removes a block of the user for good.
+     * Removes a block of the user in the trash for good; a block in use stays.
      *
      * @param id the block id
-     * @return true if it is gone
+     * @return true if it was in the trash and is gone
      */
     public synchronized boolean deletePermanently(String id) {
         if (id == null || id.startsWith(PromptBlock.STANDARD_PREFIX))
             return false;
 
-        /*  usually a block in the trash  */
         PromptBlock block = findDeletedById(id);
-        if (block == null)
-            block = findById(id);
         return block != null && changed(block.getType(), delete(id), id);
     }
 

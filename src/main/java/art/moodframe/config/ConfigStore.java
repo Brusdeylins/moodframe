@@ -8,8 +8,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -27,6 +25,12 @@ import org.slf4j.LoggerFactory;
  * <p>The sections of {@link ApplicationConfig} ({@link UiState}, {@link GenerationDefaults},
  * {@link ProviderAccounts}, {@link ProxySettings}, {@link McpSettings}) read and write their keys here; the keys
  * are those of all former versions, so an existing file loads unchanged.</p>
+ *
+ * <p>Thread safety: the JavaFX thread, the workers, the MCP server and the delayed writer use the store at the same
+ * time. Each value is read and written atomically; the file is written under the lock of the store, so the writes are
+ * serialized; a reset swaps all values at once, so a reader sees the settings before it or after it, never an empty
+ * store. Values that belong together are not changed together: a reader may see one of them changed and the other not
+ * yet, and a value set while a reset runs may be lost to the reset.</p>
  */
 class ConfigStore {
 
@@ -43,7 +47,8 @@ class ConfigStore {
     });
 
     private final Object pendingLock = new Object();
-    private final Properties properties = new Properties();
+    /*  replaced as a whole by a reset, so a reader never sees it half filled  */
+    private volatile Properties properties = new Properties();
     private final LibraryPaths paths;
     private final Path configPath;
     private final EncryptionUtil encryption;
@@ -63,7 +68,7 @@ class ConfigStore {
         this.paths = paths;
         this.configPath = paths.configFile();
         this.encryption = new EncryptionUtil(paths.secretKey());
-        initializeDirectories();
+        createRoot();
         load();
     }
 
@@ -72,15 +77,12 @@ class ConfigStore {
         return paths;
     }
 
-    /*  The folders of the library, the database, the logs and the images  */
-    private void initializeDirectories() {
+    /*  The folder of the file; the database, the logs and the configured images folder are created by their writers  */
+    private void createRoot() {
         try {
             Files.createDirectories(paths.root());
-            Files.createDirectories(paths.databaseDirectory());
-            Files.createDirectories(paths.logs());
-            Files.createDirectories(paths.images());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create configuration directories", e);
+            throw new RuntimeException("Failed to create the folder of the configuration " + paths.root(), e);
         }
     }
 
@@ -92,11 +94,11 @@ class ConfigStore {
             } catch (IOException | IllegalArgumentException e) {
                 logger.error("Failed to read the configuration {}, using the defaults", configPath, e);
                 properties.clear();
-                loadDefaults();
+                putDefaults(properties);
                 keepUnreadable();
             }
         } else {
-            loadDefaults();
+            putDefaults(properties);
             save();
         }
     }
@@ -131,29 +133,27 @@ class ConfigStore {
         return unreadableCopy;
     }
 
-    /**
-     * Sets the values a fresh configuration writes: the BFL connection, theme, language and window size, the folders
-     * of the library, the model defaults and the environment.
-     */
-    void loadDefaults() {
-        properties.setProperty("api.base_url", "https://api.bfl.ai");
-        properties.setProperty("api.timeout_seconds", "600");
+    /*  Sets the values a fresh configuration writes: the BFL connection, theme, language and window size, the folders
+        of the library, the model defaults and the environment  */
+    private void putDefaults(Properties target) {
+        target.setProperty("api.base_url", "https://api.bfl.ai");
+        target.setProperty("api.timeout_seconds", "600");
 
-        properties.setProperty("ui.theme", "primer-dark");
-        properties.setProperty("ui.language", "de");
-        properties.setProperty("ui.window.width", "1200");
-        properties.setProperty("ui.window.height", "800");
+        target.setProperty("ui.theme", "primer-dark");
+        target.setProperty("ui.language", "de");
+        target.setProperty("ui.window.width", "1200");
+        target.setProperty("ui.window.height", "800");
 
         /*  The database and the logs are always where LibraryPaths says; former versions wrote path.database and
             path.logs as well, which are ignored  */
-        properties.setProperty("path.images", paths.images().toString());
+        target.setProperty("path.images", paths.images().toString());
 
-        properties.setProperty("model.default", "flux.3-image");
-        properties.setProperty("model.default_aspect_ratio", "16:9");
-        properties.setProperty("model.default_image_count", "1");
-        properties.setProperty("model.default_safety_tolerance", "2");
+        target.setProperty("model.default", "flux.3-image");
+        target.setProperty("model.default_aspect_ratio", "16:9");
+        target.setProperty("model.default_image_count", "1");
+        target.setProperty("model.default_safety_tolerance", "2");
 
-        properties.setProperty("dev.environment", detectEnvironment());
+        target.setProperty("dev.environment", detectEnvironment());
     }
 
     /*  "dev" in the IDE or with Gradle (or as the system property moodframe.env says), else "prod"  */
@@ -165,22 +165,21 @@ class ConfigStore {
     }
 
     /**
-     * Resets every setting to its default, except the secrets. It holds the lock of {@link #save()}, so the writer
-     * thread never writes the file in the middle of it, without the secrets.
+     * Resets every setting to its default, except the secrets. The new settings are built aside and replace the old
+     * ones at once, so a reader never sees them half reset; it holds the lock of {@link #save()}, so the writer thread
+     * never writes the file in the middle of it.
      */
     synchronized void resetToDefaults() {
-        Map<String, String> secrets = new HashMap<>();
+        Properties fresh = new Properties();
+        putDefaults(fresh);
+        fresh.setProperty("api.region", "Global");
+        fresh.setProperty("generation.default_prompt_upsampling", "false");
         for (Secret secret : Secret.values()) {
             String value = properties.getProperty(secret.key());
             if (value != null && !value.isBlank())
-                secrets.put(secret.key(), value);
+                fresh.setProperty(secret.key(), value);
         }
-
-        properties.clear();
-        loadDefaults();
-        properties.setProperty("api.region", "Global");
-        properties.setProperty("generation.default_prompt_upsampling", "false");
-        secrets.forEach(properties::setProperty);
+        properties = fresh;
         save();
     }
 

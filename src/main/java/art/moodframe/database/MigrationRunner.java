@@ -26,6 +26,10 @@ import java.util.regex.Pattern;
  * prices and formulas it books with, frozen, instead of using the model of the application, so a later version books
  * the same. An applied migration is never changed, a new one gets the next version.</p>
  *
+ * <p>Two instances of the application may start on the same library at once: each migration reads its record again
+ * inside its IMMEDIATE transaction, under the write lock, and skips itself if the other instance applied it
+ * meanwhile.</p>
+ *
  * @since 2.1.3
  */
 final class MigrationRunner {
@@ -89,8 +93,8 @@ final class MigrationRunner {
             /*  The schema may have any part of a migration, also only its first statements: each statement whose
                 object is already there is skipped, the others are applied  */
             for (Migration migration : MIGRATIONS) {
-                applyMigration(connection, migration, true);
-                logger.info("Migration {} applied to legacy database", migration.version());
+                if (applyMigration(connection, migration, true))
+                    logger.info("Migration {} applied to legacy database", migration.version());
             }
             return;
         }
@@ -105,8 +109,8 @@ final class MigrationRunner {
         for (Migration migration : MIGRATIONS) {
             if (!appliedMigrations.contains(migration.version())) {
                 logger.info("Applying migration: {}", migration.fileName());
-                applyMigration(connection, migration, false);
-                logger.info("Migration {} applied successfully", migration.version());
+                if (applyMigration(connection, migration, false))
+                    logger.info("Migration {} applied successfully", migration.version());
             }
         }
     }
@@ -159,9 +163,11 @@ final class MigrationRunner {
 
         logger.warn("Schema inconsistency: V011 columns {} missing – repairing them", missing);
         DatabaseManager.inTransaction(connection, (Connection transaction) -> {
+
+            /*  read again under the write lock, another instance may have repaired them meanwhile  */
             try (Statement stmt = transaction.createStatement()) {
                 for (String[] column : V011_COLUMNS)
-                    if (missing.contains(column[0]))
+                    if (!columnExists(transaction, "generated_images", column[0]))
                         stmt.execute("ALTER TABLE generated_images ADD COLUMN " + column[0] + " " + column[1]);
                 stmt.execute("CREATE INDEX IF NOT EXISTS idx_generated_images_is_video ON generated_images(is_video)");
             }
@@ -258,15 +264,20 @@ final class MigrationRunner {
      * @param connection the database connection
      * @param migration  the migration to apply
      * @param legacy     whether the database is a legacy one, whose schema may already have parts of the migration
+     * @return true if it was applied now, false if it was recorded already (by another instance of the application)
      * @throws SQLException if migration fails
      */
-    private static void applyMigration(Connection connection, Migration migration, boolean legacy)
+    private static boolean applyMigration(Connection connection, Migration migration, boolean legacy)
             throws SQLException {
         /*  A migration in code has no SQL file, it runs in the same transaction  */
         List<String> statements = parseSqlStatements(
                 migration.step() == null ? loadMigrationSql(migration.fileName()) : "");
 
-        DatabaseManager.inTransaction(connection, (Connection transaction) -> {
+        return DatabaseManager.inTransaction(connection, (Connection transaction) -> {
+            if (getAppliedMigrations(transaction).contains(migration.version())) {
+                logger.info("Migration {} was applied meanwhile by another instance", migration.version());
+                return false;
+            }
             try (Statement stmt = transaction.createStatement()) {
                 for (String statement : statements) {
                     if (legacy)
@@ -278,7 +289,7 @@ final class MigrationRunner {
             if (migration.step() != null)
                 migration.step().apply(transaction);
             recordMigration(transaction, migration);
-            return null;
+            return true;
         });
     }
 
