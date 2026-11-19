@@ -143,14 +143,10 @@ public class VideoFlow {
                     logger.error("Failed to download video", e);
                     reason = e.getMessage();
                 }
-                String error = ChatEntryTracker.errorText(chatEntry, e, "generation.error.video.download", reason);
-                FxModel.change(() -> {
-                    generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                    generatedImage.setErrorMessage(error);
-                    tracker.saveImage(generatedImage);
-                    tracker.notifyImageUpdated(generatedImage);
-                    tracker.refresh(chatEntry);
-                });
+
+                /*  A video not made costs nothing, like a failed image of the other flows  */
+                tracker.failImage(chatEntry, generatedImage.getSortOrder(),
+                        ChatEntryTracker.errorText(chatEntry, e, "generation.error.video.download", reason));
             }
         }, io);
     }
