@@ -67,7 +67,7 @@ public class ModelFamilySelector {
      */
     public void remember(String variant, String resolution) {
         if (config != null)
-            config.setProperty(ModelFamilies.resolutionKey(ModelFamilies.familyOf(variant)), resolution);
+            config.ui().setModelResolution(ModelFamilies.familyOf(variant), resolution);
     }
 
     /** Keeps the choices in step: a new variant list rebuilds the families, family, target and variant align. */

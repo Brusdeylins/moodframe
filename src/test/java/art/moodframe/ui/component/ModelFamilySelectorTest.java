@@ -56,8 +56,7 @@ class ModelFamilySelectorTest {
         ChoiceBox<String> families = new ChoiceBox<>();
         ChoiceBox<String> target = new ChoiceBox<>();
         ApplicationConfig config = ConfigMocks.config();
-        when(config.getProperty(anyString())).thenReturn("1K");
-        when(config.getProperty(anyString(), anyString())).thenReturn("1K");
+        when(config.ui().getModelResolution(anyString())).thenReturn("1K");
 
         onFxThread(() -> {
             new ModelFamilySelector(variants, families, target, config);
@@ -80,7 +79,7 @@ class ModelFamilySelectorTest {
 
         onFxThread(() -> target.setValue("4K"));
         assertEquals(NANO_BANANA_PRO_4K, variants.getValue());
-        verify(config).setProperty(ModelFamilies.resolutionKey("Nano Banana Pro"), "4K");
+        verify(config.ui()).setModelResolution("Nano Banana Pro", "4K");
 
         onFxThread(() -> {
             target.setValue("1K");

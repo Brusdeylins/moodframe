@@ -1021,7 +1021,7 @@ public class BrainstormDialog extends Stage {
             }
             ApplicationConfig appConfig = config();
             if (appConfig != null) {
-                appConfig.setProperty(ModelFamilies.resolutionKey(familyBox.getValue()), resolution);
+                appConfig.ui().setModelResolution(familyBox.getValue(), resolution);
             }
 
             /*  A model without resolution variants keeps its item, the others switch to the variant  */
@@ -1141,7 +1141,7 @@ public class BrainstormDialog extends Stage {
     /** The resolution remembered for a family, or null. */
     private String remembered(String family) {
         ApplicationConfig appConfig = config();
-        return appConfig == null ? null : appConfig.getProperty(ModelFamilies.resolutionKey(family), null);
+        return appConfig == null ? null : appConfig.ui().getModelResolution(family);
     }
 
     /**

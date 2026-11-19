@@ -230,6 +230,11 @@ public class ProviderAccounts {
         return Integer.parseInt(store.get("api.timeout_seconds", "600"));
     }
 
+    /** @param seconds the timeout of a provider request in seconds */
+    public void setApiTimeoutSeconds(int seconds) {
+        store.set("api.timeout_seconds", String.valueOf(seconds));
+    }
+
     /*  ===== OpenAI =====  */
 
     /** @return the base URL of the OpenAI API or a compatible gateway, without a trailing slash */

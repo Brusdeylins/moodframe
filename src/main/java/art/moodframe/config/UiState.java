@@ -1,5 +1,7 @@
 package art.moodframe.config;
 
+import art.moodframe.model.ModelFamilies;
+
 /**
  * The look and the remembered state of the windows: theme, language, window bounds, dividers, the selections of the
  * main window and the display options.
@@ -167,6 +169,22 @@ public class UiState {
     /** @param group {@code mood}, {@code frame}, {@code generation}, or empty if all groups are folded */
     public void setOpenPanelGroup(String group) {
         store.set("ui.panel.open", group);
+    }
+
+    /**
+     * @param family the name of a model family, e.g. "Nano Banana Pro"
+     * @return the resolution last chosen for the family in the main window or the brainstorm, null for none
+     */
+    public String getModelResolution(String family) {
+        return store.get(ModelFamilies.resolutionKey(family), null);
+    }
+
+    /**
+     * @param family     the name of a model family
+     * @param resolution the resolution chosen for it, e.g. "2K"
+     */
+    public void setModelResolution(String family, String resolution) {
+        store.set(ModelFamilies.resolutionKey(family), resolution);
     }
 
     /*  ===== Selections of the main window =====  */
