@@ -607,7 +607,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         ContextMenu menu = new ContextMenu(reuse);
 
         long seed = item.image().getSeed();
-        if (onSeedCopy != null && ChatEntryCard.offersSeed(item.image())) {
+        if (onSeedCopy != null && EntryMenus.offersSeed(item.image())) {
             MenuItem copySeed = new MenuItem(I18nManager.getText("tooltip.copy.seed"));
             copySeed.setOnAction((action) -> onSeedCopy.accept(seed));
             copySeed.setDisable(isFluxModelSelected == null || !isFluxModelSelected.get());
