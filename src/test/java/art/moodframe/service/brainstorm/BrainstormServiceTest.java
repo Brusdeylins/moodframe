@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -827,6 +828,54 @@ class BrainstormServiceTest {
         Thread.sleep(300);
         verify(repository, never()).addDraft(anyString(), anyString());
         assertEquals(1, stored.size(), "only the user message from before the delete");
+    }
+
+    @Test
+    void theShortNameReachesTheWindowsOpenNotTheOneThatAsked() throws Exception {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        List<BrainstormSession> heardByClosed = new CopyOnWriteArrayList<>();
+        closed.setOnTitleChanged(heardByClosed::add);
+        closed.close();
+        CountDownLatch named = new CountDownLatch(1);
+        reopened.setOnTitleChanged((BrainstormSession changed) -> named.countDown());
+        when(gemini.suggestTitle(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture("Nautilus-Infografik"));
+        when(repository.replaceTitle(eq("s1"), anyString(), eq("Nautilus-Infografik"))).thenReturn(true);
+        answers(text(STEP_TWO_REPLY));
+
+        closed.sendUserMessage(session, "Ich brauche eine Infografik zum Aufbau eines Nautilus-Gehäuses", context)
+                .join();
+
+        assertTrue(named.await(5, TimeUnit.SECONDS), "the window opened meanwhile learns the short name");
+        assertTrue(heardByClosed.isEmpty(), "the closed window hears nothing");
+    }
+
+    @Test
+    void theResearchOfATurnReachesTheWindowsOpen() {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        List<String> status = new CopyOnWriteArrayList<>();
+        reopened.setOnToolStatus((String sessionId, String text) -> status.add(sessionId + ": " + text));
+        researchFinds("The nautilus has chambers.");
+        answers(call("research", new JSONObject().put("query", "nautilus shell")), text(VALID_REPLY));
+
+        closed.sendUserMessage(session, "Infografik Nautilus", context).join();
+
+        assertEquals(List.of("s1: nautilus shell"), status);
+    }
+
+    @Test
+    void aDeletedSessionIsNeitherRenamedNorNoted() throws Exception {
+        service.deleteSession("s1");
+
+        service.renameSession("s1", "Neuer Name").get(5, TimeUnit.SECONDS);
+        service.noteAdopted(session).get(5, TimeUnit.SECONDS);
+
+        verify(repository, never()).updateTitle(anyString(), anyString());
+        verify(repository, never()).addMessage(anyString(), any(BrainstormMessage.class));
     }
 
     @Test

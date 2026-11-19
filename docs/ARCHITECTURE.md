@@ -186,8 +186,11 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   it, and "draft adopted" and a rename are stored on the same queue. The queue (`BrainstormQueue`) belongs to the
   shared `BrainstormSessions`, so it holds for every window: a request still running after its window closed holds
   back the next one of the session, a window opened meanwhile shows its answer when it arrives (`pending`), and
-  deleting the session in any window stops it. The short name of a session is asked for on a thread of its own and
-  stored on the queue only while the title is still the first message (compare and set), so a rename meanwhile wins.
+  deleting the session in any window stops it. The events of a session (what a turn researches, the short name) go
+  through the queue to the windows open then, not to the one that sent the request (`BrainstormService.close` when
+  a window closes), and a rename or "draft adopted" of a deleted session is not stored. The short name of a session
+  is asked for on a thread of its own and stored on the queue only while the title is still the first message
+  (compare and set), so a rename meanwhile wins.
   `sendUserMessage`, `sendEvent`, `noteAdopted` and `renameSession` only queue, so the JavaFX thread may call them.
   The brainstorm window lists, opens, renames, moves and deletes the sessions and creates a new one on its own worker
   (`BrainstormWorker`, one thread that ends when idle) and takes the results back with `Platform.runLater`; nothing
