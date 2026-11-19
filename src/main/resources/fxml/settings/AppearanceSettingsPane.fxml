@@ -6,7 +6,6 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.Separator?>
 <?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
@@ -19,16 +18,16 @@
     <!-- Theme Selection -->
     <VBox spacing="8.0">
         <Label fx:id="themeTitleLabel" styleClass="text-bold" text="%settings.theme.title" />
-        <Label fx:id="themeDescLabel" text="%settings.theme.description" />
+        <Label fx:id="themeDescLabel" minHeight="-Infinity" text="%settings.theme.description" wrapText="true" />
 
         <VBox fx:id="themeSelectionContainer" spacing="5.0">
             <!-- Theme radio buttons will be populated by controller -->
         </VBox>
 
+        <!-- The note wraps, the button keeps its text -->
         <HBox alignment="CENTER_LEFT" spacing="10.0">
-            <Label fx:id="themeChangesLabel" text="%settings.theme.changes" />
-            <Region HBox.hgrow="ALWAYS" />
-            <Button fx:id="resetThemeButton" onAction="#onResetToSystemTheme" text="%settings.theme.reset" />
+            <Label fx:id="themeChangesLabel" minHeight="-Infinity" maxWidth="Infinity" text="%settings.theme.changes" wrapText="true" HBox.hgrow="ALWAYS" />
+            <Button fx:id="resetThemeButton" minWidth="-Infinity" onAction="#onResetToSystemTheme" text="%settings.theme.reset" />
         </HBox>
     </VBox>
 
@@ -37,13 +36,13 @@
     <!-- Background image of the main window -->
     <VBox spacing="4.0">
         <CheckBox fx:id="backgroundImageCheckBox" text="%settings.background.image" />
-        <Label fx:id="backgroundImageDescLabel" styleClass="text-muted, text-small" text="%settings.background.image.description" wrapText="true" />
+        <Label fx:id="backgroundImageDescLabel" minHeight="-Infinity" styleClass="text-muted, text-small" text="%settings.background.image.description" wrapText="true" />
     </VBox>
 
     <!-- Turning frame of the large preview -->
     <VBox spacing="4.0">
         <CheckBox fx:id="previewFrameAnimatedCheckBox" text="%settings.preview.frame.animated" />
-        <Label fx:id="previewFrameAnimatedDescLabel" styleClass="text-muted, text-small" text="%settings.preview.frame.animated.description" wrapText="true" />
+        <Label fx:id="previewFrameAnimatedDescLabel" minHeight="-Infinity" styleClass="text-muted, text-small" text="%settings.preview.frame.animated.description" wrapText="true" />
     </VBox>
 
     <Separator />

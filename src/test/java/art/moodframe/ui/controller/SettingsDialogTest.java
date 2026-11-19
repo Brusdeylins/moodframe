@@ -298,6 +298,50 @@ class SettingsDialogTest {
     }
 
     @Test
+    void theGermanTextsOfProxyAndAppearanceFitEvenAtTheMinimumWidth() throws Exception {
+        config.ui().setUiLanguage("de");
+        onFx(() -> I18nManager.setLocale(Locale.GERMAN));
+        open();
+
+        /*  the fonts of the test are narrower than those of macOS: the minimum width of the dialog makes up for it  */
+        onFx(() -> {
+            stage.setWidth(730);
+            return null;
+        });
+        for (int i = 0; i < 200 && onFx(scene::getWidth) > 730; i++)
+            Thread.sleep(25);
+        for (int section : List.of(1, 2)) {
+            select(section);
+            List<String> cut = onFx(() -> {
+                scene.getRoot().applyCss();
+                scene.getRoot().layout();
+                List<String> texts = new ArrayList<>();
+                truncated(node(section == 1 ? "corporateProxyPane" : "appearancePane"), texts);
+                return texts;
+            });
+            assertEquals(List.of(), cut, "texts cut off in section " + section);
+        }
+    }
+
+    /*  the texts of the shown labels and buttons below a node that end in an ellipsis as they do not fit; a path may  */
+    private static void truncated(Node node, List<String> texts) {
+        if (!node.isVisible() || "certificatePathLabel".equals(node.getId()))
+            return;
+        if (node instanceof javafx.scene.control.Labeled labeled)
+            labeled.lookupAll(".text").stream()
+                    .filter((shown) -> shown instanceof javafx.scene.text.Text && shown.getParent() == labeled)
+                    .map((shown) -> ((javafx.scene.text.Text) shown).getText())
+                    .filter((shown) -> shown != null && !shown.equals(labeled.getText())
+                            && (shown.endsWith("…") || shown.endsWith("...")))
+                    .forEach(texts::add);
+        if (node instanceof javafx.scene.control.ScrollPane pane && pane.getContent() != null)
+            truncated(pane.getContent(), texts);
+        if (node instanceof javafx.scene.Parent parent)
+            for (Node child : parent.getChildrenUnmodifiable())
+                truncated(child, texts);
+    }
+
+    @Test
     void aClosedDialogNoLongerFollowsTheLanguage() throws Exception {
         open();
         onFx(stage::close);

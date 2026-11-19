@@ -10,8 +10,8 @@
 <?import javafx.scene.control.Separator?>
 <?import javafx.scene.control.Spinner?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.FlowPane?>
 <?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
@@ -25,7 +25,7 @@
         <!-- Proxy Configuration Section -->
         <VBox spacing="8.0">
             <Label fx:id="proxyTitleLabel" styleClass="text-bold" text="%settings.proxy.title" />
-            <Label fx:id="proxyDescLabel" text="%settings.proxy.description" />
+            <Label fx:id="proxyDescLabel" minHeight="-Infinity" text="%settings.proxy.description" wrapText="true" />
 
             <!-- Proxy Enable/Disable -->
             <CheckBox fx:id="enableProxyCheckBox" text="%settings.proxy.enable" />
@@ -59,12 +59,12 @@
 
             <!-- Proxy Test Section -->
             <HBox alignment="CENTER_LEFT" spacing="10.0">
-                <Button fx:id="testProxyConnectionButton" onAction="#onTestProxyConnection" styleClass="accent" text="%settings.proxy.test">
+                <Button fx:id="testProxyConnectionButton" minWidth="-Infinity" onAction="#onTestProxyConnection" styleClass="accent" text="%settings.proxy.test">
                     <graphic>
                         <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
                     </graphic>
                 </Button>
-                <Button fx:id="resetProxyConfigButton" onAction="#onResetProxyConfig" styleClass="danger" text="%settings.proxy.clear">
+                <Button fx:id="resetProxyConfigButton" minWidth="-Infinity" onAction="#onResetProxyConfig" styleClass="danger" text="%settings.proxy.clear">
                     <graphic>
                         <FontIcon iconLiteral="mdi2r-restore" iconSize="16" styleClass="ikonli-font-icon" />
                     </graphic>
@@ -83,11 +83,11 @@
         <!-- Certificate Management Section -->
         <VBox spacing="8.0">
             <Label fx:id="certificatesTitleLabel" styleClass="text-bold" text="%settings.certificates.title" />
-            <Label fx:id="certificatesDescLabel" text="%settings.certificates.description" />
+            <Label fx:id="certificatesDescLabel" minHeight="-Infinity" text="%settings.certificates.description" wrapText="true" />
 
             <!-- Certificate Directory -->
             <HBox alignment="CENTER_LEFT" spacing="10.0">
-                <Label fx:id="certificatesDirectoryLabel" styleClass="label-muted" text="%settings.certificates.directory" />
+                <Label fx:id="certificatesDirectoryLabel" minWidth="-Infinity" styleClass="label-muted" text="%settings.certificates.directory" />
                 <Label fx:id="certificatePathLabel" styleClass="text-caption" text="%settings.certificates.path" HBox.hgrow="ALWAYS" />
             </HBox>
 
@@ -95,12 +95,12 @@
             <VBox spacing="5.0">
                 <Label fx:id="certificatesUploadTitleLabel" text="%settings.certificates.upload.title" />
                 <HBox alignment="CENTER_LEFT" spacing="10.0">
-                    <Button fx:id="uploadCertificateButton" onAction="#onUploadCertificate" styleClass="accent" text="%settings.certificates.upload.button">
+                    <Button fx:id="uploadCertificateButton" minWidth="-Infinity" onAction="#onUploadCertificate" styleClass="accent" text="%settings.certificates.upload.button">
                         <graphic>
                             <FontIcon iconLiteral="mdi2u-upload" iconSize="16" styleClass="ikonli-font-icon" />
                         </graphic>
                     </Button>
-                    <Label fx:id="certificateUploadStatus" text="" />
+                    <Label fx:id="certificateUploadStatus" minHeight="-Infinity" maxWidth="Infinity" text="" wrapText="true" HBox.hgrow="ALWAYS" />
                 </HBox>
                 <Label fx:id="certificatesFormatsLabel" styleClass="text-muted" text="%settings.certificates.formats" />
             </VBox>
@@ -111,7 +111,8 @@
                 <ListView fx:id="installedCertificatesListView" maxHeight="150.0" prefHeight="120.0">
                     <!-- Certificate items will be populated by controller -->
                 </ListView>
-                <HBox alignment="CENTER_LEFT" spacing="10.0">
+                <!-- The buttons keep their texts and wrap into a second line when the German ones do not fit -->
+                <FlowPane alignment="CENTER_LEFT" hgap="10.0" vgap="8.0">
                     <Button fx:id="removeCertificateButton" disable="true" onAction="#onRemoveCertificate" styleClass="danger" text="%settings.certificates.remove">
                         <graphic>
                             <FontIcon iconLiteral="mdi2d-delete" iconSize="16" styleClass="ikonli-font-icon" />
@@ -122,13 +123,12 @@
                             <FontIcon iconLiteral="mdi2r-refresh" iconSize="16" styleClass="ikonli-font-icon" />
                         </graphic>
                     </Button>
-                    <Region HBox.hgrow="ALWAYS" />
                     <Button fx:id="testCertificateButton" onAction="#onTestCertificateConnection" styleClass="accent" text="%settings.certificates.test">
                         <graphic>
                             <FontIcon iconLiteral="mdi2s-shield-check" iconSize="16" styleClass="ikonli-font-icon" />
                         </graphic>
                     </Button>
-                </HBox>
+                </FlowPane>
 
                 <!-- Certificate Connection Status -->
                 <HBox fx:id="certificateConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
