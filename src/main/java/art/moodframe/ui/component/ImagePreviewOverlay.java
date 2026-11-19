@@ -120,7 +120,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private Image loadingImage;
 
     /*  whether full-size images are decoded in the background; the tests of the layout decode them at once  */
-    static boolean decodeInBackground = true;
+    private final boolean decodeInBackground;
 
     // State
     private List<String> imagePaths;
@@ -158,7 +158,19 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
      * @param config tells whether the frame turns, which the user decides in the settings (may be null: it turns)
      */
     public ImagePreviewOverlay(ApplicationConfig config) {
+        this(config, true);
+    }
+
+    /**
+     * Creates a new image preview overlay, which decodes a full-size image in the background or at once.
+     *
+     * @param config             tells whether the frame turns (may be null: it turns)
+     * @param decodeInBackground true to decode in the background, false to show an image at once (for tests that
+     *                           measure it)
+     */
+    ImagePreviewOverlay(ApplicationConfig config, boolean decodeInBackground) {
         this.config = config;
+        this.decodeInBackground = decodeInBackground;
         getStyleClass().add("image-preview-overlay");
 
         setVisible(false);
