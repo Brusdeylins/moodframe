@@ -32,6 +32,9 @@ import java.util.Optional;
  * restore and a deletion look the rows up by id; the finders of lists skip the rows in the trash, except
  * {@link #findDeletedChats()}.</p>
  *
+ * <p>Former columns: {@code guidance} of the entries and images holds the safety tolerance of the generation (the
+ * column of the former FLUX guidance, reused); {@code steps} is always written as 0.</p>
+ *
  * @since 1.0.0
  */
 public class ChatRepository {

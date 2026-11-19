@@ -313,12 +313,12 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
   file. The services never move these files themselves.
-- **Time columns** of the chats, entries, images and brainstorm sessions (`created_at`, `deleted_at`,
-  `chats.updated_at`) and the `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local
-  time (`setTimestamp`); `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read
-  counts as deleted now (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames,
-  blocks and palettes are still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates);
-  nothing reads them.
+- **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
+  brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
+  `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
+  `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read counts as deleted now
+  (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames, blocks and palettes are
+  still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates); nothing reads them.
 - **Finders** of one row answer with an `Optional` in every repository. The finders of lists skip the rows in the
   trash unless named for it (`findDeleted`, `findDeletedChats`), and so do the finders of one mood, frame, block or
   palette (`findInTrash` and `exists` look into the trash); the finders of one chat, entry or image by id
@@ -341,6 +341,10 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash
   (`service.trash.TrashCenter`) restores them or removes them for good. Image files wait in a trash directory.
+  Brainstorm sessions have no trash: deleting one removes it with its messages and drafts.
+- **Former columns**: `chat_entries.guidance` and `generated_images.guidance` hold the safety tolerance of the
+  generation (the column of the former FLUX guidance, reused), and `steps` is always written as 0; `ChatRepository`
+  maps them.
 - **Files**: images and videos live in the images folder of `LibraryPaths` (by default `~/.moodframe/images`),
   thumbnails under `~/.moodframe/thumbnails`; the database stores their paths.
 - **Settings** are a properties file `~/.moodframe/config.properties`, not part of the database (see "Folders and

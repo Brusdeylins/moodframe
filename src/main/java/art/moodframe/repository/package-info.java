@@ -17,13 +17,14 @@
  * ({@code AND deleted_at IS NOT NULL}), so an item restored meanwhile survives. Files are moved or removed after the commit, by
  * {@link ChatTrashRepository} alone, with the rows its transaction changed.</p>
  *
- * <p>Time columns: {@code created_at}, {@code deleted_at} and {@code updated_at} of the chats, entries, images and
- * brainstorm sessions and the {@code deleted_at} of moods, frames, blocks and palettes are written as epoch
- * milliseconds with {@code setTimestamp(Timestamp.valueOf(LocalDateTime.now()))}, i.e. the local time of the writer
- * as an instant, and read with {@code getTimestamp}. Chats, entries and images put in the trash before 2.1.3 hold
- * deleted_at as text, which {@code ChatRepository} still reads; a value it cannot read counts as deleted now. The
- * {@code created_at} and {@code updated_at} of moods, frames, blocks and palettes are still SQLite's
- * {@code CURRENT_TIMESTAMP} (UTC text, the column default and the updates) and read nowhere.</p>
+ * <p>Time columns: {@code created_at}, {@code deleted_at} and {@code updated_at} of the chats, entries and images,
+ * {@code created_at} and {@code updated_at} of the brainstorm sessions (which have no trash and are deleted for good)
+ * and the {@code deleted_at} of moods, frames, blocks and palettes are written as epoch milliseconds with
+ * {@code setTimestamp(Timestamp.valueOf(LocalDateTime.now()))}, i.e. the local time of the writer as an instant, and
+ * read with {@code getTimestamp}. Chats, entries and images put in the trash before 2.1.3 hold deleted_at as text,
+ * which {@code ChatRepository} still reads; a value it cannot read counts as deleted now. The {@code created_at} and
+ * {@code updated_at} of moods, frames, blocks and palettes are still SQLite's {@code CURRENT_TIMESTAMP} (UTC text, the
+ * column default and the updates) and read nowhere.</p>
  *
  * <p>Main classes:</p>
  * <ul>
@@ -35,7 +36,7 @@
  * <li>{@link PromptBlockRepository}: the building blocks of the user (style, atmosphere, light, camera)</li>
  * <li>{@link ColorStyleRepository}: the color palettes of the user</li>
  * <li>{@link FavoriteRepository}: the favorites per kind of entry</li>
- * <li>{@link BrainstormRepository}: brainstorm sessions with their messages and drafts</li>
+ * <li>{@link BrainstormRepository}: brainstorm sessions with their messages and drafts, deleted for good</li>
  * <li>{@link ChatFiles}: what happens to the files of a deleted chat, entry or image, implemented in the service
  * layer</li>
  * </ul>
