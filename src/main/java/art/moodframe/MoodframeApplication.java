@@ -583,17 +583,14 @@ public class MoodframeApplication extends Application {
             if (thumbnailManager != null) {
                 // Start thumbnail generation in background (non-blocking)
                 thumbnailManager.generateThumbnailsForExistingImages()
-                        .whenCompleteAsync((generatedCount, throwable) -> {
-                            if (throwable != null) {
+                        .whenComplete((generatedCount, throwable) -> {
+                            if (throwable != null)
                                 logger.error("Retroactive thumbnail generation failed", throwable);
-                            } else {
-                                // Thumbnail generation completed
-                            }
                         });
 
                 // Also clean up orphaned thumbnails from old deletions
                 thumbnailManager.cleanupOrphanedThumbnails()
-                        .whenCompleteAsync((deletedCount, throwable) -> {
+                        .whenComplete((deletedCount, throwable) -> {
                             if (throwable != null) {
                                 logger.error("Orphaned thumbnail cleanup failed", throwable);
                             } else if (deletedCount > 0) {
@@ -672,7 +669,7 @@ public class MoodframeApplication extends Application {
 
             // Start validation in background (non-blocking)
             validator.validateAllProviders()
-                    .whenCompleteAsync((results, throwable) -> {
+                    .whenComplete((results, throwable) -> {
                         if (throwable != null) {
                             logger.error("API provider validation failed", throwable);
                         } else {
