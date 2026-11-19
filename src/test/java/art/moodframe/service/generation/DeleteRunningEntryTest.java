@@ -438,6 +438,80 @@ class DeleteRunningEntryTest {
     }
 
     @Test
+    void anImageDeletedWhileItsFileIsWrittenIsNotSavedAndLosesItsFile() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 2);
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+
+        /*  Gemini answers, the file is not written yet when the image goes to the trash  */
+        holdBack = true;
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.DOWNLOADING));
+        GeneratedImage downloading = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.DOWNLOADING).findFirst().orElseThrow();
+        assertFalse(chats.deleteImage(entry, downloading), "the entry keeps its cancelled image");
+
+        holdBack = false;
+        while (!heldBack.isEmpty())
+            heldBack.poll().run();
+        await(() -> downloading.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED);
+        flush();
+        assertEquals(List.of(downloading.getId()), dropped, "the trash removes the file written after the deletion");
+        GeneratedImage inTrash = repository.findGeneratedImageById(downloading.getId()).orElseThrow();
+        assertNotNull(inTrash.getDeletedAt());
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, inTrash.getDownloadStatus(), "the row stays as deleted");
+        assertNull(inTrash.getLocalFilePath());
+    }
+
+    @Test
+    void aFinishedImageDeletedBeforeItsInsertStaysInTheTrash() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 2);
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+
+        /*  the store thread is busy: the image is made, its insert waits  */
+        CountDownLatch busy = new CountDownLatch(1);
+        workers.store().execute(() -> {
+            try {
+                busy.await(10, TimeUnit.SECONDS);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED));
+        GeneratedImage made = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+
+        CompletableFuture<Boolean> deleted = CompletableFuture.supplyAsync(() -> {
+            try {
+                return chats.deleteImage(entry, made);
+            }
+            catch (Exception e) {
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        }, pool);
+
+        /*  the deletion waits for the insert, else it is done before the store thread is free  */
+        try {
+            deleted.get(500, TimeUnit.MILLISECONDS);
+        }
+        catch (java.util.concurrent.TimeoutException waiting) {
+            assertFalse(deleted.isDone());
+        }
+        busy.countDown();
+        assertFalse(deleted.get(10, TimeUnit.SECONDS));
+        flush();
+        assertNotNull(repository.findGeneratedImageById(made.getId()).orElseThrow().getDeletedAt(),
+                "the deletion follows the insert, so the image does not come back");
+        assertTrue(repository.findGeneratedImagesByEntry(entry.getId()).isEmpty());
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the other image still runs");
+    }
+
+    @Test
     void theOnlyImageMadeDeletedWhileOthersRunLeavesTheGenerationAlone() throws Exception {
         Chat chat = chat();
         GenerationService.Submission submission = submit(chat, 3);

@@ -210,7 +210,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   trash books the cost the cancellation settled, for the window and the MCP server alike; so does deleting an image
   the generation still makes, or the last image of the entry (`ChatLibrary.deleteImage`), while a finished image
   deleted beside running ones leaves the generation alone, keeps the entry in use (also while their placeholders are
-  not stored yet) and books what it cost itself, which the entry keeps in its cost (`ChatCost.imageShare`). The MCP tools `delete_entry` and `delete_image` still refuse a running entry. The generation stores the changes of its entry with
+  not stored yet) and books what it cost itself, which the entry keeps in its cost (`ChatCost.imageShare`); either
+  way the image goes to the trash only after the writes of the generation asked for so far, so a queued insert does
+  not bring it back. The MCP tools `delete_entry` and `delete_image` still refuse a running entry. The generation stores the changes of its entry with
   `ChatRepository.updateChatEntry`, which leaves an entry in the trash (on its own or with its chat) as the trash
   booked it and never inserts one removed for good; an image it still delivers is dropped (see "Persistence").
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
@@ -414,7 +416,7 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   trash already, and all of them when it is removed for good), so an image another caller deleted before is not moved
   twice and a row that was not deleted keeps its file. Its writes run one after the other, each with the moves of its
   files, so a deletion and an immediate restore from another thread move the files in the order of their commits. An
-  image a generation delivers after its entry or chat went to the trash is not saved
+  image a generation delivers after it, its entry or its chat went to the trash is not saved
   (`ChatRepository.saveGeneratedImage` answers false); its file, written into the folder of the images in use, is
   removed by `ChatTrashRepository.dropLateImage` the same way, after the writes before. An image whose entry is not
   stored at all (its insert failed) keeps its file and fails. The services and the other repositories never move or

@@ -123,8 +123,8 @@ public class ChatEntryTracker {
     /**
      * Stores an image on the worker of the database writes. Call it after the change it stores, e.g. at the end of a
      * {@link FxModel#change(Runnable) change}: the write sees the change and keeps its place after the writes before.
-     * An image whose entry or chat went to the trash meanwhile is dropped, and the trash removes its file; one whose
-     * entry is not stored (its insert failed) keeps its file and fails.
+     * An image that went to the trash meanwhile, itself or with its entry or chat, is dropped, and the trash removes
+     * its file; one whose entry is not stored (its insert failed) keeps its file and fails.
      *
      * @param image the image
      * @return completes once it is stored or dropped, exceptionally if that failed (which is logged)

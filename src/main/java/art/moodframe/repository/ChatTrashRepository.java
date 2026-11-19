@@ -437,11 +437,12 @@ public class ChatTrashRepository {
     }
 
     /**
-     * Removes the file and thumbnail of an image a generation delivered after its entry or chat went to the trash,
-     * which {@link ChatRepository#saveGeneratedImage} did not save: the file was written after the deletion, so no
-     * deletion moved it out of the folder of the images in use (a row of the image in the trash, e.g. the placeholder
-     * a cancellation stored, does not know it). It runs after the writes before, like every write of the trash, and
-     * only while the entry or chat is still in the trash; an entry restored meanwhile keeps the file, which is logged.
+     * Removes the file and thumbnail of an image a generation delivered after it, its entry or its chat went to the
+     * trash, which {@link ChatRepository#saveGeneratedImage} did not save: the file was written after the deletion, so
+     * no deletion moved it out of the folder of the images in use (a row of the image in the trash, e.g. the
+     * placeholder a cancellation stored, does not know it). It runs after the writes before, like every write of the
+     * trash, and only while the image, entry or chat is still in the trash; one restored meanwhile keeps the file,
+     * which is logged.
      *
      * @param image the image that was not saved
      * @return true if its files were handed over for removal
@@ -452,11 +453,12 @@ public class ChatTrashRepository {
         try {
             boolean dropped;
             try (Connection conn = databaseManager.getConnection()) {
-                dropped = entryPlace(conn, image.getChatEntryId(), true) == ChatRepository.EntryPlace.IN_TRASH;
+                dropped = entryPlace(conn, image.getChatEntryId(), true) == ChatRepository.EntryPlace.IN_TRASH
+                        || imageInTrash(conn, image.getId());
             }
             if (!dropped) {
-                logger.warn("Image {} of entry {} was not saved, but its entry is no longer in the trash: its file "
-                        + "stays", image.getId(), image.getChatEntryId());
+                logger.warn("Image {} of entry {} was not saved, but neither it nor its entry is in the trash any "
+                        + "more: its file stays", image.getId(), image.getChatEntryId());
                 return false;
             }
             if (image.getLocalFilePath() != null)
@@ -465,6 +467,17 @@ public class ChatTrashRepository {
         }
         finally {
             writes.unlock();
+        }
+    }
+
+    /*  whether the row of an image is in the trash  */
+    private static boolean imageInTrash(Connection conn, String imageId) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT 1 FROM generated_images WHERE id = ? AND deleted_at IS NOT NULL")) {
+            stmt.setString(1, imageId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
