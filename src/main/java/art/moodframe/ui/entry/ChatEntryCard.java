@@ -10,6 +10,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.component.ManagedComponent;
 import art.moodframe.ui.dnd.ImageDragExporter;
@@ -461,17 +462,19 @@ public class ChatEntryCard extends ManagedComponent {
                 updateInfoDisplay();
             });
         };
-        chatEntry.getImages().addListener(imagesListener);
 
-        // Add cleanup for images listener
-        addSubscription(Subscription.of(
-                () -> chatEntry.getImages().removeListener(imagesListener),
-                "ChatEntry images collection listener"));
-
-        // Setup property listeners for existing images
-        for (GeneratedImage image : ChatLibrary.imagesOf(chatEntry)) {
+        /*  The listener goes on the shared list under the lock of the chat models, as the threads that change the
+            list call it, and the images of that moment are taken in the same section, so none is missed  */
+        List<GeneratedImage> existing = ModelLock.read(() -> {
+            chatEntry.getImages().addListener(imagesListener);
+            return new ArrayList<>(chatEntry.getImages());
+        });
+        addSubscription(Subscription.of(() -> ModelLock.read(() -> {
+            chatEntry.getImages().removeListener(imagesListener);
+            return null;
+        }), "ChatEntry images collection listener"));
+        for (GeneratedImage image : existing)
             setupImagePropertyListeners(image);
-        }
 
         // Update when prompt changes (for real-time editing)
         addSubscription(Subscription.of(
