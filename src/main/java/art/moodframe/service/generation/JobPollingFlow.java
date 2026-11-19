@@ -451,7 +451,7 @@ public class JobPollingFlow {
                     tracker.updateCost(pendingRequest.generatedImage, pendingRequest.provider.reportedCost(jobResult));
 
                     // Start actual image download
-                    downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
+                    downloadImage(pendingRequest.provider, pendingRequest.generatedImage, pendingRequest.chatEntry);
 
                     logger.debug("Job {} completed successfully with image URL: {}", jobId, Secrets.redact(imageUrl));
             } else {
@@ -498,13 +498,15 @@ public class JobPollingFlow {
     }
 
     /**
-     * Downloads the generated image from the URL.
+     * Downloads the generated image from the URL, with the {@link ImageProvider#downloadHeaders headers} of its
+     * provider.
      */
-    private void downloadImage(GeneratedImage generatedImage, ChatEntry chatEntry) {
+    private void downloadImage(ImageProvider provider, GeneratedImage generatedImage, ChatEntry chatEntry) {
+        Map<String, String> headers = provider.downloadHeaders(generatedImage.getImageUrl());
         CompletableFuture.runAsync(() -> {
             ImageFileStore.StoredImage stored = null;
             try {
-                stored = imageFiles.download(generatedImage);
+                stored = imageFiles.download(generatedImage, headers);
             } catch (Exception e) {
                 logger.error("Failed to download image: {}", generatedImage.getId(), e);
             }

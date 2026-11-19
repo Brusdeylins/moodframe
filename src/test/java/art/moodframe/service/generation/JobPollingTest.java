@@ -92,7 +92,7 @@ class JobPollingTest {
             return mock(ScheduledFuture.class);
         });
         files = mock(ImageFileStore.class);
-        when(files.download(any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
+        when(files.download(any(), any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
                 "png", "image/png", 1024, 1024, 1000));
         config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
@@ -147,10 +147,24 @@ class JobPollingTest {
         drainFxThread();
         drainFxThread();
 
-        verify(files, times(1)).download(any());
+        verify(files, times(1)).download(any(), any());
         assertEquals(0, scheduled.size(), "a finished job is not polled again");
         assertEquals(GeneratedImage.DownloadStatus.CACHED, image().getDownloadStatus());
         assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus());
+    }
+
+    @Test
+    void theImageOfAJobIsDownloadedWithTheHeadersOfItsProvider() throws Exception {
+        java.util.Map<String, String> headers = java.util.Map.of("x-key", "secret");
+        doReturn(headers).when(api).downloadHeaders("https://bfl.example/sample.png");
+        submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-7", "Pending")));
+        runPoll();
+        polls.poll().complete(answer("Ready"));
+        drainFxThread();
+        drainFxThread();
+
+        verify(files).download(any(), org.mockito.ArgumentMatchers.eq(headers));
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, image().getDownloadStatus());
     }
 
     @Test
@@ -163,7 +177,7 @@ class JobPollingTest {
         polls.poll().complete(answer("Ready"));
         drainFxThread();
 
-        verify(files, never()).download(any());
+        verify(files, never()).download(any(), any());
         assertEquals(GeneratedImage.DownloadStatus.FAILED, image().getDownloadStatus());
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
         assertEquals(0, scheduled.size());
@@ -181,7 +195,7 @@ class JobPollingTest {
         assertEquals(0, polls.size(), "the second attempt is past the timeout and asks nothing");
         assertEquals(0, scheduled.size());
         assertEquals(GeneratedImage.DownloadStatus.FAILED, image().getDownloadStatus());
-        verify(files, never()).download(any());
+        verify(files, never()).download(any(), any());
     }
 
     @Test

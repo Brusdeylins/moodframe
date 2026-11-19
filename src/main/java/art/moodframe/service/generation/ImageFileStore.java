@@ -77,10 +77,11 @@ public class ImageFileStore {
      * runs on a worker.
      *
      * @param generatedImage the image with the URL, read for the URL and the file name only
+     * @param headers        the headers the provider needs for its files, e.g. its key
      * @return the written file; its format is null if the bytes are neither PNG nor JPEG
      * @throws Exception if there is no URL, the server does not answer 200, or the file cannot be written
      */
-    public StoredImage download(GeneratedImage generatedImage) throws Exception {
+    public StoredImage download(GeneratedImage generatedImage, Map<String, String> headers) throws Exception {
         String imageUrl = generatedImage.getImageUrl();
         if (imageUrl == null || imageUrl.trim().isEmpty())
             throw new java.io.IOException("No image URL available for download: " + generatedImage.getId());
@@ -88,7 +89,7 @@ public class ImageFileStore {
         Path imagesDir = config.paths().images();
         Files.createDirectories(imagesDir);
 
-        HttpResponse<byte[]> downloadResponse = fetch(imageUrl, Map.of(), IMAGE_TIMEOUT,
+        HttpResponse<byte[]> downloadResponse = fetch(imageUrl, headers, IMAGE_TIMEOUT,
                 HttpResponse.BodyHandlers.ofByteArray(), "Failed to download image");
         byte[] imageBytes = downloadResponse.body();
 

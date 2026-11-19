@@ -78,7 +78,7 @@ class BflGenerationCostTest {
             return mock(ScheduledFuture.class);
         });
         ImageFileStore files = mock(ImageFileStore.class);
-        when(files.download(any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
+        when(files.download(any(), any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
                 "png", "image/png", width, height, 1000));
         ApplicationConfig config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
