@@ -19,7 +19,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -92,7 +93,7 @@ class ChatEntryTrackerTest {
         List<ChatEntry.Status> told = new CopyOnWriteArrayList<>();
         tracker.addEntryListener((ChatEntry updated) -> told.add(updated.getStatus()));
 
-        assertTrue(onFxThread(() -> tracker.cancel(entry)));
+        assertNotNull(onFxThread(() -> tracker.cancel(entry)));
         drainFxThread();
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
         assertEquals(GeneratedImage.DownloadStatus.CACHED, done.getDownloadStatus(), "a finished image stays");
@@ -108,7 +109,7 @@ class ChatEntryTrackerTest {
         drainFxThread();
         drainFxThread();
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
-        assertFalse(onFxThread(() -> tracker.cancel(entry)));
+        assertNull(onFxThread(() -> tracker.cancel(entry)));
     }
 
     @Test
@@ -116,7 +117,7 @@ class ChatEntryTrackerTest {
         List<String> stored = new CopyOnWriteArrayList<>();
         ChatRepository repository = mock(ChatRepository.class);
         doAnswer((invocation) -> stored.add("image")).when(repository).saveGeneratedImage(any());
-        doAnswer((invocation) -> stored.add("entry")).when(repository).saveChatEntry(any());
+        doAnswer((invocation) -> stored.add("entry")).when(repository).updateChatEntry(any());
         Queue<Runnable> writes = new ConcurrentLinkedQueue<>();
         ChatEntryTracker tracker = new ChatEntryTracker(repository, writes::add);
         List<String> told = new CopyOnWriteArrayList<>();
@@ -186,9 +187,8 @@ class ChatEntryTrackerTest {
         List<String> saved = new CopyOnWriteArrayList<>();
         org.mockito.Mockito.doAnswer((invocation) -> {
             ChatEntry stored = invocation.getArgument(0);
-            saved.add(stored.getStatus().name() + ":" + Platform.isFxApplicationThread());
-            return null;
-        }).when(repository).saveChatEntry(org.mockito.ArgumentMatchers.any());
+            return saved.add(stored.getStatus().name() + ":" + Platform.isFxApplicationThread());
+        }).when(repository).updateChatEntry(org.mockito.ArgumentMatchers.any());
         java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
         try {
             ChatEntryTracker tracker = new ChatEntryTracker(repository, worker);

@@ -235,19 +235,35 @@ public class ChatRepository {
     // ========== Chat Entry Operations ==========
 
     /**
-     * Saves a chat entry to the database.
+     * Saves a chat entry to the database: inserts a new one, updates a stored one that is not in the trash. An entry
+     * in the trash is left alone, as its cost is booked there. A generation stores the changes of its entry with
+     * {@link #updateChatEntry} instead, which never inserts, so an entry removed for good does not come back.
      *
      * @param entry the chat entry to save
      * @throws SQLException if database operation fails
      */
     public void saveChatEntry(ChatEntry entry) throws SQLException {
         databaseManager.inTransaction((Connection conn) -> {
-            if (exists(conn, "chat_entries", entry.getId()))
-                updateChatEntry(conn, entry);
-            else
+            if (!exists(conn, "chat_entries", entry.getId()))
                 insertChatEntry(conn, entry);
+            else if (updateChatEntry(conn, entry, false) == 0)
+                logger.debug("Entry {} not saved: it is in the trash", entry.getId());
             return null;
         });
+    }
+
+    /**
+     * Stores the changes a generation made to its entry while the entry and its chat are in use. An entry in the
+     * trash, on its own or with its chat, keeps what it went there with: the trash booked its cost, which changes
+     * only through the trash. An entry that is not stored, e.g. removed from the trash for good meanwhile, is not
+     * inserted again.
+     *
+     * @param entry the entry
+     * @return true if it was updated, false if it is in the trash or not stored
+     * @throws SQLException if database operation fails
+     */
+    public boolean updateChatEntry(ChatEntry entry) throws SQLException {
+        return databaseManager.inTransaction((Connection conn) -> updateChatEntry(conn, entry, true) > 0);
     }
 
     /**
@@ -297,21 +313,23 @@ public class ChatRepository {
     }
 
     /**
-     * Updates an existing chat entry in the database.
+     * Updates a stored chat entry that is not in the trash, and, if asked, whose chat is not in the trash either.
      *
-     * @param conn  the connection of the transaction
-     * @param entry the chat entry to update
+     * @param conn      the connection of the transaction
+     * @param entry     the chat entry to update
+     * @param chatInUse whether its chat must be in use as well
+     * @return the number of rows updated, 0 if it is in the trash or not stored
      * @throws SQLException if update fails
      */
-    private static void updateChatEntry(Connection conn, ChatEntry entry) throws SQLException {
+    private static int updateChatEntry(Connection conn, ChatEntry entry, boolean chatInUse) throws SQLException {
         String sql = """
                 UPDATE chat_entries SET
                     user_prompt = ?, enhanced_prompt = ?, status = ?, error_message = ?,
                     completed_at = ?, sort_order = ?, model = ?, size = ?, format = ?, style = ?,
                     prompt_upsampling = ?, steps = ?, guidance = ?, seed = ?, cost = ?, mood_json = ?, mood_id = ?,
                     frame_json = ?, frame_id = ?
-                WHERE id = ?
-                """;
+                WHERE id = ? AND deleted_at IS NULL
+                """ + (chatInUse ? " AND chat_id IN (SELECT id FROM chats WHERE deleted_at IS NULL)" : "");
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -336,7 +354,7 @@ public class ChatRepository {
             stmt.setString(19, entry.getFrame() != null ? entry.getFrame().frameId() : null);
             stmt.setString(20, entry.getId());
 
-            stmt.executeUpdate();
+            return stmt.executeUpdate();
         }
     }
 

@@ -498,11 +498,17 @@ public class MoodframeApplication extends Application {
             }
         });
 
-        /*  Carries out a generation order without the user interface: entry, request and submission  */
+        /*  Carries out a generation order without the user interface: entry, request and submission; the chats let it
+            settle the generation of an entry before the entry goes to the trash  */
         services.registerProvider(GenerationService.class, () -> services.findService(RequestResponseManager.class)
-                .map((RequestResponseManager requests) -> new GenerationService(config,
-                        services.getService(ChatLibrary.class), services.getService(MoodService.class), requests,
-                        services.getService(ProviderRegistry.class), services.getService(GenerationWorkers.class).store()))
+                .map((RequestResponseManager requests) -> {
+                    ChatLibrary chats = services.getService(ChatLibrary.class);
+                    GenerationService generation = new GenerationService(config, chats,
+                            services.getService(MoodService.class), requests, services.getService(ProviderRegistry.class),
+                            services.getService(GenerationWorkers.class).store());
+                    chats.setGenerations(generation::settle);
+                    return generation;
+                })
                 .orElse(null));
     }
 

@@ -57,8 +57,8 @@ class ChatEditTools {
 
         ObjectNode chat = McpTools.JSON.createObjectNode();
         chat.set("chatId", McpTools.string("The ID of the chat, see list_chats"));
-        tools.add("delete_chat", "Moves a chat with its entries and images to the trash; restore brings it back.",
-                McpTools.input(chat, "chatId"), this::deleteChat);
+        tools.add("delete_chat", "Moves a chat with its entries and images to the trash; restore brings it back. Its "
+                + "running entries are cancelled first.", McpTools.input(chat, "chatId"), this::deleteChat);
 
         ObjectNode entry = McpTools.JSON.createObjectNode();
         entry.set("entryId", McpTools.string("The ID of the chat entry, see get_chat"));

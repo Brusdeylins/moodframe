@@ -12,6 +12,7 @@ import art.moodframe.model.ImageDimensions;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.provider.ProviderRegistry;
@@ -263,10 +264,27 @@ public class GenerationService {
      * Cancels a running entry, see {@link RequestResponseService#cancelEntry(ChatEntry)}.
      *
      * @param entry the entry
-     * @return completes with true if it was pending or processing
+     * @return completes with true once the cancelled entry is stored, with false if it was not pending or processing
      */
     public CompletableFuture<Boolean> cancel(ChatEntry entry) {
         return requests.cancelEntry(entry);
+    }
+
+    /**
+     * Settles the generation of an entry before it goes to the trash, as {@link ChatLibrary.Generations} asks: a
+     * running entry is cancelled ({@link #cancel}), and the future completes once the writes of the generation asked
+     * for so far, those of the cancellation included, are done on the store thread, so the trash books the cost they
+     * settled. Only a running entry waits for the JavaFX thread.
+     *
+     * @param entry the entry
+     * @return completes once its writes are done, exceptionally if the store thread is closed
+     */
+    public CompletableFuture<Void> settle(ChatEntry entry) {
+        boolean running = ModelLock.read(() -> entry.getStatus() == ChatEntry.Status.PENDING
+                || entry.getStatus() == ChatEntry.Status.PROCESSING);
+        CompletableFuture<Boolean> cancelled = running ? cancel(entry) : CompletableFuture.completedFuture(false);
+        return cancelled.handle((Boolean done, Throwable failure) -> null)
+                .thenRunAsync(() -> logger.debug("The writes of entry {} are done", entry.getId()), store);
     }
 
     /**

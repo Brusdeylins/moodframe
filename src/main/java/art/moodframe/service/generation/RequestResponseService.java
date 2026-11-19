@@ -95,7 +95,9 @@ public interface RequestResponseService {
      * kept, the entry stays cancelled.
      *
      * @param chatEntry the entry
-     * @return completes with true if the entry was pending or processing
+     * @return completes with true once the cancelled entry and its images are stored (also if that failed, which is
+     *         logged), so a deletion afterwards books what the cancellation settled; with false if the entry was
+     *         neither pending nor processing
      */
     CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry);
 

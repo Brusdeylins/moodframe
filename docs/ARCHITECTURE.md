@@ -189,7 +189,14 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   `GenerationService.submit` may run on the JavaFX thread: it checks the order in memory (a refused order throws at
   once; only the copy of the mood looks up a palette without id by its name, a short read), adds the new entry to
   its chat and the database on the store thread and dispatches the request only then; the window shows the entry at
-  once, the MCP tool `generate` waits until it is stored.
+  once, the MCP tool `generate` waits until it is stored. A cancellation completes once the cancelled entry is
+  stored. Deleting an entry or moving a chat to the trash (`ChatLibrary.deleteEntry`, `moveToTrash`) first cancels
+  the generations of its entries still running and waits until the writes of their generation are done
+  (`ChatLibrary.Generations`, implemented by `GenerationService.settle` and handed in by the composition root), so the
+  trash books the cost the cancellation settled, for the window and the MCP server alike; the MCP tool
+  `delete_entry` still refuses a running entry. The generation stores the changes of its entry with
+  `ChatRepository.updateChatEntry`, which leaves an entry in the trash (on its own or with its chat) as the trash
+  booked it and never inserts one removed for good; an image it still delivers is dropped (see "Persistence").
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
@@ -199,9 +206,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
 - **MCP server**: each request runs on a virtual thread of its own (`mcp-server-N`), never on the JavaFX thread, and
-  reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
-  generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
-  thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
+  reads and changes the chats without waiting for it (only `cancel_generation`, and `delete_chat` for a chat with a
+  running entry, which it cancels first, wait for the change of the generation). `generate` blocks its thread up to
+  `wait` seconds for the result; as every request has its own thread, no number of waiting generations keeps another
+  call (`list_chats`, `cancel_generation`) from its answer.
 - **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels; the main window
   creates one and hands it to the cards and the images view with `ImageSources`, the memory display of the status bar
   counts its images. A file is decoded on the calling worker, once even when several ask for it at the same time;

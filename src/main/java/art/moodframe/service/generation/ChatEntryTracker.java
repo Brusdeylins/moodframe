@@ -131,17 +131,21 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Stores a chat entry on the worker of the database writes, like {@link #saveImage(GeneratedImage)}.
+     * Stores the changes of a chat entry on the worker of the database writes, like {@link #saveImage(GeneratedImage)}.
+     * An entry that went to the trash meanwhile, on its own or with its chat, keeps what the trash booked, and one
+     * that is not stored (removed for good, or its insert failed) is not inserted (see
+     * {@link ChatRepository#updateChatEntry}).
      *
      * @param chatEntry the entry
-     * @return completes once it is stored, exceptionally if that failed (which is logged)
+     * @return completes once it is stored or left alone, exceptionally if that failed (which is logged)
      */
     public CompletableFuture<Void> saveEntry(ChatEntry chatEntry) {
         return CompletableFuture.runAsync(() -> {
             if (chatRepository == null)
                 return;
             try {
-                chatRepository.saveChatEntry(chatEntry);
+                if (!chatRepository.updateChatEntry(chatEntry))
+                    logger.debug("Entry {} not saved: it is in the trash or not stored", chatEntry.getId());
             } catch (Exception e) {
                 logger.error("Failed to save the chat entry {}", chatEntry.getId(), e);
                 throw new java.util.concurrent.CompletionException(e);
@@ -280,11 +284,12 @@ public class ChatEntryTracker {
      * thread as well).
      *
      * @param chatEntry the entry
-     * @return true if it was pending or processing
+     * @return completes once the cancelled entry and its images are stored (also if that failed, which is logged);
+     *         null if the entry was neither pending nor processing
      */
-    public boolean cancel(ChatEntry chatEntry) {
+    public CompletableFuture<Void> cancel(ChatEntry chatEntry) {
         if (chatEntry.getStatus() != ChatEntry.Status.PENDING && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
-            return false;
+            return null;
         if (chatEntry.getStatus() == ChatEntry.Status.PENDING)
             chatEntry.setCost(0.0);
         List<GeneratedImage> stopped = unfinished(chatEntry);
@@ -299,7 +304,7 @@ public class ChatEntryTracker {
         for (GeneratedImage image : stopped)
             stored = saveImage(image);
         notifyWhenStored(stored, chatEntry);
-        return true;
+        return stored.handle((Void done, Throwable failure) -> null);
     }
 
     /**
