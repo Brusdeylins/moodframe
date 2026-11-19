@@ -1,4 +1,4 @@
-package art.moodframe.ui.dnd;
+package art.moodframe.ui.entry;
 
 import javafx.scene.SnapshotParameters;
 import javafx.scene.image.Image;

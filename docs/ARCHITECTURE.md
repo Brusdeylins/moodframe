@@ -9,7 +9,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 
 ```
  ui (controller, brainstorm, panel, dialog,        mcp
-     cell, entry, component, dnd, support)
+     cell, entry, component, support)
             \                                      /
              +--------------> service <-----------+
                                  |          \
@@ -75,11 +75,10 @@ Allowed dependency directions:
   `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
   that the clients of the providers (`service.provider.bfl`, `.gemini`, `.openai`) use no class of each other (D4,
   D6), from the imports and fully qualified names of `src/main/java`.
-- The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
-  `ui.entry`, `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`),
-  `ui.controller.settings` and `ui.controller` on top, so no view uses a controller and the entry cards build on the
-  generic controls; the order allows the brainstorm dialog to show the groups of `ui.panel`, which it does not do yet
-  (planned with ticket 136).
+- The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.component`, `ui.entry`,
+  `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
+  `ui.controller` on top, so no view uses a controller and the entry cards build on the generic controls; the order
+  allows the brainstorm dialog to show the groups of `ui.panel`, which it does not do yet (planned with ticket 136).
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
