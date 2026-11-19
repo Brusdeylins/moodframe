@@ -431,11 +431,9 @@ public class MoodframeApplication extends Application {
             TrashCenter trashCenter = new TrashCenter();
             ChatRepository chatRepo = services.getService(ChatRepository.class);
             ChatTrashRepository chatTrash = services.getService(ChatTrashRepository.class);
-            if (chatRepo != null) {
-                trashCenter.register(new ChatTrashGroup(chatRepo, chatTrash));
-                trashCenter.register(new ImageTrashGroup(chatRepo, chatTrash, services.getService(TrashManager.class),
-                        services.getService(ThumbnailManager.class)));
-            }
+            trashCenter.register(new ChatTrashGroup(chatRepo, chatTrash));
+            trashCenter.register(new ImageTrashGroup(chatRepo, chatTrash, services.getService(TrashManager.class),
+                    services.getService(ThumbnailManager.class)));
             trashCenter.register(new BlockTrashGroup(services.getService(PromptBlockService.class),
                     services.getService(ColorStyleService.class), services.getService(BlockUsage.class)));
 
@@ -459,7 +457,7 @@ public class MoodframeApplication extends Application {
             return chats;
         });
 
-        /*  Reads, shrinks and encodes the images attached to an order, for the drop square and the attachment panel  */
+        /*  Reads, shrinks and encodes the images attached to an order, for the attachment panel  */
         services.registerService(ImageAttachmentService.class, new ImageAttachmentService());
 
         /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
@@ -570,27 +568,22 @@ public class MoodframeApplication extends Application {
             ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
                     .getService(ThumbnailManager.class);
 
-            if (thumbnailManager != null) {
-                // Start thumbnail generation in background (non-blocking)
-                thumbnailManager.generateThumbnailsForExistingImages()
-                        .whenComplete((generatedCount, throwable) -> {
-                            if (throwable != null)
-                                logger.error("Retroactive thumbnail generation failed", throwable);
-                        });
+            // Start thumbnail generation in background (non-blocking)
+            thumbnailManager.generateThumbnailsForExistingImages()
+                    .whenComplete((generatedCount, throwable) -> {
+                        if (throwable != null)
+                            logger.error("Retroactive thumbnail generation failed", throwable);
+                    });
 
-                // Also clean up orphaned thumbnails from old deletions
-                thumbnailManager.cleanupOrphanedThumbnails()
-                        .whenComplete((deletedCount, throwable) -> {
-                            if (throwable != null) {
-                                logger.error("Orphaned thumbnail cleanup failed", throwable);
-                            } else if (deletedCount > 0) {
-                                logger.info("Cleaned up {} orphaned thumbnails from old deletions", deletedCount);
-                            }
-                        });
-
-            } else {
-                logger.warn("ThumbnailManager not available for retroactive generation");
-            }
+            // Also clean up orphaned thumbnails from old deletions
+            thumbnailManager.cleanupOrphanedThumbnails()
+                    .whenComplete((deletedCount, throwable) -> {
+                        if (throwable != null) {
+                            logger.error("Orphaned thumbnail cleanup failed", throwable);
+                        } else if (deletedCount > 0) {
+                            logger.info("Cleaned up {} orphaned thumbnails from old deletions", deletedCount);
+                        }
+                    });
 
         } catch (Exception e) {
             // Don't let thumbnail generation failure prevent app startup
