@@ -2,7 +2,6 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
-<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.shape.Path?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
@@ -131,26 +130,26 @@
 
             </VBox>
 
-            <!-- Seed -->
-            <VBox spacing="5.0">
-                <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
-                <HBox spacing="5.0" alignment="CENTER_LEFT">
-                    <TextField fx:id="seedTextField"
-                              promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+        </VBox>
 
-                    <!-- Clear Seed Button -->
-                    <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
-                            onAction="#onClearSeedClicked">
-                        <graphic>
-                            <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
-                        </graphic>
-                        <tooltip>
-                            <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
-                        </tooltip>
-                    </Button>
-                </HBox>
-            </VBox>
+        <!-- Seed, for the models of a provider with seeds -->
+        <VBox fx:id="seedContainer" spacing="5.0">
+            <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
+            <HBox spacing="5.0" alignment="CENTER_LEFT">
+                <TextField fx:id="seedTextField"
+                          promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
 
+                <!-- Clear Seed Button -->
+                <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
+                        onAction="#onClearSeedClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
+                    </tooltip>
+                </Button>
+            </HBox>
         </VBox>
 
         <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its
@@ -181,62 +180,6 @@
         <!-- Multi-Image Attachment Section -->
         <!-- Container for MultiImageAttachmentPanel (added programmatically) -->
         <VBox fx:id="multiImageAttachmentContainer" spacing="5.0" />
-
-        <!-- Legacy Single Image Attachment Section (hidden when multi-image is active) -->
-        <VBox fx:id="imageAttachmentSection" spacing="5.0"
-              visible="false" managed="false">
-
-            <Label fx:id="imageAttachmentLabel" text="Image Attachment" styleClass="text-bold" />
-
-            <!-- Image Preview Area -->
-            <StackPane fx:id="imagePreviewContainer"
-                       prefHeight="150.0" maxHeight="150.0" minHeight="150.0"
-                       style="-fx-background-color: -color-bg-inset; -fx-background-radius: 4px; -fx-border-color: -color-border-muted; -fx-border-width: 1px; -fx-border-style: dashed; -fx-border-radius: 4px;">
-
-                <!-- No Image Placeholder -->
-                <VBox fx:id="noImagePlaceholder" alignment="CENTER" spacing="5.0">
-                    <FontIcon iconLiteral="mdi2i-image-plus" iconSize="32" styleClass="ikonli-font-icon, text-muted" />
-                    <Label fx:id="noImageLabel" text="No image attached" styleClass="text-muted, text-small" />
-                </VBox>
-
-                <!-- Image Preview (initially hidden) -->
-                <ImageView fx:id="attachmentPreviewImage"
-                          fitWidth="150.0" fitHeight="150.0"
-                          preserveRatio="true" smooth="true"
-                          visible="false" managed="false" />
-
-            </StackPane>
-
-            <!-- Attachment Controls -->
-            <HBox spacing="5.0" alignment="CENTER_LEFT">
-
-                <!-- Upload Button -->
-                <Button fx:id="uploadImageButton" styleClass="button-outlined"
-                        text="Attach Image" HBox.hgrow="ALWAYS" maxWidth="Infinity"
-                        onAction="#onAttachImageClicked">
-                    <graphic>
-                        <FontIcon iconLiteral="mdi2u-upload" iconSize="14" styleClass="ikonli-font-icon" />
-                    </graphic>
-                    <tooltip>
-                        <Tooltip fx:id="uploadImageTooltip" text="Upload an image for editing (PNG, JPEG, WebP)" />
-                    </tooltip>
-                </Button>
-
-                <!-- Remove Button -->
-                <Button fx:id="removeImageButton" styleClass="icon-button, text-danger-hover"
-                        disable="true" onAction="#onRemoveImageClicked">
-                    <graphic>
-                        <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
-                    </graphic>
-                    <tooltip>
-                        <Tooltip fx:id="removeImageTooltip" text="Remove attached image" />
-                    </tooltip>
-                </Button>
-
-            </HBox>
-
-
-        </VBox>
 
     </VBox>
 </VBox>

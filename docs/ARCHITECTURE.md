@@ -559,8 +559,16 @@ there are. A new provider is, in this order:
    `ui.controller.ProviderParameters`, and its value in `mcp.GenerateTools.parameters`, which builds the
    `GenerationOrder.Parameters` of the MCP tool `generate` from the parameters of `model.ModelParameters`;
 5. the user interface of the account: a settings tab (FXML in `fxml/settings`, a `SettingsSection` in
-   `ui.controller.settings`, its client in `SettingsServices`), its line in `StatusBarController` and its texts in
-   the i18n resources (`status.request.submitted.<last part of the prefix>`, falling back to a generic one).
+   `ui.controller.settings`, its client in `SettingsServices`), its line in the account checks of
+   `StatusBarController.accountChecks`, the fields of its models in `ui.controller.ProviderParameters` (`show`, if
+   they take parameters of their own, see step 4), optionally a hint of the empty prompt of its own
+   (`InputBarController.placeholder`, today Gemini) and its texts in the i18n resources
+   (`status.request.submitted.<last part of the prefix>`, falling back to a generic one). The rest of the user
+   interface follows a new provider without a change: the key status of the status bar (every enabled provider has
+   a key), the hint of a missing key (with the display name of the provider), the seed field and "Copy seed"
+   (`ImageProvider.usesSeeds()`), the safety level of an entry (`supportsSafetyTolerance`) and the removal of the
+   attached images on a switch to a model that takes none or only smaller files (`supportsImageAttachment`,
+   `ApiProvider.getMaxFileSize`).
 
 ### D5: Detailed logging as a log level
 

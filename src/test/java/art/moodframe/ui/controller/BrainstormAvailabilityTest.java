@@ -2,6 +2,7 @@ package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
+import art.moodframe.config.ProviderAccounts;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.service.provider.MockProviders;
 import art.moodframe.service.provider.bfl.BflApiService;
@@ -14,11 +15,16 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Checks when the brainstorm button is enabled, what its hint says, and the account checks of the status bar. */
+/**
+ * Checks when the brainstorm button is enabled, what its hint says, the hint of the empty prompt, and the key status
+ * and the account checks of the status bar.
+ */
 class BrainstormAvailabilityTest {
 
     @Test
@@ -44,6 +50,36 @@ class BrainstormAvailabilityTest {
         when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
 
         assertEquals("brainstorm.tooltip", InputBarController.brainstormHint(config, true));
+    }
+
+    /**
+     * The key status of the status bar asks every provider: OpenAI alone, enabled with its key, is valid; an enabled
+     * provider without a key is not; with no provider enabled any key will do.
+     */
+    @Test
+    void theKeyStatusOfTheStatusBarAsksEveryProvider() {
+        ProviderAccounts accounts = ConfigMocks.config().accounts();
+        assertFalse(StatusBarController.keysValid(accounts), "no key");
+        when(accounts.hasApiKey(ApiProvider.OPENAI)).thenReturn(true);
+        assertTrue(StatusBarController.keysValid(accounts), "no provider enabled, but a key");
+        when(accounts.isEnabled(ApiProvider.OPENAI)).thenReturn(true);
+        assertTrue(StatusBarController.keysValid(accounts), "OpenAI alone");
+        when(accounts.isEnabled(ApiProvider.BFL)).thenReturn(true);
+        assertFalse(StatusBarController.keysValid(accounts), "BFL enabled without a key");
+    }
+
+    /**
+     * The hint of the empty prompt names the provider whose key is missing, OpenAI as well, in the current language.
+     */
+    @Test
+    void theHintOfTheEmptyPromptNamesTheProviderWithoutKey() {
+        for (ApiProvider provider : ApiProvider.values())
+            assertEquals(I18nManager.getText("status.error.api.key.missing.provider", provider.getDisplayName()),
+                    InputBarController.placeholder(false, true, false, provider), provider.name());
+        assertEquals(I18nManager.getText("status.error.api.key.missing"),
+                InputBarController.placeholder(false, true, false, null));
+        assertEquals(I18nManager.getText("input.prompt.placeholder"),
+                InputBarController.placeholder(true, true, false, ApiProvider.OPENAI));
     }
 
     @Test

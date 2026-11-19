@@ -1,6 +1,7 @@
 package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ProviderAccounts;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.ui.component.MemoryStatusComponent;
@@ -124,20 +125,14 @@ public class StatusBarController implements StatusSink {
     }
 
     /**
-     * Checks the API keys and shows the result: "valid" (green) only if every enabled provider (BFL, Gemini) has a key,
-     * or with no provider enabled, at least one has a key.
+     * Checks the API keys and shows the result: "valid" (green) only if every enabled provider has a key, or with no
+     * provider enabled, at least one has a key.
      */
     public void checkApiKeys() {
         boolean hasValidKey = false;
         try {
-            if (config != null) {
-                boolean bflEnabled = config.accounts().isEnabled(ApiProvider.BFL);
-                boolean geminiEnabled = config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI);
-                boolean bflHasKey = config.accounts().hasApiKey(ApiProvider.BFL);
-                boolean geminiHasKey = config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI);
-                hasValidKey = !bflEnabled && !geminiEnabled ? bflHasKey || geminiHasKey
-                        : (!bflEnabled || bflHasKey) && (!geminiEnabled || geminiHasKey);
-            }
+            if (config != null)
+                hasValidKey = keysValid(config.accounts());
             else
                 logger.warn("ApplicationConfig not available, assuming no API key");
         } catch (Exception e) {
@@ -147,9 +142,26 @@ public class StatusBarController implements StatusSink {
         showKeyStatus();
     }
 
-    /** Whether the bar shows the API keys as valid. */
-    public boolean hasValidKeys() {
-        return keyStatus == KeyStatus.VALID;
+    /**
+     * Decides whether the keys are valid: every enabled provider has a key, or with no provider enabled, at least one
+     * has a key.
+     *
+     * @param accounts the accounts of the providers
+     * @return true if valid
+     */
+    static boolean keysValid(ProviderAccounts accounts) {
+        boolean anyEnabled = false;
+        boolean anyKey = false;
+        for (ApiProvider provider : ApiProvider.values()) {
+            boolean hasKey = accounts.hasApiKey(provider);
+            anyKey |= hasKey;
+            if (accounts.isEnabled(provider)) {
+                anyEnabled = true;
+                if (!hasKey)
+                    return false;
+            }
+        }
+        return anyEnabled || anyKey;
     }
 
     /*  shows the status of the API keys with theme-aware colors  */
@@ -199,7 +211,7 @@ public class StatusBarController implements StatusSink {
      */
     static String accountChecks(ApplicationConfig config, ApiProviderValidator validator) {
         java.util.List<String> lines = new java.util.ArrayList<>();
-        art.moodframe.config.ProviderAccounts accounts = config.accounts();
+        ProviderAccounts accounts = config.accounts();
         ApiProvider gemini = ApiProvider.GOOGLE_GEMINI;
         ApiProvider openAi = ApiProvider.OPENAI;
         if (accounts.hasApiKey(ApiProvider.BFL))

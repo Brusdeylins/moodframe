@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -23,9 +24,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,6 +134,8 @@ public class GenerationPanelController {
     @FXML
     private Slider flux2StepsSlider;
     @FXML
+    private VBox seedContainer;
+    @FXML
     private Label seedLabel;
     @FXML
     private TextField seedTextField;
@@ -161,24 +161,6 @@ public class GenerationPanelController {
     // Attachment
     @FXML
     private VBox multiImageAttachmentContainer;
-    @FXML
-    private Label imageAttachmentLabel;
-    @FXML
-    private StackPane imagePreviewContainer;
-    @FXML
-    private VBox noImagePlaceholder;
-    @FXML
-    private Label noImageLabel;
-    @FXML
-    private ImageView attachmentPreviewImage;
-    @FXML
-    private Button uploadImageButton;
-    @FXML
-    private Tooltip uploadImageTooltip;
-    @FXML
-    private Button removeImageButton;
-    @FXML
-    private Tooltip removeImageTooltip;
 
     private ApplicationConfig config;
     private GenerationService generationService;
@@ -203,9 +185,7 @@ public class GenerationPanelController {
 
     @FXML
     private void initialize() {
-        attachments = new GenerationAttachments(new GenerationAttachments.Nodes(multiImageAttachmentContainer,
-                imagePreviewContainer, noImagePlaceholder, attachmentPreviewImage, uploadImageButton,
-                removeImageButton), () -> currentSelectedModel);
+        attachments = new GenerationAttachments(multiImageAttachmentContainer, () -> currentSelectedModel);
         parameters = new ProviderParameters(new ProviderParameters.Nodes(geminiAdvancedFeaturesContainer,
                 geminiThinkingLevelContainer, bflParametersContainer, flux2GroundingSearchContainer,
                 bflPromptUpsamplingCheckBox, flux1SafetyContainer, safetyToleranceLabel, flux2ParametersContainer,
@@ -391,7 +371,7 @@ public class GenerationPanelController {
     }
 
     /**
-     * Takes over a seed, e.g. from an image; it applies to the models of BFL.
+     * Takes over a seed, e.g. from an image; it applies to the models of a provider with seeds.
      *
      * @param seed the seed
      */
@@ -408,10 +388,26 @@ public class GenerationPanelController {
         flux2SafetySlider.setValue(value);
     }
 
-    /** Whether a model of BFL is chosen, which takes a seed. */
+    /** Whether a model of a provider with seeds is chosen, which takes a seed. */
     public boolean isSeedModelSelected() {
         GenerationModel model = selectedModel();
-        return model != null && model.getProvider() == ApiProvider.BFL;
+        return model != null && usesSeeds(model.getProvider());
+    }
+
+    /**
+     * Whether the provider of a model gives its images seeds that repeat them.
+     *
+     * @param modelId the API model id of an image (may be null)
+     * @return true if its provider uses seeds
+     */
+    public boolean usesSeeds(String modelId) {
+        return usesSeeds(generationService.providers().providerOf(modelId));
+    }
+
+    /*  whether a provider is registered and uses seeds  */
+    private boolean usesSeeds(ApiProvider provider) {
+        ProviderRegistry providers = generationService.providers();
+        return providers.ids().contains(provider) && providers.get(provider).usesSeeds();
     }
 
     /** The number of images to generate. */
@@ -477,9 +473,7 @@ public class GenerationPanelController {
         imageCountSlider.setDisable(!enableInput);
         imageCountLabel.setDisable(!enableInput);
         seedLabel.setDisable(!enableInput);
-        imageAttachmentLabel.setDisable(!enableInput);
         attachments.setDisable(!enableInput);
-        noImageLabel.setDisable(!enableInput);
         geminiAdvancedFeaturesContainer.setDisable(!enableInput);
 
         // The video parameters (duration) and the FLUX.2 parameters, with the web search of [max]
@@ -499,16 +493,11 @@ public class GenerationPanelController {
         updateImageCountLabel((int) imageCountSlider.getValue());
         if (seedTextField.getPromptText() != null)
             seedTextField.setPromptText(I18nManager.getText("params.seed.placeholder"));
-        uploadImageButton.setText(I18nManager.getText("params.image.attach"));
         generationTitleLabel.setText(I18nManager.getText("params.generation.title"));
         modelLabel.setText(I18nManager.getText("params.model"));
         updateGenerationSummary();
         seedLabel.setText(I18nManager.getText("params.seed"));
-        imageAttachmentLabel.setText(I18nManager.getText("params.image.attachment"));
-        noImageLabel.setText(I18nManager.getText("params.image.none"));
         clearSeedTooltip.setText(I18nManager.getText("params.seed.clear.tooltip"));
-        uploadImageTooltip.setText(I18nManager.getText("params.image.attach.tooltip"));
-        removeImageTooltip.setText(I18nManager.getText("params.image.remove.tooltip"));
         updateModelNames();
         parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
         updateCostDisplay();
@@ -600,8 +589,9 @@ public class GenerationPanelController {
     }
 
     /**
-     * Remembers the choices of the group. Another model also clears the attachments when switching from Google to
-     * BFL (the file size limits differ), shows its fields and tells the window.
+     * Remembers the choices of the group. Another model also clears the attachments if it takes no images or its
+     * provider takes smaller files (the attachments were shrunk to the limit of the former one), shows its fields and
+     * tells the window.
      */
     private void setupPersistenceListeners() {
         modelComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -614,9 +604,7 @@ public class GenerationPanelController {
                         config.generation().setDefaultModel(GenerationModel.openAiModelId(newVal) != null
                                 ? newVal : model.getDisplayName());
 
-                    // Provider switch: Google → BFL → clear attachments
-                    if (previousModel != null && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
-                            && model.getProvider() == ApiProvider.BFL && attachments.clearAll())
+                    if (previousModel != null && !takesAttachmentsOf(model, previousModel) && attachments.clearAll())
                         status.error(I18nManager.getText("status.attachments.cleared.provider"));
                 }
                 updateParameterVisibility(model);
@@ -649,6 +637,12 @@ public class GenerationPanelController {
             if (newVal != null && config != null)
                 config.generation().setDefaultGeminiThinkingLevel(newVal.toLowerCase());
         });
+    }
+
+    /*  whether a model takes the images attached for another: it takes images, and files as large  */
+    private static boolean takesAttachmentsOf(GenerationModel model, GenerationModel previous) {
+        return model.supportsImageAttachment()
+                && model.getProvider().getMaxFileSize() >= previous.getProvider().getMaxFileSize();
     }
 
     /**
@@ -687,8 +681,7 @@ public class GenerationPanelController {
             return;
 
         String model = modelComboBox.getValue();
-        art.moodframe.model.GenerationModel generationModel =
-                art.moodframe.model.GenerationModel.fromLocalizedDisplayName(model);
+        GenerationModel generationModel = GenerationModel.fromLocalizedDisplayName(model);
         String family = model != null ? art.moodframe.model.ModelFamilies.familyOf(model) : "";
         Integer seconds = selectedVideoSeconds();
         if (generationModel != null && generationModel.isVideoModel() && seconds != null)
@@ -721,10 +714,9 @@ public class GenerationPanelController {
         // Clear existing items
         modelComboBox.getItems().clear();
 
-        logger.info("Provider status - BFL: enabled={}, hasKey={} | Gemini: enabled={}, hasKey={}",
-                    config.accounts().isEnabled(ApiProvider.BFL), config.accounts().hasApiKey(ApiProvider.BFL),
-                    config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI),
-                    config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
+        for (ApiProvider provider : ApiProvider.values())
+            logger.info("Provider status - {}: enabled={}, hasKey={}", provider,
+                    config.accounts().isEnabled(provider), config.accounts().hasApiKey(provider));
 
         // Add models from enabled providers with valid API keys
         modelComboBox.getItems().addAll(generationService.availableItems(config, 0));
@@ -763,7 +755,7 @@ public class GenerationPanelController {
             return;
 
         // Use the tracked model instead of trying to parse the ComboBox value
-        art.moodframe.model.GenerationModel currentModel = currentSelectedModel;
+        GenerationModel currentModel = currentSelectedModel;
 
         // If no model is tracked, try to determine it from the current selection
         if (currentModel == null) {
@@ -771,9 +763,9 @@ public class GenerationPanelController {
             if (currentSelection != null) {
 
                 // Try multiple approaches to find the current model
-                currentModel = art.moodframe.model.GenerationModel.fromDisplayName(currentSelection);
+                currentModel = GenerationModel.fromDisplayName(currentSelection);
                 if (currentModel == null) {
-                    currentModel = art.moodframe.model.GenerationModel.fromLocalizedDisplayName(currentSelection);
+                    currentModel = GenerationModel.fromLocalizedDisplayName(currentSelection);
                 }
 
                 // If found, start tracking it
@@ -791,7 +783,7 @@ public class GenerationPanelController {
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
-            String localizedName = art.moodframe.model.GenerationModel.openAiModelId(previousItem) != null
+            String localizedName = GenerationModel.openAiModelId(previousItem) != null
                     ? previousItem : ModelLabels.displayName(currentModel);
 
             if (modelComboBox.getItems().contains(localizedName)) {
@@ -802,7 +794,7 @@ public class GenerationPanelController {
                 logger.warn("Localized model name '{}' not found in items: {}", localizedName,
                         modelComboBox.getItems());
                 // Fallback to default if current model not available
-                String defaultLocalized = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
+                String defaultLocalized = ModelLabels.displayName(GenerationModel.getDefault());
                 if (modelComboBox.getItems().contains(defaultLocalized)) {
                     modelComboBox.setValue(defaultLocalized);
                 } else {
@@ -889,7 +881,7 @@ public class GenerationPanelController {
             // Check if current selection is compatible
             if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {
                 // Auto-switch to the default model, which edits images (FLUX 3 Image)
-                String defaultName = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
+                String defaultName = ModelLabels.displayName(GenerationModel.getDefault());
 
                 // Make sure the item exists in the ComboBox before setting it
                 if (modelComboBox.getItems().contains(defaultName)) {
@@ -915,30 +907,22 @@ public class GenerationPanelController {
     }
 
     /**
-     * Updates parameter visibility based on the selected provider (BFL or Gemini).
-     *
-     * <p>Provider-specific parameters:</p>
-     * <ul>
-     *   <li><b>BFL-only parameters:</b> Safety Tolerance, Seed, Prompt Upsampling, Image Count, Style Presets</li>
-     *   <li><b>Gemini-only parameters:</b> Currently none (imageSize is not exposed in UI)</li>
-     *   <li><b>Common parameters:</b> Model, Aspect Ratio</li>
-     * </ul>
+     * Shows the fields the selected model takes: those of its provider ({@link ProviderParameters}), the seed if its
+     * provider uses seeds, the duration of a video in place of the count.
      *
      * @param generationModel the selected model, null for an unknown item
      */
-    private void updateParameterVisibility(art.moodframe.model.GenerationModel generationModel) {
+    private void updateParameterVisibility(GenerationModel generationModel) {
         boolean isVideo = generationModel != null && generationModel.isVideoModel();
-
-        // The provider of the model (an unknown item counts as BFL, the provider of the default model)
-        ApiProvider provider = generationModel != null ? generationModel.getProvider() : ApiProvider.BFL;
-
-        boolean isBFL = (provider == ApiProvider.BFL);
-        boolean isGemini = (provider == ApiProvider.GOOGLE_GEMINI) && !isVideo;
-
-        logger.info("Updating parameter visibility for provider: {}, isVideo: {}", provider, isVideo);
+        logger.info("Updating parameter visibility for model: {}, isVideo: {}", generationModel, isVideo);
 
         // The fields of BFL and Gemini
         parameters.show(generationModel);
+
+        /*  the seed for the models of a provider with seeds  */
+        boolean takesSeed = generationModel != null && usesSeeds(generationModel.getProvider());
+        seedContainer.setVisible(takesSeed);
+        seedContainer.setManaged(takesSeed);
 
         // Video Parameters (the duration choices depend on the model)
         if (videoParametersContainer != null) {
@@ -974,7 +958,7 @@ public class GenerationPanelController {
             imageCountContainer.setManaged(!isVideo);
         }
 
-        logger.debug("Parameter visibility updated: BFL={}, Gemini={}, Video={}", isBFL, isGemini, isVideo);
+        logger.debug("Parameter visibility updated: seed={}, video={}", takesSeed, isVideo);
     }
 
     /** The video length chosen in the duration choice, or null if there is none. */
@@ -1008,22 +992,6 @@ public class GenerationPanelController {
                 parameters.googleSearch(),
                 flux2GuidanceSlider != null ? flux2GuidanceSlider.getValue() : null,
                 flux2StepsSlider != null ? (int) flux2StepsSlider.getValue() : null, selectedVideoSeconds());
-    }
-
-    /**
-     * Handles the attach image button click event.
-     */
-    @FXML
-    private void onAttachImageClicked() {
-        attachments.choose();
-    }
-
-    /**
-     * Handles the remove image button click event.
-     */
-    @FXML
-    private void onRemoveImageClicked() {
-        attachments.remove();
     }
 
     /**
@@ -1076,7 +1044,7 @@ public class GenerationPanelController {
 
     /** The fixed id of the selected model, null without selection. */
     public String selectedModelId() {
-        return modelComboBox != null ? art.moodframe.model.GenerationModel.idOf(modelComboBox.getValue()) : null;
+        return modelComboBox != null ? GenerationModel.idOf(modelComboBox.getValue()) : null;
     }
 
     /**

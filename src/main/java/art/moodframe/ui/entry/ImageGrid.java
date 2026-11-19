@@ -57,6 +57,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -114,7 +115,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     private BiConsumer<Item, ImageActionBar.Action> onAction;
     private Consumer<ChatEntry> onReuse;
     private Consumer<Long> onSeedCopy;
-    private Supplier<Boolean> isFluxModelSelected;
+    private Supplier<Boolean> seedApplies;
+    private Predicate<String> usesSeeds;
 
     /**
      * Creates the grid, empty until it gets the entries of a chat or a group.
@@ -604,7 +606,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         });
     }
 
-    /** The context menu of an image: "Reuse" its entry and, for a FLUX image with a seed, "Copy seed". */
+    /** The context menu of an image: "Reuse" its entry and, for an image of a provider with seeds, "Copy seed". */
     private ContextMenu createMenu(Item item) {
         MenuItem reuse = new MenuItem(I18nManager.getText("entry.reuse.all"));
         reuse.setOnAction((action) -> {
@@ -614,10 +616,10 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         ContextMenu menu = new ContextMenu(reuse);
 
         long seed = item.image().getSeed();
-        if (onSeedCopy != null && EntryMenus.offersSeed(item.image())) {
+        if (onSeedCopy != null && EntryMenus.offersSeed(item.image(), usesSeeds)) {
             MenuItem copySeed = new MenuItem(I18nManager.getText("tooltip.copy.seed"));
             copySeed.setOnAction((action) -> onSeedCopy.accept(seed));
-            copySeed.setDisable(isFluxModelSelected == null || !isFluxModelSelected.get());
+            copySeed.setDisable(!seedApplies.get());
             menu.getItems().add(copySeed);
         }
         return menu;
@@ -651,14 +653,16 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     }
 
     /**
-     * Sets the callback of "Copy seed" in the context menu of an image, which takes effect while a FLUX model is
-     * chosen.
+     * Sets the callback of "Copy seed" in the context menu of an image, which takes effect while a model of a provider
+     * with seeds is chosen.
      *
-     * @param onSeedCopy the callback that receives the seed
-     * @param isFluxModelSelected whether a FLUX model is chosen
+     * @param onSeedCopy  the callback that receives the seed
+     * @param seedApplies whether the chosen model takes a seed
+     * @param usesSeeds   whether the provider of an API model id uses seeds, which an image offers then
      */
-    public void setOnSeedCopy(Consumer<Long> onSeedCopy, Supplier<Boolean> isFluxModelSelected) {
+    public void setOnSeedCopy(Consumer<Long> onSeedCopy, Supplier<Boolean> seedApplies, Predicate<String> usesSeeds) {
         this.onSeedCopy = onSeedCopy;
-        this.isFluxModelSelected = isFluxModelSelected;
+        this.seedApplies = seedApplies;
+        this.usesSeeds = usesSeeds;
     }
 }

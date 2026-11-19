@@ -1,6 +1,7 @@
 package art.moodframe.ui.entry;
 
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -165,8 +167,23 @@ class ImageSizeLabelTest {
         assertEquals("2752 × 1536 · PNG\nSeed: 42", ImageDetails.text(image, true));
         image.setBaseCost(0.13);
         image.setSearchCost(0.01);
-        assertEquals("Seed: 42\nBase Generation: $0.13\nGoogle Search: $0.01\nTotal: $0.14",
-                ImageDetails.text(image, false).replace(',', '.'));
+        Locale locale = I18nManager.getCurrentLocale();
+        try {
+            I18nManager.setLocale(Locale.ENGLISH);
+            assertEquals("Seed: 42\nBase Generation: $0.13\nGoogle Search: $0.01\nTotal: $0.14",
+                    ImageDetails.text(image, false));
+
+            /*  the costs and the count of the tokens in the language of the user interface  */
+            image.setSearchCost(null);
+            image.setReasoningCost(0.02);
+            image.setThinkingTokens(1234);
+            I18nManager.setLocale(Locale.GERMAN);
+            assertEquals("Seed: 42\nGrundgenerierung: $0,13\nReasoning: $0,02 (1.234 Tokens)\nGesamt: $0,15",
+                    ImageDetails.text(image, false));
+        }
+        finally {
+            I18nManager.setLocale(locale);
+        }
     }
 
     @Test

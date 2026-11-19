@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.ui.support.ImageCache;
+import art.moodframe.util.I18nManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -160,7 +161,7 @@ public class MemoryStatusComponent extends HBox {
         
         // Calculate percentage based on maximum available memory
         double usagePercentage = (double) usedMemory / maxMemory * 100.0;
-        String memoryText = String.format("%.0f%% (%dMB)", usagePercentage, usedMemory / 1024 / 1024);
+        String memoryText = String.format(I18nManager.getCurrentLocale(), "%.0f%% (%dMB)", usagePercentage, usedMemory / 1024 / 1024);
         
         // Update UI
         memoryLabel.setText(memoryText);
@@ -178,7 +179,7 @@ public class MemoryStatusComponent extends HBox {
         }
         
         // Update tooltip with memory information
-        String tooltipText = String.format(
+        String tooltipText = String.format(I18nManager.getCurrentLocale(),
             "Memory: %dMB used / %dMB max (%.1f%%)\n" +
             "Allocated: %dMB / Free: %dMB",
             usedMemory / 1024 / 1024, 

@@ -4,6 +4,8 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ModelLock;
+import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Node;
@@ -30,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -271,20 +274,24 @@ class ChatEntryCardTest {
     }
 
     /**
-     * "Copy seed" of the card and of the images view follows the provider of the model of an image, not its name: a
-     * FLUX image and one of a former FLUX model offer it, a Gemini, Omni or OpenAI image never, nor one without seed.
+     * "Copy seed" of the card and of the images view follows whether the provider of the model of an image uses
+     * seeds, not its name: a FLUX image and one of a former FLUX model offer it, a Gemini, Omni or OpenAI image never,
+     * nor one without seed; a provider that uses seeds offers them, whichever it is.
      */
     @Test
-    void onlyAnImageOfBflWithASeedOffersItsSeed() {
-        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 42)));
-        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX3_IMAGE_1K.getApiModelId(), -7)));
-        assertTrue(EntryMenus.offersSeed(image("flux-pro-1.1", 42)), "a former FLUX model");
-        assertFalse(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 0)), "no seed");
-        assertFalse(EntryMenus.offersSeed(image(null, 42)), "no model");
+    void onlyAnImageOfAProviderWithSeedsOffersItsSeed() {
+        ProviderRegistry providers = MockProviders.preparing();
+        Predicate<String> usesSeeds = (modelId) -> providers.forModel(modelId).usesSeeds();
+        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 42), usesSeeds));
+        assertTrue(EntryMenus.offersSeed(image(GenerationModel.FLUX3_IMAGE_1K.getApiModelId(), -7), usesSeeds));
+        assertTrue(EntryMenus.offersSeed(image("flux-pro-1.1", 42), usesSeeds), "a former FLUX model");
+        assertFalse(EntryMenus.offersSeed(image(GenerationModel.FLUX2_PRO.getApiModelId(), 0), usesSeeds), "no seed");
+        assertFalse(EntryMenus.offersSeed(image(null, 42), usesSeeds), "no model");
         for (GenerationModel model : List.of(GenerationModel.GEMINI_PRO_2K, GenerationModel.NANO_BANANA2_1K,
                 GenerationModel.OMNI_720P))
-            assertFalse(EntryMenus.offersSeed(image(model.getApiModelId(), 42)), model.name());
-        assertFalse(EntryMenus.offersSeed(image("gpt-image-1", 42)), "a model of the OpenAI Images API");
+            assertFalse(EntryMenus.offersSeed(image(model.getApiModelId(), 42), usesSeeds), model.name());
+        assertFalse(EntryMenus.offersSeed(image("gpt-image-1", 42), usesSeeds), "a model of the OpenAI Images API");
+        assertTrue(EntryMenus.offersSeed(image("gpt-image-1", 42), (modelId) -> true), "if its provider used seeds");
     }
 
     private static GeneratedImage image(String model, long seed) {
