@@ -136,6 +136,27 @@ public final class ModelFamilies {
     }
 
     /**
+     * Gets the target resolution for a resolution that is no target, for example {@code 1080p} of a video model: of
+     * the targets that select the variant of the family closest to it (see {@link #variantForTarget}) the closest
+     * one, so {@code 2K} for Gemini Omni at {@code 1080p}; a target stays as it is.
+     *
+     * @param items all dropdown items
+     * @param family the family name (may be null)
+     * @param resolution the resolution, for example of a brainstorm draft (may be null)
+     * @return one of {@link #RESOLUTIONS}, null for null
+     * @since 2.1.4
+     */
+    public static String targetFor(List<String> items, String family, String resolution) {
+        if (resolution == null || RESOLUTIONS.contains(resolution))
+            return resolution;
+        String item = family == null ? null : variantsOf(items, family).stream().findFirst().orElse(null);
+        String variant = Objects.requireNonNullElse(nearestForItem(resolution, items, item), resolution);
+        List<String> targets = RESOLUTIONS.stream()
+                .filter((String target) -> variant.equals(nearestForItem(target, items, item))).toList();
+        return nearest(variant, targets.isEmpty() ? RESOLUTIONS : targets);
+    }
+
+    /**
      * Picks the resolution closest to a target, comparing the pixels of the long side on a logarithmic scale, that is
      * by the factor between both; on a tie the smaller one.
      *

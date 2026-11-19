@@ -42,11 +42,11 @@ search of the provider: Google Search for Gemini, the built-in web search of the
 
 1. **Describe your idea:** a sentence is enough, or a link to a YouTube video.
 2. **Answer a few questions:** the assistant asks back, researches the web and checks the facts.
-3. **Adopt the draft:** prompt, mood, model and resolution go to the main window with one click.
+3. **Adopt the draft:** prompt, mood, frame, model, resolution and saved images go to the main window with one click.
 4. **Next round:** ask for the next image; one chat can plan a whole series.
 
-It knows your moods and building blocks, watches the YouTube videos you link in the time range you choose (Gemini),
-and keeps every brainstorm; several run side by side.
+It knows your moods, building blocks, frames and saved images (by their description), watches the YouTube videos you
+link in the time range you choose (Gemini), and keeps every brainstorm; several run side by side.
 
 Brainstorm needs an account with a language model *and* a web search. At every start MoodFrame checks each of your
 enabled accounts: connection, language model and web search. The status bar shows the result per account, and

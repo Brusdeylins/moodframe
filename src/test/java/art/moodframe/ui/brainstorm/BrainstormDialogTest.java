@@ -416,6 +416,56 @@ class BrainstormDialogTest {
     }
 
     @Test
+    void showsAndAdoptsTheVariantOfTheVideoResolutionOfTheDraftAndTheImageResolutionAsBefore() throws Exception {
+        List<GenerationModel> models = List.of(GenerationModel.FLUX2_PRO, GenerationModel.NANO_BANANA2_1K,
+                GenerationModel.NANO_BANANA2_2K, GenerationModel.OMNI_720P, GenerationModel.OMNI_1080P);
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), models, "Target model: x", models.stream().map(ModelLabels::displayName).toList(),
+                Set.of(), List.of(), List.of());
+        AtomicReference<BrainstormDialog.Result> video = new AtomicReference<>();
+        AtomicReference<BrainstormDialog.Result> closest = new AtomicReference<>();
+        AtomicReference<BrainstormDialog.Result> image = new AtomicReference<>();
+
+        String hint = onFx(() -> {
+            BrainstormResultForm omni = form(context, GenerationModel.FLUX2_PRO, video);
+            omni.show(draft("Gemini Omni", "1080p"));
+            new Scene(omni);
+            omni.applyCss();
+            String shown = omni.lookupAll(".label").stream().map((node) -> (Label) node)
+                    .filter((label) -> label.isVisible() && label.getText() != null
+                            && label.getText().startsWith("Gemini Omni → "))
+                    .map(Label::getText).findFirst().orElse(null);
+            adopt(omni);
+
+            BrainstormResultForm unknown = form(context, GenerationModel.FLUX2_PRO, closest);
+            unknown.show(draft("Gemini Omni", "1440p"));
+            adopt(unknown);
+
+            BrainstormResultForm banana = form(context, GenerationModel.FLUX2_PRO, image);
+            banana.show(draft("Nano Banana 2", "2K"));
+            adopt(banana);
+            return shown;
+        });
+
+        assertEquals("Gemini Omni → 1080p", hint, "the group Frame names the variant of the draft");
+        assertEquals(ModelLabels.displayName(GenerationModel.OMNI_1080P), video.get().targetModel());
+        assertEquals("2K", video.get().resolution(), "the target that selects 1080p in the main window as well");
+        assertEquals(ModelLabels.displayName(GenerationModel.OMNI_1080P), closest.get().targetModel(),
+                "a resolution the model does not have takes the closest variant");
+        assertEquals(ModelLabels.displayName(GenerationModel.NANO_BANANA2_2K), image.get().targetModel());
+        assertEquals("2K", image.get().resolution(), "an image resolution goes into the target as before");
+    }
+
+    /*  a draft that names a target model and a resolution  */
+    private static BrainstormDraft draft(String model, String resolution) {
+        BrainstormDraft draft = new BrainstormDraft();
+        draft.setPrompt("A lighthouse");
+        draft.setTargetModel(model);
+        draft.setResolution(resolution);
+        return draft;
+    }
+
+    @Test
     void readsTheStoredSessionsOffTheJavaFxThreadAndOpensTheLastOne() throws Exception {
         BrainstormRepository repository = mock(BrainstormRepository.class);
         List<Boolean> onFxThread = new java.util.concurrent.CopyOnWriteArrayList<>();

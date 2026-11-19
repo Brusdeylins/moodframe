@@ -463,17 +463,21 @@ final class BrainstormResultForm extends VBox {
             if (newDraft.getAspectRatio().equals(groups.aspectRatio()))
                 tick(AdoptionColumn.Field.ASPECT_RATIO, true);
         }
-        if (newDraft.getResolution() != null) {
-            groups.setResolution(newDraft.getResolution());
-            if (newDraft.getResolution().equals(groups.resolution()))
+
+        /*  A resolution of the model that is no target, as 1080p of a video model, sets the target that selects its
+            variant, an unknown one the closest  */
+        String wanted = newDraft.getTargetModel();
+        String family = ModelFamilies.familyOf(wanted != null ? wanted : modelBox.getValue());
+        String resolution = ModelFamilies.targetFor(modelBox.getItems(), family, newDraft.getResolution());
+        if (resolution != null) {
+            groups.setResolution(resolution);
+            if (resolution.equals(groups.resolution()))
                 tick(AdoptionColumn.Field.RESOLUTION, true);
         }
 
         /*  The model is a family name, or the name of one variant; the variant follows the target resolution  */
-        String wanted = newDraft.getTargetModel();
         String item = wanted == null ? null : modelBox.getItems().contains(wanted) ? wanted
-                : ModelFamilies.variantForTarget(modelBox.getItems(), ModelFamilies.familyOf(wanted),
-                        groups.resolution());
+                : ModelFamilies.variantForTarget(modelBox.getItems(), family, groups.resolution());
         if (item != null)
             modelBox.setValue(item);
         refreshModelDependent();

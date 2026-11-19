@@ -56,6 +56,30 @@ class ModelFamiliesTest {
     }
 
     @Test
+    void mapsAResolutionThatIsNoTargetToTheTargetSelectingTheClosestVariant() {
+        List<String> models = Stream.of(GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_4K,
+                GenerationModel.FLUX2_PRO, GenerationModel.OMNI_360P, GenerationModel.OMNI_720P,
+                GenerationModel.OMNI_1080P, GenerationModel.OMNI_4K).map(GenerationModel::getDisplayName).toList();
+
+        assertEquals("2K", ModelFamilies.targetFor(models, "Gemini Omni", "1080p"));
+        assertEquals("1.5K", ModelFamilies.targetFor(models, "Gemini Omni", "720p"));
+        assertEquals("768", ModelFamilies.targetFor(models, "Gemini Omni", "360p"));
+        for (String variant : models.subList(3, 7))
+            assertEquals(variant, ModelFamilies.variantForTarget(models, "Gemini Omni",
+                    ModelFamilies.targetFor(models, "Gemini Omni", ModelFamilies.resolutionOf(variant))),
+                    "the target selects the variant again");
+
+        /*  A resolution the family does not have takes its closest variant, a target stays as it is  */
+        assertEquals("2K", ModelFamilies.targetFor(models, "Gemini Omni", "1440p"), "1080p");
+        assertEquals("4K", ModelFamilies.targetFor(models, "Nano Banana 2", "8K"));
+        assertEquals("2K", ModelFamilies.targetFor(models, "Nano Banana 2", "2K"));
+        assertEquals("2K", ModelFamilies.targetFor(models, GenerationModel.FLUX2_PRO.getFamilyName(), "1080p"),
+                "a fixed size: the closest");
+        assertEquals("2K", ModelFamilies.targetFor(models, null, "1080p"));
+        assertNull(ModelFamilies.targetFor(models, "Gemini Omni", null));
+    }
+
+    @Test
     void takesTheSmallerResolutionOnATie() {
         assertEquals("1K", ModelFamilies.nearest("2K", List.of("4K", "1K")));
         assertEquals("2K", ModelFamilies.nearest("2K", List.of("1K", "2K", "4K")));
