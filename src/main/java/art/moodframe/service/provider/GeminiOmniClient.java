@@ -50,7 +50,7 @@ final class GeminiOmniClient {
     CompletableFuture<GenerationJobInfo> submit(ImageGenerationRequest request) {
         return transport.async(() -> {
             if (!transport.hasKey()) {
-                throw new IllegalStateException("Gemini API key is not configured");
+                throw ProviderException.noKey("Gemini");
             }
 
             try {

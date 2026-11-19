@@ -153,4 +153,62 @@ class ImageFileStoreTest {
         assertTrue(error.getMessage().contains("sig=***"), error.getMessage());
         assertFalse(error.getMessage().contains("SECRETSIG"), error.getMessage());
     }
+
+    /*  a local server answering every request with a status and a body, recording the key header  */
+    private static com.sun.net.httpserver.HttpServer server(int status, byte[] body, java.util.List<String> keys)
+            throws Exception {
+        com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", (exchange) -> {
+            keys.add(String.valueOf(exchange.getRequestHeaders().getFirst("x-goog-api-key")));
+            exchange.sendResponseHeaders(status, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    @Test
+    void aVideoIsDownloadedWithTheHeadersOfItsProviderOnTheOnePath(@TempDir Path dir) throws Exception {
+        byte[] video = "not really an mp4".getBytes(US_ASCII);
+        java.util.List<String> keys = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer server = server(200, video, keys);
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/files/abc:download";
+            GeneratedImage image = image();
+            image.setIsVideo(true);
+
+            ImageFileStore.StoredImage stored = new ImageFileStore(config(dir), HttpClient::newHttpClient)
+                    .downloadVideo(url, java.util.Map.of("x-goog-api-key", "the-key"), image);
+            stored.applyTo(image);
+
+            assertEquals(java.util.List.of("the-key"), keys);
+            assertEquals("moodframe_20261026_143005_nano-banana-2-1k_01234567.mp4", stored.filename());
+            assertTrue(java.util.Arrays.equals(video, Files.readAllBytes(dir.resolve(stored.filename()))));
+            assertEquals("mp4", image.formatProperty().get());
+            assertEquals("video/mp4", image.getMimeType());
+            assertEquals(video.length, image.getFileSizeBytes());
+            assertEquals(GeneratedImage.DownloadStatus.CACHED, image.getDownloadStatus());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void aVideoTheServerRefusesFailsWithItsStatus(@TempDir Path dir) throws Exception {
+        java.util.List<String> keys = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer server = server(403, new byte[0], keys);
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/files/abc:download";
+            ImageFileStore.HttpStatusException error = assertThrows(ImageFileStore.HttpStatusException.class,
+                    () -> new ImageFileStore(config(dir), HttpClient::newHttpClient)
+                            .downloadVideo(url, java.util.Map.of(), image()));
+            assertEquals(403, error.getStatusCode());
+            assertEquals("Video download failed: HTTP 403", error.getMessage());
+            assertEquals(java.util.List.of("null"), keys);
+        } finally {
+            server.stop(0);
+        }
+    }
 }

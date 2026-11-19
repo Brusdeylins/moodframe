@@ -8,6 +8,8 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.model.ModelParameter;
+import art.moodframe.model.ModelParameters;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.generation.GenerationService;
@@ -28,6 +30,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToIntFunction;
 
 /**
  * The tools that read the library and the models: {@code get_capabilities}, {@code list_moods}, {@code get_mood},
@@ -51,6 +54,7 @@ class LibraryTools {
     private final FrameService frames;
     private final FavoriteService favorites;
     private final TrashCenter trash;
+    private final ToIntFunction<String> promptLimit;
 
     /**
      * Creates the tools.
@@ -62,10 +66,12 @@ class LibraryTools {
      * @param frames    the frames
      * @param favorites the favorites
      * @param trash     the trash
+     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it
      */
     LibraryTools(ApplicationConfig config, MoodService moods, PromptBlockService blocks, ColorStyleService colors,
-            FrameService frames, FavoriteService favorites, TrashCenter trash) {
+            FrameService frames, FavoriteService favorites, TrashCenter trash, ToIntFunction<String> promptLimit) {
         this.config = config;
+        this.promptLimit = promptLimit;
         this.moods = moods;
         this.blocks = blocks;
         this.colors = colors;
@@ -125,7 +131,8 @@ class LibraryTools {
             List<String> free = ModelFamilies.freeResolutions(item);
             List<String> resolutions = free != null ? free
                     : model.getResolutionLabel() != null ? List.of(model.getResolutionLabel()) : List.of();
-            GenerationCost.Quote cost = GenerationCost.quote(model, model.isVideoModel() ? 8 : null, null, 1);
+            GenerationCost.Quote cost = GenerationCost.quote(model,
+                    model.isVideoModel() ? ModelParameters.DEFAULT_VIDEO_SECONDS : null, null, 1);
             ObjectNode node = list.addObject().put("id", id).put("name", item)
                     .put("family", ModelFamilies.familyOf(item)).put("provider", model.getProvider().getDisplayName())
                     .put("video", model.isVideoModel());
@@ -136,7 +143,7 @@ class LibraryTools {
                 node.put("cost", McpTools.usd(cost.perImage()));
             else
                 node.putNull("cost");
-            node.put("maxPromptLength", GenerationService.maxPromptLength(id));
+            node.put("maxPromptLength", promptLimit.applyAsInt(id));
             node.set("parameters", parameters(config, model));
         }
         result.set("camera", camera());
@@ -144,7 +151,8 @@ class LibraryTools {
     }
 
     /**
-     * The parameters a model takes besides prompt, target and images, as the main window offers them.
+     * The parameters a model takes besides prompt, target and images, as the main window offers them: the JSON
+     * schemas of its {@link ModelParameters}, with the defaults of the settings.
      *
      * @param config the defaults of the parameters
      * @param model  the model
@@ -152,32 +160,48 @@ class LibraryTools {
      */
     static ObjectNode parameters(ApplicationConfig config, GenerationModel model) {
         ObjectNode parameters = McpTools.JSON.createObjectNode();
-        if (model.isFlux2Model() || model.isFlux3Klein())
-            parameters.set("seed", McpTools.JSON.createObjectNode().put("type", "integer")
-                    .put("description", "Fixed seed; random without"));
-        if (model.supportsSafetyTolerance())
-            parameters.set("safetyTolerance", McpTools.integer("0 strict to 5 permissive", 0, 5,
-                    config.getFlux2SafetyTolerance()));
-        if (model.isFlux2Model() && !model.isFlux2Klein())
-            parameters.set("promptUpsampling", McpTools.JSON.createObjectNode().put("type", "boolean")
-                    .put("description", "BFL enhances the prompt"));
-        if (model.isFlux2Flex()) {
-            parameters.set("guidance", McpTools.JSON.createObjectNode().put("type", "number").put("minimum", 1.5)
-                    .put("maximum", 10.0).put("default", config.getFlux2FlexGuidance()));
-            parameters.set("steps", McpTools.integer("Inference steps", 1, 50, config.getFlux2FlexSteps()));
-        }
-        if (model.supportsThinkingLevel())
-            parameters.set("thinkingLevel", McpTools.choice("Thinking before the image", List.of("minimal", "high"),
-                    null));
-        if (model.supportsGoogleSearch())
-            parameters.set("googleSearch", McpTools.JSON.createObjectNode().put("type", "boolean")
-                    .put("description", "Grounds the image in a Google Search"));
-        if (model.isVideoModel()) {
-            ObjectNode seconds = McpTools.JSON.createObjectNode().put("type", "integer").put("default", 8);
-            seconds.set("enum", McpTools.JSON.valueToTree(model.getVideoDurationChoices()));
-            parameters.set("videoSeconds", seconds);
-        }
+        for (ModelParameter parameter : model.parameters())
+            parameters.set(parameter.name(), schema(parameter, defaultOf(config, parameter)));
         return parameters;
+    }
+
+    /**
+     * The default of a parameter: that of the settings for the safety tolerance, guidance and steps, else that of the
+     * provider.
+     *
+     * @param config the settings
+     * @param parameter the parameter
+     * @return the default, null for none
+     */
+    static Object defaultOf(ApplicationConfig config, ModelParameter parameter) {
+        if (parameter == ModelParameters.SAFETY_TOLERANCE)
+            return config.generation().getFlux2SafetyTolerance();
+        if (parameter == ModelParameters.GUIDANCE)
+            return config.generation().getFlux2FlexGuidance();
+        if (parameter == ModelParameters.STEPS)
+            return config.generation().getFlux2FlexSteps();
+        return parameter.defaultValue();
+    }
+
+    /*  the JSON schema of a parameter: type, description, limits, default, choices  */
+    private static ObjectNode schema(ModelParameter parameter, Object defaultValue) {
+        ObjectNode schema = McpTools.JSON.createObjectNode().put("type", switch (parameter.type()) {
+            case INTEGER -> "integer";
+            case NUMBER -> "number";
+            case BOOLEAN -> "boolean";
+            case CHOICE -> "string";
+        });
+        if (parameter.description() != null)
+            schema.put("description", parameter.description());
+        if (parameter.minimum() != null)
+            schema.set("minimum", McpTools.JSON.valueToTree(parameter.minimum()));
+        if (parameter.maximum() != null)
+            schema.set("maximum", McpTools.JSON.valueToTree(parameter.maximum()));
+        if (defaultValue != null)
+            schema.set("default", McpTools.JSON.valueToTree(defaultValue));
+        if (!parameter.choices().isEmpty())
+            schema.set("enum", McpTools.JSON.valueToTree(parameter.choices()));
+        return schema;
     }
 
     /*  the values of every camera setting, as they are stored in a camera block  */

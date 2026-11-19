@@ -9,6 +9,7 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.ApiHttpException;
 import art.moodframe.service.provider.BflApiException;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -139,48 +139,14 @@ public class BflGenerationFlow {
             // Note: grounding_search is NOT a parameter - FLUX.2 [max] has built-in grounding
             // that activates automatically based on prompt content
 
-            // Copy input image for image-to-image generation (FLUX.2 up to 8 images, FLUX 3 up to 10)
+            // Copy the input images for image-to-image generation (FLUX.2 up to 8 images, FLUX 3 up to 10)
             if (request.hasInputImage()) {
-                imageRequest.setInputImage(request.getInputImage());
-                // Copy additional FLUX.2 multi-image inputs (input_image_2 through input_image_8)
-                if (request.getInputImage2() != null && !request.getInputImage2().isEmpty()) {
-                    imageRequest.setInputImage2(request.getInputImage2());
-                }
-                if (request.getInputImage3() != null && !request.getInputImage3().isEmpty()) {
-                    imageRequest.setInputImage3(request.getInputImage3());
-                }
-                if (request.getInputImage4() != null && !request.getInputImage4().isEmpty()) {
-                    imageRequest.setInputImage4(request.getInputImage4());
-                }
-                if (request.getInputImage5() != null && !request.getInputImage5().isEmpty()) {
-                    imageRequest.setInputImage5(request.getInputImage5());
-                }
-                if (request.getInputImage6() != null && !request.getInputImage6().isEmpty()) {
-                    imageRequest.setInputImage6(request.getInputImage6());
-                }
-                if (request.getInputImage7() != null && !request.getInputImage7().isEmpty()) {
-                    imageRequest.setInputImage7(request.getInputImage7());
-                }
-                if (request.getInputImage8() != null && !request.getInputImage8().isEmpty()) {
-                    imageRequest.setInputImage8(request.getInputImage8());
-                }
-                if (request.getInputImage9() != null && !request.getInputImage9().isEmpty()) {
-                    imageRequest.setInputImage9(request.getInputImage9());
-                }
-                if (request.getInputImage10() != null && !request.getInputImage10().isEmpty()) {
-                    imageRequest.setInputImage10(request.getInputImage10());
-                }
-                int imageCount = request.getInputImageCount();
+                imageRequest.setInputImages(request.getInputImages());
                 StringBuilder imgSizes = new StringBuilder();
-                if (request.getInputImage() != null) imgSizes.append("img1=").append(request.getInputImage().length()).append(" ");
-                if (request.getInputImage2() != null) imgSizes.append("img2=").append(request.getInputImage2().length()).append(" ");
-                if (request.getInputImage3() != null) imgSizes.append("img3=").append(request.getInputImage3().length()).append(" ");
-                if (request.getInputImage4() != null) imgSizes.append("img4=").append(request.getInputImage4().length()).append(" ");
-                if (request.getInputImage5() != null) imgSizes.append("img5=").append(request.getInputImage5().length()).append(" ");
-                if (request.getInputImage6() != null) imgSizes.append("img6=").append(request.getInputImage6().length()).append(" ");
-                if (request.getInputImage7() != null) imgSizes.append("img7=").append(request.getInputImage7().length()).append(" ");
-                if (request.getInputImage8() != null) imgSizes.append("img8=").append(request.getInputImage8().length());
-                logger.info("Copied {} input images to imageRequest ({})", imageCount, imgSizes.toString().trim());
+                List<String> images = request.getInputImages();
+                for (int i = 0; i < images.size(); i++)
+                    imgSizes.append("img").append(i + 1).append('=').append(images.get(i).length()).append(' ');
+                logger.info("Copied {} input images to imageRequest ({})", images.size(), imgSizes.toString().trim());
             }
 
             // Handle seed generation for multiple images: user seed with index offset, else a random seed
@@ -195,7 +161,7 @@ public class BflGenerationFlow {
                 .exceptionallyCompose((throwable) -> {
                     /*  An account without approval for the safety tolerance gets one retry with its approved
                         maximum, which also becomes the value of the FLUX.2 slider  */
-                    Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
+                    Throwable cause = ProviderException.unwrap(throwable);
                     Integer approved = cause instanceof BflApiException bflError
                             ? bflError.getMaximumApprovedSafetyTolerance() : null;
                     if (approved == null)
@@ -213,7 +179,7 @@ public class BflGenerationFlow {
                     handleSubmissionSuccess(jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
                 })
                 .exceptionally(throwable -> {
-                    if (throwable instanceof java.util.concurrent.TimeoutException) {
+                    if (ProviderException.unwrap(throwable) instanceof java.util.concurrent.TimeoutException) {
                         logger.error("Timeout submitting generation request for image {}", imageIndex);
                         tracker.markFailed(chatEntry, "Request timeout after 30 seconds");
                     } else {
@@ -361,7 +327,8 @@ public class BflGenerationFlow {
                 .exceptionally(throwable -> {
                     // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
                     // This is expected behavior, not an error condition
-                    if (throwable.getCause() instanceof ApiHttpException http && http.getStatusCode() == 404) {
+                    if (ProviderException.unwrap(throwable) instanceof ApiHttpException http
+                            && http.getStatusCode() == 404) {
                         
                         logger.debug("Job {} status check returned 404 (attempt {}/{}) - job still processing", 
                             jobId.substring(0, Math.min(8, jobId.length())), 

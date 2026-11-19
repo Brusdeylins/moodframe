@@ -76,20 +76,45 @@ public class ProviderException extends RuntimeException {
     }
 
     /**
-     * Gets the message of a failure for the user: in English for the MCP clients, else in the language of the user
-     * interface. A {@link CompletionException} or {@link ExecutionException} is unwrapped.
+     * Creates the failure of a missing API key, for a request that cannot be sent without one.
      *
-     * @param failure the failure
-     * @param english true for the English message
-     * @return the message, that of the failure itself for one that is no {@code ProviderException}
+     * @param provider the name of the provider, e.g. {@code OpenAI}
+     * @return the exception
      */
-    public static String messageOf(Throwable failure, boolean english) {
+    public static ProviderException noKey(String provider) {
+        return localized("provider.error.no.key", provider);
+    }
+
+    /**
+     * Unwraps the {@link CompletionException}s and {@link ExecutionException}s a future wraps a failure in.
+     *
+     * @param failure the failure (may be null)
+     * @return the failure itself, null for null
+     */
+    public static Throwable unwrap(Throwable failure) {
         Throwable cause = failure;
         while ((cause instanceof CompletionException || cause instanceof ExecutionException)
                 && cause.getCause() != null)
             cause = cause.getCause();
-        if (english && cause instanceof ProviderException provider)
-            return provider.getMessage(Locale.ENGLISH);
-        return cause.getMessage();
+        return cause;
+    }
+
+    /**
+     * Gets the message of a failure for the user: in English for the MCP clients, else in the language of the user
+     * interface. The first {@code ProviderException} among the failure and its causes gives the message, however
+     * deeply it is wrapped; without one, the failure past its {@link CompletionException} or
+     * {@link ExecutionException} wrappers does.
+     *
+     * @param failure the failure
+     * @param english true for the English message
+     * @return the message, that of the unwrapped failure itself if no cause is a {@code ProviderException}
+     */
+    public static String messageOf(Throwable failure, boolean english) {
+        Throwable cause = failure;
+        for (int depth = 0; cause != null && depth < 32; depth++, cause = cause.getCause()) {
+            if (cause instanceof ProviderException provider)
+                return english ? provider.getMessage(Locale.ENGLISH) : provider.getMessage();
+        }
+        return unwrap(failure).getMessage();
     }
 }

@@ -57,8 +57,8 @@ Allowed dependency directions:
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 - `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
   depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
-  JavaFX and that no class of `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names
-  of `src/main/java`.
+  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, and that no class of
+  `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names of `src/main/java`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -77,11 +77,12 @@ The subpackages of `service`, each using only those above it in the table (no cy
 `service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
-Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (`LibraryEvents`,
-`service.generation`), and some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`,
-`GeneratedImage`, `ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which
-carry such properties, only through `service.generation.FxModel`. `service.chat` itself needs no JavaFX: the
-`ChatLibrary` changes these models on the calling thread (see "Threading").
+Known deviations: some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`, `GeneratedImage`,
+`ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which carry such
+properties, only through `service.generation.FxModel`, the one class of `service` that uses JavaFX (it also hands the
+notifications of a generation to the JavaFX thread). `service.chat` itself needs no JavaFX: the `ChatLibrary` changes
+these models on the calling thread (see "Threading"). `LibraryEvents` calls each listener through the executor it
+was added with; the views add theirs with `ui.support.FxLibraryEvents`, which passes `Platform::runLater`.
 
 ## Threading
 
@@ -95,31 +96,45 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
   second; then the JavaFX thread loads the FXML of the main window, which finds the chats loaded, applies the theme,
   shows the stage and starts the MCP server if enabled. A failed preparation ends the application as before.
-- **Chat models**: `ChatLibrary` keeps the chats in a plain list and changes it and the models of the chats on the
-  calling thread under `service.chat.ModelLock`, which `FxModel` holds for the changes of a generation as well; a
-  caller off the JavaFX thread reads them with `ChatLibrary.read` under the same lock. Only work in memory runs under
-  the lock. Nobody waits for the JavaFX thread: the views learn of a change through `LibraryEvents`, the sidebar keeps
-  a list of its own that follows the chats of the library, and the listeners the views put on the models hand their
-  work to the JavaFX thread.
+- **Chat models**: `ChatLibrary` keeps the chats in a plain list. The lists of the models (the chats, the entries of
+  a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
+  `service.chat.ModelLock`:
+  - they are changed only under the `ModelLock` (`change`, `changeAndGet`): by `ChatLibrary` on the calling thread
+    (an MCP thread, the worker of the window), by a generation on the JavaFX thread through `FxModel`;
+  - every other access reads them under the lock, the JavaFX thread included: `ChatLibrary.read` for the chats,
+    `ModelLock.read` for a value computed from them (e.g. the cost of a chat), and the snapshots
+    `ChatLibrary.entriesOf(chat)` and `ChatLibrary.imagesOf(entry)`, unmodifiable copies to iterate. Nobody iterates
+    a live list outside the lock.
+
+  Only work in memory runs under the lock, and nobody holding it waits for another thread, so the JavaFX thread
+  waits at most for such work and the MCP server never waits for the JavaFX thread. The views learn of a change
+  through `LibraryEvents`, the sidebar keeps a list of its own that follows the chats of the library, and the
+  listeners the views put on the models hand their work to the JavaFX thread.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
-- **Network I/O**: blocking provider calls, downloads and the brainstorm tools run on `net.IoExecutor`, a bounded
-  pool of daemon threads, never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker
-  (see `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit.
+- **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
+  never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
+  `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
+  for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
+  of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
+  analysis of an image into a mood composes the answer of the language model instead of waiting for it.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
   executor, the BFL polling on named daemon threads. The listeners learn of an entry that ended (completed, failed,
   cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
   queries then include it.
-- **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
-  thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
+- **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
+  executor it was added with, never in the middle of the write that caused it. The views add theirs with
+  `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
   a burst of events gives one query.
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
-- **MCP server**: its tools run on the threads of the `jdk.httpserver`, never on the JavaFX thread, and read and
-  change the chats without waiting for it (only `cancel_generation` waits for the change of the generation).
+- **MCP server**: each request runs on a virtual thread of its own (`mcp-server-N`), never on the JavaFX thread, and
+  reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
+  generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
+  thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
 - **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
   the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
   held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files.
@@ -275,11 +290,14 @@ replace them with mocks and fake HTTP servers. Interfaces with a single implemen
 them were removed; a new interface is introduced when a second implementation or a test seam needs it.
 
 The three provider clients extend the provider SPI `service.provider.ImageProvider` (key, connection test,
-a copy with other credentials for the test of an unsaved key, submission, seeds, attached images, prompt limit, the
-parameters a model takes, download headers) and keep their own extras, such as the BFL job polling or the
-brainstorm chat. The generation knows no provider by name: what differs per provider lives in its client. Errors
-are `ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the
-MCP clients get in English.
+a copy with other credentials for the test of an unsaved key, submission of images and videos, seeds, attached
+images, prompt limit, the parameters a model takes, download headers) and keep their own extras, such as the BFL job
+polling or the brainstorm chat. The generation knows no provider by name: what differs per provider lives in its
+client; a video model is submitted like an image model, and images and videos are downloaded on one path
+(`ImageFileStore`). The parameters of the models (name, kind, limits, default, slider step) are one table,
+`model.ModelParameters`, which the MCP schema, the MCP validation and the providers read. Errors are
+`ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the MCP
+clients get in English.
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
 provider is a client, its entry in the registry, its models, its constant in `ApiProvider` (whose prefix names its

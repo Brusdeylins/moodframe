@@ -16,6 +16,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.GeminiApiService;
+import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.RequestOptions;
 import org.slf4j.Logger;
@@ -169,16 +170,19 @@ public class GenerationService {
     }
 
     /**
-     * Gets the prompt limit of a model without the providers at hand, for the main window: the same limits as
-     * {@link #promptLimit(String)} gets from the providers.
+     * Gets the prompt limit of a model without the providers at hand: the same limits as {@link #promptLimit(String)}
+     * gets from the providers. Only the main window without a generation service and the reading MCP tools without
+     * one still use it.
      *
      * @param modelId the fixed id of the model (may be null)
      * @return the limit, that of BFL without model
+     * @deprecated names the providers; use {@link #promptLimit(String)}, which asks the provider of the model
      */
+    @Deprecated(forRemoval = true)
     public static int maxPromptLength(String modelId) {
         GenerationModel model = GenerationModel.fromId(modelId);
         if (model == GenerationModel.OPENAI_IMAGE)
-            return GenerationModel.openAiMaxPromptLength(modelId);
+            return OpenAiApiService.promptLimitOf(modelId);
         return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI ? GeminiApiService.MAX_PROMPT_LENGTH
                 : BflApiService.MAX_PROMPT_LENGTH;
     }

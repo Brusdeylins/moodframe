@@ -2,9 +2,9 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
-import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelParameters;
 import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Service interface for Google Gemini API interactions: image generation (an answer carries the finished image),
- * Gemini Omni video, the brainstorm chat and its research.
+ * Service interface for Google Gemini API interactions: image generation (an answer carries the finished image) and
+ * Gemini Omni video through {@link #submitGenerationRequest}, the brainstorm chat and its research.
  *
  * @author Matthias Brusdeylins
  * @since 1.5.0
@@ -46,7 +46,8 @@ public interface GeminiApiService extends ImageProvider {
         request.setImageSize(imageSize(model));
         if (options.googleSearch() != null)
             request.setEnableGoogleSearch(options.googleSearch());
-        request.setThinkingMode(model.supportsThinkingLevel() && options.thinkingLevel() != null
+        request.setThinkingMode(model.parameter(ModelParameters.THINKING_LEVEL.name()) != null
+                && options.thinkingLevel() != null
                 ? options.thinkingLevel().toLowerCase() : null);
         List<String> referenceImages = options.referenceImages();
         if (model.supportsMultiImage() && !referenceImages.isEmpty())
@@ -54,7 +55,8 @@ public interface GeminiApiService extends ImageProvider {
 
         if (model.isVideoModel()) {
             request.setVideoResolution(model.getVideoResolution());
-            request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds() : 8);
+            request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds()
+                    : ModelParameters.DEFAULT_VIDEO_SECONDS);
             request.setGenerateAudio(true);
             request.setImageCount(1);
         }
@@ -161,15 +163,4 @@ public interface GeminiApiService extends ImageProvider {
      * @since 2.1.2
      */
     CompletableFuture<String> checkWebSearch();
-
-    /**
-     * Generates a video with Gemini Omni through the Interactions API. The call is synchronous: it returns
-     * when the video exists, so the result is a completed job with the download URL (or a failed job).
-     * The duration is not an API parameter, it is put into the prompt.
-     *
-     * @param request the generation request with the video parameters (resolution, duration, aspect ratio)
-     * @return a CompletableFuture containing the completed or failed job info
-     * @since 1.8.0
-     */
-    CompletableFuture<GenerationJobInfo> submitOmniGenerationRequest(ImageGenerationRequest request);
 }

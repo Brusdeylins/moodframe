@@ -98,6 +98,8 @@ public class LibrarySidebarController {
 
     private ChatLibrary chatLibrary;
     private ChatHistoryService chatHistory;
+    /*  runs the writes of the chats and the queries of the groups, off the JavaFX thread  */
+    private Executor worker;
     private ApplicationConfig config;
     private StatusSink status;
     private Listener listener;
@@ -147,7 +149,7 @@ public class LibrarySidebarController {
      * @param chatLibrary the chats
      * @param chatHistory queries the groups (may be null: no groups)
      * @param config      remembers the view of the list
-     * @param worker      runs the queries of the groups
+     * @param worker      runs the writes of the chats (trash, order, name) and the queries of the groups
      * @param status      shows what the sidebar did
      * @param listener    shows the selection
      */
@@ -155,6 +157,7 @@ public class LibrarySidebarController {
                      Executor worker, StatusSink status, Listener listener) {
         this.chatLibrary = chatLibrary;
         this.chatHistory = chatHistory;
+        this.worker = worker;
         this.config = config;
         this.status = status;
         this.listener = listener;
@@ -200,7 +203,15 @@ public class LibrarySidebarController {
                 chatList.add(Math.min(i, chatList.size()), library.get(i));
         for (int i = 0; i < chatList.size(); i++)
             if (chatList.get(i) != library.get(i)) {
-                FXCollections.sort(chatList, Comparator.comparingInt(order::get));
+                /*  a new order keeps the selected chat without opening it again  */
+                boolean reordering = reorderingChats;
+                reorderingChats = true;
+                try {
+                    FXCollections.sort(chatList, Comparator.comparingInt(order::get));
+                }
+                finally {
+                    reorderingChats = reordering;
+                }
                 break;
             }
     }
@@ -234,6 +245,17 @@ public class LibrarySidebarController {
         return !chat.isDeleted();
     }
 
+    /*  Filters the chats anew after one went to the trash or left it: with a predicate object of its own, as setting
+        the same predicate again (a method reference of one place is one object) would not filter again  */
+    private void refilterChats() {
+        filteredChatList.setPredicate(new java.util.function.Predicate<>() {
+            @Override
+            public boolean test(Chat chat) {
+                return shouldShowChat(chat);
+            }
+        });
+    }
+
     /**
      * Opens a chat as if chosen in the list, for the tests of the window.
      *
@@ -257,30 +279,34 @@ public class LibrarySidebarController {
      * to move to the trash: it is just removed from the list, as are all chats without entries, so they do not
      * reappear later. The open chat then shows its images from the trash.
      *
+     * <p>The library writes on the worker; the list and the open chat follow its report of the change (see
+     * {@link #showChatChange}), the status follows once the write is done.</p>
+     *
      * @param chat the chat to delete
      */
     private void onChatDeleteRequested(Chat chat) {
-        try {
-            if (chatLibrary.moveToTrash(chat)) {
-                syncChats();
-                if (!chat.getEntries().isEmpty())
-                    filteredChatList.setPredicate(LibrarySidebarController::shouldShowChat);
-                if (currentChat == chat)
-                    listener.showSelection();
-                status.status(I18nManager.getText("status.chat.moved.trash"));
-            } else {
-                logger.error("Failed to soft delete chat: {}", chat.getName());
-                status.error(I18nManager.getText("status.error.chat.deletion"));
+        worker.execute(() -> {
+            try {
+                boolean gone = chatLibrary.moveToTrash(chat);
+                Platform.runLater(() -> {
+                    if (gone)
+                        status.status(I18nManager.getText("status.chat.moved.trash"));
+                    else {
+                        logger.error("Failed to soft delete chat: {}", chat.getName());
+                        status.error(I18nManager.getText("status.error.chat.deletion"));
+                    }
+                });
+            } catch (Exception e) {
+                logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
+                Platform.runLater(() -> status.error(I18nManager.getText("status.error.chat.deletion")));
             }
-        } catch (Exception e) {
-            logger.error("Failed to save chat deletion status to database: {}", chat.getName(), e);
-            status.error(I18nManager.getText("status.error.chat.deletion"));
-        }
+        });
     }
 
     /**
-     * Moves a chat to a gap between the shown chats (0 above the first one) and stores the order of all chats. The
-     * list sorts itself anew, keeping the selected chat without opening it again.
+     * Moves a chat to a gap between the shown chats (0 above the first one) and stores the order of all chats, on the
+     * worker. The list sorts itself anew by the report of the library (see {@link #showChatChange}), keeping the
+     * selected chat without opening it again.
      *
      * @param chat the chat to move
      * @param gap  the gap it goes to
@@ -289,36 +315,39 @@ public class LibrarySidebarController {
         if (chatHistory == null)
             return;
         Chat before = gap < filteredChatList.size() ? filteredChatList.get(gap) : null;
-        reorderingChats = true;
-        try {
-            chatLibrary.moveChat(chat, before);
-        } catch (Exception e) {
-            logger.error("Failed to store the order of the chats", e);
-        }
-        syncChats();
-        reorderingChats = false;
+        worker.execute(() -> {
+            try {
+                chatLibrary.moveChat(chat, before);
+            } catch (Exception e) {
+                logger.error("Failed to store the order of the chats", e);
+            }
+        });
     }
 
     /**
-     * Stores the new name of a chat; the header follows if it is the chosen chat.
+     * Stores the new name of a chat on the worker; the header follows if it is the chosen chat.
      *
      * @param chat the chat that was renamed
      */
     private void onChatRenamed(Chat chat) {
-        try {
-            chatLibrary.renameChat(chat, chat.getName());
-
-            /*  by ID, the list may hold another object of the same chat  */
-            if (currentChat != null && currentChat.getId().equals(chat.getId())) {
-                currentChat = chat;
-                listener.showHeader();
+        String name = chat.getName();
+        worker.execute(() -> {
+            try {
+                chatLibrary.renameChat(chat, name);
+                Platform.runLater(() -> {
+                    /*  by ID, the list may hold another object of the same chat  */
+                    if (currentChat != null && currentChat.getId().equals(chat.getId())) {
+                        currentChat = chat;
+                        listener.showHeader();
+                    }
+                    status.status(java.text.MessageFormat.format(I18nManager.getText("status.chat.renamed"), name));
+                });
+            } catch (Exception e) {
+                logger.error("Failed to save chat rename to database: {}", name, e);
+                Platform.runLater(() -> status.error(java.text.MessageFormat.format(
+                        I18nManager.getText("status.error.chat.rename"), e.getMessage())));
             }
-            status.status(java.text.MessageFormat.format(I18nManager.getText("status.chat.renamed"), chat.getName()));
-        } catch (Exception e) {
-            logger.error("Failed to save chat rename to database: {}", chat.getName(), e);
-            status.error(java.text.MessageFormat.format(I18nManager.getText("status.error.chat.rename"),
-                    e.getMessage()));
-        }
+        });
     }
 
     /**
@@ -341,7 +370,7 @@ public class LibrarySidebarController {
 
         /*  A chat that left the trash or went there; the open one shows its images from their place now  */
         if (chat != null && filteredChatList.contains(chat) != shouldShowChat(chat)) {
-            filteredChatList.setPredicate(LibrarySidebarController::shouldShowChat);
+            refilterChats();
             if (currentChat == chat || shownGroup != null)
                 listener.showSelection();
         }

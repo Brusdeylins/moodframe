@@ -9,12 +9,13 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
-import art.moodframe.ui.support.BoxInset;
+import art.moodframe.service.chat.ModelLock;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.ImageGrid;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -404,7 +405,7 @@ public class ChatViewController {
                     .thenComparing(ChatEntry::getCreatedAt);
             items.add((int) items.stream().filter((other) -> order.compare(other, entry) <= 0).count(), entry);
             if (group.get() == null)
-                lastChatEntriesCount = chat.get().getEntries().size();
+                lastChatEntriesCount = ChatLibrary.entriesOf(chat.get()).size();
         }
         else if (belongs)
             addNewChatEntryToUI(entry);
@@ -421,7 +422,7 @@ public class ChatViewController {
         try {
             // Only update if this is the currently displayed chat and entry exists (an open group shows all chats)
             java.util.List<ChatEntry> shown = group.get() != null ? chatEntriesListView.getItems()
-                    : chat.get() != null ? chat.get().getEntries() : null;
+                    : chat.get() != null ? ChatLibrary.entriesOf(chat.get()) : null;
             if (shown != null && shown.contains(chatEntry)) {
                 // Find and update only the specific ChatEntryCard instead of reloading entire
                 // chat
@@ -442,11 +443,11 @@ public class ChatViewController {
         try {
             // Only update if this image belongs to the currently displayed chat (an open group shows all chats)
             java.util.List<ChatEntry> shown = group.get() != null ? chatEntriesListView.getItems()
-                    : chat.get() != null ? chat.get().getEntries() : null;
+                    : chat.get() != null ? ChatLibrary.entriesOf(chat.get()) : null;
             if (shown != null) {
                 // Find the ChatEntry that contains this image
                 ChatEntry parentEntry = shown.stream()
-                        .filter(entry -> entry.getImages().stream()
+                        .filter(entry -> ChatLibrary.imagesOf(entry).stream()
                                 .anyMatch(img -> img.getId().equals(image.getId())))
                         .findFirst()
                         .orElse(null);
@@ -892,13 +893,13 @@ public class ChatViewController {
         // Check if we should auto-scroll to bottom
         boolean shouldAutoScroll = false;
         if (shown != null && shown == chat.get()) {
-            int currentEntriesCount = shown.getEntries().size();
+            int currentEntriesCount = ChatLibrary.entriesOf(shown).size();
             boolean hasNewEntries = currentEntriesCount > lastChatEntriesCount;
             shouldAutoScroll = hasNewEntries;
             lastChatEntriesCount = currentEntriesCount;
         } else if (shown != null) {
             shouldAutoScroll = true;
-            lastChatEntriesCount = shown.getEntries().size();
+            lastChatEntriesCount = ChatLibrary.entriesOf(shown).size();
         }
 
         if (shown == null) {
@@ -915,7 +916,7 @@ public class ChatViewController {
 
             // Create ObservableList from chat entries for virtualized ListView
             javafx.collections.ObservableList<ChatEntry> entries =
-                javafx.collections.FXCollections.observableArrayList(shown.getEntries());
+                javafx.collections.FXCollections.observableArrayList(ChatLibrary.entriesOf(shown));
             chatEntriesListView.setItems(entries);
 
             logger.debug("Loading chat {} with {} entries (virtualized ListView)",
@@ -962,10 +963,13 @@ public class ChatViewController {
 
     /*  The cost of a chat for its header: all it cost, the deleted part named; empty for a chat without cost  */
     private static String costText(Chat chat) {
-        double total = art.moodframe.model.ChatCost.total(chat);
+        /*  both under the lock of the models, whose entries another thread may change meanwhile  */
+        double[] cost = ModelLock.read(() -> new double[] {art.moodframe.model.ChatCost.total(chat),
+                art.moodframe.model.ChatCost.deleted(chat)});
+        double total = cost[0];
         if (total <= 0)
             return "";
-        double deleted = art.moodframe.model.ChatCost.deleted(chat);
+        double deleted = cost[1];
         return deleted > 0
                 ? I18nManager.getText("chat.total.cost.with.deleted", String.format("%.2f", total),
                         String.format("%.2f", deleted))
@@ -1059,12 +1063,12 @@ public class ChatViewController {
             return;
         }
 
-        if (chatEntry == null || chatEntry.getImages().isEmpty()) {
+        if (chatEntry == null || ChatLibrary.imagesOf(chatEntry).isEmpty()) {
             return;
         }
 
         // Extract image paths from chat entry, checking both active and trash locations
-        java.util.List<String> imagePaths = chatEntry.getImages().stream()
+        java.util.List<String> imagePaths = ChatLibrary.imagesOf(chatEntry).stream()
                 .map(image -> imagePath(image, chat.get() != null && chat.get().isDeleted()))
                 .filter(path -> path != null && !path.isEmpty())
                 .filter(path -> new java.io.File(path).exists()) // Only include existing files
@@ -1106,7 +1110,7 @@ public class ChatViewController {
         // Work directly with chat entries from the current chat, or with those of an open group
         // The issue is not with deleted chat entries, but with the index calculation
         java.util.List<ChatEntry> chatEntries = group.get() != null ? chatEntriesListView.getItems()
-                : chat.get().getEntries();
+                : ChatLibrary.entriesOf(chat.get());
 
         int currentIndex = -1;
 
@@ -1154,7 +1158,7 @@ public class ChatViewController {
 
         // Work directly with chat entries from the current chat, or with those of an open group
         java.util.List<ChatEntry> chatEntries = group.get() != null ? chatEntriesListView.getItems()
-                : chat.get().getEntries();
+                : ChatLibrary.entriesOf(chat.get());
         int currentIndex = -1;
 
         // Find current entry index in the chat entries list
@@ -1192,7 +1196,7 @@ public class ChatViewController {
      * @return true if the entry has at least one valid image
      */
     private boolean hasValidImages(ChatEntry entry) {
-        if (entry == null || entry.getImages().isEmpty()) {
+        if (entry == null || ChatLibrary.imagesOf(entry).isEmpty()) {
             return false;
         }
 
@@ -1201,7 +1205,7 @@ public class ChatViewController {
 
         // Check if at least one image is valid (downloaded successfully and file
         // exists)
-        for (GeneratedImage image : entry.getImages()) {
+        for (GeneratedImage image : ChatLibrary.imagesOf(entry)) {
             // Check image download status
             if (image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED) {
                 continue; // Skip non-cached images
@@ -1229,11 +1233,11 @@ public class ChatViewController {
      * @return the index of the first valid image, or 0 if none found
      */
     private int findFirstValidImageIndex(ChatEntry entry) {
-        if (entry == null || entry.getImages().isEmpty()) {
+        if (entry == null || ChatLibrary.imagesOf(entry).isEmpty()) {
             return 0;
         }
 
-        java.util.List<GeneratedImage> images = entry.getImages();
+        java.util.List<GeneratedImage> images = ChatLibrary.imagesOf(entry);
         for (int i = 0; i < images.size(); i++) {
             GeneratedImage image = images.get(i);
 
@@ -1342,7 +1346,7 @@ public class ChatViewController {
         String chatName = null;
         java.time.LocalDateTime createdAt = null;
         for (ChatEntry entry : chatEntriesListView.getItems()) {
-            for (GeneratedImage image : entry.getImages()) {
+            for (GeneratedImage image : ChatLibrary.imagesOf(entry)) {
                 if (image.getLocalFilePath() != null && new File(image.getLocalFilePath()).getName().equals(name)) {
                     Chat chat = getCurrentChatFromEntry(entry);
                     chatName = chat != null ? chat.getName() : null;
@@ -1382,7 +1386,7 @@ public class ChatViewController {
         }
 
         // Check if at least one image was successfully generated (CACHED status)
-        boolean hasAnySuccessfulImage = entry.getImages().stream()
+        boolean hasAnySuccessfulImage = ChatLibrary.imagesOf(entry).stream()
                 .anyMatch(img -> img.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
                         && img.getLocalFilePath() != null
                         && !img.getLocalFilePath().isEmpty());
@@ -1425,7 +1429,7 @@ public class ChatViewController {
      */
     private void handleDeleteImage(String entryId, String imageId) {
         ChatEntry entry = chatLibrary.findEntry(entryId);
-        GeneratedImage image = entry == null ? null : entry.getImages().stream()
+        GeneratedImage image = entry == null ? null : ChatLibrary.imagesOf(entry).stream()
                 .filter(img -> img.getId().equals(imageId)).findFirst().orElse(null);
         if (image == null) {
             logger.warn("Image not found for deletion - entry: {}, image: {}", entryId, imageId);

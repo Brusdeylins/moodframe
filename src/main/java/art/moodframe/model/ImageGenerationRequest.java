@@ -2,14 +2,16 @@ package art.moodframe.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Represents a request for image generation via the BFL API.
- * 
+ * Represents a request for image or video generation, independent of the provider.
+ *
  * <p>This class encapsulates all parameters needed to generate images
- * using FLUX models including the prompt, model selection, dimensions,
- * and generation settings.</p>
+ * including the prompt, model selection, dimensions, reference images
+ * and generation settings; each provider client builds the body of its API from it.</p>
  * 
  * @since 1.0.0
  */
@@ -55,39 +57,9 @@ public class ImageGenerationRequest {
     // Style preset identifier (for UI tracking, not sent in request)
     private String stylePreset;
     
-    // Image attachment for image-to-image editing (only for compatible models)
-    @JsonProperty("input_image")
-    private String inputImage; // Base64 encoded image data
-
-    // FLUX.2 Multi-Image Support (up to 8 images total)
-    @JsonProperty("input_image_2")
-    private String inputImage2;
-
-    @JsonProperty("input_image_3")
-    private String inputImage3;
-
-    @JsonProperty("input_image_4")
-    private String inputImage4;
-
-    @JsonProperty("input_image_5")
-    private String inputImage5;
-
-    @JsonProperty("input_image_6")
-    private String inputImage6;
-
-    @JsonProperty("input_image_7")
-    private String inputImage7;
-
-    @JsonProperty("input_image_8")
-    private String inputImage8;
-
-    // Additional images for Gemini (supports up to 14 total)
-    private String inputImage9;
-    private String inputImage10;
-    private String inputImage11;
-    private String inputImage12;
-    private String inputImage13;
-    private String inputImage14;
+    // Reference images in Base64 (FLUX.2 up to 8, FLUX 3 up to 10, Gemini up to 14); each client maps them to
+    // the wire format of its API
+    private final List<String> inputImages = new ArrayList<>();
 
     // Gemini-specific fields (not used for BFL)
     private List<String> responseModalities; // e.g., ["IMAGE"] or ["TEXT", "IMAGE"]
@@ -361,139 +333,72 @@ public class ImageGenerationRequest {
     }
     
     /**
-     * Gets the input image for image-to-image editing.
-     * 
+     * Gets the first input image for image-to-image editing.
+     *
      * @return the Base64 encoded input image, or null if not using image input
      */
     public String getInputImage() {
-        return inputImage;
+        return inputImages.isEmpty() ? null : inputImages.get(0);
     }
-    
+
     /**
-     * Sets the input image for image-to-image editing.
+     * Sets the first input image for image-to-image editing, keeping the others.
      * This should be a Base64 encoded image string.
-     * 
-     * @param inputImage the Base64 encoded image data
+     *
+     * @param inputImage the Base64 encoded image data, null or empty to remove the first image
      */
     public void setInputImage(String inputImage) {
-        this.inputImage = inputImage;
+        boolean present = inputImage != null && !inputImage.isEmpty();
+        if (inputImages.isEmpty()) {
+            if (present)
+                inputImages.add(inputImage);
+        } else if (present) {
+            inputImages.set(0, inputImage);
+        } else {
+            inputImages.remove(0);
+        }
     }
-    
+
     /**
      * Checks if this request includes an image attachment.
      *
      * @return true if an input image is attached
      */
     public boolean hasInputImage() {
-        return inputImage != null && !inputImage.trim().isEmpty();
+        String first = getInputImage();
+        return first != null && !first.trim().isEmpty();
     }
 
-    // ===== FLUX.2 Multi-Image Getters/Setters =====
-
-    public String getInputImage2() { return inputImage2; }
-    public void setInputImage2(String inputImage2) { this.inputImage2 = inputImage2; }
-
-    public String getInputImage3() { return inputImage3; }
-    public void setInputImage3(String inputImage3) { this.inputImage3 = inputImage3; }
-
-    public String getInputImage4() { return inputImage4; }
-    public void setInputImage4(String inputImage4) { this.inputImage4 = inputImage4; }
-
-    public String getInputImage5() { return inputImage5; }
-    public void setInputImage5(String inputImage5) { this.inputImage5 = inputImage5; }
-
-    public String getInputImage6() { return inputImage6; }
-    public void setInputImage6(String inputImage6) { this.inputImage6 = inputImage6; }
-
-    public String getInputImage7() { return inputImage7; }
-    public void setInputImage7(String inputImage7) { this.inputImage7 = inputImage7; }
-
-    public String getInputImage8() { return inputImage8; }
-    public void setInputImage8(String inputImage8) { this.inputImage8 = inputImage8; }
-
-    // Additional Gemini images (9-14)
-    public String getInputImage9() { return inputImage9; }
-    public void setInputImage9(String inputImage9) { this.inputImage9 = inputImage9; }
-
-    public String getInputImage10() { return inputImage10; }
-    public void setInputImage10(String inputImage10) { this.inputImage10 = inputImage10; }
-
-    public String getInputImage11() { return inputImage11; }
-    public void setInputImage11(String inputImage11) { this.inputImage11 = inputImage11; }
-
-    public String getInputImage12() { return inputImage12; }
-    public void setInputImage12(String inputImage12) { this.inputImage12 = inputImage12; }
-
-    public String getInputImage13() { return inputImage13; }
-    public void setInputImage13(String inputImage13) { this.inputImage13 = inputImage13; }
-
-    public String getInputImage14() { return inputImage14; }
-    public void setInputImage14(String inputImage14) { this.inputImage14 = inputImage14; }
+    /**
+     * Gets the input images in their order.
+     *
+     * @return the Base64 encoded images, empty without; not modifiable
+     */
+    public List<String> getInputImages() {
+        return Collections.unmodifiableList(inputImages);
+    }
 
     /**
-     * Sets multiple input images from a list of Base64-encoded strings.
-     * The first image goes to inputImage, second to inputImage2, etc.
+     * Sets the input images from a list of Base64-encoded strings, replacing the ones set before; a null or empty
+     * list keeps them, null and empty strings are left out.
      *
      * @param images list of Base64-encoded image strings (max 14 for Gemini, max 8 for FLUX.2)
      */
     public void setInputImages(List<String> images) {
         if (images == null || images.isEmpty()) return;
-
-        // Clear all previous images first
-        this.inputImage = null;
-        this.inputImage2 = null;
-        this.inputImage3 = null;
-        this.inputImage4 = null;
-        this.inputImage5 = null;
-        this.inputImage6 = null;
-        this.inputImage7 = null;
-        this.inputImage8 = null;
-        this.inputImage9 = null;
-        this.inputImage10 = null;
-        this.inputImage11 = null;
-        this.inputImage12 = null;
-        this.inputImage13 = null;
-        this.inputImage14 = null;
-
-        // Set images from list
-        if (images.size() > 0) this.inputImage = images.get(0);
-        if (images.size() > 1) this.inputImage2 = images.get(1);
-        if (images.size() > 2) this.inputImage3 = images.get(2);
-        if (images.size() > 3) this.inputImage4 = images.get(3);
-        if (images.size() > 4) this.inputImage5 = images.get(4);
-        if (images.size() > 5) this.inputImage6 = images.get(5);
-        if (images.size() > 6) this.inputImage7 = images.get(6);
-        if (images.size() > 7) this.inputImage8 = images.get(7);
-        if (images.size() > 8) this.inputImage9 = images.get(8);
-        if (images.size() > 9) this.inputImage10 = images.get(9);
-        if (images.size() > 10) this.inputImage11 = images.get(10);
-        if (images.size() > 11) this.inputImage12 = images.get(11);
-        if (images.size() > 12) this.inputImage13 = images.get(12);
-        if (images.size() > 13) this.inputImage14 = images.get(13);
+        inputImages.clear();
+        for (String image : images)
+            if (image != null && !image.isEmpty())
+                inputImages.add(image);
     }
 
     /**
      * Gets the count of attached input images.
      *
-     * @return number of non-null input images (0-14)
+     * @return number of input images (0-14)
      */
     public int getInputImageCount() {
-        int count = 0;
-        if (inputImage != null && !inputImage.isEmpty()) count++;
-        if (inputImage2 != null && !inputImage2.isEmpty()) count++;
-        if (inputImage3 != null && !inputImage3.isEmpty()) count++;
-        if (inputImage4 != null && !inputImage4.isEmpty()) count++;
-        if (inputImage5 != null && !inputImage5.isEmpty()) count++;
-        if (inputImage6 != null && !inputImage6.isEmpty()) count++;
-        if (inputImage7 != null && !inputImage7.isEmpty()) count++;
-        if (inputImage8 != null && !inputImage8.isEmpty()) count++;
-        if (inputImage9 != null && !inputImage9.isEmpty()) count++;
-        if (inputImage10 != null && !inputImage10.isEmpty()) count++;
-        if (inputImage11 != null && !inputImage11.isEmpty()) count++;
-        if (inputImage12 != null && !inputImage12.isEmpty()) count++;
-        if (inputImage13 != null && !inputImage13.isEmpty()) count++;
-        if (inputImage14 != null && !inputImage14.isEmpty()) count++;
-        return count;
+        return inputImages.size();
     }
 
     /**
@@ -714,22 +619,7 @@ public class ImageGenerationRequest {
             throw new IllegalArgumentException("Prompt cannot be empty");
         }
 
-        // Determine provider from model name to apply correct prompt limit
-        // Must match the limits of GenerationService#promptLimit, which the main window shows
-        boolean isGeminiModel = model != null && model.toLowerCase().contains("gemini");
-        boolean isOpenAiModel = isOpenAiModel(model);
-        int maxPromptLength = isGeminiModel ? 250000 // Gemini: 250k
-                : isOpenAiModel ? GenerationModel.openAiMaxPromptLength(model) // OpenAI: 1k-32k per model
-                : 2000; // BFL: 2k
-
-        if (prompt.length() > maxPromptLength) {
-            throw new IllegalArgumentException(String.format(
-                "Prompt cannot exceed %d characters (%s limit)",
-                maxPromptLength,
-                isGeminiModel ? "Gemini" : isOpenAiModel ? "OpenAI" : "BFL"
-            ));
-        }
-
+        // The prompt limit is the one of the provider (ImageProvider#checkPromptLength), which the main window shows
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException("Model must be specified");
         }
@@ -737,6 +627,7 @@ public class ImageGenerationRequest {
             throw new IllegalArgumentException("Image count must be between 1 and 4");
         }
         // Width/Height validation only for FLUX.2 (Gemini uses imageSize and videoResolution, FLUX 3 a resolution tier)
+        boolean isOpenAiModel = isOpenAiModel(model);
         boolean isGemini = model != null && (model.toLowerCase().contains("gemini") || isOpenAiModel);
         if (!isGemini && !model.toLowerCase().startsWith("flux.3-")) {
             // FLUX.2: min 64 and multiple of 16 (the schema has no other limit), else min 256 and multiple of 32
@@ -776,11 +667,13 @@ public class ImageGenerationRequest {
         }
 
         // Validate FLUX.2 [flex] parameters
-        if (guidance != null && (guidance < 1.5 || guidance > 10.0)) {
-            throw new IllegalArgumentException("Guidance must be between 1.5 and 10.0");
+        if (guidance != null && !ModelParameters.GUIDANCE.accepts(guidance)) {
+            throw new IllegalArgumentException("Guidance must be between " + ModelParameters.GUIDANCE.minimum()
+                    + " and " + ModelParameters.GUIDANCE.maximum());
         }
-        if (steps != null && (steps < 1 || steps > 50)) {
-            throw new IllegalArgumentException("Steps must be between 1 and 50");
+        if (steps != null && !ModelParameters.STEPS.accepts(steps)) {
+            throw new IllegalArgumentException("Steps must be between " + ModelParameters.STEPS.minimum() + " and "
+                    + ModelParameters.STEPS.maximum());
         }
 
         // Validate Gemini Omni video parameters (the duration is put into the prompt)

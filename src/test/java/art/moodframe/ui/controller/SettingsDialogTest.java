@@ -418,7 +418,7 @@ class SettingsDialogTest {
         config.accounts().setApiRegion("EU");
         assertTrue(moods.deletePermanently(mood.getId()));
         List<LibraryEvents.Kind> changed = new CopyOnWriteArrayList<>();
-        events.addListener((kind, id) -> changed.add(kind));
+        events.addListener((kind, id) -> changed.add(kind), Platform::runLater);
 
         prompts.openFrom = backup;
         fire("importSettingsButton");

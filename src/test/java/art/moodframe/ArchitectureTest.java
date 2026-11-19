@@ -226,4 +226,18 @@ class ArchitectureTest {
     void theChatsNeedNoJavaFx() {
         assertEquals(Set.of(), javaFx.getOrDefault("service.chat", Set.of()), "service.chat");
     }
+
+    /*  The only class of the services that uses JavaFX: it changes the models a generation shares with the user
+        interface on the JavaFX thread and hands the notifications of a generation there  */
+    private static final Set<String> FX_SERVICES = Set.of("service.generation.FxModel");
+
+    @Test
+    void onlyFxModelOfTheServicesUsesJavaFx() {
+        Set<String> classes = new TreeSet<>();
+        javaFx.forEach((String pkg, Set<String> names) -> {
+            if (layerOf(pkg).equals("service"))
+                names.forEach((String name) -> classes.add(pkg + "." + name));
+        });
+        assertEquals(new TreeSet<>(FX_SERVICES), classes, "the classes of service that use JavaFX");
+    }
 }

@@ -131,8 +131,7 @@ public class BflApiServiceImpl implements BflApiService {
     public CompletableFuture<Boolean> testConnectionWithProxy() {
         
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         if (!httpClients.getProxyConfig().isProxyConfigured()) {
@@ -209,8 +208,7 @@ public class BflApiServiceImpl implements BflApiService {
     @Override
     public CompletableFuture<Boolean> testConnection() {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         HttpRequest request = HttpRequest.newBuilder()
@@ -240,35 +238,15 @@ public class BflApiServiceImpl implements BflApiService {
     }
 
     @Override
-    public CompletableFuture<String> getMyFinetunes() {
-        if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
-        }
-        
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(getApiBaseUrl() + ENDPOINT_MY_FINETUNES))
-            .header("X-Key", getApiKey())
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
-            .timeout(getTimeout())
-            .GET()
-            .build();
-        
-        return httpClient.get().sendAsync(request, HttpResponse.BodyHandlers.ofString())
-            .thenCompose(this::handleResponse); // Return the response body
-    }
-    
-    @Override
     public CompletableFuture<GenerationJobInfo> submitGenerationRequest(ImageGenerationRequest request) {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         // Validate request
         try {
             request.validate();
+            checkPromptLength(request);
         } catch (IllegalArgumentException e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -281,31 +259,17 @@ public class BflApiServiceImpl implements BflApiService {
         logger.debug("Request dimensions: {}x{}", request.getWidth(), request.getHeight());
         
         try {
-            // Build model-specific request body
-            // FLUX 3 and FLUX.2 models have different parameter sets
-            String requestBody = buildModelSpecificRequestBody(request);
+            // Build the model-specific request body: FLUX 3 and FLUX.2 have different parameter sets
+            String requestBody = BflRequestBody.json(request, objectMapper);
 
             // Log input images
             int imageCount = request.getInputImageCount();
             if (imageCount > 0) {
                 logger.info("Request includes {} input image(s)", imageCount);
-                if (request.getInputImage() != null) {
-                    logger.debug("  - input_image: {} chars", request.getInputImage().length());
-                }
-                if (request.getInputImage2() != null) {
-                    logger.debug("  - input_image_2: {} chars", request.getInputImage2().length());
-                }
-                if (request.getInputImage3() != null) {
-                    logger.debug("  - input_image_3: {} chars", request.getInputImage3().length());
-                }
-                // Additional images 4-8 logged at trace level
-                if (imageCount > 3) {
-                    logger.trace("  - Additional images 4-8 present");
-                }
             } else {
                 logger.info("No input images in request");
             }
-            
+
             HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(getApiBaseUrl() + endpoint))
                 .header("X-Key", getApiKey())
@@ -323,26 +287,23 @@ public class BflApiServiceImpl implements BflApiService {
                         GenerationJobInfo jobInfo = objectMapper.readValue(body, GenerationJobInfo.class);
                         return jobInfo;
                     } catch (Exception e) {
-                        throw new RuntimeException("Failed to parse generation job response", e);
+                        throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                     }
                 });
                 
         } catch (Exception e) {
-            return CompletableFuture.failedFuture(
-                new RuntimeException("Failed to serialize generation request", e));
+            return CompletableFuture.failedFuture(ProviderException.localized(e, "bfl.error.request", e.getMessage()));
         }
     }
     
     @Override
     public CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
         if (!isConfigured()) {
-            return CompletableFuture.failedFuture(
-                new IllegalStateException("API key not configured"));
+            return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
         
         if (jobId == null || jobId.trim().isEmpty()) {
-            return CompletableFuture.failedFuture(
-                new IllegalArgumentException("Job ID cannot be null or empty"));
+            return CompletableFuture.failedFuture(ProviderException.localized("bfl.error.no.job"));
         }
         
         // CRITICAL: We need the polling_url from the original request, not a constructed URL
@@ -369,17 +330,9 @@ public class BflApiServiceImpl implements BflApiService {
                     GenerationJobResult result = objectMapper.readValue(body, GenerationJobResult.class);
                     return result;
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse job status response", e);
+                    throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                 }
             });
-    }
-    
-    @Override
-    public CompletableFuture<Boolean> cancelJob(String jobId) {
-        // Note: BFL API may not support job cancellation
-        // This is a placeholder implementation
-        logger.debug("Job cancellation not supported by BFL API: {}", jobId);
-        return CompletableFuture.completedFuture(false);
     }
     
     @Override
@@ -444,8 +397,7 @@ public class BflApiServiceImpl implements BflApiService {
     @Override
     public CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl) {
         if (pollingUrl == null || pollingUrl.trim().isEmpty()) {
-            return CompletableFuture.failedFuture(
-                new IllegalArgumentException("Polling URL cannot be null or empty"));
+            return CompletableFuture.failedFuture(ProviderException.localized("bfl.error.no.job"));
         }
         
         logger.debug("Polling job status using correct polling URL: {}", pollingUrl);
@@ -466,12 +418,8 @@ public class BflApiServiceImpl implements BflApiService {
                     GenerationJobResult result = objectMapper.readValue(body, GenerationJobResult.class);
                     return result;
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to parse job status response", e);
+                    throw ProviderException.localized(e, "bfl.error.response", e.getMessage());
                 }
-            })
-            .exceptionally(throwable -> {
-                logger.debug("Failed to get job result using polling URL: {}", pollingUrl, throwable);
-                throw new RuntimeException("Failed to get job result", throwable);
             });
     }
     
@@ -496,14 +444,10 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
 
-        // All error responses (including 404) are failures - no synthetic "not_found" status
+        // All error responses (including 404) are failures - no synthetic "not_found" status; BflGenerationFlow
+        // logs them: a 404 is normal until the job is registered
         String errorMessage = extractErrorMessage(body, statusCode);
-        
-        if (statusCode == 404) {
-            logger.warn("Job not found (HTTP 404) - job may not be registered yet or has expired");
-        } else {
-            logger.error("BFL API error [{}]: {}", statusCode, errorMessage);
-        }
+        logger.debug("BFL polling error [{}]: {}", statusCode, errorMessage);
         
         return CompletableFuture.failedFuture(
             new BflApiException(statusCode, errorMessage, body));
@@ -524,9 +468,9 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
         
-        // Handle error responses
+        // Handle error responses; the caller logs the failure
         String errorMessage = extractErrorMessage(body, statusCode);
-        logger.error("BFL API error [{}]: {}", statusCode, errorMessage);
+        logger.debug("BFL API error [{}]: {}", statusCode, errorMessage);
         
         return CompletableFuture.failedFuture(
             new BflApiException(statusCode, errorMessage, body));
@@ -575,153 +519,5 @@ public class BflApiServiceImpl implements BflApiService {
                 return String.format("HTTP %d - %s", statusCode, 
                     body.isEmpty() ? "Unknown error" : body);
         }
-    }
-    
-    /**
-     * Builds a model-specific request body JSON.
-     * FLUX 3 and FLUX.2 accept different parameters; both reject unknown fields with HTTP 422.
-     *
-     * @param request the image generation request
-     * @return JSON string with only valid parameters for the model
-     * @throws Exception if serialization fails
-     */
-    private String buildModelSpecificRequestBody(ImageGenerationRequest request) throws Exception {
-        String model = request.getModel();
-
-        /*  FLUX 3 (OpenAPI Flux3ImageInputs, Klein adds seed and output_format): size by resolution tier, images
-            as one list, no width/height, upsampling or input_image fields  */
-        if (model != null && model.toLowerCase().startsWith("flux.3-")) {
-            boolean klein = model.equalsIgnoreCase("flux.3-image-klein");
-            var flux3Request = new java.util.LinkedHashMap<String, Object>();
-            flux3Request.put("prompt", request.getPrompt());
-            if (request.getAspectRatio() != null)
-                flux3Request.put("aspect_ratio", request.getAspectRatio());
-            if (request.getImageSize() != null)
-                flux3Request.put("resolution", request.getImageSize());
-            if (request.getSafetyTolerance() != null)
-                flux3Request.put("safety_tolerance", request.getSafetyTolerance());
-            if (klein && request.getSeed() != null)
-                flux3Request.put("seed", request.getSeed());
-            if (klein && request.getOutputFormat() != null)
-                flux3Request.put("output_format", request.getOutputFormat());
-
-            java.util.List<String> images = java.util.stream.Stream.of(request.getInputImage(),
-                    request.getInputImage2(), request.getInputImage3(), request.getInputImage4(),
-                    request.getInputImage5(), request.getInputImage6(), request.getInputImage7(),
-                    request.getInputImage8(), request.getInputImage9(), request.getInputImage10())
-                    .filter((String image) -> image != null && !image.isEmpty()).toList();
-            if (!images.isEmpty())
-                flux3Request.put("images", images);
-
-            logger.debug("FLUX 3 request body: model={}, resolution={}, aspect_ratio={}, safety={}, images={}",
-                model, request.getImageSize(), request.getAspectRatio(), request.getSafetyTolerance(), images.size());
-            return objectMapper.writeValueAsString(flux3Request);
-        }
-        boolean isFlux2 = model != null && model.toLowerCase().startsWith("flux.2-");
-        boolean isFlux2Flex = model != null && model.toLowerCase().equals("flux.2-flex");
-
-        if (isFlux2) {
-            // FLUX.2 models only accept specific parameters
-            // Do NOT send: aspect_ratio, raw, grounding_search (prompt upsampling: see below)
-            var flux2Request = new java.util.LinkedHashMap<String, Object>();
-
-            // Required
-            flux2Request.put("prompt", request.getPrompt());
-
-            // Optional dimensions
-            if (request.getWidth() != null) {
-                flux2Request.put("width", request.getWidth());
-            }
-            if (request.getHeight() != null) {
-                flux2Request.put("height", request.getHeight());
-            }
-
-            // Optional parameters
-            if (request.getSeed() != null) {
-                flux2Request.put("seed", request.getSeed());
-            }
-            if (request.getSafetyTolerance() != null) {
-                flux2Request.put("safety_tolerance", request.getSafetyTolerance());
-            }
-            if (request.getOutputFormat() != null) {
-                flux2Request.put("output_format", request.getOutputFormat());
-            }
-
-            // Prompt upsampling (OpenAPI): [pro] and [max] upsample by default and only offer the opt-out
-            // disable_pup, [flex] has prompt_upsampling (default true), [klein] has neither
-            if (request.getPromptUpsampling() != null) {
-                if (isFlux2Flex) {
-                    flux2Request.put("prompt_upsampling", request.getPromptUpsampling());
-                } else if (!model.toLowerCase().startsWith("flux.2-klein")) {
-                    flux2Request.put("disable_pup", !request.getPromptUpsampling());
-                }
-            }
-
-            // FLUX.2 [flex] exclusive parameters
-            if (isFlux2Flex) {
-                if (request.getGuidance() != null) {
-                    flux2Request.put("guidance", request.getGuidance());
-                }
-                if (request.getSteps() != null) {
-                    flux2Request.put("steps", request.getSteps());
-                }
-            }
-
-            // Multi-image support (up to 8 images)
-            // Count how many images are being added for logging
-            int imageCount = 0;
-            if (request.getInputImage() != null && !request.getInputImage().isEmpty()) {
-                flux2Request.put("input_image", request.getInputImage());
-                imageCount++;
-                logger.debug("FLUX.2 input_image: {} chars (first 50: {}...)",
-                    request.getInputImage().length(),
-                    request.getInputImage().substring(0, Math.min(50, request.getInputImage().length())));
-            }
-            if (request.getInputImage2() != null && !request.getInputImage2().isEmpty()) {
-                flux2Request.put("input_image_2", request.getInputImage2());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_2: {} chars", request.getInputImage2().length());
-            }
-            if (request.getInputImage3() != null && !request.getInputImage3().isEmpty()) {
-                flux2Request.put("input_image_3", request.getInputImage3());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_3: {} chars", request.getInputImage3().length());
-            }
-            if (request.getInputImage4() != null && !request.getInputImage4().isEmpty()) {
-                flux2Request.put("input_image_4", request.getInputImage4());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_4: {} chars", request.getInputImage4().length());
-            }
-            if (request.getInputImage5() != null && !request.getInputImage5().isEmpty()) {
-                flux2Request.put("input_image_5", request.getInputImage5());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_5: {} chars", request.getInputImage5().length());
-            }
-            if (request.getInputImage6() != null && !request.getInputImage6().isEmpty()) {
-                flux2Request.put("input_image_6", request.getInputImage6());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_6: {} chars", request.getInputImage6().length());
-            }
-            if (request.getInputImage7() != null && !request.getInputImage7().isEmpty()) {
-                flux2Request.put("input_image_7", request.getInputImage7());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_7: {} chars", request.getInputImage7().length());
-            }
-            if (request.getInputImage8() != null && !request.getInputImage8().isEmpty()) {
-                flux2Request.put("input_image_8", request.getInputImage8());
-                imageCount++;
-                logger.debug("FLUX.2 input_image_8: {} chars", request.getInputImage8().length());
-            }
-
-            String json = objectMapper.writeValueAsString(flux2Request);
-            if (logger.isDebugEnabled()) {
-                logger.debug("FLUX.2 request body: prompt='{}...', width={}, height={}, safety={}, images={}",
-                    request.getPrompt().substring(0, Math.min(50, request.getPrompt().length())),
-                    request.getWidth(), request.getHeight(), request.getSafetyTolerance(), imageCount);
-            }
-            return json;
-        }
-
-        throw new IllegalArgumentException("Unsupported BFL model: " + model);
     }
 }

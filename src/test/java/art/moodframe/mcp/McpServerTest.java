@@ -112,7 +112,7 @@ class McpServerTest {
         Path database = tempDir.resolve("db").resolve("test.db");
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
         ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
                 null, null), events);
         PromptBlockService blocks = new PromptBlockService(TestLibraryServices.database(), events);

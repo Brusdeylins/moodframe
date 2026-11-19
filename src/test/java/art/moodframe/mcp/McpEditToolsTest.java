@@ -111,7 +111,7 @@ class McpEditToolsTest {
         Path database = tempDir.resolve("db").resolve("edit.db");
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
         ChatRepository repository = new ChatRepository(new DatabaseManager(database));
         chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
         blocks = new PromptBlockService(TestLibraryServices.database(), events);
@@ -394,7 +394,8 @@ class McpEditToolsTest {
         /*  As the main window composes and maps it: the blocks of the mood without the emptied atmosphere  */
         Mood filmNoir = moods.find("std:mood:film-noir");
         PromptComposer.Selection selection = moods.selection(filmNoir);
-        String expected = new PromptComposer(GenerationService.maxPromptLength(MODEL)).compose("a harbor at dawn",
+        String expected = new PromptComposer(MockProviders.preparing().get(GenerationModel.fromId(MODEL).getProvider())
+                .maxPromptLength(GenerationModel.fromId(MODEL).getApiModelId())).compose("a harbor at dawn",
                 new PromptComposer.Selection(selection.style(), null, selection.light(), selection.camera(),
                         selection.palette()));
         String item = ModelLabels.itemOf(MODEL);
@@ -606,5 +607,21 @@ class McpEditToolsTest {
         @Override
         public void shutdown() {
         }
+    }
+
+    @Test
+    void theParametersAreCheckedAgainstTheTableOfTheModel() throws Exception {
+        String flex = "{\"prompt\":\"x\",\"model\":\"FLUX2_FLEX\",\"params\":";
+        call("preview_generation", flex + "{\"guidance\":1.5,\"steps\":50,\"seed\":7,\"safetyTolerance\":5}}");
+        assertTrue(error("preview_generation", flex + "{\"guidance\":1.4}}")
+                .contains("The parameter 'guidance' must be a number from 1.5 to 10"));
+        assertTrue(error("preview_generation", flex + "{\"guidance\":10.5}}")
+                .contains("The parameter 'guidance' must be a number from 1.5 to 10"));
+        assertTrue(error("preview_generation", flex + "{\"steps\":51}}")
+                .contains("The argument 'steps' must be an integer from 1 to 50"));
+        assertTrue(error("preview_generation", flex + "{\"safetyTolerance\":6}}")
+                .contains("The argument 'safetyTolerance' must be an integer from 0 to 5"));
+        assertTrue(error("preview_generation", flex + "{\"seed\":1.5}}")
+                .contains("The parameter 'seed' must be an integer"));
     }
 }

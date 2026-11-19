@@ -272,16 +272,6 @@ public class TrustStoreManager {
     }
 
     /**
-     * Gets the corporate KeyStore.
-     * 
-     * @return the corporate KeyStore, or null if not initialized
-     * @since 1.0.0
-     */
-    public KeyStore getCorporateKeyStore() {
-        return corporateKeyStore;
-    }
-
-    /**
      * Gets the list of loaded corporate certificates.
      * 
      * @return list of loaded X509 certificates
@@ -289,20 +279,5 @@ public class TrustStoreManager {
      */
     public List<X509Certificate> getLoadedCertificates() {
         return new ArrayList<>(loadedCertificates);
-    }
-
-    /**
-     * Gets the number of certificates in the corporate trust store.
-     * 
-     * @return number of certificates, or 0 if trust store not initialized
-     * @since 1.0.0
-     */
-    public int getCertificateCount() {
-        try {
-            return corporateKeyStore != null ? corporateKeyStore.size() : 0;
-        } catch (Exception e) {
-            logger.warn("Failed to get certificate count from trust store", e);
-            return 0;
-        }
     }
 }

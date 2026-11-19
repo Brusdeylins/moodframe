@@ -318,8 +318,7 @@ class GenerationServiceTest {
 
         ArgumentCaptor<ImageGenerationRequest> request = ArgumentCaptor.forClass(ImageGenerationRequest.class);
         verify(requests).submitImageGeneration(request.capture(), eq(entry), eq(attachment));
-        assertEquals("first", request.getValue().getInputImage());
-        assertEquals("second", request.getValue().getInputImage2());
+        assertEquals(List.of("first", "second"), request.getValue().getInputImages());
     }
 
     @Test

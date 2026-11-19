@@ -36,6 +36,7 @@ import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.ImageSources;
 import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.ui.support.FxI18n;
+import art.moodframe.ui.support.FxLibraryEvents;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
@@ -484,7 +485,7 @@ public class MainWindowController implements I18nChangeListener {
             logger.warn("RequestResponseManager not available - using mock mode");
 
         if (events != null)
-            events.addListener(libraryListener);
+            FxLibraryEvents.addListener(events, libraryListener);
         else
             logger.warn("LibraryEvents not available - no automatic UI refresh");
 

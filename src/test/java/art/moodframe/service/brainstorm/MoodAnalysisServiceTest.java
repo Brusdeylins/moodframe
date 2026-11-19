@@ -11,6 +11,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderPolicy;
@@ -231,5 +232,24 @@ class MoodAnalysisServiceTest {
 
         assertEquals(Set.of(Mood.Field.COLOR), analysis.blocks().keySet());
         assertEquals(I18nManager.getText("mood.image.error", "HTTP 500"), analysis.notice());
+    }
+
+    @Test
+    void theAnalysisCompletesWithAnIoExecutorOfOneThread() throws Exception {
+        when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(gemini.chatTurn(anyString(), any(JSONArray.class), eq(false), eq(false))).thenAnswer((invocation) ->
+                CompletableFuture.supplyAsync(() -> new BrainstormTurn(
+                        "{\"light\": {\"name\": \"Golden Hour\", \"is_new\": false}}", new JSONArray(), List.of()),
+                        IoExecutor.get()));
+        IoExecutor.replace(java.util.concurrent.Executors.newSingleThreadExecutor());
+        try {
+            MoodAnalysisService.Analysis analysis = service.analyze(image(), context)
+                    .get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals("std:light:golden-hour", analysis.blocks().get(Mood.Field.LIGHT).id());
+        }
+        finally {
+            IoExecutor.shutdown();
+        }
     }
 }
