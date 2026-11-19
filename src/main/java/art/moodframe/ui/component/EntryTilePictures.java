@@ -5,7 +5,6 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
-import art.moodframe.ui.support.ImageCache;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
 import javafx.scene.control.ProgressIndicator;
@@ -18,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
 /**
@@ -29,9 +27,6 @@ import java.util.function.IntConsumer;
 final class EntryTilePictures {
 
     private static final Logger logger = LoggerFactory.getLogger(EntryTilePictures.class);
-
-    /*  the pictures shown by all cards, for the memory display  */
-    static final AtomicInteger totalLoadedImages = new AtomicInteger(0);
 
     private final ChatEntry chatEntry;
     private final boolean isChatDeleted;
@@ -112,11 +107,11 @@ final class EntryTilePictures {
         String thumbnailPath = getActualImagePath(generatedImage, true);
 
         /*  A thumbnail too small for its tile on the screen is created anew at full size  */
-        SharpThumbnail.follow(imageView, localPath, thumbnailManager);
+        SharpThumbnail.follow(imageView, localPath, sources);
 
         // FAST PATH: Check if thumbnail is already in memory cache (no disk I/O!)
         if (thumbnailPath != null) {
-            javafx.scene.image.Image cachedImage = ImageCache.shared().getIfCached(thumbnailPath);
+            javafx.scene.image.Image cachedImage = sources.cache().getIfCached(thumbnailPath);
             if (cachedImage != null) {
                 // Image is in cache - set immediately, no disk access needed
                 setImageWithHandlers(imageView, cachedImage, imageIndex);
@@ -133,7 +128,7 @@ final class EntryTilePictures {
 
         // Load thumbnail async - the cache will handle whether file exists
         CompletableFuture.supplyAsync(() -> thumbnailPath != null
-                        ? ImageCache.shared().get(thumbnailPath) : null)
+                        ? sources.cache().get(thumbnailPath) : null)
                 .whenComplete((image, error) -> {
                     if (image != null)
                         Platform.runLater(() -> setImageWithHandlers(imageView, image, imageIndex));
@@ -151,7 +146,7 @@ final class EntryTilePictures {
             ProgressIndicator progressIndicator, int imageIndex, String localPath, ThumbnailManager thumbnailManager) {
         thumbnailManager.getThumbnail(localPath)
                 .thenApplyAsync((thumbnailFile) -> thumbnailFile != null && thumbnailFile.exists()
-                        ? ImageCache.shared().get(thumbnailFile.getAbsolutePath()) : null)
+                        ? sources.cache().get(thumbnailFile.getAbsolutePath()) : null)
                 .whenComplete((image, error) -> {
                     if (image == null) {
                         showOriginalImage(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
@@ -196,7 +191,7 @@ final class EntryTilePictures {
 
             // FAST PATH: Check cache first - no disk I/O, no thread switching
             javafx.scene.image.Image cachedImage = thumbnailManager != null
-                    ? ImageCache.shared().getIfCached(imagePath) : null;
+                    ? sources.cache().getIfCached(imagePath) : null;
 
             if (cachedImage != null) {
                 // Image is in cache - set immediately (no disk I/O, no blocking)
@@ -218,7 +213,7 @@ final class EntryTilePictures {
                 }
 
                 javafx.scene.image.Image image = thumbnailManager != null
-                        ? ImageCache.shared().get(imagePath)
+                        ? sources.cache().get(imagePath)
                         : new javafx.scene.image.Image(imageFile.toURI().toString(),
                                 ThumbnailManager.MAX_THUMBNAIL_SIZE, ThumbnailManager.MAX_THUMBNAIL_SIZE, true, true,
                                 false);
@@ -245,19 +240,7 @@ final class EntryTilePictures {
      * Sets an image on the ImageView and configures click handlers.
      */
     private void setImageWithHandlers(ImageView imageView, javafx.scene.image.Image image, int imageIndex) {
-        // CRITICAL: Dispose old image before loading new one
-        javafx.scene.image.Image oldImage = imageView.getImage();
-        boolean hadImage = oldImage != null;
-        if (hadImage) {
-            imageView.setImage(null); // Clear reference to allow GC
-        }
-
         imageView.setImage(image);
-
-        // Track loaded image - only increment if we didn't already have an image
-        if (!hadImage) {
-            totalLoadedImages.incrementAndGet();
-        }
 
         // Enable click handler and cursor for successfully loaded images; a right click opens the context menu
         imageView.setOnMouseClicked(event -> {

@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.ui.component.MemoryStatusComponent;
+import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.fxml.FXML;
@@ -74,6 +75,15 @@ public class StatusBarController implements StatusSink {
         /*  the memory display in front of the API key status  */
         memoryStatus = new MemoryStatusComponent();
         statusBar.getChildren().add(statusBar.getChildren().indexOf(apiKeyStatusGroup), memoryStatus);
+    }
+
+    /**
+     * Lets the memory display count the decoded thumbnails of the window.
+     *
+     * @param images the decoded thumbnails
+     */
+    public void countImagesOf(ImageCache images) {
+        memoryStatus.countImagesOf(images);
     }
 
     /** Stops the memory display, once the window closes. */

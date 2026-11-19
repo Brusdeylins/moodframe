@@ -1157,17 +1157,9 @@ public class ChatEntryCard extends ManagedComponent {
         getChildren().add(0, originLink);
     }
 
-    /**
-     * Gets the total number of loaded images across all ChatEntryCards.
-     */
-    public static int getTotalLoadedImages() {
-        return EntryTilePictures.totalLoadedImages.get();
-    }
-
     @Override
     protected void onDispose() {
-        // CRITICAL: Force unload all images regardless of tracking state
-        // This ensures image counter is decremented even if images were never marked as loaded
+        /*  The views let go of their pictures, which the cache of the window keeps  */
         forceUnloadAllImages();
 
         /*  The shared width listens to the images of the entry, the list holding the card and the image size  */
@@ -1185,18 +1177,11 @@ public class ChatEntryCard extends ManagedComponent {
         logger.trace("ChatEntryCard disposed for entry: {}", chatEntry.getId());
     }
 
-    /**
-     * Forces unload of all images without checking tracking state.
-     * Used during disposal to ensure image counter is always accurate.
-     */
+    /** Lets go of the pictures of the tiles and of their handlers. */
     private void forceUnloadAllImages() {
         for (Node tile : imagesContainer.getChildren()) {
             if (tile instanceof StackPane stackPane && stackPane.getChildren().get(0) instanceof ImageView imageView) {
-                if (imageView.getImage() != null) {
-                    imageView.setImage(null);
-                    if (EntryTilePictures.totalLoadedImages.get() > 0)
-                        EntryTilePictures.totalLoadedImages.decrementAndGet();
-                }
+                imageView.setImage(null);
                 imageView.setOnMouseClicked(null);
                 imageView.setCursor(javafx.scene.Cursor.DEFAULT);
             }

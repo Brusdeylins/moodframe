@@ -156,12 +156,13 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
   generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
   thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
-- **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels. A file is decoded on
-  the calling worker, once even when several ask for it at the same time; other files load meanwhile, and no lock is
-  held while a file is read. `service.chat.ThumbnailManager` only creates and finds the thumbnail files. The full view
-  decodes a full-size image in the background (`new Image(url, true)`), keeps the image shown before until it is done
-  and then fits zoom and pan to its pixel size; the previews of the attachments and of "Mood from image" load in the
-  background as well.
+- **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels; the main window
+  creates one and hands it to the cards and the images view with `ImageSources`, the memory display of the status bar
+  counts its images. A file is decoded on the calling worker, once even when several ask for it at the same time;
+  other files load meanwhile, and no lock is held while a file is read. `service.chat.ThumbnailManager` only creates
+  and finds the thumbnail files. The full view decodes a full-size image in the background (`new Image(url, true)`),
+  keeps the image shown before until it is done and then fits zoom and pan to its pixel size; the previews of the
+  attachments and of "Mood from image" load in the background as well.
 - **Views and the chat models**: a view reads the entries and images of a chat as a copy taken under the lock
   (`ChatLibrary.entriesOf`, `imagesOf`), and a list listener copies what it needs out of the change on the thread of
   the change before it hands its work to the JavaFX thread.
@@ -200,7 +201,7 @@ up the services once and hand them to their parts, which hand them on to the dia
 (`ArchitectureTest`): the managers and editors of moods, frames, blocks and palettes take their services in the
 constructor, the trash windows open through `TrashWindow.Opener` (with the worker of the window), the entry cards
 and the images view get the
-thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
+thumbnails, the decoded thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
 `MoodframeApplication` hands `ThemeManager` the configuration at the start.
 
 ## The main window
