@@ -1,8 +1,9 @@
+// The versions of all plugins and dependencies are set in one place: gradle/libs.versions.toml
 plugins {
     id 'application'
-    id 'org.openjfx.javafxplugin' version '0.1.0'
-    id 'org.owasp.dependencycheck' version '10.0.4'
-    id 'dev.hydraulic.conveyor' version '1.12'
+    alias(libs.plugins.javafx)
+    alias(libs.plugins.dependency.check)
+    alias(libs.plugins.conveyor)
 }
 
 // Helper function to find the conveyor executable
@@ -85,42 +86,33 @@ dependencies {
     runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:win"
     
     // JSON handling
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.1'
+    implementation libs.bundles.jackson
 
     // JSON library for Gemini API request building
-    implementation 'org.json:json:20240303'
+    implementation libs.json
 
     // HTTP client
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation libs.okhttp
 
     // Kotlin standard library (required by OkHttp 4.x)
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+    implementation libs.kotlin.stdlib
 
     // Database
-    implementation 'org.xerial:sqlite-jdbc:3.44.1.0'
-    
+    implementation libs.sqlite.jdbc
+
     // Logging
-    implementation 'org.slf4j:slf4j-api:2.0.9'
-    implementation 'ch.qos.logback:logback-classic:1.4.14'
-    
+    implementation libs.slf4j.api
+    implementation libs.logback.classic
+
     // Icons (Material Design)
-    implementation 'org.kordamp.ikonli:ikonli-javafx:12.3.1'
-    implementation 'org.kordamp.ikonli:ikonli-materialdesign2-pack:12.3.1'
-    
+    implementation libs.bundles.ikonli
+
     // AtlantaFX Modern Theme Framework
-    implementation 'io.github.mkpaz:atlantafx-base:2.1.0'
+    implementation libs.atlantafx.base
 
     // Testing
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
-    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
-    testImplementation 'org.junit.platform:junit-platform-launcher:1.10.1'
-    testImplementation 'org.mockito:mockito-core:5.8.0'
-    testImplementation 'org.testfx:testfx-core:4.0.18'
-    testImplementation 'org.testfx:testfx-junit5:4.0.18'
-    testImplementation 'org.hamcrest:hamcrest:2.2'
-    testRuntimeOnly 'org.testfx:openjfx-monocle:21.0.2'
+    testImplementation libs.bundles.testing
+    testRuntimeOnly libs.openjfx.monocle
 }
 
 application {
