@@ -530,10 +530,17 @@ there are. A new provider is, in this order:
 2. its client in `service.provider`: an interface extending `ImageProvider` with its implementation (prompt limit,
    `prepare`, the flow it answers with, seeds, costs, download headers), created in
    `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
-3. its models as constants of `model.GenerationModel` (with the branch of the constructor for their resolution and
-   attachment limits, `getFamilyName` and `getResolutionLabel` for variants), their parameters in
-   `model.ModelParameters`, their prices in `model.GenerationCost`, their aspect ratios in `AspectRatios.forModel` and
-   the multiple of their sizes in `ImageDimensions.multipleFor`;
+3. its models as constants of `model.GenerationModel`, which decides several things by provider: the branch of the
+   constructor for their resolution (`maxMegapixels`, `maxResolution`; `supportsImageAttachment` is true for every
+   provider but BFL), `supportsMultiImage` and `getMaxInputImages` for their reference images (false and 0 for a new
+   provider: the dropdown then drops its models as soon as an image is attached,
+   `GenerationService.availableItems(config, imageCount)`, `get_capabilities` reports no reference image and
+   `mcp.GenerateTools.references` refuses any), `supportsGroundingSearch` and `supportsGoogleSearch` (Gemini, read by
+   `ModelParameters` and `GenerationCost.search`), `supportsSafetyTolerance` (BFL), and `getFamilyName` and
+   `getResolutionLabel` for variants; their parameters in `model.ModelParameters`, their prices in
+   `model.GenerationCost` (`GenerationCost.isKnown` answers false only for OpenAI, whose prices are unknown, so a
+   provider without known prices needs its branch there), their aspect ratios in `AspectRatios.forModel` (a branch per
+   provider, BFL's otherwise) and the multiple of their sizes in `ImageDimensions.multipleFor`;
 4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
    `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), its field in
    `ui.controller.ProviderParameters`, and its value in `mcp.GenerateTools.parameters`, which builds the
