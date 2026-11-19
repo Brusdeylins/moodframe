@@ -10,6 +10,7 @@ import art.moodframe.net.IoExecutor;
 import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.service.provider.ProviderPolicy;
 import art.moodframe.util.I18nManager;
 import org.json.JSONObject;
@@ -59,9 +60,11 @@ public class MoodAnalysisService {
      *
      * @param blocks the blocks by field: an entry of the lists with its id, or a new block with a name no entry of
      *               its list has; a field without a block is missing
-     * @param notice why the language model added nothing (none set up, or its request failed), null if it answered
+     * @param notice why the language model added nothing (none set up, or its request failed), in the language of
+     *               the user interface; null if it answered
+     * @param englishNotice the notice in English, which the MCP clients get; null if it answered
      */
-    public record Analysis(Map<Mood.Field, BrainstormDraft.Block> blocks, String notice) {
+    public record Analysis(Map<Mood.Field, BrainstormDraft.Block> blocks, String notice, String englishNotice) {
     }
 
     private final GeminiApiService geminiService;
@@ -137,14 +140,15 @@ public class MoodAnalysisService {
                 .thenCompose((Prepared prepared) -> {
                     if (!prepared.asks())
                         return CompletableFuture.completedFuture(new Analysis(colorsOnly(context, prepared.colors()),
-                                I18nManager.getText("mood.image.no.model")));
+                                I18nManager.getText("mood.image.no.model"),
+                                I18nManager.getTextIn(Locale.ENGLISH, "mood.image.no.model")));
                     CompletableFuture<String> raw = prepared.failure() != null
                             ? CompletableFuture.failedFuture(prepared.failure())
                             : ask(prepared.systemPrompt(), prepared.contents());
                     return raw.handle((String reply, Throwable error) -> {
                         if (error == null) {
                             try {
-                                return new Analysis(parseReply(reply, context, prepared.colors()), null);
+                                return new Analysis(parseReply(reply, context, prepared.colors()), null, null);
                             }
                             catch (RuntimeException e) {
                                 error = e;
@@ -154,7 +158,9 @@ public class MoodAnalysisService {
                                 ? error.getCause() : error;
                         logger.warn("Image analysis failed: {}", cause.getMessage());
                         return new Analysis(colorsOnly(context, prepared.colors()),
-                                I18nManager.getText("mood.image.error", cause.getMessage()));
+                                I18nManager.getText("mood.image.error", ProviderException.messageOf(cause, false)),
+                                I18nManager.getTextIn(Locale.ENGLISH, "mood.image.error",
+                                        ProviderException.messageOf(cause, true)));
                     });
                 });
     }
