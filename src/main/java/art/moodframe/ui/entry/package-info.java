@@ -12,7 +12,7 @@
  * <li>{@link ImagePreviewOverlay}: the large preview of an image or video, which plays a video with
  * {@link VideoPlayback}</li>
  * <li>{@link ImageActionBar}, {@link ImageSizeLabel}, {@link EntryBadge}: the action bar, the size line and the
- * badges the cards and the images view share</li>
+ * badges the cards and the images view share, and the tooltip of an image from {@link ImageDetails}</li>
  * </ul>
  */
 package art.moodframe.ui.entry;

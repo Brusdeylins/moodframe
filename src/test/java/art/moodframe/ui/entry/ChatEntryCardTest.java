@@ -187,7 +187,7 @@ class ChatEntryCardTest {
         assertEquals(1, failed[1]);
         assertEquals(1, failed[2]);
         assertEquals(generating, failed[3]);
-        assertEquals("Blocked by the safety filter", ChatEntryCard.failure(images.get(0)));
+        assertEquals("Blocked by the safety filter", ImageDetails.failure(images.get(0)));
     }
 
     /**
@@ -264,9 +264,9 @@ class ChatEntryCardTest {
     void aFailedImageWithoutMessageNamesTheFailedStatus() {
         GeneratedImage image = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.FAILED)
                 .build();
-        assertEquals(I18nManager.getText("entry.status.failed"), ChatEntryCard.failure(image));
+        assertEquals(I18nManager.getText("entry.status.failed"), ImageDetails.failure(image));
         image.setFailureReason("Moderated");
-        assertEquals("Moderated", ChatEntryCard.failure(image));
+        assertEquals("Moderated", ImageDetails.failure(image));
     }
 
     /**

@@ -744,7 +744,7 @@ public class ChatEntryCard extends ManagedComponent {
             });
         }
 
-        installDetails(tile, imageView, generatedImage, size);
+        ImageDetails.install(tile, imageView, generatedImage, size);
 
         /*  The menu checks for the file itself, as the image may still be loading  */
         if (!generatedImage.isVideo())
@@ -799,87 +799,6 @@ public class ChatEntryCard extends ManagedComponent {
                     onImageDelete.accept(generatedImage);
             }
         }
-    }
-
-    /**
-     * Installs the tooltip of an image, read anew whenever the pointer enters its tile: the size line over the image
-     * may give way and the size be corrected meanwhile. An image without any details gets no tooltip.
-     *
-     * @param tile  the pane holding the image, with its size line attached
-     * @param view  the view of the image
-     * @param image the image
-     * @param size  the size line of the image
-     */
-    static void installDetails(Pane tile, Node view, GeneratedImage image, ImageSizeLabel size) {
-        Tooltip details = new Tooltip();
-        details.setShowDelay(Duration.millis(500));
-        tile.hoverProperty().addListener((obs, wasOver, isOver) -> {
-            if (isOver) {
-                details.setText(imageDetails(image, !size.isVisible()));
-                Tooltip.uninstall(view, details);
-                if (!details.getText().isEmpty())
-                    Tooltip.install(view, details);
-            }
-        });
-    }
-
-    /**
-     * The details of an image for its tooltip: its seed, of a video its resolution, duration and audio; below the
-     * cost of a Gemini image with web search or reasoning. The size and format of an image lead only on request.
-     *
-     * @param generatedImage the generated image
-     * @param withSize       whether to name the size and format of an image, as its size line gives way
-     * @return the details, one per line, empty if there are none
-     */
-    static String imageDetails(GeneratedImage generatedImage, boolean withSize) {
-        List<String> details = new ArrayList<>();
-        if (generatedImage.isVideo()) {
-            String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
-            details.add(String.format("MP4 • %s • %ds%s", resolution, generatedImage.getVideoDurationSeconds(),
-                    generatedImage.hasAudio() ? " • Audio" : ""));
-        } else {
-            String size = ImageSizeLabel.text(generatedImage);
-            if (withSize && size != null)
-                details.add(size);
-
-            // Hide seed information for Gemini images (seed = 0)
-            // FLUX seeds can be negative (XOR of random longs), so check != 0
-            long seed = generatedImage.getSeed();
-            if (seed != 0)
-                details.add(String.format("Seed: %d", seed));
-        }
-
-        /*  Gemini: the cost of web search and reasoning beside the base cost, if any  */
-        double searchCost = generatedImage.getSearchCost() != null ? generatedImage.getSearchCost() : 0.0;
-        double reasoningCost = generatedImage.getReasoningCost() != null ? generatedImage.getReasoningCost() : 0.0;
-        if (searchCost > 0 || reasoningCost > 0) {
-            double baseCost = generatedImage.getBaseCost() != null ? generatedImage.getBaseCost() : 0.0;
-            if (baseCost > 0)
-                details.add(String.format("Base Generation: $%.2f", baseCost));
-            if (searchCost > 0)
-                details.add(String.format("Google Search: $%.2f", searchCost));
-            if (reasoningCost > 0) {
-                Integer thinkingTokens = generatedImage.getThinkingTokens();
-                details.add(String.format("Reasoning: $%.2f%s", reasoningCost,
-                        thinkingTokens != null && thinkingTokens > 0 ? String.format(" (%,d tokens)", thinkingTokens)
-                                : ""));
-            }
-            details.add(String.format("Total: $%.2f", baseCost + searchCost + reasoningCost));
-        }
-        return String.join("\n", details);
-    }
-
-    /**
-     * Why an image failed, for the tooltip of its tile.
-     *
-     * @param generatedImage the failed image
-     * @return its error message or reason, else the failed status
-     */
-    static String failure(GeneratedImage generatedImage) {
-        String message = generatedImage.getErrorMessage();
-        if (message == null || message.isBlank())
-            message = generatedImage.getFailureReason();
-        return message != null && !message.isBlank() ? message : I18nManager.getText("entry.status.failed");
     }
 
     /**
@@ -940,7 +859,7 @@ public class ChatEntryCard extends ManagedComponent {
                 failedIcon.setIconSize(24);
                 loadingOverlay.getChildren().setAll(failedIcon);
                 loadingOverlay.getStyleClass().add("entry-image-failed");
-                Tooltip.install(loadingOverlay, new Tooltip(failure(generatedImage)));
+                Tooltip.install(loadingOverlay, new Tooltip(ImageDetails.failure(generatedImage)));
                 loadingOverlay.setVisible(true);
                 // Remove click handler and cursor for failed images
                 imageView.setOnMouseClicked(null);

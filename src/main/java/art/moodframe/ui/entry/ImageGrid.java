@@ -382,7 +382,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             icon.setIconSize(24);
             StackPane failed = placeholder(icon);
             failed.getStyleClass().add("image-grid-failed");
-            Tooltip.install(failed, new Tooltip(ChatEntryCard.failure(image)));
+            Tooltip.install(failed, new Tooltip(ImageDetails.failure(image)));
             cell.getChildren().add(failed);
             return cell;
         }
@@ -429,7 +429,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         ImageSizeLabel size = new ImageSizeLabel(image);
         size.attachTo(tile, dots);
 
-        ChatEntryCard.installDetails(tile, view, image, size);
+        ImageDetails.install(tile, view, image, size);
         tile.setOnContextMenuRequested((event) -> {
             createMenu(item).show(tile, event.getScreenX(), event.getScreenY());
             event.consume();
