@@ -32,10 +32,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 /**
  * The "Manage…" dialog of a building block list: the entries of the user of one kind. They can be deleted into the
- * central trash, reordered, and exported to or imported from a JSON file; a link opens the trash on its blocks.
+ * central trash, reordered, and exported to or imported from a JSON file; a link opens the trash on its blocks. The
+ * library stores a change off the JavaFX thread; the dialog waits meanwhile, so no second change starts from a list
+ * that is not loaded again yet.
  *
  * @param <T> the item type of the entries
  * @since 2.0.0
@@ -45,7 +49,7 @@ public class BlockManageDialog<T> extends Dialog<Void> {
     private static final Logger logger = LoggerFactory.getLogger(BlockManageDialog.class);
 
     /**
-     * The entries of the user of one kind of building block.
+     * The entries of the user of one kind of building block. A change completes on the JavaFX thread.
      *
      * @param <T> the item type of the entries
      */
@@ -78,17 +82,17 @@ public class BlockManageDialog<T> extends Dialog<Void> {
          * Moves an entry to the trash.
          *
          * @param entry the entry
-         * @return true if it is in the trash
+         * @return completes with true if it is in the trash
          */
-        boolean delete(T entry);
+        CompletableFuture<Boolean> delete(T entry);
 
         /**
          * Stores the order of the entries.
          *
          * @param entries the entries in their new order
-         * @return true if the order is stored
+         * @return completes with true if the order is stored
          */
-        boolean reorder(List<T> entries);
+        CompletableFuture<Boolean> reorder(List<T> entries);
 
         /**
          * Writes the entries into a JSON file.
@@ -102,28 +106,27 @@ public class BlockManageDialog<T> extends Dialog<Void> {
          * Adds the entries of a JSON file.
          *
          * @param file the source file
-         * @return the number of added entries
-         * @throws IOException if the file cannot be read
+         * @return completes with the number of added entries, or exceptionally if the file cannot be read
          */
-        int importFrom(File file) throws IOException;
+        CompletableFuture<Integer> importFrom(File file);
 
         /**
          * Opens the edit dialog for a new entry.
          *
-         * @return the ID of the created entry, or null if none was created
+         * @return completes with the ID of the created entry, or null if none was created
          */
-        default String create() {
-            return null;
+        default CompletableFuture<String> create() {
+            return CompletableFuture.completedFuture(null);
         }
 
         /**
          * Opens the edit dialog for an entry.
          *
          * @param entry the entry
-         * @return the ID of the stored entry (it may be a new copy), or null if nothing was stored
+         * @return completes with the ID of the stored entry (it may be a new copy), or null if nothing was stored
          */
-        default String edit(T entry) {
-            return null;
+        default CompletableFuture<String> edit(T entry) {
+            return CompletableFuture.completedFuture(null);
         }
 
         /**
@@ -169,7 +172,8 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         list.setPrefSize(360, 360);
         HBox.setHgrow(list, Priority.ALWAYS);
 
-        Button newButton = button("block.action.new", "mdi2p-plus", () -> afterEdit(library.create()));
+        Button newButton = button("block.action.new", "mdi2p-plus",
+                () -> change(library.create(), (storedId, failure) -> afterEdit(storedId)));
         Button editButton = button("block.action.edit", "mdi2p-pencil-outline", this::edit);
         editButton.disableProperty().bind(list.getSelectionModel().selectedIndexProperty().lessThan(0));
         list.setOnMouseClicked((event) -> {
@@ -228,7 +232,7 @@ public class BlockManageDialog<T> extends Dialog<Void> {
     private void edit() {
         T entry = list.getSelectionModel().getSelectedItem();
         if (entry != null)
-            afterEdit(library.edit(entry));
+            change(library.edit(entry), (storedId, failure) -> afterEdit(storedId));
     }
 
     /*  loads the entries again after an edit, selecting the stored entry  */
@@ -246,9 +250,11 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         List<T> entries = new ArrayList<>(list.getItems());
         T entry = entries.remove(index);
         entries.add(index + offset, entry);
-        if (!library.reorder(entries))
-            showError(I18nManager.getText("block.manage.error.reorder"));
-        reload(library.id(entry));
+        change(library.reorder(entries), (stored, failure) -> {
+            if (!Boolean.TRUE.equals(stored))
+                showError(I18nManager.getText("block.manage.error.reorder"));
+            reload(library.id(entry));
+        });
     }
 
     /*  moves the selected entry to the trash, after a question that names the moods using it  */
@@ -269,9 +275,11 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         if (alert.showAndWait().orElse(null) != deleteButton)
             return;
 
-        if (!library.delete(entry))
-            showError(I18nManager.getText("block.manage.error.delete", library.name(entry)));
-        reload(null);
+        change(library.delete(entry), (deleted, failure) -> {
+            if (!Boolean.TRUE.equals(deleted))
+                showError(I18nManager.getText("block.manage.error.delete", library.name(entry)));
+            reload(null);
+        });
     }
 
     private void importFile() {
@@ -280,14 +288,25 @@ public class BlockManageDialog<T> extends Dialog<Void> {
         if (file == null)
             return;
 
-        try {
-            int imported = library.importFrom(file);
+        change(library.importFrom(file), (imported, failure) -> {
+            if (failure != null) {
+                showError(I18nManager.getText("block.manage.error.import", file.getName()));
+                return;
+            }
             reload(null);
             showInfo(I18nManager.getText("block.manage.imported", imported));
-        } catch (IOException | RuntimeException e) {
-            logger.error("Failed to import building blocks from {}", file, e);
-            showError(I18nManager.getText("block.manage.error.import", file.getName()));
-        }
+        });
+    }
+
+    /*  waits for a change of the library, which completes on the JavaFX thread, and then shows its outcome  */
+    private <R> void change(CompletableFuture<R> change, BiConsumer<R, Throwable> then) {
+        getDialogPane().getContent().setDisable(true);
+        change.whenComplete((result, failure) -> {
+            getDialogPane().getContent().setDisable(false);
+            if (failure != null)
+                logger.error("A change of the building blocks failed", failure);
+            then.accept(result, failure);
+        });
     }
 
     private void exportFile() {

@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -67,9 +68,14 @@ final class BlockChoices {
     private FavoriteService favoriteService;
     private MoodService moodService;
     private TrashWindow.Opener trash;
+    private PanelWorker writes;
     private StatusSink status;
     private Supplier<Window> window;
     private Runnable changed = () -> { };
+
+    /*  the favorites switched in the lists whose write the worker has not done yet: shown as switched meanwhile  */
+    private final Map<FavoriteService.Kind, Map<String, Boolean>> switching =
+            new java.util.EnumMap<>(FavoriteService.Kind.class);
 
     /**
      * Takes the nodes of the part.
@@ -98,19 +104,21 @@ final class BlockChoices {
      * @param favorites    the favorites, listed first (may be null)
      * @param moods        names the moods that use a block before it is deleted (may be null)
      * @param trash        opens the trash on the blocks (may be null)
+     * @param writes       stores the blocks, palettes and favorites off the JavaFX thread
      * @param status       shows what the part did
      * @param window       the window of the panel, owner of the dialogs
      * @param changed      learns of a change that the selection of a list does not report
      */
     void setUp(ApplicationConfig config, PromptBlockService blockService, ColorStyleService colorService,
-               FavoriteService favorites, MoodService moods, TrashWindow.Opener trash, StatusSink status,
-               Supplier<Window> window, Runnable changed) {
+               FavoriteService favorites, MoodService moods, TrashWindow.Opener trash, PanelWorker writes,
+               StatusSink status, Supplier<Window> window, Runnable changed) {
         this.config = config;
         this.blockService = blockService;
         this.colorService = colorService;
         this.favoriteService = favorites;
         this.moodService = moods;
         this.trash = trash;
+        this.writes = writes;
         this.status = status;
         this.window = window;
         this.changed = changed;
@@ -304,8 +312,8 @@ final class BlockChoices {
     }
 
     /**
-     * The favorites of a list, for the stars of its rows; a switched favorite is stored at once, and the lists follow
-     * it ({@link #reorderFavorites}).
+     * The favorites of a list, for the stars of its rows; a switched favorite shows at once and is stored by the
+     * worker, and the lists follow its report of the change ({@code MoodFramePanelController.reorderFavorites}).
      *
      * @param field the field whose open list shows the rows, null for a list in a dialog
      * @param kind  the kind of the entries
@@ -313,17 +321,31 @@ final class BlockChoices {
      */
     <T> FavoriteStar.Favorites<T> favorites(ComboBox<?> field, FavoriteService.Kind kind,
             java.util.function.Function<T, String> id) {
-        return new FavoriteStar.Favorites<>(field, (entry) -> isFavorite(kind, id.apply(entry)), (entry) -> {
-            FavoriteService service = favoriteService;
-            if (service != null)
-                service.toggle(kind, id.apply(entry));
-        });
+        return new FavoriteStar.Favorites<>(field, (entry) -> isFavorite(kind, id.apply(entry)),
+                (entry) -> toggleFavorite(kind, id.apply(entry)));
     }
 
-    /** Whether an entry is a favorite of the user; none without the service. */
+    /*  switches a favorite: shown as switched until the worker stored it, or failed to  */
+    private void toggleFavorite(FavoriteService.Kind kind, String id) {
+        FavoriteService service = favoriteService;
+        if (service == null)
+            return;
+        boolean favorite = !isFavorite(kind, id);
+        Map<String, Boolean> pending = switching.computeIfAbsent(kind, (key) -> new java.util.HashMap<>());
+        pending.put(id, favorite);
+        writes.run(() -> service.toggle(kind, id), !favorite, I18nManager.getText("favorite.error"), (now) -> {
+            if (now != favorite)
+                status.failure(I18nManager.getText("favorite.error"));
+        }).whenComplete((now, failure) -> pending.remove(id, favorite));
+    }
+
+    /** Whether an entry is a favorite of the user, as switched in the lists; none without the service. */
     boolean isFavorite(FavoriteService.Kind kind, String id) {
         FavoriteService service = favoriteService;
-        return service != null && service.isFavorite(kind, id);
+        if (service == null || id == null)
+            return false;
+        Boolean switched = switching.getOrDefault(kind, Map.of()).get(id);
+        return switched != null ? switched : service.isFavorite(kind, id);
     }
 
     ComboBox<StylePresetItem> blockComboBox(art.moodframe.model.PromptBlock.Type type) {
@@ -338,110 +360,116 @@ final class BlockChoices {
     /**
      * Creates or edits a text building block in its dialog and selects the stored block. A block of the user is
      * saved in place or as a new block, a standard block only as a new one, which keeps the group of its origin.
-     * A camera has a dialog of its own (see {@link #editCamera}).
+     * A camera has a dialog of its own (see {@link #editCamera}). The worker stores the block.
      *
      * @param type  the type of the block
      * @param block the block to edit, null for a new one
+     * @return completes on the JavaFX thread with the id of the stored block, null if none was stored
      */
-    String editBlock(art.moodframe.model.PromptBlock.Type type, art.moodframe.model.PromptBlock block) {
+    CompletableFuture<String> editBlock(art.moodframe.model.PromptBlock.Type type,
+                                        art.moodframe.model.PromptBlock block) {
         art.moodframe.service.library.PromptBlockService service = blockService;
         if (service == null)
-            return null;
+            return CompletableFuture.completedFuture(null);
         if (type == art.moodframe.model.PromptBlock.Type.CAMERA)
             return editCamera(service, block);
 
         art.moodframe.ui.dialog.BlockEditDialog dialog = new art.moodframe.ui.dialog.BlockEditDialog(type, block,
                 blockService);
         dialog.initOwner(activeWindow());
-        String[] storedId = { null };
-        dialog.showAndWait().ifPresent((result) -> {
-            boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
-            art.moodframe.model.PromptBlock stored = new art.moodframe.model.PromptBlock(
-                    inPlace ? block.getId() : null, type, result.name(), result.text(),
-                    block != null ? block.getGroup() : null, result.photographic());
-            if (block != null) {
-                stored.setParams(block.getParams());
-                stored.setSortOrder(block.getSortOrder());
-            }
-            boolean saved = inPlace ? service.updateCustom(stored)
-                    : result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
-                    : service.addCopy(stored);
-            if (saved) {
-                fillBlockChoice(type, stored.getName());
-                storedId[0] = stored.getId();
-            }
-            else
-                status.status(I18nManager.getText("block.error.save", result.name()));
-        });
-        return storedId[0];
+        art.moodframe.ui.dialog.BlockEditDialog.Result result = dialog.showAndWait().orElse(null);
+        if (result == null)
+            return CompletableFuture.completedFuture(null);
+        boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
+        art.moodframe.model.PromptBlock stored = new art.moodframe.model.PromptBlock(
+                inPlace ? block.getId() : null, type, result.name(), result.text(),
+                block != null ? block.getGroup() : null, result.photographic());
+        if (block != null) {
+            stored.setParams(block.getParams());
+            stored.setSortOrder(block.getSortOrder());
+        }
+        return storeBlock(service, stored, inPlace, result.save(), () -> fillBlockChoice(type, stored.getName()));
     }
 
     /**
      * Creates or edits a camera in its dialog of settings and selects the stored camera. A camera of the user is saved
-     * in place or as a new one, a standard camera only as a new one.
+     * in place or as a new one, a standard camera only as a new one. The worker stores the camera.
      *
      * @param service the building blocks
      * @param block   the camera to edit, null for a new one
+     * @return completes on the JavaFX thread with the id of the stored camera, null if none was stored
      */
-    private String editCamera(art.moodframe.service.library.PromptBlockService service,
-                              art.moodframe.model.PromptBlock block) {
+    private CompletableFuture<String> editCamera(art.moodframe.service.library.PromptBlockService service,
+                                                 art.moodframe.model.PromptBlock block) {
         art.moodframe.ui.dialog.CameraEditDialog dialog = new art.moodframe.ui.dialog.CameraEditDialog(block,
                 blockService);
         dialog.initOwner(activeWindow());
-        String[] storedId = { null };
-        dialog.showAndWait().ifPresent((result) -> {
-            boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
-            art.moodframe.model.PromptBlock stored = art.moodframe.service.library.PromptBlockService.camera(
-                    inPlace ? block.getId() : null, result.name(), result.settings());
-            if (block != null)
-                stored.setSortOrder(block.getSortOrder());
-            boolean saved = inPlace ? service.updateCustom(stored)
-                    : result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
-                    : service.addCopy(stored);
-            if (saved) {
-                fillBlockChoice(art.moodframe.model.PromptBlock.Type.CAMERA, stored.getName());
-                storedId[0] = stored.getId();
+        art.moodframe.ui.dialog.CameraEditDialog.Result result = dialog.showAndWait().orElse(null);
+        if (result == null)
+            return CompletableFuture.completedFuture(null);
+        boolean inPlace = block != null && result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
+        art.moodframe.model.PromptBlock stored = art.moodframe.service.library.PromptBlockService.camera(
+                inPlace ? block.getId() : null, result.name(), result.settings());
+        if (block != null)
+            stored.setSortOrder(block.getSortOrder());
+        return storeBlock(service, stored, inPlace, result.save(), () -> {
+            fillBlockChoice(art.moodframe.model.PromptBlock.Type.CAMERA, stored.getName());
 
-                /*  a camera changed in place keeps its name, so the list reports no change of the selection  */
-                changed.run();
-            }
-            else
-                status.status(I18nManager.getText("block.error.save", result.name()));
+            /*  a camera changed in place keeps its name, so the list reports no change of the selection  */
+            changed.run();
         });
-        return storedId[0];
+    }
+
+    /*  stores a block of the user on the worker: in place, as a new block or as a copy; then shows it  */
+    private CompletableFuture<String> storeBlock(art.moodframe.service.library.PromptBlockService service,
+                                                 art.moodframe.model.PromptBlock stored, boolean inPlace,
+                                                 art.moodframe.ui.dialog.BlockEditDialog.Save save, Runnable show) {
+        String failure = I18nManager.getText("block.error.save", stored.getName());
+        return writes.run(() -> inPlace ? service.updateCustom(stored)
+                : save == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE ? service.addCustom(stored)
+                : service.addCopy(stored), false, failure, (saved) -> {
+            if (saved)
+                show.run();
+            else
+                status.status(failure);
+        }).thenApply((saved) -> saved ? stored.getId() : null);
     }
 
     /**
      * Creates or edits a palette in its dialog and selects the stored palette. A palette of the user is saved in
-     * place or as a new one, a default palette only as a new one.
+     * place or as a new one, a default palette only as a new one. The worker stores the palette.
      *
      * @param item the palette to edit, null for a new one
+     * @return completes on the JavaFX thread with the id of the stored palette, null if none was stored
      */
-    String editPalette(ColorStyleItem item) {
+    CompletableFuture<String> editPalette(ColorStyleItem item) {
         art.moodframe.service.library.ColorStyleService service = colorService;
         if (service == null)
-            return null;
+            return CompletableFuture.completedFuture(null);
 
         art.moodframe.model.ColorStyle palette = item != null ? service.getStyleByName(item.getName()) : null;
         art.moodframe.ui.dialog.ColorStyleEditDialog dialog =
                 new art.moodframe.ui.dialog.ColorStyleEditDialog(palette, colorService);
         dialog.initOwner(activeWindow());
-        String[] storedId = { null };
-        dialog.showAndWait().ifPresent((result) -> {
-            art.moodframe.model.ColorStyle stored = new art.moodframe.model.ColorStyle(result.name(), result.colors(),
-                    false);
-            boolean save = result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
-            boolean saved = palette != null && save ? service.updateCustomStyle(palette.getName(), stored)
-                    : save ? service.addCustomStyle(stored) : service.addCopy(stored);
-            if (saved) {
+        art.moodframe.ui.dialog.ColorStyleEditDialog.ColorStyleEditResult result = dialog.showAndWait().orElse(null);
+        if (result == null)
+            return CompletableFuture.completedFuture(null);
+        art.moodframe.model.ColorStyle stored = new art.moodframe.model.ColorStyle(result.name(), result.colors(),
+                false);
+        boolean save = result.save() == art.moodframe.ui.dialog.BlockEditDialog.Save.SAVE;
+        String failure = I18nManager.getText("block.error.save", result.name());
+        return writes.run(() -> palette != null && save ? service.updateCustomStyle(palette.getName(), stored)
+                : save ? service.addCustomStyle(stored) : service.addCopy(stored), false, failure, (saved) -> {
+            if (saved)
                 fillColorChoice(stored.getName());
-                art.moodframe.model.ColorStyle now = service.getStyleByName(stored.getName());
-                storedId[0] = now != null ? now.getId() : "";
-            }
             else
-                status.status(I18nManager.getText("block.error.save", result.name()));
+                status.status(failure);
+        }).thenApply((saved) -> {
+            if (!saved)
+                return null;
+            art.moodframe.model.ColorStyle now = service.getStyleByName(stored.getName());
+            return now != null ? now.getId() : "";
         });
-        return storedId[0];
     }
 
     /*  the focused window of the app (a manage dialog, if open), so a nested dialog opens on top of it  */
@@ -480,13 +508,15 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public boolean delete(StylePresetItem entry) {
-                        return service.deleteCustom(id(entry));
+                    public CompletableFuture<Boolean> delete(StylePresetItem entry) {
+                        String id = id(entry);
+                        return writes.call(() -> service.deleteCustom(id));
                     }
 
                     @Override
-                    public boolean reorder(List<StylePresetItem> entries) {
-                        return service.reorderCustom(type, entries.stream().map(this::id).toList());
+                    public CompletableFuture<Boolean> reorder(List<StylePresetItem> entries) {
+                        List<String> ids = entries.stream().map(this::id).toList();
+                        return writes.call(() -> service.reorderCustom(type, ids));
                     }
 
                     @Override
@@ -495,17 +525,17 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public int importFrom(File file) throws IOException {
-                        return service.importCustom(type, file);
+                    public CompletableFuture<Integer> importFrom(File file) {
+                        return writes.call(() -> service.importCustom(type, file));
                     }
 
                     @Override
-                    public String create() {
+                    public CompletableFuture<String> create() {
                         return editBlock(type, null);
                     }
 
                     @Override
-                    public String edit(StylePresetItem entry) {
+                    public CompletableFuture<String> edit(StylePresetItem entry) {
                         return editBlock(type, entry.getBlock());
                     }
 
@@ -547,13 +577,13 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public boolean delete(ColorStyleItem entry) {
-                        return service.deleteCustomStyle(entry.getName());
+                    public CompletableFuture<Boolean> delete(ColorStyleItem entry) {
+                        return writes.call(() -> service.deleteCustomStyle(entry.getName()));
                     }
 
                     @Override
-                    public boolean reorder(List<ColorStyleItem> entries) {
-                        return service.reorderCustomStyles(entries.stream().map(this::id).toList());
+                    public CompletableFuture<Boolean> reorder(List<ColorStyleItem> entries) {
+                        return writes.call(() -> service.reorderCustomStyles(entries.stream().map(this::id).toList()));
                     }
 
                     @Override
@@ -563,17 +593,17 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public int importFrom(File file) {
-                        return service.importStyles(file, true);
+                    public CompletableFuture<Integer> importFrom(File file) {
+                        return writes.call(() -> service.importStyles(file, true));
                     }
 
                     @Override
-                    public String create() {
+                    public CompletableFuture<String> create() {
                         return editPalette(null);
                     }
 
                     @Override
-                    public String edit(ColorStyleItem entry) {
+                    public CompletableFuture<String> edit(ColorStyleItem entry) {
                         return editPalette(entry);
                     }
 

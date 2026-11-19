@@ -130,8 +130,17 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   listeners the views put on the models hand their work to the JavaFX thread. Nothing of the scene graph follows a
   model directly: the entry card sizes its tiles from a count of the images it keeps on the JavaFX thread, not from
   the live list, which the worker of the window and the MCP threads change.
-- **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
-  executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
+- **Background work**: provider calls, polling of BFL jobs, downloads and thumbnails run on executors and return
+  `CompletableFuture`s; results go back to the UI with `Platform.runLater`.
+- **Database writes** run off the JavaFX thread, as a write may wait up to the busy timeout of 5 s for one of the MCP
+  server: a generation on its own worker (see below); the chats, the trash and the groups Mood and Frame on the worker
+  of the main window (`ui.panel.PanelWorker`: moods, frames, building blocks, palettes and favorites of the lists, and
+  the "Manage…" dialog of the building blocks, which waits meanwhile); the backup, its import and the reset of the
+  settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled meanwhile. The
+  panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the writes of the
+  "Manage…" windows of moods and frames and the renaming and deleting of brainstorm sessions. Reads that feed what is
+  shown at once (the lists of the panel, the fields of a chosen mood) stay on the JavaFX thread: they are short, and
+  SQLite in WAL mode lets them read beside a running write.
 - **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
   never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
   `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
@@ -221,7 +230,8 @@ each part has an FXML file and a controller of its own in `ui.controller`, the g
 `MainWindowController` is the coordinator. It looks up the services in `ServiceFactory` once and hands them to the
 parts with an `init` method (the `FXMLLoader` creates the controllers, their `initialize()` sets up only their own
 nodes); a part never asks the locator. The window has one worker thread for its blocking work (queries of the groups,
-downloads, deletes), which the sidebar and the chat view get as an `Executor`. A part reports back through a listener
+downloads, deletes, the writes of the groups Mood and Frame), which the sidebar, the chat view and the panel get as
+an `Executor`. A part reports back through a listener
 interface of its own (`LibrarySidebarController.Listener`, `ChatViewController.Actions`,
 `GenerationPanelController.Listener`, `MoodFramePanelController.Listener`, `InputBarController.Listener`) and shows
 messages through `ui.support.StatusSink`, where an error is told by the caller, not read from its text. The
@@ -239,7 +249,7 @@ stays reachable from nowhere.
 
 `ui.panel.MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog, which
 `ui.panel` lies below) can show the same fields: it takes its services as `MoodFramePanelController.Services` (with
-the trash), follows the chosen model with
+the trash) and the worker that writes the library, follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
 `Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on. It

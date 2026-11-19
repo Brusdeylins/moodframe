@@ -41,9 +41,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * The groups Mood and Frame of the right panel of the main window ({@code MoodFramePanel.fxml}): the mood with its
@@ -223,6 +226,12 @@ public class MoodFramePanelController {
     /*  the group Frame  */
     private FrameGroupPart frames;
 
+    /*  runs the writes of the library on the worker of the window  */
+    private PanelWorker writes;
+
+    /*  the new blocks adopted last (brainstorm, "Mood from image"), stored before a mood is saved of the fields  */
+    private CompletableFuture<Void> adopting = CompletableFuture.completedFuture(null);
+
     @FXML
     private void initialize() {
         blocks = new BlockChoices(new BlockChoices.Nodes(atmosphereComboBox, atmosphereLockButton,
@@ -252,10 +261,13 @@ public class MoodFramePanelController {
      * Fills the lists from the services, restores the remembered choices and from then on remembers every choice.
      *
      * @param services the services of the panel
+     * @param worker   runs the writes of the library one after the other, off the JavaFX thread (the worker of the
+     *                 window)
      * @param status   shows what the panel did
      * @param listener learns of the changes of the fields
      */
-    public void init(Services services, StatusSink status, Listener listener) {
+    public void init(Services services, Executor worker, StatusSink status, Listener listener) {
+        this.writes = new PanelWorker(worker, status);
         this.config = services.config();
         this.blockService = services.blocks();
         this.colorService = services.colors();
@@ -266,8 +278,8 @@ public class MoodFramePanelController {
         this.trash = services.trash();
         this.status = status;
 
-        blocks.setUp(config, blockService, colorService, favoriteService, moodService, trash, status, this::window,
-                () -> this.listener.changed());
+        blocks.setUp(config, blockService, colorService, favoriteService, moodService, trash, writes, status,
+                this::window, () -> this.listener.changed());
         moodApplyCheckBox.setSelected(config != null && config.ui().isMoodAppliedToReference());
         moodApplyCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             if (config != null)
@@ -276,7 +288,7 @@ public class MoodFramePanelController {
         loadSelections();
         setupPersistenceListeners();
         setupMoods();
-        frames.setUp(config, frameService, favoriteService, trash, status, this::window,
+        frames.setUp(config, frameService, favoriteService, trash, writes, status, this::window,
                 blocks.favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId),
                 (String id) -> blocks.isFavorite(FavoriteService.Kind.FRAME, id));
         this.listener = listener;
@@ -489,7 +501,7 @@ public class MoodFramePanelController {
     /**
      * Takes over the mood and the building blocks adopted in the brainstorm popup: the mood sets the fields that are
      * not locked, an adopted block then replaces the block of its field and a field that is not adopted keeps its
-     * block; a locked field keeps its choice.
+     * block; a locked field keeps its choice. A new block is stored on the worker and set into its field afterwards.
      *
      * @param moodId the id of the adopted mood, null for none
      * @param blocks the adopted blocks by their field
@@ -500,21 +512,26 @@ public class MoodFramePanelController {
         Mood mood = moodId != null && moodService != null ? moodService.find(moodId) : null;
         if (mood != null)
             chooseMood(mood);
+        List<CompletableFuture<Boolean>> stored = new ArrayList<>();
         for (Mood.Field field : art.moodframe.model.BrainstormDraft.FIELDS) {
             if (locked.contains(field))
                 continue;
             art.moodframe.model.BrainstormDraft.Block block = blocks.get(field);
             if (block != null)
-                adoptBlock(field, block);
+                stored.add(adoptBlock(field, block));
             else if (mood != null)
                 selectField(field, before.get(field));
         }
+        adopting = CompletableFuture.allOf(stored.toArray(CompletableFuture[]::new));
     }
 
-    /** Saves the fields as a new mood under a name the user enters, as "Save as..." does. */
+    /**
+     * Saves the fields as a new mood under a name the user enters, as "Save as..." does; once the new blocks adopted
+     * last are stored and in their fields.
+     */
     public void saveMoodAsNew() {
         if (moodService != null)
-            saveMood(true);
+            adopting.thenRun(() -> saveMood(true));
     }
 
     /*  the window of the panel, the owner of its dialogs  */
@@ -749,13 +766,20 @@ public class MoodFramePanelController {
     /**
      * Takes over the mood and the building blocks of a chat entry into the fields that are not locked. A block that is
      * not in use anymore can be created anew from its copy at the entry. With {@code save}, the blocks are stored as a
-     * new mood first, under a name the user enters.
+     * new mood first, under a name the user enters. What is created or stored, the worker writes; the fields follow
+     * afterwards.
      *
      * @param entry the chat entry
      * @param save  whether to save the blocks as a new mood
-     * @return whether the blocks were taken over, false if cancelled or failed
+     * @return whether the blocks are taken over, false if cancelled or there is no mood; a failed write is told by the
+     *         status
      */
     public boolean takeOverEntryMood(ChatEntry entry, boolean save) {
+        return takeOverEntryMood(entry, save, I18nManager.getText("status.entry.mood"));
+    }
+
+    /*  takes over the mood of an entry and shows the message once its fields show it (see above)  */
+    private boolean takeOverEntryMood(ChatEntry entry, boolean save, String done) {
         if (moodService == null)
             return false;
 
@@ -765,41 +789,60 @@ public class MoodFramePanelController {
                 : moodService.findForLegacyStyle(entry.getStyle());
         if (combination == null)
             return false;
+        Boolean recreate = Boolean.FALSE;
         if (copy != null) {
             List<Mood.Field> missing = moodService.missingBlocks(copy);
-            Boolean recreate = missing.isEmpty() ? Boolean.FALSE : askToRecreateBlocks(copy, missing);
+            recreate = missing.isEmpty() ? Boolean.FALSE : askToRecreateBlocks(copy, missing);
             if (recreate == null)
                 return false;
-            moodService.references(copy, recreate).forEach(combination::setReference);
-            if (recreate)
-                blocks.refreshBlockChoices();
         }
 
         /*  A combination of its own shows the mood it started from as chosen and changed  */
-        Mood mood = moodService.find(copy != null && copy.moodId() == null ? copy.baseId() : combination.getId());
+        Mood base = moodService.find(copy != null && copy.moodId() == null ? copy.baseId() : combination.getId());
+        Mood saved = null;
         if (save) {
             String name = art.moodframe.ui.dialog.MoodManageDialog.askName(window(),
                     moodService, I18nManager.getText("mood.name.new"),
                     combination.getName() != null ? moodService.freeName(combination.getName()) : "", null);
             if (name == null)
                 return false;
-            mood = new Mood(null, name);
-            combination.getReferences().forEach(mood::setReference);
-            if (!moodService.add(mood)) {
-                status.failure(I18nManager.getText("error.mood.save"));
-                return false;
-            }
-            reloadMoods(mood.getId());
-            combination = mood;
+            saved = new Mood(null, name);
         }
 
-        /*  The mood field names the saved mood the fields then show exactly, else the mood as changed  */
-        if (!save)
-            mood = moodService.matchingMood(mood, moodService.apply(combination, currentMoodFields(),
-                    lockedMoodFields()));
-        chooseMood(combination, mood);
-        status.status(save ? I18nManager.getText("status.mood.saved", mood.getName())
-                : I18nManager.getText("status.entry.mood"));
+        /*  The references of the copies, the blocks created anew among them, and the new mood  */
+        boolean recreated = recreate;
+        Mood mood = saved;
+        java.util.function.Supplier<Boolean> write = () -> {
+            if (copy != null)
+                moodService.references(copy, recreated).forEach(combination::setReference);
+            if (mood == null)
+                return true;
+            combination.getReferences().forEach(mood::setReference);
+            return moodService.add(mood);
+        };
+        java.util.function.Consumer<Boolean> show = (stored) -> {
+            if (recreated)
+                blocks.refreshBlockChoices();
+            if (!stored) {
+                status.failure(I18nManager.getText("error.mood.save"));
+                return;
+            }
+            if (mood != null) {
+                reloadMoods(mood.getId());
+                chooseMood(mood, mood);
+                status.status(I18nManager.getText("status.mood.saved", mood.getName()));
+                return;
+            }
+
+            /*  The mood field names the mood the fields then show exactly, else the mood as changed  */
+            chooseMood(combination, moodService.matchingMood(base, moodService.apply(combination,
+                    currentMoodFields(), lockedMoodFields())));
+            status.status(done);
+        };
+        if (recreated || save)
+            writes.run(write, false, I18nManager.getText("error.mood.save"), show);
+        else
+            show.accept(write.get());
         return true;
     }
 
@@ -810,8 +853,7 @@ public class MoodFramePanelController {
      * @param entry the chat entry of the image
      */
     public void useImageMood(ChatEntry entry) {
-        if (takeOverEntryMood(entry, false))
-            status.status(I18nManager.getText("status.image.mood"));
+        takeOverEntryMood(entry, false, I18nManager.getText("status.image.mood"));
     }
 
     /**
@@ -954,7 +996,10 @@ public class MoodFramePanelController {
         ((MoodListCell) moodComboBox.getButtonCell()).refresh();
     }
 
-    /** Saves the fields over the chosen mood of the user, or as a new mood under a name the user enters. */
+    /**
+     * Saves the fields over the chosen mood of the user, or as a new mood under a name the user enters; the worker
+     * stores it, then the list shows it as chosen.
+     */
     private void saveMood(boolean asNew) {
         Mood chosen = chosenMood();
         Mood mood;
@@ -972,13 +1017,17 @@ public class MoodFramePanelController {
         for (Mood.Field field : Mood.Field.values())
             mood.setReference(field, references.get(field));
 
-        if (!(mood.getId() == null ? moodService.add(mood) : moodService.update(mood))) {
-            status.failure(I18nManager.getText("error.mood.save"));
-            return;
-        }
-        reloadMoods(mood.getId());
-        updateMoodState();
-        status.status(I18nManager.getText("status.mood.saved", mood.getName()));
+        String failure = I18nManager.getText("error.mood.save");
+        boolean add = mood.getId() == null;
+        writes.run(() -> add ? moodService.add(mood) : moodService.update(mood), false, failure, (saved) -> {
+            if (!saved) {
+                status.failure(failure);
+                return;
+            }
+            reloadMoods(mood.getId());
+            updateMoodState();
+            status.status(I18nManager.getText("status.mood.saved", mood.getName()));
+        });
     }
 
     /** Opens the window for the moods of the user; the list follows its changes. */
@@ -1036,12 +1085,14 @@ public class MoodFramePanelController {
      */
     private void applyMoodFromImage(art.moodframe.ui.dialog.MoodImageDialog.Result result) {
         Set<Mood.Field> locked = lockedMoodFields();
+        List<CompletableFuture<Boolean>> stored = new ArrayList<>();
         result.blocks().forEach((field, block) -> {
             if (!locked.contains(field))
-                adoptBlock(field, block);
+                stored.add(adoptBlock(field, block));
         });
-        if (result.saveMood() && moodService != null)
-            saveMood(true);
+        adopting = CompletableFuture.allOf(stored.toArray(CompletableFuture[]::new));
+        if (result.saveMood())
+            saveMoodAsNew();
     }
 
     /** Shows the first block of the chosen mood that lies in the trash. */
@@ -1053,7 +1104,7 @@ public class MoodFramePanelController {
             trash.open(window(), art.moodframe.service.trash.TrashGroup.Kind.BLOCKS, trashed.get(0));
     }
 
-    /** Asks for every mood that lost its last block whether to move it to the trash. */
+    /** Asks for every mood that lost its last block whether to move it to the trash, which the worker does. */
     public void askToDeleteEmptiedMoods() {
         if (moodService == null)
             return;
@@ -1067,8 +1118,13 @@ public class MoodFramePanelController {
             ButtonType delete = new ButtonType(I18nManager.getText("mood.empty.delete"), ButtonBar.ButtonData.YES);
             ButtonType keep = new ButtonType(I18nManager.getText("mood.empty.keep"), ButtonBar.ButtonData.NO);
             alert.getButtonTypes().setAll(delete, keep);
-            if (alert.showAndWait().orElse(keep) == delete)
-                moodService.moveToTrash(mood.getId());
+            if (alert.showAndWait().orElse(keep) == delete) {
+                String failure = I18nManager.getText("mood.manage.delete.failed", mood.getName());
+                writes.run(() -> moodService.moveToTrash(mood.getId()), false, failure, (moved) -> {
+                    if (!moved)
+                        status.failure(failure);
+                });
+            }
         }
     }
 
@@ -1102,34 +1158,50 @@ public class MoodFramePanelController {
 
     /**
      * Sets a building block adopted in the brainstorm popup into its field. A new block is stored in the list of the
-     * user first; a new style counts as photographic, like every style of the user, a new camera brings its settings.
+     * user first, on the worker; a new style counts as photographic, like every style of the user, a new camera brings
+     * its settings.
+     *
+     * @return completes on the JavaFX thread once the block is in its field, with whether it is
      */
-    private void adoptBlock(Mood.Field field, art.moodframe.model.BrainstormDraft.Block block) {
+    private CompletableFuture<Boolean> adoptBlock(Mood.Field field, art.moodframe.model.BrainstormDraft.Block block) {
         if (!block.isNew()) {
             selectField(field, block.id());
-            return;
+            return CompletableFuture.completedFuture(true);
         }
 
-        boolean saved;
+        String failure = I18nManager.getText("block.error.save", block.name());
         if (field == Mood.Field.COLOR) {
             art.moodframe.service.library.ColorStyleService service = colorStyleService();
-            saved = service != null && service.addCustomStyle(
-                    new art.moodframe.model.ColorStyle(block.name(), block.colors(), false));
-            if (saved)
-                blocks.fillColorChoice(block.name());
+            if (service == null) {
+                status.status(failure);
+                return CompletableFuture.completedFuture(false);
+            }
+            art.moodframe.model.ColorStyle palette = new art.moodframe.model.ColorStyle(block.name(), block.colors(),
+                    false);
+            return writes.run(() -> service.addCustomStyle(palette), false, failure, (saved) -> {
+                if (saved)
+                    blocks.fillColorChoice(block.name());
+                else
+                    status.status(failure);
+            });
         }
-        else {
-            art.moodframe.service.library.PromptBlockService service = blockService;
-            art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
-            saved = service != null && service.addCustom(type == art.moodframe.model.PromptBlock.Type.CAMERA
-                    ? art.moodframe.service.library.PromptBlockService.camera(null, block.name(), block.settings())
-                    : new art.moodframe.model.PromptBlock(null, type, block.name(), block.text(), null,
-                            type == art.moodframe.model.PromptBlock.Type.STYLE));
+
+        art.moodframe.service.library.PromptBlockService service = blockService;
+        art.moodframe.model.PromptBlock.Type type = art.moodframe.model.PromptBlock.Type.valueOf(field.name());
+        if (service == null) {
+            status.status(failure);
+            return CompletableFuture.completedFuture(false);
+        }
+        art.moodframe.model.PromptBlock stored = type == art.moodframe.model.PromptBlock.Type.CAMERA
+                ? art.moodframe.service.library.PromptBlockService.camera(null, block.name(), block.settings())
+                : new art.moodframe.model.PromptBlock(null, type, block.name(), block.text(), null,
+                        type == art.moodframe.model.PromptBlock.Type.STYLE);
+        return writes.run(() -> service.addCustom(stored), false, failure, (saved) -> {
             if (saved)
                 blocks.fillBlockChoice(type, block.name());
-        }
-        if (!saved)
-            status.status(I18nManager.getText("block.error.save", block.name()));
+            else
+                status.status(failure);
+        });
     }
 
     /** Selects the entry with this id in the field of a building block, "None" if the field does not list it. */

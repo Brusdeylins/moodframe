@@ -414,6 +414,7 @@ class SettingsDialogTest {
         File backup = folder.resolve("backup.json").toFile();
         prompts.saveTo = backup;
         fire("exportSettingsButton");
+        waitFor(() -> !prompts.infos.isEmpty(), "the export is done");
         assertTrue(backup.length() > 0);
         assertEquals(List.of("Export Successful"), prompts.infos);
 
@@ -426,8 +427,14 @@ class SettingsDialogTest {
         events.addListener((kind, id) -> changed.add(kind), Platform::runLater);
 
         prompts.openFrom = backup;
-        fire("importSettingsButton");
+        assertTrue(onFx(() -> {
+            Button importButton = node("importSettingsButton");
+            importButton.fire();
+            return importButton.isDisabled();
+        }), "the import runs off the JavaFX thread, its button disabled meanwhile");
+        waitFor(() -> prompts.infos.size() == 2, "the import is done");
         assertEquals(List.of("Export Successful", "Import Successful"), prompts.infos);
+        assertFalse(onFx(() -> this.<Button>node("importSettingsButton").isDisabled()));
         assertEquals("US", config.accounts().getApiRegion());
         assertEquals("US", onFx(region::getValue));
         assertNotNull(moods.find(mood.getId()));
@@ -446,6 +453,7 @@ class SettingsDialogTest {
         select(4);
 
         fire("resetSettingsButton");
+        waitFor(() -> !prompts.infos.isEmpty(), "the reset is done");
         assertEquals(List.of("Settings Reset"), prompts.infos);
         assertEquals("bfl-saved", config.accounts().getApiKey(ApiProvider.BFL));
         assertEquals("gemini-saved", config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));

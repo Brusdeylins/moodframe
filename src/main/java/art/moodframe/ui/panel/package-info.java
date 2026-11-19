@@ -9,6 +9,8 @@
  * {@link MoodFramePanelController.Services}</li>
  * <li>{@link BlockChoices}: the building block fields with their favorites, locks and dialogs</li>
  * <li>{@link FrameGroupPart}: frame, aspect ratio, resolution and the hints of the model</li>
+ * <li>{@link PanelWorker}: runs the writes of the library on the worker of the window and shows their outcome on the
+ * JavaFX thread</li>
  * </ul>
  */
 package art.moodframe.ui.panel;

@@ -12,8 +12,9 @@
  * <li>{@link AppearanceSettingsPane}, {@link LanguageSettingsPane}: theme and language, shown at once</li>
  * <li>{@link AdvancedSettingsPane}: detailed logging, backup and import, the reset</li>
  * <li>{@link McpSettingsPane}: the MCP server, applied at once</li>
- * <li>{@link ConnectionTest}, {@link StatusLine}, {@link SettingsPrompts}: the background connection tests, the
- * status lines and the message boxes and file choosers the sections share</li>
+ * <li>{@link ConnectionTest}, {@link SectionTask}, {@link StatusLine}, {@link SettingsPrompts}: the background
+ * connection tests, the blocking work of a section off the JavaFX thread (tests, backup, import, reset), the status
+ * lines and the message boxes and file choosers the sections share</li>
  * </ul>
  */
 package art.moodframe.ui.controller.settings;

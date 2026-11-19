@@ -221,7 +221,7 @@ public class MainWindowController implements I18nChangeListener {
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
                 moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
-                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash),
+                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash), worker,
                 statusBarController, this::updateUIState);
         inputBar.init(generationPanelController.costTextProperty(), inputListener());
         statusBarController.ready();

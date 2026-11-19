@@ -64,6 +64,7 @@ final class FrameGroupPart {
     private FrameService frameService;
     private FavoriteService favoriteService;
     private TrashWindow.Opener trash;
+    private PanelWorker writes;
     private StatusSink status;
     private Supplier<Window> window;
     private Predicate<String> isFavorite;
@@ -102,18 +103,20 @@ final class FrameGroupPart {
      * @param frameService   the frames (may be null: no frame selection)
      * @param favorites      the favorites, listed first
      * @param trash          opens the trash on the frames (may be null)
+     * @param writes         stores the frames off the JavaFX thread
      * @param status         shows what the group did
      * @param window         the window of the panel, owner of the dialogs
      * @param stars          the favorite stars of the rows of the list
      * @param isFavorite     whether the frame of an id is a favorite
      */
     void setUp(ApplicationConfig config, FrameService frameService, FavoriteService favorites,
-               TrashWindow.Opener trash, StatusSink status, Supplier<Window> window,
+               TrashWindow.Opener trash, PanelWorker writes, StatusSink status, Supplier<Window> window,
                FavoriteStar.Favorites<Frame> stars, Predicate<String> isFavorite) {
         this.config = config;
         this.frameService = frameService;
         this.favoriteService = favorites;
         this.trash = trash;
+        this.writes = writes;
         this.status = status;
         this.window = window;
         this.isFavorite = isFavorite;
@@ -257,7 +260,10 @@ final class FrameGroupPart {
         ((FrameListCell) frameComboBox.getButtonCell()).refresh();
     }
 
-    /** Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame under a name entered. */
+    /**
+     * Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame under a name entered; the
+     * worker stores it, then the list shows it as chosen.
+     */
     void saveFrame(boolean asNew) {
         if (frameService == null)
             return;
@@ -275,17 +281,21 @@ final class FrameGroupPart {
         frame.setAspectRatio(aspectRatioComboBox.getValue());
         frame.setResolution(resolutionChoiceBox.getValue());
 
-        if (!(frame.getId() == null ? frameService.add(frame) : frameService.update(frame))) {
-            status.failure(I18nManager.getText("error.frame.save"));
-            return;
-        }
-        reloadFrames(frame.getId());
-        updateFrameState();
-        status.status(I18nManager.getText("status.frame.saved", frame.getName()));
+        String failure = I18nManager.getText("error.frame.save");
+        boolean add = frame.getId() == null;
+        writes.run(() -> add ? frameService.add(frame) : frameService.update(frame), false, failure, (saved) -> {
+            if (!saved) {
+                status.failure(failure);
+                return;
+            }
+            reloadFrames(frame.getId());
+            updateFrameState();
+            status.status(I18nManager.getText("status.frame.saved", frame.getName()));
+        });
     }
 
     /**
-     * Saves aspect ratio and resolution as a new frame under a name entered and chooses it.
+     * Saves aspect ratio and resolution as a new frame under a name entered and chooses it once the worker stored it.
      *
      * @param name        the suggested name
      * @param aspectRatio the aspect ratio
@@ -301,13 +311,16 @@ final class FrameGroupPart {
         Frame frame = new Frame(null, name);
         frame.setAspectRatio(aspectRatio);
         frame.setResolution(resolution);
-        if (!frameService.add(frame)) {
-            status.failure(I18nManager.getText("error.frame.save"));
-            return;
-        }
-        reloadFrames(frame.getId());
-        chooseFrame(frame);
-        status.status(I18nManager.getText("status.frame.saved", frame.getName()));
+        String failure = I18nManager.getText("error.frame.save");
+        writes.run(() -> frameService.add(frame), false, failure, (saved) -> {
+            if (!saved) {
+                status.failure(failure);
+                return;
+            }
+            reloadFrames(frame.getId());
+            chooseFrame(frame);
+            status.status(I18nManager.getText("status.frame.saved", frame.getName()));
+        });
     }
 
     /** Opens the window for the frames of the user; the list follows its changes. */

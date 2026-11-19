@@ -14,12 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 /**
  * The advanced section of the settings ({@code AdvancedSettingsPane.fxml}): detailed logging, the backup of the
  * settings and the library ({@link ConfigurationExporter}), the reset to the defaults and the version. An import
- * and a reset change other sections, so the dialog hands in what shows the stored values again.
+ * and a reset change other sections, so the dialog hands in what shows the stored values again. Export, import and
+ * reset read and write the library on a thread of their own ({@link SectionTask}), their buttons disabled meanwhile.
  */
 public class AdvancedSettingsPane implements SettingsSection {
 
@@ -103,45 +105,65 @@ public class AdvancedSettingsPane implements SettingsSection {
         enableLoggingCheckBox.setText(I18nManager.getText("settings.performance.logging"));
     }
 
-    /** Exports the settings and the library into a chosen file. */
-    @FXML
-    private void onExportSettings() {
-        try {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Export Configuration");
-            ConfigurationExporter exporter = services.exporter();
-            fileChooser.setInitialFileName(exporter.generateExportFilename());
-            File documentsDir = config.paths().documents().toFile();
-            if (documentsDir.exists())
-                fileChooser.setInitialDirectory(documentsDir);
-
-            File exportFile = services.prompts().saveFile(fileChooser, exportSettingsButton.getScene().getWindow());
-            if (exportFile != null) {
-                exporter.exportConfiguration(config, exportFile);
-                services.prompts().info("Export Successful",
-                        String.format("Configuration exported successfully to:\n%s\n\nFile size: %.1f KB",
-                                exportFile.getAbsolutePath(), exportFile.length() / 1024.0));
-            }
-        } catch (Exception e) {
-            logger.error("Failed to export configuration", e);
-            services.prompts().error("Export Failed", "Failed to export configuration: " + e.getMessage());
-        }
+    /*  the buttons of the backup and the reset, disabled while one of them runs  */
+    private List<Button> dataButtons() {
+        return List.of(exportSettingsButton, importSettingsButton, resetSettingsButton);
     }
 
-    /** Imports a chosen file; the library services report what changed, the dialog shows the new settings. */
+    /** Exports the settings and the library into a chosen file, off the JavaFX thread. */
+    @FXML
+    private void onExportSettings() {
+        ConfigurationExporter exporter = services.exporter();
+        if (exporter == null) {
+            services.prompts().error("Export Failed", "Failed to export configuration: no exporter");
+            return;
+        }
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Export Configuration");
+        fileChooser.setInitialFileName(exporter.generateExportFilename());
+        File documentsDir = config.paths().documents().toFile();
+        if (documentsDir.exists())
+            fileChooser.setInitialDirectory(documentsDir);
+
+        File exportFile = services.prompts().saveFile(fileChooser, exportSettingsButton.getScene().getWindow());
+        if (exportFile == null)
+            return;
+        SectionTask.run(dataButtons(), () -> {
+            exporter.exportConfiguration(config, exportFile);
+            return exportFile.length();
+        }, (length) -> services.prompts().info("Export Successful",
+                String.format("Configuration exported successfully to:\n%s\n\nFile size: %.1f KB",
+                        exportFile.getAbsolutePath(), length / 1024.0)), (e) -> {
+            logger.error("Failed to export configuration", e);
+            services.prompts().error("Export Failed", "Failed to export configuration: " + e.getMessage());
+        });
+    }
+
+    /**
+     * Imports a chosen file off the JavaFX thread; the library services report what changed, the dialog shows the new
+     * settings.
+     */
     @FXML
     private void onImportSettings() {
-        try {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Import Configuration");
-            File documentsDir = config.paths().documents().toFile();
-            if (documentsDir.exists())
-                fileChooser.setInitialDirectory(documentsDir);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Import Configuration");
+        File documentsDir = config.paths().documents().toFile();
+        if (documentsDir.exists())
+            fileChooser.setInitialDirectory(documentsDir);
 
-            File importFile = services.prompts().openFile(fileChooser, importSettingsButton.getScene().getWindow());
-            if (importFile == null)
-                return;
-            ConfigurationExporter.ImportResult result = services.exporter().importConfiguration(importFile, config);
+        File importFile = services.prompts().openFile(fileChooser, importSettingsButton.getScene().getWindow());
+        if (importFile == null)
+            return;
+        SectionTask.run(dataButtons(), () -> services.exporter().importConfiguration(importFile, config),
+                this::showImport, (e) -> {
+            logger.error("Failed to import configuration", e);
+            services.prompts().error("Import Failed", "Failed to import configuration: " + e.getMessage());
+        });
+    }
+
+    /*  shows the outcome of an import and asks whether to keep its changes  */
+    private void showImport(ConfigurationExporter.ImportResult result) {
+        try {
             if (!result.isSuccess()) {
                 services.prompts().error("Import Failed", result.getMessage());
             } else if (result.getChangeCount() == 0) {
@@ -173,7 +195,10 @@ public class AdvancedSettingsPane implements SettingsSection {
                 String.format("Import will change %d settings", result.getChangeCount()), content.toString(), true);
     }
 
-    /** Resets the settings after a confirmation, keeping the secrets, and deletes the custom styles. */
+    /**
+     * Resets the settings after a confirmation, keeping the secrets, and deletes the custom styles, off the JavaFX
+     * thread.
+     */
     @FXML
     private void onResetSettings() {
         if (!services.prompts().confirm("Reset Settings", "Reset all settings to defaults?",
@@ -181,18 +206,21 @@ public class AdvancedSettingsPane implements SettingsSection {
                         + "Custom styles will be deleted. This action cannot be undone.", false))
             return;
 
-        try {
+        SectionTask.run(dataButtons(), () -> {
+
             /*  keeps the API keys, the MCP token and the proxy password  */
             config.resetToDefaults();
             if (services.blocks() != null)
                 services.blocks().resetToDefaults(PromptBlock.Type.STYLE);
+            return null;
+        }, (done) -> {
             resetAll.run();
             services.prompts().info("Settings Reset",
                     "All settings have been reset to defaults. API key and proxy password were preserved.");
-        } catch (Exception e) {
+        }, (e) -> {
             logger.error("Failed to reset settings", e);
             services.prompts().error("Reset Failed", "Failed to reset settings: " + e.getMessage());
-        }
+        });
     }
 
     /** Opens the folder of the settings in the file manager of the system. */
