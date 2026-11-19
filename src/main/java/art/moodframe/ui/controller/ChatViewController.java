@@ -98,8 +98,16 @@ public class ChatViewController {
          */
         void copySeed(long seed);
 
-        /** Whether a seed applies to the chosen model, a model of BFL. */
+        /** Whether a seed applies to the chosen model, a model of a provider with seeds. */
         boolean seedApplies();
+
+        /**
+         * Whether the provider of a model gives its images seeds that repeat them.
+         *
+         * @param modelId the API model id of an image
+         * @return true if the image offers its seed
+         */
+        boolean usesSeeds(String modelId);
 
         /**
          * Takes over the mood of an entry, or saves it as a new mood first.
@@ -547,6 +555,11 @@ public class ChatViewController {
         }
 
         @Override
+        public boolean usesSeeds(String modelId) {
+            return actions.usesSeeds(modelId);
+        }
+
+        @Override
         public void takeOverMood(ChatEntry entry, boolean save) {
             actions.takeOverMood(entry, save);
         }
@@ -823,7 +836,7 @@ public class ChatViewController {
             }
         });
         imageGrid.setOnReuse((entry) -> actions.reuse(entry, ChatEntryCard.Reuse.ALL));
-        imageGrid.setOnSeedCopy(actions::copySeed, actions::seedApplies);
+        imageGrid.setOnSeedCopy(actions::copySeed, actions::seedApplies, actions::usesSeeds);
 
         /*  The largest sizes follow the scale of the screen the window is on, also when it moves to another screen  */
         DoubleProperty outputScale = new SimpleDoubleProperty(Screen.getPrimary().getOutputScaleX());

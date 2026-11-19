@@ -64,17 +64,17 @@ class MainWindowPanelTest {
         assertTrue(inside(byId("modelLabel"), details.get(0)) && inside(byId("modelFamilyChoiceBox"), details.get(0))
                 && inside(byId("modelComboBox"), details.get(0)), "the model comes first");
         assertEquals(List.of("geminiAdvancedFeaturesContainer", "geminiThinkingLevelContainer", "bflParametersContainer",
-                "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer",
+                "seedContainer", "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer",
                 "imageAttachmentSection"), ids(details.subList(1, details.size())),
                 "the fields of the model, then count or duration, then the attachment");
 
-        /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps, seed  */
-        List<Element> flux = children(byId("bflParametersContainer"));
+        /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps; then the
+            seed of every provider with seeds  */
         assertEquals(List.of("flux2GroundingSearchContainer", "bflPromptUpsamplingCheckBox", "flux1SafetyContainer",
-                "flux2ParametersContainer"), ids(flux.subList(0, 4)));
+                "flux2ParametersContainer"), ids(children(byId("bflParametersContainer"))));
         assertEquals(List.of("flux2SafetyContainer", "flux2GuidanceContainer", "flux2StepsContainer"),
                 ids(children(byId("flux2ParametersContainer"))), "safety, guidance, steps");
-        assertTrue(flux.size() == 5 && inside(byId("seedTextField"), flux.get(4)), "the seed last");
+        assertTrue(inside(byId("seedTextField"), byId("seedContainer")), "the seed after the fields of BFL");
     }
 
     @Test

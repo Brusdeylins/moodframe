@@ -133,42 +133,44 @@ public class InputBarController {
     /**
      * Enables the prompt and shows the hint of its empty field.
      *
-     * @param enabled        whether the prompt can be typed
-     * @param placeholderKey the i18n key of the hint
+     * @param enabled     whether the prompt can be typed
+     * @param placeholder the hint, see {@link #placeholder(boolean, boolean, boolean, ApiProvider)}
      */
-    public void setInputEnabled(boolean enabled, String placeholderKey) {
+    public void setInputEnabled(boolean enabled, String placeholder) {
         promptTextArea.setDisable(!enabled);
-        showPlaceholder(placeholderKey);
+        showPlaceholder(placeholder);
     }
 
     /**
      * Shows the hint of the empty prompt.
      *
-     * @param placeholderKey the i18n key of the hint
+     * @param placeholder the hint, see {@link #placeholder(boolean, boolean, boolean, ApiProvider)}
      */
-    public void showPlaceholder(String placeholderKey) {
-        promptTextArea.setPromptText(I18nManager.getText(placeholderKey));
+    public void showPlaceholder(String placeholder) {
+        promptTextArea.setPromptText(placeholder);
     }
 
     /**
-     * Decides on the hint of the empty prompt: a missing key of the provider of the chosen model, no chat, an attached
-     * image, else the hint for the provider.
+     * Decides on the hint of the empty prompt in the current language: a missing key of the provider of the chosen
+     * model, no chat, an attached image, else the hint for the provider.
      *
      * @param hasApiKey     whether the key is there
      * @param hasChat       whether a chat takes the prompt
      * @param hasAttachment whether an image is attached
      * @param provider      the provider of the chosen model, null without
-     * @return the i18n key of the hint
+     * @return the hint
      */
     static String placeholder(boolean hasApiKey, boolean hasChat, boolean hasAttachment, ApiProvider provider) {
-        boolean gemini = provider == ApiProvider.GOOGLE_GEMINI;
         if (!hasApiKey)
-            return gemini ? "status.error.api.key.missing.gemini" : "status.error.api.key.missing.bfl";
+            return provider != null
+                    ? I18nManager.getText("status.error.api.key.missing.provider", provider.getDisplayName())
+                    : I18nManager.getText("status.error.api.key.missing");
         if (!hasChat)
-            return "input.prompt.placeholder.nochat";
+            return I18nManager.getText("input.prompt.placeholder.nochat");
         if (hasAttachment)
-            return "status.image.edit.attached";
-        return gemini ? "input.prompt.placeholder.gemini" : "input.prompt.placeholder";
+            return I18nManager.getText("status.image.edit.attached");
+        return I18nManager.getText(provider == ApiProvider.GOOGLE_GEMINI ? "input.prompt.placeholder.gemini"
+                : "input.prompt.placeholder");
     }
 
     /**

@@ -131,26 +131,26 @@
 
             </VBox>
 
-            <!-- Seed -->
-            <VBox spacing="5.0">
-                <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
-                <HBox spacing="5.0" alignment="CENTER_LEFT">
-                    <TextField fx:id="seedTextField"
-                              promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
+        </VBox>
 
-                    <!-- Clear Seed Button -->
-                    <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
-                            onAction="#onClearSeedClicked">
-                        <graphic>
-                            <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
-                        </graphic>
-                        <tooltip>
-                            <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
-                        </tooltip>
-                    </Button>
-                </HBox>
-            </VBox>
+        <!-- Seed, for the models of a provider with seeds -->
+        <VBox fx:id="seedContainer" spacing="5.0">
+            <Label fx:id="seedLabel" text="Seed (optional):" styleClass="text-bold" />
+            <HBox spacing="5.0" alignment="CENTER_LEFT">
+                <TextField fx:id="seedTextField"
+                          promptText="random" HBox.hgrow="ALWAYS" maxWidth="Infinity" />
 
+                <!-- Clear Seed Button -->
+                <Button fx:id="clearSeedButton" styleClass="icon-button, text-danger-hover"
+                        onAction="#onClearSeedClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2d-delete" iconSize="14" styleClass="ikonli-font-icon, text-muted" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip fx:id="clearSeedTooltip" text="Clear seed (use random)" />
+                    </tooltip>
+                </Button>
+            </HBox>
         </VBox>
 
         <!-- Image Count (General Parameter - works for both BFL and Gemini); a video takes its

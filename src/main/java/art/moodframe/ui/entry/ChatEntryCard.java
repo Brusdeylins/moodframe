@@ -1,6 +1,5 @@
 package art.moodframe.ui.entry;
 
-import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
@@ -146,6 +145,11 @@ public class ChatEntryCard extends ManagedComponent {
             }
 
             @Override
+            public boolean usesSeeds(String modelId) {
+                return false;
+            }
+
+            @Override
             public void takeOverMood(ChatEntry entry, boolean save) {
             }
 
@@ -214,8 +218,19 @@ public class ChatEntryCard extends ManagedComponent {
          */
         void copySeed(long seed);
 
-        /** Whether a seed applies to the chosen model, a model of BFL; asked whenever the menu of an image opens. */
+        /**
+         * Whether a seed applies to the chosen model, a model of a provider with seeds; asked whenever the menu of an
+         * image opens.
+         */
         boolean seedApplies();
+
+        /**
+         * Whether the provider of a model gives its images seeds that repeat them.
+         *
+         * @param modelId the API model id of an image
+         * @return true if the image offers its seed
+         */
+        boolean usesSeeds(String modelId);
 
         /**
          * Takes over the mood of the entry into the panel, or saves it as a new mood first.
@@ -699,11 +714,11 @@ public class ChatEntryCard extends ManagedComponent {
                 + I18nManager.getText("entry.badge.frame.result", result);
     }
 
-    /** The model under its full name with its price per image, a BFL model with its safety level. */
+    /** The model under its full name with its price per image, a model with a safety tolerance with its level. */
     private String modelDetails() {
         GenerationModel known = GenerationModel.fromEntryModel(chatEntry.getModel());
         String name = ModelLabels.entryName(chatEntry.getModel());
-        if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
+        if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.supportsSafetyTolerance())
             return name + "\n" + SafetyTolerance.label(chatEntry.getSafetyTolerance());
         return name;
     }
@@ -1018,15 +1033,15 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /**
-     * Shows the context menu of an image with "Use mood" or "Mood from image..." and, for a FLUX image with a seed,
-     * "Copy seed", which takes effect while a FLUX model is chosen.
+     * Shows the context menu of an image with "Use mood" or "Mood from image..." and, for an image of a provider
+     * with seeds, "Copy seed", which takes effect while a model of such a provider is chosen.
      */
     private void showImageMenu(GeneratedImage generatedImage, ContextMenuEvent event) {
         String path = pictures.getActualImagePath(generatedImage, false);
         Runnable useMood = chatEntry.getMood() != null ? () -> actions.useImageMood(chatEntry) : null;
         Runnable fromImage = chatEntry.getMood() == null && path != null && new File(path).exists()
                 ? () -> actions.moodFromImage(new File(path)) : null;
-        Runnable copySeed = EntryMenus.offersSeed(generatedImage)
+        Runnable copySeed = EntryMenus.offersSeed(generatedImage, actions::usesSeeds)
                 ? () -> actions.copySeed(generatedImage.getSeed()) : null;
         ContextMenu menu = EntryMenus.imageMenu(useMood, fromImage, copySeed, actions.seedApplies());
         if (menu == null)

@@ -138,6 +138,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -1051,6 +1052,47 @@ class MainWindowFlowsTest {
         assertFalse(enabled.isDisable(), "a model of BFL takes the seed");
         onFxThread(enabled::fire);
         assertEquals("4242", ((TextField) root.lookup("#seedTextField")).getText());
+    }
+
+    /**
+     * The seed field shows for the models of a provider that uses seeds, whichever it is: a model of BFL, not one of
+     * Gemini, until Gemini says it uses seeds.
+     */
+    @Test
+    void theSeedFieldFollowsWhetherTheProviderUsesSeeds() throws Exception {
+        Node seed = root.lookup("#seedContainer");
+        onFxThread(() -> controller.generationPanel().modelFamilyChoice().setValue(FLUX.getFamilyName()));
+        assertTrue(seed.isVisible() && seed.isManaged(), "a model of BFL takes a seed");
+        chooseGemini();
+        assertFalse(seed.isVisible() || seed.isManaged(), "a model of Gemini takes none");
+        assertFalse(controller.generationPanel().isSeedModelSelected());
+
+        doReturn(true).when(ServiceFactory.getInstance().getService(GeminiApiService.class)).usesSeeds();
+        onFxThread(() -> controller.generationPanel().modelFamilyChoice().setValue(FLUX.getFamilyName()));
+        chooseGemini();
+        assertTrue(seed.isVisible() && seed.isManaged(), "a provider that uses seeds takes one");
+        assertTrue(controller.generationPanel().isSeedModelSelected());
+    }
+
+    /**
+     * After a change of the language the hint of the empty prompt still asks the key of the chosen model, not the key
+     * status of the status bar: an enabled OpenAI account without key turns the status bar red, but a model of Gemini
+     * with its key is chosen.
+     */
+    @Test
+    void theHintOfThePromptAsksTheKeyOfTheChosenModelAfterAChangeOfTheLanguage() throws Exception {
+        Chat chat = createChat("Hint");
+        open(chat);
+        chooseGemini();
+        config.accounts().setEnabled(ApiProvider.OPENAI, true);
+        onFxThread(() -> controller.refreshApiKeyStatus());
+        assertEquals(I18nManager.getText("status.api.key.none"),
+                ((Label) root.lookup("#apiKeyStatusLabel")).getText(), "an enabled provider has no key");
+        assertEquals(I18nManager.getText("input.prompt.placeholder.gemini"), prompt().getPromptText());
+
+        onFxThread(() -> I18nManager.setLocale(Locale.GERMAN));
+        assertEquals(I18nManager.getTextIn(Locale.GERMAN, "input.prompt.placeholder.gemini"),
+                prompt().getPromptText());
     }
 
     /**

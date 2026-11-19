@@ -387,6 +387,11 @@ public class MainWindowController implements I18nChangeListener {
             }
 
             @Override
+            public boolean usesSeeds(String modelId) {
+                return generationPanelController.usesSeeds(modelId);
+            }
+
+            @Override
             public boolean takeOverMood(ChatEntry entry, boolean save) {
                 return moodFramePanelController.takeOverEntryMood(entry, save);
             }
@@ -967,11 +972,9 @@ public class MainWindowController implements I18nChangeListener {
         try {
             chatViewController.updateTexts();
 
-            /*  the hint of the empty prompt follows the status of the keys in the status bar until the next change  */
-            GenerationModel model = generationPanelController.selectedModel();
-            inputBar.showPlaceholder(InputBarController.placeholder(statusBarController.hasValidKeys(),
-                    librarySidebarController.hasActiveChat(), generationPanelController.hasAttachment(),
-                    model != null ? model.getProvider() : null));
+            /*  the hint of the empty prompt asks the key of the chosen model, as updateUIState does  */
+            inputBar.showPlaceholder(placeholder(generationPanelController.hasApiKeyForSelectedModel(),
+                    librarySidebarController.hasActiveChat()));
             inputBar.showCount(buildFinalPrompt(), generationPanelController.promptLimit());
             statusBarController.updateTexts();
             moodFramePanelController.updateTexts();

@@ -138,7 +138,7 @@ final class GenerationAttachments {
     }
 
     /**
-     * Removes all attached images, as a switch from Gemini to BFL does.
+     * Removes all attached images, as a switch to a model that cannot take them does.
      *
      * @return whether there were images to remove
      */

@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -135,6 +136,8 @@ public class GenerationPanelController {
     private Label flux2StepsLabel;
     @FXML
     private Slider flux2StepsSlider;
+    @FXML
+    private VBox seedContainer;
     @FXML
     private Label seedLabel;
     @FXML
@@ -391,7 +394,7 @@ public class GenerationPanelController {
     }
 
     /**
-     * Takes over a seed, e.g. from an image; it applies to the models of BFL.
+     * Takes over a seed, e.g. from an image; it applies to the models of a provider with seeds.
      *
      * @param seed the seed
      */
@@ -408,10 +411,26 @@ public class GenerationPanelController {
         flux2SafetySlider.setValue(value);
     }
 
-    /** Whether a model of BFL is chosen, which takes a seed. */
+    /** Whether a model of a provider with seeds is chosen, which takes a seed. */
     public boolean isSeedModelSelected() {
         GenerationModel model = selectedModel();
-        return model != null && model.getProvider() == ApiProvider.BFL;
+        return model != null && usesSeeds(model.getProvider());
+    }
+
+    /**
+     * Whether the provider of a model gives its images seeds that repeat them.
+     *
+     * @param modelId the API model id of an image (may be null)
+     * @return true if its provider uses seeds
+     */
+    public boolean usesSeeds(String modelId) {
+        return usesSeeds(generationService.providers().providerOf(modelId));
+    }
+
+    /*  whether a provider is registered and uses seeds  */
+    private boolean usesSeeds(ApiProvider provider) {
+        ProviderRegistry providers = generationService.providers();
+        return providers.ids().contains(provider) && providers.get(provider).usesSeeds();
     }
 
     /** The number of images to generate. */
@@ -600,8 +619,9 @@ public class GenerationPanelController {
     }
 
     /**
-     * Remembers the choices of the group. Another model also clears the attachments when switching from Google to
-     * BFL (the file size limits differ), shows its fields and tells the window.
+     * Remembers the choices of the group. Another model also clears the attachments if it takes no images or its
+     * provider takes smaller files (the attachments were shrunk to the limit of the former one), shows its fields and
+     * tells the window.
      */
     private void setupPersistenceListeners() {
         modelComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -614,9 +634,7 @@ public class GenerationPanelController {
                         config.generation().setDefaultModel(GenerationModel.openAiModelId(newVal) != null
                                 ? newVal : model.getDisplayName());
 
-                    // Provider switch: Google → BFL → clear attachments
-                    if (previousModel != null && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
-                            && model.getProvider() == ApiProvider.BFL && attachments.clearAll())
+                    if (previousModel != null && !takesAttachmentsOf(model, previousModel) && attachments.clearAll())
                         status.error(I18nManager.getText("status.attachments.cleared.provider"));
                 }
                 updateParameterVisibility(model);
@@ -649,6 +667,12 @@ public class GenerationPanelController {
             if (newVal != null && config != null)
                 config.generation().setDefaultGeminiThinkingLevel(newVal.toLowerCase());
         });
+    }
+
+    /*  whether a model takes the images attached for another: it takes images, and files as large  */
+    private static boolean takesAttachmentsOf(GenerationModel model, GenerationModel previous) {
+        return model.supportsImageAttachment()
+                && model.getProvider().getMaxFileSize() >= previous.getProvider().getMaxFileSize();
     }
 
     /**
@@ -721,10 +745,9 @@ public class GenerationPanelController {
         // Clear existing items
         modelComboBox.getItems().clear();
 
-        logger.info("Provider status - BFL: enabled={}, hasKey={} | Gemini: enabled={}, hasKey={}",
-                    config.accounts().isEnabled(ApiProvider.BFL), config.accounts().hasApiKey(ApiProvider.BFL),
-                    config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI),
-                    config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
+        for (ApiProvider provider : ApiProvider.values())
+            logger.info("Provider status - {}: enabled={}, hasKey={}", provider,
+                    config.accounts().isEnabled(provider), config.accounts().hasApiKey(provider));
 
         // Add models from enabled providers with valid API keys
         modelComboBox.getItems().addAll(generationService.availableItems(config, 0));
@@ -915,30 +938,22 @@ public class GenerationPanelController {
     }
 
     /**
-     * Updates parameter visibility based on the selected provider (BFL or Gemini).
-     *
-     * <p>Provider-specific parameters:</p>
-     * <ul>
-     *   <li><b>BFL-only parameters:</b> Safety Tolerance, Seed, Prompt Upsampling, Image Count, Style Presets</li>
-     *   <li><b>Gemini-only parameters:</b> Currently none (imageSize is not exposed in UI)</li>
-     *   <li><b>Common parameters:</b> Model, Aspect Ratio</li>
-     * </ul>
+     * Shows the fields the selected model takes: those of its provider ({@link ProviderParameters}), the seed if its
+     * provider uses seeds, the duration of a video in place of the count.
      *
      * @param generationModel the selected model, null for an unknown item
      */
     private void updateParameterVisibility(art.moodframe.model.GenerationModel generationModel) {
         boolean isVideo = generationModel != null && generationModel.isVideoModel();
-
-        // The provider of the model (an unknown item counts as BFL, the provider of the default model)
-        ApiProvider provider = generationModel != null ? generationModel.getProvider() : ApiProvider.BFL;
-
-        boolean isBFL = (provider == ApiProvider.BFL);
-        boolean isGemini = (provider == ApiProvider.GOOGLE_GEMINI) && !isVideo;
-
-        logger.info("Updating parameter visibility for provider: {}, isVideo: {}", provider, isVideo);
+        logger.info("Updating parameter visibility for model: {}, isVideo: {}", generationModel, isVideo);
 
         // The fields of BFL and Gemini
         parameters.show(generationModel);
+
+        /*  the seed for the models of a provider with seeds  */
+        boolean takesSeed = generationModel != null && usesSeeds(generationModel.getProvider());
+        seedContainer.setVisible(takesSeed);
+        seedContainer.setManaged(takesSeed);
 
         // Video Parameters (the duration choices depend on the model)
         if (videoParametersContainer != null) {
@@ -974,7 +989,7 @@ public class GenerationPanelController {
             imageCountContainer.setManaged(!isVideo);
         }
 
-        logger.debug("Parameter visibility updated: BFL={}, Gemini={}, Video={}", isBFL, isGemini, isVideo);
+        logger.debug("Parameter visibility updated: seed={}, video={}", takesSeed, isVideo);
     }
 
     /** The video length chosen in the duration choice, or null if there is none. */

@@ -1,13 +1,13 @@
 package art.moodframe.ui.entry;
 
-import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.GenerationModel;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.util.I18nManager;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+
+import java.util.function.Predicate;
 
 /**
  * The context menus of a chat entry: on its prompt and badges the mood, on its frame badge the frame, on an image the
@@ -77,7 +77,7 @@ final class EntryMenus {
      * @param useMood       takes over the mood saved at the entry (null: not offered)
      * @param moodFromImage analyzes the image into a mood, offered without "Use mood" (null: not offered)
      * @param copySeed      copies the seed of the image (null: not offered)
-     * @param seedApplies   whether the seed takes effect, i.e. a FLUX model is chosen
+     * @param seedApplies   whether the seed takes effect, i.e. a model of a provider with seeds is chosen
      * @return the menu, null without any item
      */
     static ContextMenu imageMenu(Runnable useMood, Runnable moodFromImage, Runnable copySeed, boolean seedApplies) {
@@ -95,18 +95,16 @@ final class EntryMenus {
     }
 
     /**
-     * Whether an image offers "Copy seed": an image of BFL with a seed, as only BFL repeats an image by its seed. The
-     * provider is that of the constant of its model; a model that is no constant any more is a former FLUX model,
-     * unless it is one of the OpenAI Images API. FLUX seeds can be negative (XOR of random longs), so any seed but 0.
+     * Whether an image offers "Copy seed": an image with a seed whose provider repeats an image by its seed, as the
+     * host tells by the model of the image; a former version stored seeds for every provider. Seeds can be negative
+     * (FLUX: XOR of random longs), so any seed but 0.
      *
-     * @param image the image
+     * @param image     the image
+     * @param usesSeeds whether the provider of an API model id uses seeds
      * @return true if its seed can be copied
      */
-    static boolean offersSeed(GeneratedImage image) {
+    static boolean offersSeed(GeneratedImage image, Predicate<String> usesSeeds) {
         String modelId = image.getModel();
-        if (image.getSeed() == 0 || modelId == null)
-            return false;
-        GenerationModel model = GenerationModel.fromApiModelId(modelId);
-        return model != null ? model.getProvider() == ApiProvider.BFL : !GenerationModel.isOpenAiImageModelId(modelId);
+        return image.getSeed() != 0 && modelId != null && usesSeeds.test(modelId);
     }
 }
