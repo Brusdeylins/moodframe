@@ -165,7 +165,7 @@ Not one line of MoodFrame's code was typed by a human.
   checks.
 - **Accepted on evidence:** the person checks that evidence, not the code, and then tries the change live in the app.
 
-About 42,000 lines of Java code, 27,000 lines of test code and 1,053 automated tests.
+About 44,000 lines of Java code, 29,000 lines of test code and 1,078 automated tests.
 
 ## Build and run
 

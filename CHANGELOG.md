@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.1.4 (2026-11-19)
+
+### FEATURE
+- Saved images: logos, word marks or product photos are saved once with a name and a description and attached again
+  from the list "Saved" above the attachments; a bookmark on an attachment saves it, the gear icon manages them
+  (rename, description, favorite, show in Finder, trash and restore); a chat entry remembers its saved images, so
+  "Reuse" attaches them again; MCP: `list_saved_images` and the argument `savedImages` of `generate`
+- Brainstorm: the assistant looks up all moods, frames and saved images with its own tools instead of a long list in
+  its prompt, proposes a stored mood or frame and, by their description, saved images to attach
+- Brainstorm: the result column shows the groups Mood and Frame as the right panel of the main window, with a checkbox
+  per value to adopt; proposed saved images are ticked only as far as the target model takes images
+
+### IMPROVEMENT
+- Export and import of the settings include the saved images
+
+### BUGFIX
+- Attachments: removing the first image no longer leaves an empty square in front; a model with fewer images keeps the
+  images that fit
+- Brainstorm: a resolution the assistant proposes for a video model is adopted with its variant
+
 ## 2.1.3 (2026-11-19)
 
 ### IMPROVEMENT
