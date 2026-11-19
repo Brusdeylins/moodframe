@@ -9,7 +9,6 @@ import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.util.I18nManager;
-import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -27,13 +26,10 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
-import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.function.Consumer;
 
 /**
  * The group Generation of the right panel of the main window ({@code GenerationPanel.fxml}): the model as family and
@@ -196,20 +192,17 @@ public class GenerationPanelController {
     /*  the fields of BFL and Gemini  */
     private ProviderParameters parameters;
 
-    // Image attachment for image-to-image generation, the first of the attached images
-    private File attachedImageFile;
-
-    // Drag and drop handler for image attachments
-    private art.moodframe.ui.dnd.DragDropHandler dragDropHandler;
-
-    // Multi-Image Attachment Panel (FLUX.2 & Gemini)
-    private art.moodframe.ui.component.MultiImageAttachmentPanel multiImagePanel;
+    /*  the attached images  */
+    private GenerationAttachments attachments;
 
     /*  the price of the order, which the send button shows  */
     private final StringProperty costText = new SimpleStringProperty("$0.00");
 
     @FXML
     private void initialize() {
+        attachments = new GenerationAttachments(new GenerationAttachments.Nodes(multiImageAttachmentContainer,
+                imagePreviewContainer, noImagePlaceholder, attachmentPreviewImage, uploadImageButton,
+                removeImageButton), () -> currentSelectedModel);
         parameters = new ProviderParameters(new ProviderParameters.Nodes(geminiAdvancedFeaturesContainer,
                 geminiThinkingLevelContainer, bflParametersContainer, flux2GroundingSearchContainer,
                 bflPromptUpsamplingCheckBox, flux1SafetyContainer, safetyToleranceLabel, flux2ParametersContainer,
@@ -308,8 +301,7 @@ public class GenerationPanelController {
         java.util.stream.Stream.of(modelFamilyChoiceBox, modelComboBox, videoDurationChoiceBox,
                 geminiThinkingLevelChoiceBox).forEach(art.moodframe.ui.component.DropdownBounds::keepInWindow);
 
-        setupDragAndDrop();
-        setupMultiImageAttachmentPanel();
+        this.attachments.setUp(imageAttachmentService, status, attachmentHost());
         updateCostDisplay();
         updateGenerationSummary();
     }
@@ -341,7 +333,7 @@ public class GenerationPanelController {
 
     /** The panel of the attached images, for the tests. */
     art.moodframe.ui.component.MultiImageAttachmentPanel attachmentPanel() {
-        return multiImagePanel;
+        return attachments.panel();
     }
 
     /** The price of the order, e.g. "$0.12", "~$0.80" for a video or "unknown" for OpenAI. */
@@ -429,12 +421,12 @@ public class GenerationPanelController {
 
     /** The first attached image, null without. */
     public File attachedImage() {
-        return attachedImageFile;
+        return attachments.first();
     }
 
     /** Whether an image is attached. */
     public boolean hasAttachment() {
-        return attachedImageFile != null;
+        return attachments.first() != null;
     }
 
     /**
@@ -486,14 +478,8 @@ public class GenerationPanelController {
         imageCountLabel.setDisable(!enableInput);
         seedLabel.setDisable(!enableInput);
         imageAttachmentLabel.setDisable(!enableInput);
-        uploadImageButton.setDisable(!enableInput);
-        removeImageButton.setDisable(!enableInput);
-        if (multiImagePanel != null)
-            multiImagePanel.setDisable(!enableInput);
-        multiImageAttachmentContainer.setDisable(!enableInput);
-        noImagePlaceholder.setDisable(!enableInput);
+        attachments.setDisable(!enableInput);
         noImageLabel.setDisable(!enableInput);
-        imagePreviewContainer.setDisable(!enableInput);
         geminiAdvancedFeaturesContainer.setDisable(!enableInput);
 
         // The video parameters (duration) and the FLUX.2 parameters, with the web search of [max]
@@ -536,7 +522,7 @@ public class GenerationPanelController {
 
     /** The Base64 data of the attached images that are ready to be sent, in their order. */
     public java.util.List<String> attachedImagesBase64() {
-        return attachedBase64Images();
+        return attachments.base64();
     }
 
     /**
@@ -547,7 +533,7 @@ public class GenerationPanelController {
      * @return whether the image was attached, false if the maximum number of images is reached
      */
     public boolean attach(File imageFile) {
-        return attachImageDirectly(imageFile);
+        return attachments.attach(imageFile);
     }
 
     /**
@@ -561,8 +547,7 @@ public class GenerationPanelController {
 
     /** Releases the attachment panel, which watches the clipboard. */
     public void dispose() {
-        if (multiImagePanel != null)
-            multiImagePanel.dispose();
+        attachments.dispose();
     }
 
     /** Restores the remembered model and the remembered fields of the models. */
@@ -627,19 +612,14 @@ public class GenerationPanelController {
                                 ? newVal : model.getDisplayName());
 
                     // Provider switch: Google → BFL → clear attachments
-                    if (previousModel != null && multiImagePanel != null && multiImagePanel.hasAttachments()
-                            && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
-                            && model.getProvider() == ApiProvider.BFL) {
-                        multiImagePanel.clearAllAttachments();
-                        attachedImageFile = null;
+                    if (previousModel != null && previousModel.getProvider() == ApiProvider.GOOGLE_GEMINI
+                            && model.getProvider() == ApiProvider.BFL && attachments.clearAll())
                         status.error(I18nManager.getText("status.attachments.cleared.provider"));
-                    }
                 }
                 updateParameterVisibility(model);
 
                 // Update multi-image panel with new model's max images
-                if (multiImagePanel != null && model != null)
-                    multiImagePanel.setCurrentModel(model);
+                attachments.setModel(model);
                 listener.modelChanged();
             }
             updateCostDisplay();
@@ -683,79 +663,6 @@ public class GenerationPanelController {
     }
 
     /**
-     * Sets up drag and drop on the square of the single attachment.
-     */
-    private void setupDragAndDrop() {
-        if (imageAttachmentService == null) {
-            logger.warn("Cannot set up drag and drop: no ImageAttachmentService");
-            return;
-        }
-        dragDropHandler = new art.moodframe.ui.dnd.DragDropHandler(imageAttachmentService, imagePreviewContainer,
-                this::handleDroppedImage, status::failure, this::maxFileSize);
-        dragDropHandler.initializeDragAndDrop();
-        logger.info("Drag and drop initialized for image attachments");
-    }
-
-    /*  the file size limit of the provider of the chosen model, that of BFL without  */
-    private long maxFileSize() {
-        return GenerationModel.getMaxFileSize(currentSelectedModel != null ? currentSelectedModel.getProvider()
-                : ApiProvider.BFL);
-    }
-
-    /**
-     * Sets up the panel of the attached images for FLUX.2 and Gemini.
-     */
-    private void setupMultiImageAttachmentPanel() {
-        multiImagePanel = new art.moodframe.ui.component.MultiImageAttachmentPanel();
-        multiImagePanel.setAttachmentService(imageAttachmentService);
-        multiImagePanel.setOnError(status::failure);
-        Consumer<File> moodFromImage = listener::moodFromImage;
-        multiImagePanel.setOnMoodFromImage(moodFromImage);
-
-        // When first image is attached, apply same logic as single image
-        multiImagePanel.setOnFirstImageAttached(() -> Platform.runLater(() -> {
-            updateAttachmentState();
-            imageCountSlider.setValue(1);
-            updateImageCountLabel(1);
-        }));
-
-        // When all images removed, reset state
-        multiImagePanel.setOnAllImagesRemoved(() -> Platform.runLater(() -> {
-            attachedImageFile = null;
-            updateAttachmentState();
-        }));
-
-        multiImagePanel.setOnImagesChanged(images -> {
-            // The first image is the one of the single attachment
-            attachedImageFile = images != null && !images.isEmpty() ? images.get(0).getImageFile() : null;
-
-            // Filter models based on current image count
-            int imageCount = images != null ? (int) images.stream().filter(img -> img != null).count() : 0;
-            Platform.runLater(() -> {
-                filterModelsByImageCount(imageCount);
-                updateCostDisplay();
-                updateGenerationSummary();
-            });
-        });
-        if (currentSelectedModel != null)
-            multiImagePanel.setCurrentModel(currentSelectedModel);
-        multiImageAttachmentContainer.getChildren().setAll(multiImagePanel);
-        logger.info("Multi-image attachment panel initialized");
-    }
-
-    /**
-     * Updates the group once the attachment changed: the remove button, the models that take images and the aspect
-     * ratio of the first image (an added image keeps the aspect ratio of the first one).
-     */
-    private void updateAttachmentState() {
-        boolean hasAttachment = attachedImageFile != null;
-        removeImageButton.setDisable(!hasAttachment);
-        updateModelSelectionForAttachment(hasAttachment);
-        int attachmentCount = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 1;
-        listener.attachmentsChanged(hasAttachment && attachmentCount == 1 ? attachedImageFile : null);
-    }
-
-    /**
      * Updates the image count label with the current slider value (integer only).
      */
     private void updateImageCountLabel(int value) {
@@ -783,11 +690,11 @@ public class GenerationPanelController {
             generationSummaryModel.setText(I18nManager.getText("params.generation.summary.count",
                     (int) Math.round(imageCountSlider.getValue()), family));
 
-        int attachments = multiImagePanel != null ? multiImagePanel.getAttachmentCount() : 0;
-        generationSummaryAttachments.setText(switch (attachments) {
+        int attached = attachments.panelCount();
+        generationSummaryAttachments.setText(switch (attached) {
             case 0 -> I18nManager.getText("params.generation.summary.attachments.none");
             case 1 -> I18nManager.getText("params.generation.summary.attachments.one");
-            default -> I18nManager.getText("params.generation.summary.attachments.many", attachments);
+            default -> I18nManager.getText("params.generation.summary.attachments.many", attached);
         });
     }
 
@@ -873,7 +780,7 @@ public class GenerationPanelController {
         String previousItem = modelComboBox.getValue();
         modelComboBox.getItems().clear();
         if (config != null)
-            modelComboBox.getItems().addAll(GenerationService.availableItems(config, attachedImageCount()));
+            modelComboBox.getItems().addAll(GenerationService.availableItems(config, attachments.count()));
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
@@ -957,14 +864,7 @@ public class GenerationPanelController {
         }
 
         // Update max images in the panel based on new model
-        if (multiImagePanel != null) {
-            String selectedModelName = modelComboBox.getValue();
-            art.moodframe.model.GenerationModel selectedModel =
-                    art.moodframe.model.GenerationModel.fromLocalizedDisplayName(selectedModelName);
-            if (selectedModel != null) {
-                multiImagePanel.setCurrentModel(selectedModel);
-            }
-        }
+        attachments.setModel(GenerationModel.fromLocalizedDisplayName(modelComboBox.getValue()));
     }
 
     /**
@@ -977,7 +877,7 @@ public class GenerationPanelController {
 
         if (hasAttachment) {
             // Filter to only show the models of the usable providers that take the attached images
-            modelComboBox.getItems().setAll(GenerationService.availableItems(config, Math.max(1, attachedImageCount())));
+            modelComboBox.getItems().setAll(GenerationService.availableItems(config, Math.max(1, attachments.count())));
 
             // Check if current selection is compatible
             if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {
@@ -1005,13 +905,6 @@ public class GenerationPanelController {
             // Restore models based on enabled providers when no attachment
             populateAvailableModels();
         }
-    }
-
-    /*  the number of attached images, which filters the models  */
-    private int attachedImageCount() {
-        if (attachedImageFile == null)
-            return 0;
-        return multiImagePanel != null ? Math.max(1, multiImagePanel.getAttachmentCount()) : 1;
     }
 
     /**
@@ -1077,16 +970,6 @@ public class GenerationPanelController {
         logger.debug("Parameter visibility updated: BFL={}, Gemini={}, Video={}", isBFL, isGemini, isVideo);
     }
 
-    /** The Base64 data of the attached images that are ready to be sent, in their order. */
-    private java.util.List<String> attachedBase64Images() {
-        if (multiImagePanel == null || multiImagePanel.getAttachedImages() == null)
-            return java.util.List.of();
-        return multiImagePanel.getAttachedImages().stream()
-                .filter((img) -> img != null && img.isReadyForTransmission())
-                .map(art.moodframe.model.AttachedImage::getBase64Data)
-                .toList();
-    }
-
     /** The video length chosen in the duration choice, or null if there is none. */
     private Integer selectedVideoSeconds() {
         if (videoDurationChoiceBox == null || videoDurationChoiceBox.getValue() == null)
@@ -1121,110 +1004,11 @@ public class GenerationPanelController {
     }
 
     /**
-     * Handles a successfully dropped image.
-     *
-     * @param attachedImage the attached image with metadata
-     */
-    private void handleDroppedImage(art.moodframe.model.AttachedImage attachedImage) {
-        if (attachedImage == null || attachedImage.getImageFile() == null) {
-            logger.error("Invalid attached image received from drag and drop");
-            return;
-        }
-
-        Platform.runLater(() -> {
-            try {
-                File imageFile = attachedImage.getImageFile();
-
-                // Load and display the image, decoded in the background
-                Image image = new Image(imageFile.toURI().toString(), true);
-                attachmentPreviewImage.setImage(image);
-
-                // Show image preview, hide placeholder
-                attachmentPreviewImage.setVisible(true);
-                attachmentPreviewImage.setManaged(true);
-                noImagePlaceholder.setVisible(false);
-                noImagePlaceholder.setManaged(false);
-
-                // Store the file reference for API use
-                attachedImageFile = imageFile;
-
-                // Auto-set image count to 1 for image-to-image generation
-                imageCountSlider.setValue(1);
-                updateImageCountLabel(1);
-
-                // Update UI to reflect attachment
-                updateAttachmentState();
-
-                status.status(I18nManager.getText("status.image.attached") + ": " + imageFile.getName());
-                logger.info("Image attached via drag and drop: {}", imageFile.getName());
-
-            } catch (Exception e) {
-                logger.error("Failed to process dropped image", e);
-                status.failure(I18nManager.getText("error.image.processing.failed"));
-            }
-        });
-    }
-
-    /**
      * Handles the attach image button click event.
      */
     @FXML
     private void onAttachImageClicked() {
-        status.status(I18nManager.getText("status.selecting.image"));
-
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select Image to Attach");
-
-        // Set file filters for supported image formats
-        FileChooser.ExtensionFilter imageFilter = new FileChooser.ExtensionFilter(
-                "Image Files", "*.png", "*.jpg", "*.jpeg", "*.webp");
-        fileChooser.getExtensionFilters().add(imageFilter);
-
-        // Show the file picker dialog
-        Stage stage = (Stage) uploadImageButton.getScene().getWindow();
-        File selectedFile = fileChooser.showOpenDialog(stage);
-
-        if (selectedFile != null) {
-            try {
-                // Validate file size against provider-dependent limit
-                long maxSize = art.moodframe.model.GenerationModel.getMaxFileSize(
-                    currentSelectedModel != null ? currentSelectedModel.getProvider()
-                                                 : art.moodframe.model.ApiProvider.BFL);
-                if (selectedFile.length() > maxSize) {
-                    int maxMB = (int) (maxSize / (1024 * 1024));
-                    status.error(String.format(I18nManager.getText("status.error.file.too.large"), maxMB));
-                    return;
-                }
-
-                // Load and display the image, decoded in the background
-                Image image = new Image(selectedFile.toURI().toString(), true);
-                attachmentPreviewImage.setImage(image);
-
-                // Show image preview, hide placeholder
-                attachmentPreviewImage.setVisible(true);
-                attachmentPreviewImage.setManaged(true);
-                noImagePlaceholder.setVisible(false);
-                noImagePlaceholder.setManaged(false);
-
-                // Store the file reference for API use
-                attachedImageFile = selectedFile;
-
-                // Auto-set image count to 1 for image-to-image generation
-                imageCountSlider.setValue(1);
-                updateImageCountLabel(1);
-
-                // Update UI to reflect attachment
-                updateAttachmentState();
-
-                status.status(I18nManager.getText("status.image.attached"));
-
-            } catch (Exception e) {
-                status.error(I18nManager.getText("status.error.image.load"));
-                logger.error("Failed to load selected image: {}", selectedFile.getPath(), e);
-            }
-        } else {
-            status.status(I18nManager.getText("status.error.no.image"));
-        }
+        attachments.choose();
     }
 
     /**
@@ -1232,59 +1016,7 @@ public class GenerationPanelController {
      */
     @FXML
     private void onRemoveImageClicked() {
-
-        // Clear the attached image
-        attachedImageFile = null;
-        attachmentPreviewImage.setImage(null);
-
-        // Show placeholder, hide image preview
-        attachmentPreviewImage.setVisible(false);
-        attachmentPreviewImage.setManaged(false);
-        noImagePlaceholder.setVisible(true);
-        noImagePlaceholder.setManaged(true);
-
-        // Update UI state
-        updateAttachmentState();
-
-        status.status(I18nManager.getText("status.image.removed"));
-    }
-
-    /**
-     * Attaches an image file directly without showing file dialog.
-     * Used for Edit functionality where the image is already known.
-     *
-     * Behavior:
-     * 1) If only one image attached with no empty slot: replace it
-     * 2) If there's an empty slot: fill it with the new image
-     * 3) If 2+ images and no empty slot: create new slot and attach (if under max limit)
-     *
-     * @return whether the image was attached, false if the maximum number of images is reached
-     */
-    private boolean attachImageDirectly(File imageFile) {
-        // Use the MultiImageAttachmentPanel for image attachment (it shrinks images above the size limit)
-        if (multiImagePanel != null) {
-            int targetSlot = multiImagePanel.findTargetSlotForNewImage();
-            if (targetSlot >= 0) {
-                multiImagePanel.attachImageToSlot(targetSlot, imageFile);
-            } else {
-                // Max images reached - show warning
-                logger.warn("Cannot attach image: maximum number of images reached");
-                status.status(I18nManager.getText("attachment.max.reached",
-                    multiImagePanel.getAttachmentCount()));
-                return false;
-            }
-        }
-
-        // Store the file reference for API use (legacy support)
-        attachedImageFile = imageFile;
-
-        // Auto-set image count to 1 for image-to-image generation
-        imageCountSlider.setValue(1);
-        updateImageCountLabel(1);
-
-        // Update UI to reflect attachment (auto-adjusts model, aspect ratio, style)
-        updateAttachmentState();
-        return true;
+        attachments.remove();
     }
 
     /**
@@ -1297,6 +1029,35 @@ public class GenerationPanelController {
         seedTextField.clear();
 
         status.status(I18nManager.getText("status.seed.cleared"));
+    }
+
+    /*  what the group does when the attached images change  */
+    private GenerationAttachments.Host attachmentHost() {
+        return new GenerationAttachments.Host() {
+            @Override
+            public void imageAttached() {
+                imageCountSlider.setValue(1);
+                updateImageCountLabel(1);
+            }
+
+            @Override
+            public void attachmentChanged(boolean hasAttachment, File firstImage) {
+                updateModelSelectionForAttachment(hasAttachment);
+                listener.attachmentsChanged(firstImage);
+            }
+
+            @Override
+            public void imagesChanged(int imageCount) {
+                filterModelsByImageCount(imageCount);
+                updateCostDisplay();
+                updateGenerationSummary();
+            }
+
+            @Override
+            public void moodFromImage(File image) {
+                listener.moodFromImage(image);
+            }
+        };
     }
 
     /** Chooses the model of a chat entry, as long as it is offered. */
