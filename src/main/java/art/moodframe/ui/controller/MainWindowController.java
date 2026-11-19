@@ -168,13 +168,14 @@ public class MainWindowController implements I18nChangeListener {
     private boolean disposed;
 
     /*  A worker for the blocking work of the window (queries of the groups, copies into the Downloads folder,
-        deletes), off the FX thread and off the common pool; its thread ends when idle  */
+        deletes), off the FX thread and off the common pool; its thread ends when idle. Work asked once the window
+        closed and the worker drained, e.g. by a queued event of the JavaFX thread, is dropped  */
     private final ExecutorService worker = new ThreadPoolExecutor(0, 1, 30, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(), (runnable) -> {
                 Thread thread = new Thread(runnable, "MainWindowWorker");
                 thread.setDaemon(true);
                 return thread;
-            });
+            }, (runnable, closed) -> logger.debug("Dropped work asked after the window closed"));
 
     /**
      * Looks up the services once, hands them to the parts of the window and wires the parts to each other.
@@ -566,20 +567,17 @@ public class MainWindowController implements I18nChangeListener {
 
     /** Tells whether an entry or one of its images came back from the trash; the worker asks the database. */
     private void showImagesRestoredStatus(String id) {
-        try {
-            worker.execute(() -> {
-                boolean image = false;
-                try {
-                    image = chatHistory != null && chatHistory.findGeneratedImageById(id).isPresent();
-                } catch (Exception e) {
-                    logger.warn("Failed to find the restored image {}", id, e);
-                }
-                String key = image ? "status.image.restored" : "status.entry.restored";
-                Platform.runLater(() -> statusBarController.status(I18nManager.getText(key)));
-            });
-        } catch (java.util.concurrent.RejectedExecutionException closed) {
-            logger.debug("The window closed before the restore of {} was shown", id);
-        }
+        worker.execute(() -> {
+            boolean image = false;
+            try {
+                image = chatHistory != null && chatHistory.findGeneratedImageById(id).isPresent();
+            }
+            catch (Exception e) {
+                logger.warn("Failed to find the restored image {}", id, e);
+            }
+            String key = image ? "status.image.restored" : "status.entry.restored";
+            Platform.runLater(() -> statusBarController.status(I18nManager.getText(key)));
+        });
     }
 
     /**

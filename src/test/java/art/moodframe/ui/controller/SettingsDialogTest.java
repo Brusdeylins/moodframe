@@ -416,6 +416,30 @@ class SettingsDialogTest {
     }
 
     @Test
+    void theThemeOfTheSystemIsSavedAsFollowedAndAnOwnChoiceAsChosen() throws Exception {
+        open();
+        select(2);
+
+        /*  Saving without a change keeps following the system  */
+        onFx(controller::applySettings);
+        assertFalse(config.ui().hasUserSetTheme());
+
+        VBox themes = node("themeSelectionContainer");
+        RadioButton nordLight = onFx(() -> themes.getChildren().stream().map((Node node) -> (RadioButton) node)
+                .filter((RadioButton radio) -> "nord-light".equals(radio.getUserData())).findFirst().orElseThrow());
+        onFx(() -> nordLight.setSelected(true));
+        onFx(controller::applySettings);
+        assertTrue(config.ui().hasUserSetTheme());
+
+        /*  "Use System Theme" follows the system again  */
+        onFx(() -> this.<Button>node("resetThemeButton").fire());
+        waitFor(() -> !this.<Button>node("resetThemeButton").isDisabled(), "the theme of the system is detected");
+        onFx(controller::applySettings);
+        assertEquals(ThemeManager.getSystemPreferredTheme(), config.ui().getUiTheme());
+        assertFalse(config.ui().hasUserSetTheme());
+    }
+
+    @Test
     void anExportedBackupComesBackAndTheDialogAndTheLibraryShowIt() throws Exception {
         DatabaseManager database = DatabaseConfig.initialize(folder.resolve("db").resolve("test.db").toString());
         LibraryEvents events = new LibraryEvents();

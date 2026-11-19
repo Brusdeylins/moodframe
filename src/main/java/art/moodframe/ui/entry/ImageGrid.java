@@ -226,11 +226,17 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /** Shows the images of the new entries at the end and follows their changes instead of those of the last ones. */
     private void followEntries() {
-        if (followed != null)
-            followed.removeListener(onEntriesChange);
+        ObservableList<ChatEntry> before = followed;
         followed = entries.get();
-        if (followed != null)
-            followed.addListener(onEntriesChange);
+
+        /*  The listeners of a shared list change under the lock, as the threads that change the list call them  */
+        ModelLock.read(() -> {
+            if (before != null)
+                before.removeListener(onEntriesChange);
+            if (followed != null)
+                followed.addListener(onEntriesChange);
+            return null;
+        });
         atEnd = true;
         rebuild();
     }
@@ -282,25 +288,25 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             Platform.runLater(this::rebuild);
     }
 
-    /*  the entries followed, copied under the lock of the chat models, which a generation changes meanwhile; the
-        counterpart of ChatLibrary.entriesOf for the list of a chat or a group  */
-    private static List<ChatEntry> entriesOf(List<ChatEntry> entries) {
-        return ModelLock.read(() -> new ArrayList<>(entries));
-    }
-
-    /** Collects the images of the entries in the order of the chat, the oldest entry first. */
+    /**
+     * Collects the images of the entries in the order of the chat, the oldest entry first. The listeners of the shared
+     * lists change under the lock of the chat models, which a generation and the MCP server change meanwhile, and the
+     * images are taken in the same section, so none added in between is missed.
+     */
     private void rebuild() {
-        watched.forEach((list) -> list.removeListener(onImagesChange));
-        watched.clear();
-        images.clear();
-        if (followed != null) {
-            for (ChatEntry entry : entriesOf(followed)) {
-                entry.getImages().addListener(onImagesChange);
-                watched.add(entry.getImages());
-                for (GeneratedImage image : ChatLibrary.imagesOf(entry))
-                    images.add(new Item(entry, image));
-            }
-        }
+        ModelLock.read(() -> {
+            watched.forEach((list) -> list.removeListener(onImagesChange));
+            watched.clear();
+            images.clear();
+            if (followed != null)
+                for (ChatEntry entry : followed) {
+                    entry.getImages().addListener(onImagesChange);
+                    watched.add(entry.getImages());
+                    for (GeneratedImage image : entry.getImages())
+                        images.add(new Item(entry, image));
+                }
+            return null;
+        });
         layoutRows(true);
     }
 
@@ -474,7 +480,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             return;
         }
         if (image.isVideo()) {
-            VideoPoster.load(Path.of(path))
+            VideoPoster.load(Path.of(path), sources.cache())
                     .whenComplete((poster, error) -> Platform.runLater(() -> {
                         if (poster != null)
                             view.setImage(poster);

@@ -326,12 +326,12 @@ public class LibrarySidebarController {
     }
 
     /**
-     * Stores the new name of a chat on the worker; the header follows if it is the chosen chat.
+     * Renames a chat and stores it on the worker; the header follows if it is the chosen chat.
      *
-     * @param chat the chat that was renamed
+     * @param chat the chat that was renamed in place
+     * @param name its new name
      */
-    private void onChatRenamed(Chat chat) {
-        String name = chat.getName();
+    private void onChatRenamed(Chat chat, String name) {
         worker.execute(() -> {
             try {
                 chatLibrary.renameChat(chat, name);

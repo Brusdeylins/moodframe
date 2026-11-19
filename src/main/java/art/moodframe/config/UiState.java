@@ -38,6 +38,17 @@ public class UiState {
         store.save();
     }
 
+    /**
+     * Sets the theme the system prefers without marking it as chosen, so the next start asks the system again.
+     *
+     * @param theme the AtlantaFX theme name
+     */
+    public void setSystemTheme(String theme) {
+        store.put("ui.theme", theme);
+        store.put("ui.theme.user_set", "false");
+        store.save();
+    }
+
     /** @return true if the user has explicitly chosen a theme */
     public boolean hasUserSetTheme() {
         return store.getBoolean("ui.theme.user_set", false);

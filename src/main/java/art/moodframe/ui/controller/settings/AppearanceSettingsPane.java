@@ -53,6 +53,9 @@ public class AppearanceSettingsPane implements SettingsSection {
     private ApplicationConfig config;
     private final ToggleGroup themeToggleGroup = new ToggleGroup();
 
+    /*  the theme of the system while the theme follows it, saved as not chosen; null when the user chose one  */
+    private String followedSystemTheme;
+
     @Override
     public void init(SettingsServices services) {
         this.config = services.config();
@@ -85,6 +88,7 @@ public class AppearanceSettingsPane implements SettingsSection {
     @Override
     public void load() {
         selectTheme(config.ui().getUiTheme());
+        followedSystemTheme = config.ui().hasUserSetTheme() ? null : config.ui().getUiTheme();
     }
 
     /** Applies and selects the theme of the reset settings. */
@@ -93,14 +97,23 @@ public class AppearanceSettingsPane implements SettingsSection {
         String defaultTheme = config.ui().getUiTheme();
         ThemeManager.applyTheme(defaultTheme);
         selectTheme(defaultTheme);
+        followedSystemTheme = config.ui().hasUserSetTheme() ? null : defaultTheme;
     }
 
-    /** Saves the theme, which the live preview already shows. */
+    /**
+     * Saves the theme, which the live preview already shows; the theme of the system is stored as followed, not as
+     * chosen, so the next start asks the system again.
+     */
     @Override
     public void apply() {
         Toggle selectedTheme = themeToggleGroup.getSelectedToggle();
-        if (selectedTheme != null)
-            config.ui().setUiTheme((String) selectedTheme.getUserData());
+        if (selectedTheme == null)
+            return;
+        String theme = (String) selectedTheme.getUserData();
+        if (theme.equals(followedSystemTheme))
+            config.ui().setSystemTheme(theme);
+        else
+            config.ui().setUiTheme(theme);
     }
 
     @Override
@@ -129,14 +142,15 @@ public class AppearanceSettingsPane implements SettingsSection {
     }
 
     /**
-     * Applies and selects the theme the system prefers; asking the system runs programs for up to 2 s, so it runs off
-     * the JavaFX thread, the button disabled meanwhile.
+     * Applies and selects the theme the system prefers, which "Save" stores as followed, not as chosen; asking the
+     * system runs programs for up to 2 s, so it runs off the JavaFX thread, the button disabled meanwhile.
      */
     @FXML
     private void onResetToSystemTheme() {
         SectionTask.run(List.of(resetThemeButton), ThemeManager::getSystemPreferredTheme, (systemTheme) -> {
             ThemeManager.applyTheme(systemTheme);
             selectTheme(systemTheme);
+            followedSystemTheme = systemTheme;
         }, (failure) -> logger.warn("Failed to detect the theme of the system", failure));
     }
 

@@ -15,6 +15,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -40,7 +41,7 @@ public class ChatListCell extends ListCell<Chat> {
 
     private Node trashColumn;
     private Consumer<Chat> onDeleteRequested;
-    private Consumer<Chat> onChatRenamed;
+    private BiConsumer<Chat, String> onChatRenamed;
 
     /**
      * Creates a new chat list cell.
@@ -143,24 +144,12 @@ public class ChatListCell extends ListCell<Chat> {
      * Sets up event handlers for UI components.
      */
     private void setupEventHandlers() {
-        // Handle chat name changes from in-place editing
+        /*  A name edited in place is only reported: the library renames the shared chat under its lock, and the
+            list shows it on the event of the change  */
         nameLabel.setOnTextChanged(event -> {
             Chat chat = getItem();
-            if (chat != null && !event.getOldText().equals(event.getNewText())) {
-                // Update the chat name and timestamp
-                chat.setName(event.getNewText());
-                chat.setUpdatedAt(java.time.LocalDateTime.now());
-
-                // Notify callback for database persistence FIRST
-                if (onChatRenamed != null) {
-                    onChatRenamed.accept(chat);
-                }
-
-                // Then refresh the ListView to ensure proper display
-                if (getListView() != null) {
-                    getListView().refresh();
-                }
-            }
+            if (chat != null && !event.getOldText().equals(event.getNewText()) && onChatRenamed != null)
+                onChatRenamed.accept(chat, event.getNewText());
         });
 
         // Handle trash button clicks
@@ -267,11 +256,12 @@ public class ChatListCell extends ListCell<Chat> {
     }
 
     /**
-     * Sets the callback for when a chat is renamed.
-     * 
+     * Sets the callback for when a chat is renamed in place; it gets the chat, still with its old name, and the new
+     * name.
+     *
      * @param callback the rename callback
      */
-    public void setOnChatRenamed(Consumer<Chat> callback) {
+    public void setOnChatRenamed(BiConsumer<Chat, String> callback) {
         this.onChatRenamed = callback;
     }
 

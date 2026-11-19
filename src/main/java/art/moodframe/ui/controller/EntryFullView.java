@@ -90,17 +90,18 @@ final class EntryFullView {
         return overlay != null && overlay.isVisible();
     }
 
-    /** Closes the full view, if open. */
+    /** Closes the full view, if open, and stops and disposes a video it plays. */
     void close() {
         if (isShowing())
-            overlay.setVisible(false);
+            overlay.closeOverlay();
     }
 
-    /** Closes the full view and stops it listening to the language, once the window closes. */
+    /** Closes the full view, a video included, and stops it listening to the language, once the window closes. */
     void dispose() {
-        close();
-        if (overlay != null)
-            I18nManager.removeChangeListener(overlay);
+        if (overlay == null)
+            return;
+        overlay.closeOverlay();
+        I18nManager.removeChangeListener(overlay);
     }
 
     /**

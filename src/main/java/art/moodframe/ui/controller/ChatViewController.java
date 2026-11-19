@@ -696,7 +696,6 @@ public class ChatViewController {
 
         // Configure ListView for optimal performance
         chatEntriesListView.setFocusTraversable(false);
-        chatEntriesListView.getStyleClass().add("chat-entries-list");
 
         // CRITICAL: Fix horizontal scrolling - cells must fill width
         // This makes cells take full width and prevents horizontal scroll
@@ -1175,11 +1174,10 @@ public class ChatViewController {
                 try {
                     chatLibrary.deleteEntry(entry);
                     logger.info("Notification: {}", I18nManager.getText("delete.entry.success"));
-                } catch (Exception e) {
+                }
+                catch (Exception e) {
                     logger.error("Failed to delete entry: {}", entryId, e);
-                    Platform.runLater(() -> {
-                        status.failure(I18nManager.getText("delete.entry.error") + ": " + e.getMessage());
-                    });
+                    status.failure(I18nManager.getText("delete.entry.error") + ": " + e.getMessage());
                 }
             });
         }
@@ -1226,11 +1224,10 @@ public class ChatViewController {
                     logger.info("Deleting image with ID: {}", imageId);
                     chatLibrary.deleteImage(entry, image);
                     logger.info("Notification: {}", I18nManager.getText("delete.image.success"));
-                } catch (Exception e) {
+                }
+                catch (Exception e) {
                     logger.error("Failed to delete image: {}", imageId, e);
-                    Platform.runLater(() -> {
-                        status.failure(I18nManager.getText("delete.image.error") + ": " + e.getMessage());
-                    });
+                    status.failure(I18nManager.getText("delete.image.error") + ": " + e.getMessage());
                 }
             });
         }

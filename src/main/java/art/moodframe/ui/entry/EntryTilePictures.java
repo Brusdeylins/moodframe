@@ -429,7 +429,7 @@ final class EntryTilePictures {
         // The poster (a frame of the video) replaces the drawn placeholder as soon as it exists
         String videoPath = getActualImagePath(generatedImage, false);
         if (videoPath != null) {
-            art.moodframe.ui.support.VideoPoster.load(java.nio.file.Path.of(videoPath))
+            art.moodframe.ui.support.VideoPoster.load(java.nio.file.Path.of(videoPath), sources.cache())
                     .thenAccept((javafx.scene.image.Image poster) -> Platform.runLater(() ->
                             setImageWithHandlers(imageView, withPlayOverlay(poster, generatedImage), imageIndex)))
                     .exceptionally(error -> {

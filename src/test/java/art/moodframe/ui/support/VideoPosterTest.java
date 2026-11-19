@@ -13,6 +13,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -103,5 +105,29 @@ class VideoPosterTest {
         CompletableFuture<Image> load = VideoPoster.load(video);
         assertThrows(ExecutionException.class, () -> load.get(10, TimeUnit.SECONDS));
         assertFalse(Files.exists(poster));
+    }
+
+    @Test
+    void aStoredPosterIsDecodedOnTheDiskWorkerAndKeptInTheCache(@TempDir Path dir) throws Exception {
+        Path video = Files.write(dir.resolve("clip.mp4"), new byte[] { 0 });
+        BufferedImage frame = new BufferedImage(800, 450, BufferedImage.TYPE_INT_RGB);
+        assertTrue(ImageIO.write(frame, "jpg", VideoPoster.posterPath(video).toFile()));
+        ImageCache cache = new ImageCache();
+        List<Runnable> queued = new ArrayList<>();
+
+        /*  Nothing is read on the calling thread, the JavaFX thread of the views  */
+        CompletableFuture<Image> load = VideoPoster.load(video, cache, queued::add);
+        assertFalse(load.isDone());
+        assertEquals(1, queued.size());
+
+        queued.get(0).run();
+        Image poster = load.get(10, TimeUnit.SECONDS);
+        assertEquals(400.0, poster.getWidth());
+
+        /*  A row that shows the video again takes the poster from the cache  */
+        CompletableFuture<Image> again = VideoPoster.load(video, cache, queued::add);
+        assertTrue(again.isDone());
+        assertSame(poster, again.get());
+        assertEquals(1, queued.size());
     }
 }

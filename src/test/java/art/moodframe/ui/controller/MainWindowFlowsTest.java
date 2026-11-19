@@ -750,6 +750,15 @@ class MainWindowFlowsTest {
         fromAnotherThread(() -> chats.createChat("After closing"));
         onFx(() -> null);
         assertEquals(listed, onFx(() -> chatList().getItems().size()));
+
+        /*  work asked of the closed window, whose worker is drained, is dropped instead of refused with an error  */
+        onFxThread(() -> {
+            InPlaceEditableLabel name = find(chatCell(chat), InPlaceEditableLabel.class);
+            name.startEdit();
+            find(name, TextField.class).setText("After the window closed");
+            name.confirmEdit();
+        });
+        assertEquals("Before closing", chat.getName());
     }
 
     /**
@@ -787,9 +796,10 @@ class MainWindowFlowsTest {
             find(name, TextField.class).setText("Renamed chat");
             name.confirmEdit();
         });
-        assertEquals("Renamed chat", full.getName());
         waitUntil("the rename is stored", () -> java.text.MessageFormat.format(
                 I18nManager.getText("status.chat.renamed"), "Renamed chat").equals(status().getText()));
+        assertEquals("Renamed chat", full.getName());
+        assertEquals("Renamed chat", onFx(() -> find(chatCell(full), InPlaceEditableLabel.class).getText()));
         assertEquals("Renamed chat", header().getText());
         assertEquals("Renamed chat", repository.findChatById(full.getId()).orElseThrow().getName());
 
