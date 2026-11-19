@@ -3,6 +3,7 @@ package art.moodframe.ui.controller.settings;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.ConfigurationExporter;
+import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.VersionManager;
 import javafx.fxml.FXML;
@@ -226,22 +227,14 @@ public class AdvancedSettingsPane implements SettingsSection {
     /** Opens the folder of the settings in the file manager of the system. */
     @FXML
     private void onOpenConfigDirectory() {
-        try {
-            File configDir = config.paths().root().toFile();
-            if (!configDir.exists())
-                configDir.mkdirs();
-
-            String osName = System.getProperty("os.name").toLowerCase();
-            if (osName.contains("win"))
-                Runtime.getRuntime().exec(new String[] { "explorer", configDir.getAbsolutePath() });
-            else if (osName.contains("mac"))
-                Runtime.getRuntime().exec(new String[] { "open", configDir.getAbsolutePath() });
-            else
-                Runtime.getRuntime().exec(new String[] { "xdg-open", configDir.getAbsolutePath() });
-        } catch (Exception e) {
-            logger.error("Failed to open system explorer", e);
+        File configDir = config.paths().root().toFile();
+        if (!configDir.exists())
+            configDir.mkdirs();
+        if (!SystemOpen.isAvailable()) {
             services.prompts().error(I18nManager.getText("error.explorer"),
-                    I18nManager.getText("error.explorer.open", e.getMessage()));
+                    I18nManager.getText("error.explorer.open", configDir.getAbsolutePath()));
+            return;
         }
+        SystemOpen.open(configDir.toPath());
     }
 }
