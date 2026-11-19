@@ -2,7 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.AttachedImage;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.net.IoExecutor;
+
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.Subscription;
@@ -366,7 +366,7 @@ public class MultiImageAttachmentPanel extends ManagedComponent {
             catch (IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }
-        }, IoExecutor.get()).whenComplete((tempFile, error) -> Platform.runLater(() -> {
+        }).whenComplete((tempFile, error) -> Platform.runLater(() -> {
             if (error != null) {
                 Throwable cause = error.getCause() != null ? error.getCause() : error;
                 logger.error("Failed to paste image from clipboard: {}", cause.getMessage(), cause);
