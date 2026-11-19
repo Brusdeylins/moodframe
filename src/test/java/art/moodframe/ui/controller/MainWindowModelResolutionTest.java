@@ -164,8 +164,10 @@ class MainWindowModelResolutionTest {
 
     @AfterEach
     void dispose() throws Exception {
-        onFxThread(() -> controller.generationPanel().dispose());
-        I18nManager.removeChangeListener(controller);
+
+        /*  as on closing the window: its listeners go, its work and the delayed save of its settings end, so nothing
+            writes into the throwaway home while it is deleted  */
+        onFxThread(controller::dispose);
     }
 
     /*  a step on the JavaFX thread  */
