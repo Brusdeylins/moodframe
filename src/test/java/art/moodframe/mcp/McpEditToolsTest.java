@@ -1,5 +1,7 @@
 package art.moodframe.mcp;
 
+import art.moodframe.repository.ChatGroupQueries;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
@@ -112,16 +114,19 @@ class McpEditToolsTest {
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
-        ChatRepository repository = new ChatRepository(new DatabaseManager(database));
-        chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
+        DatabaseManager manager = new DatabaseManager(database);
+        ChatRepository repository = new ChatRepository(manager);
+        ChatTrashRepository chatTrash = new ChatTrashRepository(manager, ChatFiles.NONE);
+        chats = new ChatLibrary(new ChatHistoryService(repository, chatTrash, new ChatGroupQueries(manager), null),
+                events);
         blocks = TestLibraryServices.blocks(events);
         colors = TestLibraryServices.palettes(events);
         moods = TestLibraryServices.moods(blocks, colors, events);
         frames = TestLibraryServices.frames(events);
         favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository));
-        trash.register(new ImageTrashGroup(repository, ChatFiles.NONE, null, null));
+        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ImageTrashGroup(repository, chatTrash, null, null));
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));
         trash.register(new FrameTrashGroup(frames));

@@ -31,12 +31,14 @@ class ChatRepositoryCostTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
 
     @BeforeAll
     static void createDatabase() throws Exception {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
     }
 
     @Test
@@ -45,13 +47,13 @@ class ChatRepositoryCostTest {
         ChatEntry entry = entry(chat, "flux-2-pro", 0.09, new double[] {0.03, 0.06});
         GeneratedImage large = images(entry).get(1);
 
-        assertTrue(repository.softDeleteImage(large.getId()));
+        assertTrue(trash.softDeleteImage(large.getId()));
 
         assertEquals(0.06, imageDeletedCost(large), 1e-9);
-        assertEquals(0.06, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.06, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
         assertEquals(0.09, total(chat), 1e-9);
-        assertFalse(repository.softDeleteImage(large.getId()), "a deleted image is not booked twice");
-        assertEquals(0.06, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertFalse(trash.softDeleteImage(large.getId()), "a deleted image is not booked twice");
+        assertEquals(0.06, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
     }
 
     @Test
@@ -61,10 +63,10 @@ class ChatRepositoryCostTest {
         image(entry, "gemini-3-pro-image-preview", 0.134, 0.0, 0.0);
         GeneratedImage second = image(entry, "gemini-3-pro-image-preview", 0.0, 0.014, 0.004);
 
-        assertTrue(repository.softDeleteImage(second.getId()));
+        assertTrue(trash.softDeleteImage(second.getId()));
 
         assertEquals(0.018, imageDeletedCost(second), 1e-9);
-        assertEquals(0.018, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.018, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
     }
 
     @Test
@@ -73,8 +75,8 @@ class ChatRepositoryCostTest {
         ChatEntry entry = entry(chat, "gpt-image-1", 0.08, new double[] {0.04, 0.04});
         List<GeneratedImage> images = images(entry);
 
-        repository.softDeleteImage(images.get(0).getId());
-        repository.softDeleteImage(images.get(1).getId());
+        trash.softDeleteImage(images.get(0).getId());
+        trash.softDeleteImage(images.get(1).getId());
 
         ChatEntry deleted = repository.findChatEntryById(entry.getId()).orElseThrow();
         assertNotNull(deleted.getDeletedAt());
@@ -89,21 +91,21 @@ class ChatRepositoryCostTest {
         ChatEntry entry = entry(chat, "veo-3", 0.50, new double[] {0.20, 0.30});
         List<GeneratedImage> images = images(entry);
 
-        repository.softDeleteImage(images.get(0).getId());
-        assertTrue(repository.softDeleteChatEntry(entry.getId()));
+        trash.softDeleteImage(images.get(0).getId());
+        assertTrue(trash.softDeleteChatEntry(entry.getId()));
         assertEquals(0.50, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 1e-9);
         assertEquals(0.50, total(chat), 1e-9);
 
         /*  The image deleted with the entry comes back, the one deleted before stays in the trash  */
-        assertTrue(repository.restoreImage(images.get(1).getId()));
+        assertTrue(trash.restoreImage(images.get(1).getId()));
         assertEquals(0.0, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 1e-9);
-        assertEquals(0.20, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.20, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
         assertEquals(0.50, total(chat), 1e-9);
 
-        assertTrue(repository.softDeleteChatEntry(entry.getId()));
-        assertTrue(repository.restoreChatEntry(entry.getId()));
+        assertTrue(trash.softDeleteChatEntry(entry.getId()));
+        assertTrue(trash.restoreChatEntry(entry.getId()));
         assertEquals(0.0, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 1e-9);
-        assertEquals(0.0, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.0, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
         assertEquals(0.50, total(chat), 1e-9);
     }
 
@@ -112,13 +114,13 @@ class ChatRepositoryCostTest {
         Chat chat = chat("Teilweise");
         ChatEntry entry = entry(chat, "flux-2-flex", 0.12, new double[] {0.02, 0.04, 0.06});
         List<GeneratedImage> images = images(entry);
-        repository.softDeleteChatEntry(entry.getId());
+        trash.softDeleteChatEntry(entry.getId());
 
-        assertTrue(repository.restoreImage(images.get(0).getId()));
+        assertTrue(trash.restoreImage(images.get(0).getId()));
 
         assertEquals(0.04, imageDeletedCost(images.get(1)), 1e-9);
         assertEquals(0.06, imageDeletedCost(images.get(2)), 1e-9);
-        assertEquals(0.10, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.10, trash.getDeletedCostForEntry(entry.getId()), 1e-9);
         assertEquals(0.12, total(chat), 1e-9);
     }
 

@@ -4,6 +4,7 @@ import art.moodframe.model.Chat;
 import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.util.I18nManager;
@@ -15,8 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The chats in the central trash. It builds on the soft delete of the {@link ChatRepository}: a deleted chat keeps
- * its entries, and its files wait in the trash directory until it is restored or removed for good.
+ * The chats in the central trash. It builds on the soft delete of the {@link ChatTrashRepository}: a deleted chat
+ * keeps its entries, and its files wait in the trash directory until it is restored or removed for good.
  *
  * @since 2.0.0
  */
@@ -25,14 +26,17 @@ public class ChatTrashGroup implements TrashGroup {
     private static final Logger logger = LoggerFactory.getLogger(ChatTrashGroup.class);
 
     private final ChatRepository chatRepository;
+    private final ChatTrashRepository trash;
 
     /**
      * Creates the group.
      *
      * @param chatRepository where chats are stored
+     * @param trash          the trash of the chats, which moves their files
      */
-    public ChatTrashGroup(ChatRepository chatRepository) {
+    public ChatTrashGroup(ChatRepository chatRepository, ChatTrashRepository trash) {
         this.chatRepository = chatRepository;
+        this.trash = trash;
     }
 
     @Override
@@ -70,7 +74,7 @@ public class ChatTrashGroup implements TrashGroup {
     @Override
     public boolean restore(String id) {
         try {
-            return chatRepository.restoreChat(id);
+            return trash.restoreChat(id);
         } catch (SQLException e) {
             logger.error("Failed to restore chat: {}", id, e);
             return false;
@@ -80,7 +84,7 @@ public class ChatTrashGroup implements TrashGroup {
     @Override
     public boolean deletePermanently(String id) {
         try {
-            return chatRepository.deleteChatPermanently(id);
+            return trash.deleteChatPermanently(id);
         } catch (SQLException e) {
             logger.error("Failed to permanently delete chat: {}", id, e);
             return false;

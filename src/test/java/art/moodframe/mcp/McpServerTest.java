@@ -1,5 +1,6 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.chat.TestChatServices;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
@@ -113,8 +114,7 @@ class McpServerTest {
         DatabaseConfig.initialize(database.toString());
         LibraryEvents events = new LibraryEvents();
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
-        ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
-                null, null), events);
+        ChatLibrary chats = new ChatLibrary(TestChatServices.history(new DatabaseManager(database)), events);
         PromptBlockService blocks = TestLibraryServices.blocks(events);
         ColorStyleService colors = TestLibraryServices.palettes(events);
         MoodService moods = TestLibraryServices.moods(blocks, colors, events);

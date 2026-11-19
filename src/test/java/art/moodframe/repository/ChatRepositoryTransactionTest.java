@@ -49,12 +49,14 @@ class ChatRepositoryTransactionTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
 
     @BeforeAll
     static void createDatabase() throws Exception {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
     }
 
     /*  runs the work on several threads at once and returns their results  */
@@ -84,10 +86,10 @@ class ChatRepositoryTransactionTest {
         ChatEntry entry = entry(chat, 0.09, 0.03, 0.06);
         GeneratedImage large = repository.findGeneratedImagesByEntry(entry.getId()).get(1);
 
-        List<Boolean> deleted = inParallel(() -> repository.softDeleteImage(large.getId()));
+        List<Boolean> deleted = inParallel(() -> trash.softDeleteImage(large.getId()));
 
         assertEquals(1, deleted.stream().filter(Boolean::booleanValue).count(), "one deletion wins");
-        assertEquals(0.06, repository.getDeletedCostForEntry(entry.getId()), 1e-9, "its cost is booked once");
+        assertEquals(0.06, trash.getDeletedCostForEntry(entry.getId()), 1e-9, "its cost is booked once");
         assertEquals(1, repository.findGeneratedImagesByEntry(entry.getId()).size());
     }
 
@@ -97,7 +99,7 @@ class ChatRepositoryTransactionTest {
         ChatEntry entry = entry(chat, 0.04, 0.04);
         GeneratedImage image = repository.findGeneratedImagesByEntry(entry.getId()).get(0);
 
-        List<Boolean> deleted = inParallel(() -> repository.softDeleteImage(image.getId()));
+        List<Boolean> deleted = inParallel(() -> trash.softDeleteImage(image.getId()));
 
         assertEquals(1, deleted.stream().filter(Boolean::booleanValue).count());
         assertNotNull(repository.findChatEntryById(entry.getId()).orElseThrow().getDeletedAt());
@@ -109,11 +111,11 @@ class ChatRepositoryTransactionTest {
         Chat chat = chat("Eintrag doppelt");
         ChatEntry entry = entry(chat, 0.50, 0.20, 0.30);
 
-        List<Boolean> deleted = inParallel(() -> repository.softDeleteChatEntry(entry.getId()));
+        List<Boolean> deleted = inParallel(() -> trash.softDeleteChatEntry(entry.getId()));
 
         assertEquals(1, deleted.stream().filter(Boolean::booleanValue).count());
         assertEquals(0.50, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 1e-9);
-        assertFalse(repository.softDeleteChatEntry("no-such-entry"), "an entry that is not stored is not deleted");
+        assertFalse(trash.softDeleteChatEntry("no-such-entry"), "an entry that is not stored is not deleted");
     }
 
     @Test
@@ -137,7 +139,7 @@ class ChatRepositoryTransactionTest {
     @Test
     void savingAStaleChatKeepsItInTheTrash() throws Exception {
         Chat chat = chat("Veraltet");
-        assertTrue(repository.softDeleteChat(chat.getId()));
+        assertTrue(trash.softDeleteChat(chat.getId()));
 
         /*  The chat in memory still shows it in use, as a window that missed the deletion holds it  */
         chat.setName("Umbenannt");
@@ -147,7 +149,7 @@ class ChatRepositoryTransactionTest {
         assertEquals("Umbenannt", stored.getName());
         assertNotNull(stored.getDeletedAt(), "the chat stays in the trash");
 
-        assertTrue(repository.restoreChat(chat.getId()));
+        assertTrue(trash.restoreChat(chat.getId()));
         chat.markAsDeleted();
         repository.saveChat(chat);
         assertNull(repository.findChatById(chat.getId()).orElseThrow().getDeletedAt(), "and stays restored");
@@ -156,7 +158,7 @@ class ChatRepositoryTransactionTest {
     @Test
     void theFilesOfAChatFollowTheDatabaseAndTheirFailureDoesNotUndoIt() throws Exception {
         AtomicReference<Boolean> rowGoneBeforeFiles = new AtomicReference<>();
-        ChatRepository withFiles = new ChatRepository(databaseManager, new ChatFiles() {
+        ChatTrashRepository withFiles = new ChatTrashRepository(databaseManager, new ChatFiles() {
             @Override
             public void moveToTrash(String chatId, List<GeneratedImage> images) {
                 assertEquals(1, images.size());
@@ -194,7 +196,7 @@ class ChatRepositoryTransactionTest {
     @Test
     void anImageOfADeletedEntryIsNotSaved() throws Exception {
         ChatEntry entry = entry(chat("Spät"), 0.04, 0.04);
-        assertTrue(repository.softDeleteChatEntry(entry.getId()));
+        assertTrue(trash.softDeleteChatEntry(entry.getId()));
 
         GeneratedImage late = new GeneratedImage.Builder().chatEntryId(entry.getId()).build();
         repository.saveGeneratedImage(late);
@@ -223,9 +225,9 @@ class ChatRepositoryTransactionTest {
         String imageOfOther = repository.findGeneratedImagesByEntry(other.getId()).get(0).getId();
         LocalDateTime before = LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS);
 
-        repository.softDeleteImage(image);
-        repository.softDeleteChatEntry(other.getId());
-        repository.softDeleteChat(chat.getId());
+        trash.softDeleteImage(image);
+        trash.softDeleteChatEntry(other.getId());
+        trash.softDeleteChat(chat.getId());
 
         assertEquals("integer", typeOfDeletedAt("generated_images", image));
         assertEquals("integer", typeOfDeletedAt("chat_entries", other.getId()));
@@ -271,7 +273,23 @@ class ChatRepositoryTransactionTest {
         assertEquals(local, ChatRepository.parseDeletedAt(String.valueOf(Timestamp.valueOf(local).getTime())));
         assertEquals(local, ChatRepository.parseDeletedAt("2026-01-15T10:30"));
         assertEquals(local, ChatRepository.parseDeletedAt(utc));
-        assertNull(ChatRepository.parseDeletedAt("yesterday"));
+        assertNotNull(ChatRepository.parseDeletedAt("yesterday"), "an unreadable value still means deleted");
+    }
+
+    @Test
+    void aChatWithAnUnreadableDeletionStaysInTheTrash() throws Exception {
+        Chat chat = chat("Unlesbar");
+        try (Connection conn = databaseManager.getConnection();
+                PreparedStatement stmt = conn.prepareStatement("UPDATE chats SET deleted_at = ? WHERE id = ?")) {
+            stmt.setString(1, "yesterday");
+            stmt.setString(2, chat.getId());
+            stmt.executeUpdate();
+        }
+
+        Chat stored = repository.findDeletedChats().stream().filter((Chat deleted) -> deleted.getId()
+                .equals(chat.getId())).findFirst().orElseThrow();
+        assertTrue(stored.isDeleted(), "it does not come back into use");
+        assertTrue(repository.findChatById(chat.getId()).orElseThrow().isDeleted());
     }
 
     @Test

@@ -49,7 +49,7 @@ class ChatLibraryDeletionTest {
         DatabaseManager databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
-        history = new ChatHistoryService(repository, null, null);
+        history = TestChatServices.history(repository, databaseManager);
     }
 
     @Test
@@ -66,7 +66,7 @@ class ChatLibraryDeletionTest {
 
         assertFalse(library.deleteImage(entry, entry.getImages().get(1)));
         assertEquals(0.06, entry.getDeletedCost(), 1e-9, "the FLUX.2 image costs what it was billed");
-        assertEquals(0.06, repository.getDeletedCostForEntry(entry.getId()), 1e-9);
+        assertEquals(0.06, repository.findChatEntryById(entry.getId()).orElseThrow().getDeletedCost(), 1e-9);
         assertEquals(0.13, ChatCost.total(chat), 1e-9);
 
         library.deleteEntry(entry);

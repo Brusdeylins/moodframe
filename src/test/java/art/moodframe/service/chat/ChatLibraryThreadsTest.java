@@ -38,7 +38,7 @@ class ChatLibraryThreadsTest {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("threads.db"));
         database.initialize();
         ChatRepository repository = new ChatRepository(database);
-        ChatLibrary library = new ChatLibrary(new ChatHistoryService(repository, null, null), new LibraryEvents());
+        ChatLibrary library = new ChatLibrary(TestChatServices.history(repository, database), new LibraryEvents());
         library.load();
         int before = library.chats().size();
 

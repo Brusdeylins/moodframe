@@ -3,8 +3,8 @@ package art.moodframe.service.chat;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.service.trash.TrashManager;
@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * The images in the central trash that were deleted on their own or with their entry: one row per entry, with its
@@ -39,7 +38,7 @@ public class ImageTrashGroup implements TrashGroup {
     private static final int PROMPT_LENGTH = 60;
 
     private final ChatRepository chatRepository;
-    private final ChatFiles chatFiles;
+    private final ChatTrashRepository trash;
     private final TrashManager trashManager;
     private final ThumbnailManager thumbnailManager;
 
@@ -47,14 +46,14 @@ public class ImageTrashGroup implements TrashGroup {
      * Creates the group.
      *
      * @param chatRepository   where chats are stored
-     * @param chatFiles        moves the files of the images back from the trash and removes them
+     * @param trash            the trash of the images, which moves their files back and removes them
      * @param trashManager     locates the files in the trash for the previews (may be null: no previews)
      * @param thumbnailManager locates the thumbnails (may be null: the images themselves are the previews)
      */
-    public ImageTrashGroup(ChatRepository chatRepository, ChatFiles chatFiles, TrashManager trashManager,
+    public ImageTrashGroup(ChatRepository chatRepository, ChatTrashRepository trash, TrashManager trashManager,
             ThumbnailManager thumbnailManager) {
         this.chatRepository = chatRepository;
-        this.chatFiles = chatFiles;
+        this.trash = trash;
         this.trashManager = trashManager;
         this.thumbnailManager = thumbnailManager;
     }
@@ -78,7 +77,7 @@ public class ImageTrashGroup implements TrashGroup {
             for (Chat chat : chatRepository.findAllActiveChats())
                 chatNames.put(chat.getId(), chat.getName());
 
-            for (ChatEntry entry : chatRepository.findEntriesWithDeletedImages()) {
+            for (ChatEntry entry : trash.findEntriesWithDeletedImages()) {
                 List<TrashEntry.Part> parts = entry.getImages().stream()
                         .map((image) -> new TrashEntry.Part(image.getId(), image.getDeletedAt(), preview(image)))
                         .toList();
@@ -130,19 +129,8 @@ public class ImageTrashGroup implements TrashGroup {
     @Override
     public boolean restore(String id) {
         try {
-            Optional<GeneratedImage> image = chatRepository.findGeneratedImageById(id);
-            if (image.isPresent()) {
-                if (!chatRepository.restoreImage(id))
-                    return false;
-                chatFiles.restoreFromTrash(image.get().getChatEntryId(), List.of(image.get()));
-                return true;
-            }
-
-            List<GeneratedImage> images = chatRepository.findDeletedImagesByEntry(id);
-            if (!chatRepository.restoreChatEntry(id))
-                return false;
-            chatFiles.restoreFromTrash(id, images);
-            return true;
+            return chatRepository.findGeneratedImageById(id).isPresent() ? trash.restoreImage(id)
+                    : trash.restoreChatEntry(id);
         } catch (SQLException e) {
             logger.error("Failed to restore images: {}", id, e);
             return false;
@@ -151,7 +139,8 @@ public class ImageTrashGroup implements TrashGroup {
 
     /**
      * Removes the deleted images of an entry for good, or a single one; a deleted entry goes with its last image.
-     * The files go only after their record, so no file of an image in use is touched.
+     * The files go only after their record (see {@link ChatTrashRepository}), so no file of an image in use is
+     * touched.
      *
      * @param id the ID of the entry or of one of its images
      * @return true if something is gone
@@ -159,19 +148,8 @@ public class ImageTrashGroup implements TrashGroup {
     @Override
     public boolean deletePermanently(String id) {
         try {
-            Optional<GeneratedImage> image = chatRepository.findGeneratedImageById(id);
-            if (image.isPresent()) {
-                if (!chatRepository.deleteImagePermanently(id))
-                    return false;
-                chatFiles.deletePermanently(image.get().getChatEntryId(), List.of(image.get()));
-                return true;
-            }
-
-            List<GeneratedImage> images = chatRepository.findDeletedImagesByEntry(id);
-            if (!chatRepository.deleteChatEntryPermanently(id))
-                return false;
-            chatFiles.deletePermanently(id, images);
-            return true;
+            return chatRepository.findGeneratedImageById(id).isPresent() ? trash.deleteImagePermanently(id)
+                    : trash.deleteChatEntryPermanently(id);
         } catch (SQLException e) {
             logger.error("Failed to permanently delete images: {}", id, e);
             return false;

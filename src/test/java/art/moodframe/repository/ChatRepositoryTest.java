@@ -36,12 +36,16 @@ class ChatRepositoryTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
+    private static ChatGroupQueries queries;
 
     @BeforeAll
     static void createDatabase() throws Exception {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
+        queries = new ChatGroupQueries(databaseManager);
     }
 
     @Test
@@ -126,13 +130,13 @@ class ChatRepositoryTest {
         entry(trashed, mood("group-only-trashed", "Hidden", "#777777"), start.plusMinutes(9), 1);
 
         GeneratedImage deletedImage = image(first);
-        repository.softDeleteImage(deletedImage.getId());
+        trash.softDeleteImage(deletedImage.getId());
         repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(second.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.FAILED).build());
-        repository.softDeleteChatEntry(removed.getId());
-        repository.softDeleteChat(trashed.getId());
+        trash.softDeleteChatEntry(removed.getId());
+        trash.softDeleteChat(trashed.getId());
 
-        List<MoodGroup> groups = repository.findMoodGroups();
+        List<MoodGroup> groups = queries.findMoodGroups();
         assertEquals(List.of("std:mood:film-noir", "group-trashed", "group-gone", "group-renamed"),
                 groups.stream().filter((MoodGroup group) -> group.kind() == MoodGroup.Kind.MOOD)
                         .map(MoodGroup::moodId).toList(), "the latest use first, only moods with images");
@@ -161,9 +165,9 @@ class ChatRepositoryTest {
         assertEquals(2, groups.get(groups.size() - 2).imageCount(), "the combinations of their own");
         assertEquals(1, groups.get(groups.size() - 1).imageCount(), "the entries without blocks");
 
-        assertEquals(List.of(first.getId(), second.getId()), repository.findChatEntryIdsByMood(renamed));
-        assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 2)).contains(combination.getId()));
-        assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 1)).contains(plain.getId()));
+        assertEquals(List.of(first.getId(), second.getId()), queries.findChatEntryIdsByMood(renamed));
+        assertTrue(queries.findChatEntryIdsByMood(groups.get(groups.size() - 2)).contains(combination.getId()));
+        assertTrue(queries.findChatEntryIdsByMood(groups.get(groups.size() - 1)).contains(plain.getId()));
         assertTrue(renamed.holds(first));
         assertTrue(groups.get(groups.size() - 2).holds(combination));
         assertTrue(groups.get(groups.size() - 1).holds(plain));

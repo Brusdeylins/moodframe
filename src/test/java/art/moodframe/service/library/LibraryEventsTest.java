@@ -1,5 +1,7 @@
 package art.moodframe.service.library;
 
+import art.moodframe.repository.ChatFiles;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
@@ -13,6 +15,7 @@ import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ChatTrashGroup;
+import art.moodframe.service.chat.TestChatServices;
 import art.moodframe.service.trash.TrashGroup;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
@@ -64,7 +67,7 @@ class LibraryEventsTest {
 
         Path database = tempDir.resolve("db").resolve("test.db");
         DatabaseConfig.initialize(database.toString());
-        history = new ChatHistoryService(new ChatRepository(new DatabaseManager(database)), null, null);
+        history = TestChatServices.history(new DatabaseManager(database));
     }
 
     @BeforeEach
@@ -225,8 +228,9 @@ class LibraryEventsTest {
         assertTrue(chat.isDeleted());
 
         /*  The trash reports what left it, the library shows it again or drops it  */
-        assertTrue(new ChatTrashGroup(new ChatRepository(new DatabaseManager(tempDir.resolve("db")
-                .resolve("test.db")))).restore(chat.getId()));
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
+        assertTrue(new ChatTrashGroup(new ChatRepository(database), new ChatTrashRepository(database, ChatFiles.NONE))
+                .restore(chat.getId()));
         library.restored(TrashGroup.Kind.CHATS, chat.getId());
         assertEquals(once(LibraryEvents.Kind.CHAT, chat.getId()), reported());
         assertFalse(chat.isDeleted());

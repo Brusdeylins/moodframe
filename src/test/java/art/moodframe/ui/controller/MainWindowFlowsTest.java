@@ -17,7 +17,9 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.repository.BrainstormRepository;
+import art.moodframe.repository.ChatGroupQueries;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.repository.ColorStyleRepository;
 import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
@@ -253,8 +255,8 @@ class MainWindowFlowsTest {
 
     /*  the chats in the database, whose writes of finished images by a generation take a while, as on a slow disk:
         what a generation stores must be done before the window queries it  */
-    private static ChatRepository slowImageWrites(DatabaseManager database, ChatFileService files) {
-        return new ChatRepository(database, files) {
+    private static ChatRepository slowImageWrites(DatabaseManager database) {
+        return new ChatRepository(database) {
             @Override
             public void saveGeneratedImage(GeneratedImage image) throws SQLException {
                 if (Thread.currentThread().getName().startsWith("generation-store")
@@ -309,11 +311,13 @@ class MainWindowFlowsTest {
         thumbnails = new ThumbnailManager(paths);
         ChatFileService files = new ChatFileService(trashManager, thumbnails,
                 new FileManagerService(paths.images(), thumbnails));
-        repository = slowImageWrites(database, files);
+        repository = slowImageWrites(database);
+        ChatTrashRepository chatTrash = new ChatTrashRepository(database, files);
         trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository));
-        trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
-        ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
+        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ImageTrashGroup(repository, chatTrash, trashManager, thumbnails));
+        ChatHistoryService history = new ChatHistoryService(repository, chatTrash, new ChatGroupQueries(database),
+                trashManager);
         chats = recording(history, events, deletions, loads);
         trash.addListener(chats);
 

@@ -321,7 +321,12 @@ public class MoodframeApplication extends Application {
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.repository.ChatRepository.class,
-                    () -> new art.moodframe.repository.ChatRepository(database,
+                    () -> new art.moodframe.repository.ChatRepository(database));
+
+            /*  The trash of the chats, entries and images; it moves their files after each commit  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.repository.ChatTrashRepository.class,
+                    () -> new art.moodframe.repository.ChatTrashRepository(database,
                             ServiceFactory.getInstance().getService(art.moodframe.service.chat.ChatFileService.class)));
 
             // The central trash: chats first, the other kinds of items dock in with their own group
@@ -333,10 +338,11 @@ public class MoodframeApplication extends Application {
                         ServiceFactory services = ServiceFactory.getInstance();
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
+                        art.moodframe.repository.ChatTrashRepository chatTrash = services.getService(
+                                art.moodframe.repository.ChatTrashRepository.class);
                         if (chatRepo != null) {
-                            trashCenter.register(new art.moodframe.service.chat.ChatTrashGroup(chatRepo));
-                            trashCenter.register(new art.moodframe.service.chat.ImageTrashGroup(chatRepo,
-                                    services.getService(art.moodframe.service.chat.ChatFileService.class),
+                            trashCenter.register(new art.moodframe.service.chat.ChatTrashGroup(chatRepo, chatTrash));
+                            trashCenter.register(new art.moodframe.service.chat.ImageTrashGroup(chatRepo, chatTrash,
                                     services.getService(art.moodframe.service.trash.TrashManager.class),
                                     services.getService(art.moodframe.service.chat.ThumbnailManager.class)));
                         }
@@ -374,8 +380,9 @@ public class MoodframeApplication extends Application {
                                 .getService(art.moodframe.repository.ChatRepository.class);
                         ServiceFactory services = ServiceFactory.getInstance();
                         return chatRepo != null ? new art.moodframe.service.chat.ChatHistoryService(chatRepo,
-                                services.getService(art.moodframe.service.trash.TrashManager.class),
-                                services.getService(art.moodframe.service.chat.ChatFileService.class))
+                                services.getService(art.moodframe.repository.ChatTrashRepository.class),
+                                new art.moodframe.repository.ChatGroupQueries(database),
+                                services.getService(art.moodframe.service.trash.TrashManager.class))
                                 : null;
                     });
 

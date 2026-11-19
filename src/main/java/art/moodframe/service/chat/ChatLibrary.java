@@ -272,7 +272,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      */
     public void deleteEntry(ChatEntry entry) throws SQLException {
         if (history != null)
-            history.deleteEntry(entry.getId(), history.findGeneratedImagesByEntry(entry.getId()));
+            history.deleteEntry(entry.getId());
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
         ModelLock.change(() -> owner(entry).ifPresent((Chat chat) -> leave(chat, entry, deletedCost)));
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());

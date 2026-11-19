@@ -5,7 +5,9 @@ import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.repository.ChatGroupQueries;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashEntry;
@@ -42,6 +44,7 @@ class ImageTrashGroupTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
     private static TrashManager trashManager;
     private static ChatHistoryService history;
     private static ImageTrashGroup group;
@@ -56,9 +59,10 @@ class ImageTrashGroupTest {
         trashManager = new TrashManager(paths, 60);
 
         ChatFileService chatFiles = new ChatFileService(trashManager, null, new FileManagerService(paths.images()));
-        repository = new ChatRepository(databaseManager, chatFiles);
-        history = new ChatHistoryService(repository, trashManager, chatFiles);
-        group = new ImageTrashGroup(repository, chatFiles, trashManager, null);
+        repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, chatFiles);
+        history = new ChatHistoryService(repository, trash, new ChatGroupQueries(databaseManager), trashManager);
+        group = new ImageTrashGroup(repository, trash, trashManager, null);
     }
 
     @Test
@@ -81,7 +85,7 @@ class ImageTrashGroupTest {
         assertTrue(Files.exists(Path.of(image.getLocalFilePath())));
         assertFalse(Files.exists(Path.of(trashManager.getTrashPath(image.getLocalFilePath(), false))));
         assertEquals(2, repository.findGeneratedImagesByEntry(entry.getId()).size());
-        assertEquals(0.0, repository.getDeletedCostForEntry(entry.getId()), 0.0001);
+        assertEquals(0.0, trash.getDeletedCostForEntry(entry.getId()), 0.0001);
         assertTrue(trashed(entry).isEmpty());
         assertFalse(group.restore(image.getId()));
     }
@@ -92,7 +96,7 @@ class ImageTrashGroupTest {
         ChatEntry entry = entry(chat, "a lighthouse in a storm", 0.16, 4);
         double headerCost = headerCost(chat);
         List<GeneratedImage> images = images(entry);
-        history.deleteEntry(entry.getId(), images);
+        history.deleteEntry(entry.getId());
         assertEquals(0.16, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 0.0001);
 
         TrashEntry row = trashed(entry).orElseThrow();
@@ -106,7 +110,7 @@ class ImageTrashGroupTest {
         assertEquals(4, repository.findGeneratedImagesByEntry(entry.getId()).size());
         for (GeneratedImage image : images)
             assertTrue(Files.exists(Path.of(image.getLocalFilePath())));
-        assertEquals(0.0, repository.getDeletedCostForEntry(entry.getId()), 0.0001);
+        assertEquals(0.0, trash.getDeletedCostForEntry(entry.getId()), 0.0001);
         assertEquals(0.0, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 0.0001);
         assertEquals(headerCost, headerCost(chat), 0.0001);
         assertTrue(trashed(entry).isEmpty());
@@ -118,14 +122,14 @@ class ImageTrashGroupTest {
         ChatEntry entry = entry(chat, "a forest", 0.08, 2);
         double headerCost = headerCost(chat);
         List<GeneratedImage> images = images(entry);
-        history.deleteEntry(entry.getId(), images);
+        history.deleteEntry(entry.getId());
 
         assertTrue(group.restore(images.get(1).getId()));
 
         assertNull(repository.findChatEntryById(entry.getId()).orElseThrow().getDeletedAt());
         assertEquals(List.of(images.get(1).getId()),
                 repository.findGeneratedImagesByEntry(entry.getId()).stream().map(GeneratedImage::getId).toList());
-        assertEquals(0.04, repository.getDeletedCostForEntry(entry.getId()), 0.0001);
+        assertEquals(0.04, trash.getDeletedCostForEntry(entry.getId()), 0.0001);
         assertEquals(0.0, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 0.0001);
         assertEquals(headerCost, headerCost(chat), 0.0001);
         assertEquals(List.of(images.get(0).getId()),
@@ -140,7 +144,7 @@ class ImageTrashGroupTest {
         history.deleteImage(kept.getId(), single);
         ChatEntry gone = entry(chat, "gone", 0.08, 2);
         List<GeneratedImage> images = images(gone);
-        history.deleteEntry(gone.getId(), images);
+        history.deleteEntry(gone.getId());
 
         assertTrue(group.deletePermanently(single.getId()));
         assertTrue(group.deletePermanently(gone.getId()));
@@ -148,7 +152,7 @@ class ImageTrashGroupTest {
         assertTrue(repository.findGeneratedImageById(single.getId()).isEmpty());
         assertFalse(Files.exists(Path.of(trashManager.getTrashPath(single.getLocalFilePath(), false))));
         assertEquals(1, repository.findGeneratedImagesByEntry(kept.getId()).size());
-        assertEquals(0.04, repository.getDeletedCostForEntry(kept.getId()), 0.0001);
+        assertEquals(0.04, trash.getDeletedCostForEntry(kept.getId()), 0.0001);
         assertTrue(repository.findChatEntryById(gone.getId()).isEmpty());
         for (GeneratedImage image : images)
             assertFalse(Files.exists(Path.of(trashManager.getTrashPath(image.getLocalFilePath(), false))));
@@ -164,7 +168,7 @@ class ImageTrashGroupTest {
         history.deleteImage(entry.getId(), images(entry).get(0));
         assertTrue(trashed(entry).isPresent());
 
-        repository.softDeleteChat(chat.getId());
+        trash.softDeleteChat(chat.getId());
 
         assertTrue(trashed(entry).isEmpty());
     }
@@ -179,7 +183,7 @@ class ImageTrashGroupTest {
         backdate("generated_images", images.get(0).getId(), 61);
         ChatEntry expired = entry(chat, "expired entry", 0.04, 1);
         GeneratedImage expiredImage = images(expired).get(0);
-        history.deleteEntry(expired.getId(), List.of(expiredImage));
+        history.deleteEntry(expired.getId());
         backdate("generated_images", expiredImage.getId(), 61);
         backdate("chat_entries", expired.getId(), 61);
 
