@@ -217,14 +217,14 @@ public class RequestResponseManager implements RequestResponseService {
 
             } catch (Exception e) {
                 logger.error("Failed to submit image generation request", e);
-                String error = ChatEntryTracker.errorText(e, chatEntry);
-                FxModel.change(() -> {
-                    chatEntry.setStatus(ChatEntry.Status.FAILED);
-                    chatEntry.setErrorMessage(error);
-                    tracker.notifyEntryUpdated(chatEntry);
-                });
+                markFailed(chatEntry, e);
             }
         }, io);
+    }
+
+    @Override
+    public void markFailed(ChatEntry chatEntry, Throwable failure) {
+        tracker.markFailed(chatEntry, ChatEntryTracker.errorText(failure, chatEntry));
     }
 
     @Override

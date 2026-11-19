@@ -595,6 +595,10 @@ class McpEditToolsTest {
         }
 
         @Override
+        public void markFailed(ChatEntry chatEntry, Throwable failure) {
+        }
+
+        @Override
         public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
             CompletableFuture<Boolean> cancelled = new CompletableFuture<>();
             Platform.runLater(() -> {

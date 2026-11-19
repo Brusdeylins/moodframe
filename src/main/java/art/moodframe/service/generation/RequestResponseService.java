@@ -72,6 +72,16 @@ public interface RequestResponseService {
      */
     CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry, 
             java.io.File attachedImageFile);
+
+    /**
+     * Marks an entry failed whose submission failed: it is stored with the reason (in English for an entry of the
+     * MCP server, else in the language of the user interface), then the listeners are told. A cancelled entry stays
+     * cancelled.
+     *
+     * @param chatEntry the entry
+     * @param failure   why the submission failed, also wrapped in a {@code CompletionException}
+     */
+    void markFailed(ChatEntry chatEntry, Throwable failure);
     
     /**
      * Cancels a running chat entry: the polling of its BFL jobs stops, its images not finished yet fail and it ends

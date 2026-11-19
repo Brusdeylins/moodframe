@@ -363,11 +363,9 @@ public class GenerationService {
                         return;
                     }
                     logger.error("Failed to submit API request", throwable);
-                    FxModel.change(() -> {
-                        entry.setStatus(ChatEntry.Status.FAILED);
-                        entry.setErrorMessage(throwable.getMessage());
-                        finished.complete(ChatEntry.Status.FAILED);
-                    });
+
+                    /*  stored as failed with the reason, then told to the listeners, which finish the entry  */
+                    requests.markFailed(entry, throwable);
                 });
         return new Submission(entry, submitted, finished);
     }
