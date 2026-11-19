@@ -309,16 +309,6 @@ public class MoodFramePanelController {
         return resolutionChoiceBox.valueProperty();
     }
 
-    /** The field of the target resolution, for the tests. */
-    public ChoiceBox<String> resolutionChoice() {
-        return resolutionChoiceBox;
-    }
-
-    /** The hint below the resolution, for the tests. */
-    public Label resolutionHint() {
-        return resolutionHintLabel;
-    }
-
     /** What the panel shows as chosen. */
     public Selection selection() {
         return new Selection(chosenMood(), isMoodChanged(), currentMoodFields(), lockedMoodFields(), chosenFrame(),
