@@ -53,9 +53,8 @@ class ArchitectureTest {
     private static final List<String> SERVICES = List.of("service.provider", "service.prompt", "service.trash",
             "service.library", "service.chat", "service.generation", "service.brainstorm", "service");
 
-    /*  Known deviation: model classes with JavaFX properties for binding  */
-    private static final Set<String> FX_MODELS = Set.of("Chat", "ChatEntry", "ColorStyleItem", "GeneratedImage",
-            "StylePresetItem");
+    /*  Known deviation: the chat entry and its images, whose few properties and the list of images the views observe  */
+    private static final Set<String> FX_MODELS = Set.of("ChatEntry", "GeneratedImage");
 
     /** The packages below {@code art.moodframe} ("" for the root) with the packages their classes use. */
     private static final Map<String, Set<String>> uses = new TreeMap<>();

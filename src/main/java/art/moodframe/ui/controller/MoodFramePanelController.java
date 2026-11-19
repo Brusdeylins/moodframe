@@ -13,10 +13,12 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.cell.MoodListCell;
+import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.MoodChoice;
+import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.value.ObservableValue;
@@ -130,25 +132,25 @@ public class MoodFramePanelController {
 
     // Building blocks
     @FXML
-    private ComboBox<art.moodframe.model.StylePresetItem> atmosphereComboBox;
+    private ComboBox<StylePresetItem> atmosphereComboBox;
     @FXML
     private Label atmosphereLabel;
     @FXML
     private ToggleButton atmosphereLockButton;
     @FXML
-    private ComboBox<art.moodframe.model.StylePresetItem> stylePresetsComboBox;
+    private ComboBox<StylePresetItem> stylePresetsComboBox;
     @FXML
     private Label styleLabel;
     @FXML
     private ToggleButton styleLockButton;
     @FXML
-    private ComboBox<art.moodframe.model.ColorStyleItem> colorStyleComboBox;
+    private ComboBox<ColorStyleItem> colorStyleComboBox;
     @FXML
     private Label colorStyleLabel;
     @FXML
     private ToggleButton colorLockButton;
     @FXML
-    private ComboBox<art.moodframe.model.StylePresetItem> lightComboBox;
+    private ComboBox<StylePresetItem> lightComboBox;
     @FXML
     private Label lightLabel;
     @FXML
@@ -156,7 +158,7 @@ public class MoodFramePanelController {
     @FXML
     private Label lightLayoutHint;
     @FXML
-    private ComboBox<art.moodframe.model.StylePresetItem> cameraComboBox;
+    private ComboBox<StylePresetItem> cameraComboBox;
     @FXML
     private Label cameraLabel;
     @FXML
@@ -425,7 +427,7 @@ public class MoodFramePanelController {
         frames.updateSaveLock();
 
         boolean moodApplies = enableInput && (!reference || moodApplyCheckBox.isSelected());
-        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
+        StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean layoutStyle = styleItem != null && styleItem.getBlock() != null && styleItem.getBlock().isLayout();
         moodApplyCheckBox.setVisible(reference);
         moodApplyCheckBox.setManaged(reference);
@@ -560,7 +562,7 @@ public class MoodFramePanelController {
                 colorStyleComboBox.getItems().stream().filter((item) -> savedColorStyle.equals(item.getName()))
                         .findFirst().ifPresent(colorStyleComboBox::setValue);
 
-            for (Map.Entry<ComboBox<art.moodframe.model.StylePresetItem>, String> saved : Map.of(
+            for (Map.Entry<ComboBox<StylePresetItem>, String> saved : Map.of(
                     lightComboBox, String.valueOf(config.generation().getDefaultLight()),
                     cameraComboBox, String.valueOf(config.generation().getDefaultCamera()),
                     atmosphereComboBox, String.valueOf(config.generation().getDefaultAtmosphere())).entrySet())
@@ -666,7 +668,7 @@ public class MoodFramePanelController {
             chooseMood(legacyMood);
 
             /*  The former look style is taken over once, also while the style field is locked  */
-            art.moodframe.model.StylePresetItem style = stylePresetsComboBox.getValue();
+            StylePresetItem style = stylePresetsComboBox.getValue();
             config.generation().setDefaultStyle(style != null ? style.getName() : "None");
         }
         else
@@ -889,8 +891,8 @@ public class MoodFramePanelController {
      * chosen, never a group header.
      */
     private void selectBlock(art.moodframe.model.PromptBlock.Type type, String blockId) {
-        javafx.scene.control.ComboBox<art.moodframe.model.StylePresetItem> comboBox = blocks.blockComboBox(type);
-        art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice = blocks.choice(type);
+        javafx.scene.control.ComboBox<StylePresetItem> comboBox = blocks.blockComboBox(type);
+        art.moodframe.ui.component.BlockChoice<StylePresetItem> choice = blocks.choice(type);
         comboBox.getItems().stream().filter((item) -> choice.isEntry(item) && item.getBlock() != null
                 && item.getBlock().getId().equals(blockId)).findFirst()
                 .or(() -> comboBox.getItems().stream().filter(choice::isEntry).findFirst())
@@ -902,11 +904,11 @@ public class MoodFramePanelController {
         Map<Mood.Field, String> fields = new java.util.EnumMap<>(Mood.Field.class);
         java.util.Map.of(Mood.Field.ATMOSPHERE, atmosphereComboBox, Mood.Field.STYLE, stylePresetsComboBox,
                 Mood.Field.LIGHT, lightComboBox, Mood.Field.CAMERA, cameraComboBox).forEach((field, comboBox) -> {
-            art.moodframe.model.StylePresetItem item = comboBox.getValue();
+            StylePresetItem item = comboBox.getValue();
             if (item != null && item.getBlock() != null)
                 fields.put(field, item.getBlock().getId());
         });
-        art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox.getValue();
+        ColorStyleItem colorItem = colorStyleComboBox.getValue();
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
                 ? colorStyleService().getStyleByName(colorItem.getName()) : null;
         if (palette != null)
@@ -1158,13 +1160,13 @@ public class MoodFramePanelController {
         if (reference && !moodApplyCheckBox.isSelected())
             return new art.moodframe.service.prompt.PromptComposer.Selection(null, null, null, null, null);
 
-        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
-        art.moodframe.model.StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
-        art.moodframe.model.StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
-        art.moodframe.model.StylePresetItem cameraItem = cameraComboBox != null ? cameraComboBox.getValue() : null;
-        art.moodframe.model.ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
+        StylePresetItem styleItem = stylePresetsComboBox != null ? stylePresetsComboBox.getValue() : null;
+        StylePresetItem atmosphereItem = atmosphereComboBox != null ? atmosphereComboBox.getValue() : null;
+        StylePresetItem lightItem = lightComboBox != null ? lightComboBox.getValue() : null;
+        StylePresetItem cameraItem = cameraComboBox != null ? cameraComboBox.getValue() : null;
+        ColorStyleItem colorItem = colorStyleComboBox != null ? colorStyleComboBox.getValue() : null;
         art.moodframe.model.ColorStyle palette = colorItem != null && !"None".equals(colorItem.getName())
-                ? art.moodframe.model.ColorStyle.fromColorStyleItem(colorItem) : null;
+                ? colorItem.toColorStyle() : null;
         return new art.moodframe.service.prompt.PromptComposer.Selection(
                 styleItem != null ? styleItem.getBlock() : null,
                 atmosphereItem != null ? atmosphereItem.getBlock() : null, lightItem != null ? lightItem.getBlock() : null,
@@ -1177,7 +1179,7 @@ public class MoodFramePanelController {
      * changes the geometry may show only weakly, as an edit hardly changes it.
      */
     private void updateCameraHint() {
-        art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
+        StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean framingOnly = styleItem != null && styleItem.getBlock() != null
                 && !styleItem.getBlock().isPhotographic();
         art.moodframe.model.PromptBlock camera = reference ? selectedBlocks().camera() : null;

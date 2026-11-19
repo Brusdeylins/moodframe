@@ -51,9 +51,10 @@ Allowed dependency directions:
   name (`displayNameKey`); `service.generation.ModelLabels` gives the dropdown items in the current language. An item
   in any language leads back to its model with `GenerationModel.fromLocalizedDisplayName`, since a localized name
   differs from the display name only after the family name.
-- `util` may use `config` and uses nothing today; neither `util` nor `model` imports JavaFX, except the model classes
-  with JavaFX properties (see the known deviations below). `I18nManager` notifies each listener through the executor it was registered
-  with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
+- `util` may use `config` and uses nothing today; neither `util` nor `model` imports JavaFX, except `ChatEntry` and
+  `GeneratedImage` with the properties the views observe (see the known deviations below). `I18nManager` notifies
+  each listener through the executor it was registered with; the views register with `ui.support.FxI18n`, which
+  notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 - `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
@@ -83,12 +84,18 @@ The subpackages of `service`, each using only those above it in the table (no cy
 `service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
-Known deviations: some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`, `GeneratedImage`,
-`ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which carry such
-properties, only through `service.generation.FxModel`, the one class of `service` that uses JavaFX (it also hands the
-notifications of a generation to the JavaFX thread). `service.chat` itself needs no JavaFX: the `ChatLibrary` changes
-these models on the calling thread (see "Threading"). `LibraryEvents` calls each listener through the executor it
-was added with; the views add theirs with `ui.support.FxLibraryEvents`, which passes `Platform::runLater`.
+Known deviations: two model classes carry what the views observe while a generation runs, as JavaFX properties and
+lists. `ChatEntry` has its status and prompt as properties and its images as an `ObservableList`: the entry card
+(`ui.component.ChatEntryCard`) follows all three, the images view (`ui.component.ImageGrid`) the list of images.
+`GeneratedImage` has its download status as a property, which both follow, and its four sizes (`width`, `height`,
+`imageWidth`, `imageHeight`), from which the entry card shapes the tile. Every other value of the two, and all of
+`Chat` (whose entries the views read as copies), are plain fields; `ArchitectureTest` names the two classes. The
+entries of the selections of blocks and palettes (`StylePresetItem`, `ColorStyleItem`) live in `ui.component`. A
+generation changes the chat entry and its images only through `service.generation.FxModel`, the one class of
+`service` that uses JavaFX (it also hands the notifications of a generation to the JavaFX thread). `service.chat`
+itself needs no JavaFX: the `ChatLibrary` changes these models on the calling thread (see "Threading").
+`LibraryEvents` calls each listener through the executor it was added with; the views add theirs with
+`ui.support.FxLibraryEvents`, which passes `Platform::runLater`.
 
 ## Threading
 

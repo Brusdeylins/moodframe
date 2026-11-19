@@ -190,25 +190,6 @@ public class ColorStyle {
                 + " of objects, surfaces and light; the image contains no written color codes, color names or swatches.";
     }
 
-    /**
-     * Converts this color style to a ColorStyleItem for UI display.
-     *
-     * @return a new ColorStyleItem with the same data
-     */
-    public ColorStyleItem toColorStyleItem() {
-        return new ColorStyleItem(id, name, colors, isDefault);
-    }
-
-    /**
-     * Creates a ColorStyle from a ColorStyleItem.
-     *
-     * @param item the UI item to convert
-     * @return a new ColorStyle with the same data
-     */
-    public static ColorStyle fromColorStyleItem(ColorStyleItem item) {
-        return new ColorStyle(item.getName(), new ArrayList<>(item.getColors()), item.isDefault());
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;

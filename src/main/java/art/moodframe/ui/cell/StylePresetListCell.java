@@ -9,10 +9,10 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import org.kordamp.ikonli.javafx.FontIcon;
 
-import art.moodframe.model.StylePresetItem;
 import art.moodframe.ui.component.BlockChoice;
 import art.moodframe.ui.component.DropdownBounds;
 import art.moodframe.ui.component.FavoriteStar;
+import art.moodframe.ui.component.StylePresetItem;
 
 /**
  * Custom ListCell for displaying text building blocks (style, atmosphere, light, camera).

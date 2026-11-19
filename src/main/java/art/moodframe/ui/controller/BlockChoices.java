@@ -6,7 +6,9 @@ import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.FavoriteStar;
+import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.util.I18nManager;
 import javafx.scene.control.ComboBox;
@@ -34,29 +36,29 @@ final class BlockChoices {
     /**
      * The nodes of {@code MoodFramePanel.fxml} the part works on.
      */
-    record Nodes(ComboBox<art.moodframe.model.StylePresetItem> atmosphereComboBox, ToggleButton atmosphereLockButton,
-                 ComboBox<art.moodframe.model.StylePresetItem> stylePresetsComboBox, ToggleButton styleLockButton,
-                 ComboBox<art.moodframe.model.ColorStyleItem> colorStyleComboBox, ToggleButton colorLockButton,
-                 ComboBox<art.moodframe.model.StylePresetItem> lightComboBox, ToggleButton lightLockButton,
-                 ComboBox<art.moodframe.model.StylePresetItem> cameraComboBox, ToggleButton cameraLockButton) {
+    record Nodes(ComboBox<StylePresetItem> atmosphereComboBox, ToggleButton atmosphereLockButton,
+                 ComboBox<StylePresetItem> stylePresetsComboBox, ToggleButton styleLockButton,
+                 ComboBox<ColorStyleItem> colorStyleComboBox, ToggleButton colorLockButton,
+                 ComboBox<StylePresetItem> lightComboBox, ToggleButton lightLockButton,
+                 ComboBox<StylePresetItem> cameraComboBox, ToggleButton cameraLockButton) {
     }
 
-    private final ComboBox<art.moodframe.model.StylePresetItem> atmosphereComboBox;
+    private final ComboBox<StylePresetItem> atmosphereComboBox;
     private final ToggleButton atmosphereLockButton;
-    private final ComboBox<art.moodframe.model.StylePresetItem> stylePresetsComboBox;
+    private final ComboBox<StylePresetItem> stylePresetsComboBox;
     private final ToggleButton styleLockButton;
-    private final ComboBox<art.moodframe.model.ColorStyleItem> colorStyleComboBox;
+    private final ComboBox<ColorStyleItem> colorStyleComboBox;
     private final ToggleButton colorLockButton;
-    private final ComboBox<art.moodframe.model.StylePresetItem> lightComboBox;
+    private final ComboBox<StylePresetItem> lightComboBox;
     private final ToggleButton lightLockButton;
-    private final ComboBox<art.moodframe.model.StylePresetItem> cameraComboBox;
+    private final ComboBox<StylePresetItem> cameraComboBox;
     private final ToggleButton cameraLockButton;
 
     /*  The lists of the text blocks by their type and the list of the palettes  */
     private final Map<art.moodframe.model.PromptBlock.Type,
-            art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem>> blockChoices =
+            art.moodframe.ui.component.BlockChoice<StylePresetItem>> blockChoices =
             new java.util.EnumMap<>(art.moodframe.model.PromptBlock.Type.class);
-    private art.moodframe.ui.component.BlockChoice<art.moodframe.model.ColorStyleItem> colorChoice;
+    private art.moodframe.ui.component.BlockChoice<ColorStyleItem> colorChoice;
 
     private ApplicationConfig config;
     private PromptBlockService blockService;
@@ -121,13 +123,13 @@ final class BlockChoices {
      * @param type the type
      * @return the list
      */
-    art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice(
+    art.moodframe.ui.component.BlockChoice<StylePresetItem> choice(
             art.moodframe.model.PromptBlock.Type type) {
         return blockChoices.get(type);
     }
 
     /** @return the list of the palettes, null before the set-up */
-    art.moodframe.ui.component.BlockChoice<art.moodframe.model.ColorStyleItem> colorChoice() {
+    art.moodframe.ui.component.BlockChoice<ColorStyleItem> colorChoice() {
         return colorChoice;
     }
 
@@ -146,7 +148,7 @@ final class BlockChoices {
     Map<ComboBox<?>, Runnable> reloads() {
         Map<ComboBox<?>, Runnable> reloads = new java.util.LinkedHashMap<>();
         blockChoices.keySet().forEach((type) -> reloads.put(blockComboBox(type), () -> {
-            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
+            ComboBox<StylePresetItem> comboBox = blockComboBox(type);
             fillBlockChoice(type, comboBox.getValue() != null ? comboBox.getValue().getName() : null);
         }));
         if (colorChoice != null)
@@ -168,14 +170,14 @@ final class BlockChoices {
                         art.moodframe.model.PromptBlock.Type.LIGHT, lightLockButton,
                         art.moodframe.model.PromptBlock.Type.CAMERA, cameraLockButton);
         locks.forEach((type, lock) -> {
-            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
-            art.moodframe.ui.component.BlockChoice<art.moodframe.model.StylePresetItem> choice =
+            ComboBox<StylePresetItem> comboBox = blockComboBox(type);
+            art.moodframe.ui.component.BlockChoice<StylePresetItem> choice =
                     new art.moodframe.ui.component.BlockChoice<>(comboBox, lock,
-                            (name) -> new art.moodframe.model.StylePresetItem(name, "", false),
+                            (name) -> new StylePresetItem(name, "", false),
                             (item) -> item.getBlock() != null,
                             new art.moodframe.ui.component.BlockChoice.Actions<>() {
                                 @Override
-                                public void edit(art.moodframe.model.StylePresetItem entry) {
+                                public void edit(StylePresetItem entry) {
                                     editBlock(type, entry.getBlock());
                                 }
 
@@ -189,7 +191,7 @@ final class BlockChoices {
                                     manageBlocks(type);
                                 }
                             });
-            FavoriteStar.Favorites<art.moodframe.model.StylePresetItem> favorites = favorites(comboBox,
+            FavoriteStar.Favorites<StylePresetItem> favorites = favorites(comboBox,
                     FavoriteService.Kind.of(type), BlockChoices::blockId);
             comboBox.setCellFactory((listView) -> new art.moodframe.ui.cell.StylePresetListCell(choice,
                     favorites));
@@ -199,11 +201,11 @@ final class BlockChoices {
         });
 
         colorChoice = new art.moodframe.ui.component.BlockChoice<>(colorStyleComboBox, colorLockButton,
-                (name) -> new art.moodframe.model.ColorStyleItem(name, java.util.Collections.emptyList(), true),
+                (name) -> new ColorStyleItem(name, java.util.Collections.emptyList(), true),
                 (item) -> !"None".equals(item.getName()),
                 new art.moodframe.ui.component.BlockChoice.Actions<>() {
                     @Override
-                    public void edit(art.moodframe.model.ColorStyleItem entry) {
+                    public void edit(ColorStyleItem entry) {
                         editPalette(entry);
                     }
 
@@ -217,8 +219,8 @@ final class BlockChoices {
                         managePalettes();
                     }
                 });
-        FavoriteStar.Favorites<art.moodframe.model.ColorStyleItem> paletteFavorites = favorites(colorStyleComboBox,
-                FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId);
+        FavoriteStar.Favorites<ColorStyleItem> paletteFavorites = favorites(colorStyleComboBox,
+                FavoriteService.Kind.COLOR, ColorStyleItem::getId);
         colorStyleComboBox.setCellFactory((listView) -> new art.moodframe.ui.cell.ColorStyleListCell(
                 paletteFavorites));
         colorStyleComboBox.setButtonCell(new art.moodframe.ui.cell.ColorStyleListCell());
@@ -233,25 +235,25 @@ final class BlockChoices {
      * @param name the name of the block to select, null for "None"
      */
     void fillBlockChoice(art.moodframe.model.PromptBlock.Type type, String name) {
-        List<art.moodframe.model.StylePresetItem> entries = new java.util.ArrayList<>();
-        entries.add(new art.moodframe.model.StylePresetItem("None", "", false));
+        List<StylePresetItem> entries = new java.util.ArrayList<>();
+        entries.add(new StylePresetItem("None", "", false));
         art.moodframe.service.library.PromptBlockService service = blockService;
         boolean grouped = type == art.moodframe.model.PromptBlock.Type.STYLE;
-        java.util.function.Predicate<art.moodframe.model.StylePresetItem> favorite = (item) -> item.getBlock() != null
+        java.util.function.Predicate<StylePresetItem> favorite = (item) -> item.getBlock() != null
                 && isFavorite(FavoriteService.Kind.of(type), item.getBlock().getId());
         if (service == null)
             logger.warn("PromptBlockService not available, {} list only offers None", type);
         else
             entries.addAll(FavoriteService.order(service.getAll(type).stream()
-                    .map(art.moodframe.model.StylePresetItem::new).toList(), favorite,
+                    .map(StylePresetItem::new).toList(), favorite,
                     (item) -> grouped ? STYLE_GROUPS.indexOf(styleGroupKey(item)) : 0,
-                    art.moodframe.model.StylePresetItem::getName));
+                    StylePresetItem::getName));
         blockChoices.get(type).setEntries(entries, grouped ? (item) -> favorite.test(item) ? "block.group.favorites"
                 : styleGroupKey(item) : null, name);
     }
 
     /*  the id of the block of a list item  */
-    static String blockId(art.moodframe.model.StylePresetItem item) {
+    static String blockId(StylePresetItem item) {
         return item.getBlock().getId();
     }
 
@@ -260,7 +262,7 @@ final class BlockChoices {
             "block.group.layout");
 
     /** The header of the group of a style; a style of the user without group goes by its photographic flag. */
-    private static String styleGroupKey(art.moodframe.model.StylePresetItem item) {
+    private static String styleGroupKey(StylePresetItem item) {
         art.moodframe.model.PromptBlock block = item.getBlock();
         if (block == null)
             return null;
@@ -274,16 +276,16 @@ final class BlockChoices {
      * @param name the name of the palette to select, null for "None"
      */
     void fillColorChoice(String name) {
-        List<art.moodframe.model.ColorStyleItem> entries = new java.util.ArrayList<>();
-        entries.add(new art.moodframe.model.ColorStyleItem("None", java.util.Collections.emptyList(), true));
+        List<ColorStyleItem> entries = new java.util.ArrayList<>();
+        entries.add(new ColorStyleItem("None", java.util.Collections.emptyList(), true));
         art.moodframe.service.library.ColorStyleService service = colorService;
         if (service == null)
             logger.warn("ColorStyleService not available, color list only offers None");
         else
             entries.addAll(FavoriteService.order(service.getAllStyles().stream()
-                    .map(art.moodframe.model.ColorStyle::toColorStyleItem).toList(),
+                    .map(ColorStyleItem::of).toList(),
                     (item) -> isFavorite(FavoriteService.Kind.COLOR, item.getId()), (item) -> 0,
-                    art.moodframe.model.ColorStyleItem::getName));
+                    ColorStyleItem::getName));
         colorChoice.setEntries(entries, null, name);
     }
 
@@ -293,7 +295,7 @@ final class BlockChoices {
      */
     void refreshBlockChoices() {
         blockChoices.forEach((type, choice) -> {
-            ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
+            ComboBox<StylePresetItem> comboBox = blockComboBox(type);
             fillBlockChoice(type, comboBox.getValue() != null ? comboBox.getValue().getName() : null);
         });
         if (colorChoice != null)
@@ -323,7 +325,7 @@ final class BlockChoices {
         return service != null && service.isFavorite(kind, id);
     }
 
-    ComboBox<art.moodframe.model.StylePresetItem> blockComboBox(art.moodframe.model.PromptBlock.Type type) {
+    ComboBox<StylePresetItem> blockComboBox(art.moodframe.model.PromptBlock.Type type) {
         return switch (type) {
             case STYLE -> stylePresetsComboBox;
             case ATMOSPHERE -> atmosphereComboBox;
@@ -414,7 +416,7 @@ final class BlockChoices {
      *
      * @param item the palette to edit, null for a new one
      */
-    String editPalette(art.moodframe.model.ColorStyleItem item) {
+    String editPalette(ColorStyleItem item) {
         art.moodframe.service.library.ColorStyleService service = colorService;
         if (service == null)
             return null;
@@ -460,29 +462,29 @@ final class BlockChoices {
         String typeKey = type.name().toLowerCase(java.util.Locale.ROOT);
         new art.moodframe.ui.dialog.BlockManageDialog<>(window.get(),
                 I18nManager.getText("block.manage.title." + typeKey), "moodframe-" + typeKey + ".json",
-                new art.moodframe.ui.dialog.BlockManageDialog.Library<art.moodframe.model.StylePresetItem>() {
+                new art.moodframe.ui.dialog.BlockManageDialog.Library<StylePresetItem>() {
                     @Override
-                    public List<art.moodframe.model.StylePresetItem> list() {
-                        return service.getCustom(type).stream().map(art.moodframe.model.StylePresetItem::new).toList();
+                    public List<StylePresetItem> list() {
+                        return service.getCustom(type).stream().map(StylePresetItem::new).toList();
                     }
 
                     @Override
-                    public String id(art.moodframe.model.StylePresetItem entry) {
+                    public String id(StylePresetItem entry) {
                         return entry.getBlock().getId();
                     }
 
                     @Override
-                    public String name(art.moodframe.model.StylePresetItem entry) {
+                    public String name(StylePresetItem entry) {
                         return entry.getName();
                     }
 
                     @Override
-                    public boolean delete(art.moodframe.model.StylePresetItem entry) {
+                    public boolean delete(StylePresetItem entry) {
                         return service.deleteCustom(id(entry));
                     }
 
                     @Override
-                    public boolean reorder(List<art.moodframe.model.StylePresetItem> entries) {
+                    public boolean reorder(List<StylePresetItem> entries) {
                         return service.reorderCustom(type, entries.stream().map(this::id).toList());
                     }
 
@@ -502,7 +504,7 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public String edit(art.moodframe.model.StylePresetItem entry) {
+                    public String edit(StylePresetItem entry) {
                         return editBlock(type, entry.getBlock());
                     }
 
@@ -525,31 +527,31 @@ final class BlockChoices {
 
         new art.moodframe.ui.dialog.BlockManageDialog<>(window.get(),
                 I18nManager.getText("block.manage.title.palette"), "moodframe-palettes.json",
-                new art.moodframe.ui.dialog.BlockManageDialog.Library<art.moodframe.model.ColorStyleItem>() {
+                new art.moodframe.ui.dialog.BlockManageDialog.Library<ColorStyleItem>() {
                     @Override
-                    public List<art.moodframe.model.ColorStyleItem> list() {
+                    public List<ColorStyleItem> list() {
                         return service.getCustomStyles().stream()
-                                .map(art.moodframe.model.ColorStyle::toColorStyleItem).toList();
+                                .map(ColorStyleItem::of).toList();
                     }
 
                     @Override
-                    public String id(art.moodframe.model.ColorStyleItem entry) {
+                    public String id(ColorStyleItem entry) {
                         art.moodframe.model.ColorStyle palette = service.getStyleByName(entry.getName());
                         return palette != null ? palette.getId() : "";
                     }
 
                     @Override
-                    public String name(art.moodframe.model.ColorStyleItem entry) {
+                    public String name(ColorStyleItem entry) {
                         return entry.getName();
                     }
 
                     @Override
-                    public boolean delete(art.moodframe.model.ColorStyleItem entry) {
+                    public boolean delete(ColorStyleItem entry) {
                         return service.deleteCustomStyle(entry.getName());
                     }
 
                     @Override
-                    public boolean reorder(List<art.moodframe.model.ColorStyleItem> entries) {
+                    public boolean reorder(List<ColorStyleItem> entries) {
                         return service.reorderCustomStyles(entries.stream().map(this::id).toList());
                     }
 
@@ -570,7 +572,7 @@ final class BlockChoices {
                     }
 
                     @Override
-                    public String edit(art.moodframe.model.ColorStyleItem entry) {
+                    public String edit(ColorStyleItem entry) {
                         return editPalette(entry);
                     }
 
@@ -579,7 +581,7 @@ final class BlockChoices {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.cell.ColorStyleListCell(favorites(null,
-                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId)), moodService, trash)
+                        FavoriteService.Kind.COLOR, ColorStyleItem::getId)), moodService, trash)
                 .showAndWait();
     }
 
