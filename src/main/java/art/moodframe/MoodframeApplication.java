@@ -123,16 +123,27 @@ public class MoodframeApplication extends Application {
                         window.getScene().getStylesheets().add(iconButtonCss);
         });
 
-        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: configuration,
-            database and migrations, services, the trash cleanup and the chats. The splash stays until it is done,
-            at least one second; the splash reads the saved window bounds before the work begins  */
+        /*  The one configuration, read before the splash, which places itself by the saved bounds of the main window  */
+        ApplicationConfig config;
+        try {
+            config = new ApplicationConfig(homePaths);
+        }
+        catch (RuntimeException e) {
+            logger.error("Failed to read the configuration", e);
+            showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
+            return;
+        }
+
+        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: the rest of the
+            configuration, database and migrations, services, the trash cleanup and the chats. The splash stays until
+            it is done, at least one second  */
         CompletableFuture<Void> prepared = new CompletableFuture<>();
         SplashScreen splash = new SplashScreen(prepared, () -> prepared.whenComplete((Void done, Throwable failure) ->
-                Platform.runLater(() -> showMainWindow(primaryStage, failure))), homePaths);
+                Platform.runLater(() -> showMainWindow(primaryStage, failure))), config);
         splash.show();
         Thread startup = new Thread(() -> {
             try {
-                prepare();
+                prepare(config);
                 prepared.complete(null);
             }
             catch (Throwable e) {
@@ -148,8 +159,8 @@ public class MoodframeApplication extends Application {
      * prefers, database, services, the trash cleanup, then the chats, the thumbnails of older images and the check of
      * the accounts.
      */
-    private void prepare() {
-        initializeApplication();
+    private void prepare(ApplicationConfig config) {
+        initializeApplication(config);
         ServiceFactory services = ServiceFactory.getInstance();
         detectSystemTheme(services.getService(ApplicationConfig.class));
         startLibrary(services);
@@ -264,10 +275,10 @@ public class MoodframeApplication extends Application {
      * Initializes application systems (configuration, database, services): registers the services in the locator,
      * most of them as providers created on their first use.
      */
-    private void initializeApplication() {
+    private void initializeApplication(ApplicationConfig config) {
 
         try {
-            ApplicationConfig config = setUpConfiguration();
+            setUpConfiguration(config);
             LibraryPaths paths = config.paths();
 
             /*  The one database of the library, every repository gets its connections here  */
@@ -296,9 +307,9 @@ public class MoodframeApplication extends Application {
         }
     }
 
-    /*  The configuration with the folders of the library, the logging, the certificates and the language  */
-    private ApplicationConfig setUpConfiguration() {
-        ApplicationConfig config = new ApplicationConfig(homePaths);
+    /*  Registers the configuration with the folders of the library and sets up the logging, the certificates and
+        the language  */
+    private void setUpConfiguration(ApplicationConfig config) {
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         LibraryPaths paths = config.paths();
         ServiceFactory.getInstance().registerService(LibraryPaths.class, paths);
@@ -313,7 +324,6 @@ public class MoodframeApplication extends Application {
         // Initialize I18n with user's preferred language
         String userLanguage = config.ui().getUiLanguage();
         I18nManager.setLocale("de".equals(userLanguage) ? Locale.GERMAN : Locale.ENGLISH);
-        return config;
     }
 
     /*  The moods, frames, building blocks, palettes and favorites with the backup of the settings and the library  */

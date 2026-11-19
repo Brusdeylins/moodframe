@@ -105,8 +105,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 
 - **JavaFX application thread**: all scene graph work, the controllers, dialogs and cells. Nothing blocking runs
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
-- **Start**: `MoodframeApplication.start` shows the splash and starts the thread `MoodFrame-startup`, which prepares
-  everything that needs no JavaFX thread: the configuration, the theme the system prefers while the user chose none
+- **Start**: `MoodframeApplication.start` reads the one `ApplicationConfig` (a properties file), hands it to the
+  splash, which places itself by the saved bounds of the main window, shows the splash and starts the thread
+  `MoodFrame-startup`, which prepares everything else that needs no JavaFX thread: the registration of the
+  configuration with logging, certificates and language, the theme the system prefers while the user chose none
   (`ThemeManager.getSystemPreferredTheme` runs `defaults`, `reg` or `gdbus` for up to 2 s; "Use System Theme" in
   the settings asks on a thread of its own as well), the database with its migrations (the Java data
   migrations included), the registration of the services, their start (see "Dependency injection"), the trash
@@ -283,9 +285,10 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
 
 - **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with
   `config.properties`, `secret.key`, `db/`, `images/`, `thumbnails/`, `trash/`, `logs/`, `certificates/`, and the
-  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to
-  `ApplicationConfig`; `ApplicationConfig.paths()` returns it with the images folder of the setting `path.images`
-  (whose default is `~/.moodframe/images`), and that instance is registered for the services. The database, the
+  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to the
+  one `ApplicationConfig`, which the splash and the services share; `ApplicationConfig.paths()` returns it with the
+  images folder of the setting `path.images` (whose default is `~/.moodframe/images`), and that instance is
+  registered for the services. The database, the
   logs and the images of a generation come from these paths. The only folder setting is `path.images`: former
   versions also wrote `path.database` and `path.logs`, which no dialog ever offered; they are ignored and no longer
   written. Tests use the paths of a temporary home. Only `logback.xml` still reads `user.home` itself, because
