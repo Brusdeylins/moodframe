@@ -472,16 +472,17 @@ public class MoodframeApplication extends Application {
         /*  The threads of the polling and of the database writes, shared by the requests and the orders  */
         services.registerProvider(GenerationWorkers.class, GenerationWorkers::new);
 
-        /*  The requests to the providers: the tracker writes on the store thread, the files come from the downloads
-            of the shared HTTP clients  */
+        /*  The requests to the providers: the tracker writes on the store thread and tells the chats what it stored,
+            the files come from the downloads of the shared HTTP clients  */
         services.registerProvider(RequestResponseManager.class, () -> {
             GenerationWorkers workers = services.getService(GenerationWorkers.class);
             ImageFileStore files = new ImageFileStore(config, services.getService(HttpClients.class)
                     .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
                             .followRedirects(HttpClient.Redirect.NORMAL).build()));
-            return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
-                    new ChatEntryTracker(services.getService(ChatRepository.class),
-                            services.getService(ChatTrashRepository.class), workers.store()), files,
+            ChatEntryTracker tracker = new ChatEntryTracker(services.getService(ChatRepository.class),
+                    services.getService(ChatTrashRepository.class), workers.store());
+            tracker.setOnEntryStored(services.getService(ChatLibrary.class)::entryStored);
+            return new RequestResponseManager(config, services.getService(ProviderRegistry.class), tracker, files,
                     workers, io);
         });
 

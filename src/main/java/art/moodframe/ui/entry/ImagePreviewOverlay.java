@@ -270,8 +270,8 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         // Force white icons programmatically after all setup
         javafx.application.Platform.runLater(() -> forceWhiteIcons());
 
-        // Register I18n listener for tooltip updates on language change
-        FxI18n.addChangeListener(this);
+        // Register I18n listener for tooltip updates, ended by dispose() or when the window closes
+        FxI18n.addChangeListener(this, this);
     }
 
     /**
@@ -1283,6 +1283,14 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
         if (onCloseRequested != null) {
             onCloseRequested.accept(null);
         }
+    }
+
+    /**
+     * Closes the overlay, a video included, and stops it listening to the language, once its host goes away.
+     */
+    public void dispose() {
+        closeOverlay();
+        I18nManager.removeChangeListener(this);
     }
 
     /**

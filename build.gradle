@@ -135,8 +135,7 @@ application {
 test {
     useJUnitPlatform()
     
-    // Enable headless mode for UI tests in CI
-    systemProperty 'testfx.headless', System.getProperty('testfx.headless', 'false')
+    // Software rendering for the UI tests, which run without a screen
     systemProperty 'prism.order', 'sw'
     systemProperty 'prism.text', 't2k'
     systemProperty 'java.awt.headless', 'true'
@@ -314,7 +313,7 @@ task packageSite {
 tasks.register("conveyor", Exec) {
     var dir = layout.buildDirectory.dir("packages/${project.name}-${project.version}")
     outputs.dir(dir)
-    commandLine = ["conveyor", "make", "--overwrite", "--output-dir", dir.get(), "site"]
+    commandLine = [getConveyorCommand(), "make", "--overwrite", "--output-dir", dir.get(), "site"]
     dependsOn("jar", "extractDependencies")
 }
 
@@ -482,15 +481,22 @@ task diagnoseJavaFXIssue {
 //     // Conveyor will be configured via conveyor.conf
 // }
 
-// Configure jar task for Conveyor compatibility
+// Configure jar task for Conveyor compatibility, its manifest with the version information
 jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
+
     manifest {
         attributes(
             'Main-Class': 'art.moodframe.MoodframeApplication',
             'Implementation-Title': project.name,
-            'Implementation-Version': project.version
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'Matthias Brusdeylins',
+            'Specification-Title': project.description,
+            'Specification-Version': project.version,
+            'Built-By': System.getProperty('user.name'),
+            'Built-Date': new Date().toString(),
+            'Built-JDK': System.getProperty('java.version'),
+            'Built-Gradle': gradle.gradleVersion
         )
     }
 }
@@ -670,24 +676,6 @@ tasks.named('processResources') {
         }
         
         props.store(buildPropsFile.newWriter(), 'Build Information')
-    }
-}
-
-// Ensure JAR manifest contains version information
-jar {
-    manifest {
-        attributes(
-            'Implementation-Title': project.name,
-            'Implementation-Version': project.version,
-            'Implementation-Vendor': 'Matthias Brusdeylins',
-            'Specification-Title': project.description,
-            'Specification-Version': project.version,
-            'Main-Class': 'art.moodframe.MoodframeApplication',
-            'Built-By': System.getProperty('user.name'),
-            'Built-Date': new Date().toString(),
-            'Built-JDK': System.getProperty('java.version'),
-            'Built-Gradle': gradle.gradleVersion
-        )
     }
 }
 

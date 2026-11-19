@@ -953,6 +953,7 @@ public class ChatViewController {
         else {
             if (chatTotalCostLabel != null) {
                 chatTotalCostLabel.setText("");
+                chatTotalCostLabel.setTooltip(null);
             }
         }
 
@@ -1019,12 +1020,22 @@ public class ChatViewController {
         /*  An open group names the chat of the new prompts there instead  */
         if (group.get() != null)
             updateGroupHeader();
-        else if (chatTotalCostLabel != null && chat != null)
-            chatTotalCostLabel.setText(costText(chat));
+        else if (chatTotalCostLabel != null && chat != null) {
+
+            /*  The header shows the total, its tooltip the deleted part too, so a long name keeps its room  */
+            chatTotalCostLabel.setText(costText(chat, false));
+            costTooltip(costText(chat, true));
+        }
     }
 
-    /*  The cost of a chat for its header: all it cost, the deleted part named; empty for a chat without cost  */
-    private static String costText(Chat chat) {
+    /*  the tooltip of the costs in the header, none for an empty text  */
+    private void costTooltip(String text) {
+        chatTotalCostLabel.setTooltip(text.isEmpty() ? null : new Tooltip(text));
+    }
+
+    /*  The cost of a chat for its header: all it cost, if asked the deleted part named; empty for a chat without
+        cost  */
+    private static String costText(Chat chat, boolean withDeleted) {
         /*  both under the lock of the models, whose entries another thread may change meanwhile  */
         double[] cost = ModelLock.read(() -> new double[] {art.moodframe.model.ChatCost.total(chat),
                 art.moodframe.model.ChatCost.deleted(chat)});
@@ -1032,7 +1043,7 @@ public class ChatViewController {
         if (total <= 0)
             return "";
         double deleted = cost[1];
-        return deleted > 0
+        return deleted > 0 && withDeleted
                 ? I18nManager.getText("chat.total.cost.with.deleted", I18nManager.formatCost(total),
                         I18nManager.formatCost(deleted))
                 : I18nManager.getText("chat.total.cost", I18nManager.formatCost(total));
@@ -1097,6 +1108,7 @@ public class ChatViewController {
         chatTotalCostLabel.setText(chat.get() != null && !chat.get().isDeleted()
                 ? I18nManager.getText("sidebar.group.target", chat.get().getName())
                 : I18nManager.getText("sidebar.group.target.none"));
+        costTooltip(chatTotalCostLabel.getText());
     }
 
     /**

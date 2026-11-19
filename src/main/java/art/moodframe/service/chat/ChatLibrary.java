@@ -51,20 +51,22 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /**
      * Stops the generation of an entry before the entry goes to the trash, so its cost is settled and stored before
-     * the trash books it. The generation implements it (the {@code GenerationService} of
+     * the trash books it, and waits for its writes before an image of it goes there, so a write still queued does not
+     * bring the image back. The generation implements it (the {@code GenerationService} of
      * {@code service.generation}, which lies below), the composition root hands it in with {@link #setGenerations}.
      */
     @FunctionalInterface
     public interface Generations {
 
         /**
-         * Cancels the generation of an entry if it still runs.
+         * Waits for the writes of the generation of an entry, cancelling it first if asked and it still runs.
          *
          * @param entry the entry
+         * @param stop  true to cancel the generation if it still runs
          * @return completes once the writes of its generation asked for so far are done, those of the cancellation
          *         included
          */
-        CompletableFuture<Void> settle(ChatEntry entry);
+        CompletableFuture<Void> settle(ChatEntry entry, boolean stop);
     }
 
     private final ChatHistoryService history;
@@ -72,7 +74,8 @@ public class ChatLibrary implements TrashCenter.Listener {
     /*  the chats in their order, guarded by the ModelLock  */
     private final List<Chat> chats = new ArrayList<>();
     /*  settles the generations before a deletion; without generation nothing runs  */
-    private volatile Generations generations = (ChatEntry entry) -> CompletableFuture.completedFuture(null);
+    private volatile Generations generations = (ChatEntry entry, boolean stop) -> CompletableFuture.completedFuture(
+            null);
 
     /**
      * Creates the library.
@@ -271,7 +274,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @throws SQLException if it cannot be marked as deleted
      */
     public boolean moveToTrash(Chat chat) throws SQLException {
-        settle(entriesOf(chat));
+        settle(entriesOf(chat), true);
         boolean stored = history != null && history.softDeleteChat(chat.getId());
         boolean gone = ModelLock.changeAndGet(() -> {
             if (!stored && !chat.getEntries().isEmpty())
@@ -349,7 +352,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @throws SQLException if it cannot be marked as deleted
      */
     public void deleteEntry(ChatEntry entry) throws SQLException {
-        settle(List.of(entry));
+        settle(List.of(entry), true);
         if (history != null)
             history.deleteEntry(entry.getId());
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
@@ -359,11 +362,14 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /**
      * Moves an image to the trash; with its last image the entry leaves its chat as well. While the generation of
-     * the entry runs, an image it still makes, or the last image it made (the entry would go to the trash with it),
-     * is deleted after the generation is cancelled and its writes are awaited, as {@link #deleteEntry} does, so the
-     * entry ends and the chat books the cost the cancellation settled. A finished image deleted beside images still
-     * running leaves the generation alone; its share stays in the cost of the entry (see {@link ChatCost}). It waits
-     * for the JavaFX thread then, so call it off that thread.
+     * the entry runs, an image it still makes, or its last image (the entry would go to the trash with it), is deleted
+     * after the generation is cancelled and its writes are awaited, as {@link #deleteEntry} does, so the entry ends and
+     * the chat books the cost the cancellation settled. A finished image deleted beside images or placeholders still
+     * running leaves the generation alone, and the entry stays, also while none of them is stored yet; the share of
+     * the image stays in the cost of the entry (see {@link ChatCost}). Either way the image goes to the trash only once
+     * the writes of the generation asked for so far are done, so an image still waiting for its insert does not come
+     * back. It waits for the store thread of the generation, and for the JavaFX thread while the entry runs, so call
+     * it off that thread.
      *
      * @param entry the entry of the image
      * @param image the image
@@ -371,10 +377,11 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @throws SQLException if it cannot be marked as deleted
      */
     public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
-        if (stopsGeneration(entry, image))
-            settle(List.of(entry));
-        ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
-                : inMemory(entry, image);
+        settle(List.of(entry), stopsGeneration(entry, image));
+        boolean keepEntry = ModelLock.read(() -> running(entry)
+                && entry.getImages().stream().anyMatch((GeneratedImage other) -> other != image));
+        ChatHistoryService.ImageDeletion deletion = history != null
+                ? history.deleteImage(entry.getId(), image, keepEntry) : inMemory(entry, image);
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
         ModelLock.change(() -> {
             entry.getImages().remove(image);
@@ -387,11 +394,15 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /*  Tells whether deleting the image of a running entry cancels its generation: the image is not finished yet, or
-        no other image is, so the entry would go to the trash with it  */
+        it is the last image or placeholder of the entry, which would go to the trash with it  */
     private static boolean stopsGeneration(ChatEntry entry, GeneratedImage image) {
-        return ModelLock.read(() -> (entry.getStatus() == ChatEntry.Status.PENDING
-                || entry.getStatus() == ChatEntry.Status.PROCESSING) && (!finished(image)
-                || entry.getImages().stream().noneMatch((GeneratedImage other) -> other != image && finished(other))));
+        return ModelLock.read(() -> running(entry) && (!finished(image)
+                || entry.getImages().stream().noneMatch((GeneratedImage other) -> other != image)));
+    }
+
+    /*  an entry whose generation runs; under the lock  */
+    private static boolean running(ChatEntry entry) {
+        return entry.getStatus() == ChatEntry.Status.PENDING || entry.getStatus() == ChatEntry.Status.PROCESSING;
     }
 
     /*  an image cached or failed, as the generation stores it  */
@@ -400,10 +411,12 @@ public class ChatLibrary implements TrashCenter.Listener {
                 || image.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED;
     }
 
-    /*  Settles the generations of the entries before they go to the trash, waiting at most SETTLE_SECONDS; a deletion
-        that goes on without them books what is stored then, and the generation changes no entry in the trash  */
-    private void settle(List<ChatEntry> entries) {
-        CompletableFuture<?>[] settled = entries.stream().map(generations::settle).toArray(CompletableFuture[]::new);
+    /*  Settles the generations of the entries before they or their images go to the trash, cancelling them if asked,
+        waiting at most SETTLE_SECONDS; a deletion that goes on without them books what is stored then, and the
+        generation changes no entry or image in the trash  */
+    private void settle(List<ChatEntry> entries, boolean stop) {
+        CompletableFuture<?>[] settled = entries.stream().map((ChatEntry entry) -> generations.settle(entry, stop))
+                .toArray(CompletableFuture[]::new);
         try {
             CompletableFuture.allOf(settled).get(SETTLE_SECONDS, TimeUnit.SECONDS);
         }
@@ -475,6 +488,45 @@ public class ChatLibrary implements TrashCenter.Listener {
         ids.forEach((String id) -> events.changed(LibraryEvents.Kind.CHAT, id));
     }
 
+    /**
+     * Shows what a generation stored for an entry that left its chat for the trash and came back meanwhile: the
+     * generation holds the object that left, while the chat shows the one the restore loaded, so that one gives way to
+     * the entry as stored now. An entry the chat shows with this object, or does not show, stays as it is. The
+     * generation calls it on the thread of its writes, after the write.
+     *
+     * @param written the object of the entry the generation stored
+     */
+    public void entryStored(ChatEntry written) {
+        if (history == null || ModelLock.read(() -> otherObject(written) == null))
+            return;
+        try {
+            ChatEntry stored = history.findRestoredEntry(written.getId()).orElse(null);
+            if (stored == null || stored.getDeletedAt() != null)
+                return;
+            boolean replaced = ModelLock.changeAndGet(() -> {
+                ChatEntry shown = otherObject(written);
+                if (shown == null)
+                    return false;
+                List<ChatEntry> entries = owner(written).orElseThrow().getEntries();
+                entries.set(entries.indexOf(shown), stored);
+                return true;
+            });
+            if (replaced)
+                events.changed(LibraryEvents.Kind.ENTRY, written.getId());
+        }
+        catch (Exception e) {
+            logger.error("Failed to show the stored entry {}", written.getId(), e);
+        }
+    }
+
+    /*  The object of an entry its chat shows if it is not this one, null if it shows this one or none; under the
+        lock  */
+    private ChatEntry otherObject(ChatEntry entry) {
+        return owner(entry).flatMap((Chat chat) -> chat.getEntries().stream().filter((ChatEntry shown) ->
+                shown.getId().equals(entry.getId())).findFirst()).filter((ChatEntry shown) -> shown != entry)
+                .orElse(null);
+    }
+
     /*  A chat in the list is shown again; a chat without entries left the list and comes back from the database to its
         place in the order  */
     private void restoreChat(String chatId) throws SQLException {
@@ -493,7 +545,8 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /*  An entry in use keeps its object, as running requests may hold it, and gets the images back that came from the
-        trash (see merge); a deleted entry is inserted again at its place  */
+        trash (see merge); a deleted entry is inserted again at its place, as a new object (what its generation still
+        stores replaces it, see entryStored)  */
     private void restoreImages(String id) throws SQLException {
         ChatEntry restored = history != null ? history.findRestoredEntry(id).orElse(null) : null;
         if (restored == null)

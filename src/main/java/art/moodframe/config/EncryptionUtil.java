@@ -50,7 +50,7 @@ import java.util.Base64;
  * 
  * @since 1.0.0
  */
-public class EncryptionUtil {
+class EncryptionUtil {
     
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int TAG_LENGTH_BIT = 128;

@@ -7,7 +7,6 @@ import art.moodframe.model.EntryGroup;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.ui.entry.ImagePreviewOverlay;
-import art.moodframe.util.I18nManager;
 import javafx.scene.layout.StackPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,10 +97,8 @@ final class EntryFullView {
 
     /** Closes the full view, a video included, and stops it listening to the language, once the window closes. */
     void dispose() {
-        if (overlay == null)
-            return;
-        overlay.closeOverlay();
-        I18nManager.removeChangeListener(overlay);
+        if (overlay != null)
+            overlay.dispose();
     }
 
     /**

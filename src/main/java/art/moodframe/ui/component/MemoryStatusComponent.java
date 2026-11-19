@@ -204,14 +204,7 @@ public class MemoryStatusComponent extends HBox {
             tasksIcon.getStyleClass().add("text-success");
         }
 
-        // Update tooltip
-        String tooltipText = String.format(
-            "Loaded Thumbnails: %d\n" +
-            "Images are loaded on-demand as you scroll",
-            loadedImages
-        );
-
-        tasksTooltip.setText(tooltipText);
+        tasksTooltip.setText(I18nManager.getText("memory.status.images.tooltip", loadedImages));
     }
     
     /**

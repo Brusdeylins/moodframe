@@ -47,6 +47,7 @@ import java.util.function.Supplier;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,8 +64,8 @@ import static org.mockito.Mockito.when;
  * Deleting an entry, or its chat, while its generation runs: the library cancels the generation first and waits for
  * its writes, so the trash books the cost the cancellation settled, and nothing the provider still delivers changes
  * the entry in the trash or brings it back once it is removed for good. Deleting an image the generation still makes,
- * or the last one it made, does the same; a finished image deleted beside running ones keeps its share in the cost of
- * the entry. The window and the MCP server share this path.
+ * or the last image of the entry, does the same; a finished image deleted beside running ones leaves the generation
+ * alone and keeps its share in the cost of the entry. The window and the MCP server share this path.
  */
 class DeleteRunningEntryTest {
 
@@ -141,8 +142,9 @@ class DeleteRunningEntryTest {
 
         pool = Executors.newCachedThreadPool();
         workers = new GenerationWorkers();
-        requests = new RequestResponseManager(config, providers,
-                new ChatEntryTracker(repository, trash, workers.store()),
+        ChatEntryTracker tracker = new ChatEntryTracker(repository, trash, workers.store());
+        tracker.setOnEntryStored(chats::entryStored);
+        requests = new RequestResponseManager(config, providers, tracker,
                 new ImageFileStore(config, HttpClient::newHttpClient), workers, (Runnable task) -> {
                     if (holdBack)
                         heldBack.add(task);
@@ -280,6 +282,35 @@ class DeleteRunningEntryTest {
     }
 
     @Test
+    void anEntryRestoredWhileItsGenerationStillDeliversShowsTheLateImage() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 2);
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+        chats.deleteEntry(entry);
+
+        /*  the trash gives the entry back as a new object, while the generation still holds the one that left  */
+        assertTrue(trash.restoreChatEntry(entry.getId()));
+        chats.restored(TrashGroup.Kind.IMAGES, entry.getId());
+        ChatEntry restored = chats.findEntry(entry.getId());
+        assertNotNull(restored);
+        assertNotSame(entry, restored);
+
+        /*  Gemini still answers: the image is stored, and the chat shows it with the cost of the entry as stored  */
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().get(0).getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED);
+        flush();
+        assertTrue(dropped.isEmpty(), "the image of an entry in use keeps its file");
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertEquals(1, repository.findGeneratedImagesByEntry(entry.getId()).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count());
+        ChatEntry shown = chats.findEntry(entry.getId());
+        assertEquals(stored.getCost(), shown.getCost(), 1e-9, "the window and the MCP server show the stored cost");
+        assertEquals(1, ChatLibrary.imagesOf(shown).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count(), "the late image shows");
+        assertEquals(List.of(shown), ChatLibrary.entriesOf(chat), "the chat shows the entry once");
+    }
+
+    @Test
     void aChatMovedToTheTrashCancelsItsGenerationsFirst() throws Exception {
         holdBack = true;
         Chat chat = chat();
@@ -407,11 +438,85 @@ class DeleteRunningEntryTest {
     }
 
     @Test
-    void theLastImageMadeDeletedWhileOthersRunCancelsTheGenerationFirst() throws Exception {
+    void anImageDeletedWhileItsFileIsWrittenIsNotSavedAndLosesItsFile() throws Exception {
         Chat chat = chat();
-        GenerationService.Submission submission = submit(chat, 2);
-        ChatEntry entry = submission.entry();
+        ChatEntry entry = order(chat, 2);
         verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+
+        /*  Gemini answers, the file is not written yet when the image goes to the trash  */
+        holdBack = true;
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.DOWNLOADING));
+        GeneratedImage downloading = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.DOWNLOADING).findFirst().orElseThrow();
+        assertFalse(chats.deleteImage(entry, downloading), "the entry keeps its cancelled image");
+
+        holdBack = false;
+        while (!heldBack.isEmpty())
+            heldBack.poll().run();
+        await(() -> downloading.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED);
+        flush();
+        assertEquals(List.of(downloading.getId()), dropped, "the trash removes the file written after the deletion");
+        GeneratedImage inTrash = repository.findGeneratedImageById(downloading.getId()).orElseThrow();
+        assertNotNull(inTrash.getDeletedAt());
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, inTrash.getDownloadStatus(), "the row stays as deleted");
+        assertNull(inTrash.getLocalFilePath());
+    }
+
+    @Test
+    void aFinishedImageDeletedBeforeItsInsertStaysInTheTrash() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 2);
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+
+        /*  the store thread is busy: the image is made, its insert waits  */
+        CountDownLatch busy = new CountDownLatch(1);
+        workers.store().execute(() -> {
+            try {
+                busy.await(10, TimeUnit.SECONDS);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED));
+        GeneratedImage made = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+
+        CompletableFuture<Boolean> deleted = CompletableFuture.supplyAsync(() -> {
+            try {
+                return chats.deleteImage(entry, made);
+            }
+            catch (Exception e) {
+                throw new java.util.concurrent.CompletionException(e);
+            }
+        }, pool);
+
+        /*  the deletion waits for the insert, else it is done before the store thread is free  */
+        try {
+            deleted.get(500, TimeUnit.MILLISECONDS);
+        }
+        catch (java.util.concurrent.TimeoutException waiting) {
+            assertFalse(deleted.isDone());
+        }
+        busy.countDown();
+        assertFalse(deleted.get(10, TimeUnit.SECONDS));
+        flush();
+        assertNotNull(repository.findGeneratedImageById(made.getId()).orElseThrow().getDeletedAt(),
+                "the deletion follows the insert, so the image does not come back");
+        assertTrue(repository.findGeneratedImagesByEntry(entry.getId()).isEmpty());
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the other image still runs");
+    }
+
+    @Test
+    void theOnlyImageMadeDeletedWhileOthersRunLeavesTheGenerationAlone() throws Exception {
+        Chat chat = chat();
+        GenerationService.Submission submission = submit(chat, 3);
+        ChatEntry entry = submission.entry();
+        verify(gemini, timeout(10_000).times(3)).submitGenerationRequest(any());
         answers.poll().complete(picture());
         await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
                 image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED));
@@ -420,22 +525,28 @@ class DeleteRunningEntryTest {
                 image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
         double price = made.getBaseCost();
 
-        assertFalse(chats.deleteImage(entry, made), "the entry keeps its cancelled image");
+        /*  the placeholders of the two images still running are not stored, the entry stays with them  */
+        assertFalse(chats.deleteImage(entry, made), "the entry keeps its running images");
 
-        assertEquals(ChatEntry.Status.CANCELLED, submission.finished().get(10, TimeUnit.SECONDS));
-        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
-        assertNull(stored.getDeletedAt(), "the entry stays in its chat");
-        assertEquals(ChatEntry.Status.CANCELLED, stored.getStatus());
-        assertEquals(2 * price, stored.getCost(), 1e-9, "a cancelled entry keeps its estimate");
-        assertEquals(price, stored.getDeletedCost(), 1e-9, "the deleted image books what it cost itself");
-        assertEquals(1, repository.findGeneratedImagesByEntry(entry.getId()).size());
-
-        /*  the second image still arrives: the entry costs both images, the deleted one booked once  */
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the generation goes on");
+        assertNull(repository.findChatEntryById(entry.getId()).orElseThrow().getDeletedAt());
+        assertEquals(price, entry.getDeletedCost(), 1e-9, "the deleted image books what it cost itself");
         answers.poll().complete(picture());
-        await(() -> ChatLibrary.imagesOf(entry).get(0).getDownloadStatus()
-                == GeneratedImage.DownloadStatus.CACHED);
+        answers.poll().complete(picture());
+        assertEquals(ChatEntry.Status.COMPLETED, submission.finished().get(10, TimeUnit.SECONDS));
         flush();
-        assertEquals(2 * price, repository.findChatEntryById(entry.getId()).orElseThrow().getCost(), 1e-9);
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertEquals(ChatEntry.Status.COMPLETED, stored.getStatus());
+        assertEquals(2, repository.findGeneratedImagesByEntry(entry.getId()).size());
+        assertEquals(3 * price, stored.getCost(), 1e-9, "the entry costs its three images, the deleted one included");
+        assertEquals(price, stored.getDeletedCost(), 1e-9);
         assertEquals(0.0, deletedCostOf(chat), 1e-9);
+
+        /*  the last image of the finished entry takes it to the trash, the chat books its whole cost  */
+        List<GeneratedImage> left = ChatLibrary.imagesOf(entry);
+        assertFalse(chats.deleteImage(entry, left.get(0)));
+        assertTrue(chats.deleteImage(entry, left.get(1)));
+        assertNotNull(repository.findChatEntryById(entry.getId()).orElseThrow().getDeletedAt());
+        assertEquals(3 * price, deletedCostOf(chat), 1e-9);
     }
 }

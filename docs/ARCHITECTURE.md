@@ -8,16 +8,18 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, brainstorm, panel, dialog,        mcp
+ ui (controller, brainstorm, panel, dialog, -----> mcp
      cell, entry, component, support)
-            \                                      /
-             +--------------> service <-----------+
-                                 |          \
-                             repository     net
-                                 |
-                              database
+        |   \                                      /
+        |    +--------------> service <-----------+
+        |                        |          \
+        |                    repository     net
+        |                        |           ^
+        |                     database       |
+        +------------------------------------+
  ---------------------------------------------------------
  model, util, config: used by every layer above
+ ui -> mcp only for McpService; ui -> net only for HttpClients and CertificateStore
 ```
 
 | Package      | Role                                                                                   |
@@ -208,9 +210,11 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   the generations of its entries still running and waits until the writes of their generation are done
   (`ChatLibrary.Generations`, implemented by `GenerationService.settle` and handed in by the composition root), so the
   trash books the cost the cancellation settled, for the window and the MCP server alike; so does deleting an image
-  the generation still makes, or the last one it made (`ChatLibrary.deleteImage`), while a finished image deleted
-  beside running ones leaves the generation alone and books what it cost itself, which the entry keeps in its cost
-  (`ChatCost.imageShare`). The MCP tools `delete_entry` and `delete_image` still refuse a running entry. The generation stores the changes of its entry with
+  the generation still makes, or the last image of the entry (`ChatLibrary.deleteImage`), while a finished image
+  deleted beside running ones leaves the generation alone, keeps the entry in use (also while their placeholders are
+  not stored yet) and books what it cost itself, which the entry keeps in its cost (`ChatCost.imageShare`); either
+  way the image goes to the trash only after the writes of the generation asked for so far, so a queued insert does
+  not bring it back. The MCP tools `delete_entry` and `delete_image` still refuse a running entry. The generation stores the changes of its entry with
   `ChatRepository.updateChatEntry`, which leaves an entry in the trash (on its own or with its chat) as the trash
   booked it and never inserts one removed for good; an image it still delivers is dropped (see "Persistence").
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
@@ -414,14 +418,15 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   trash already, and all of them when it is removed for good), so an image another caller deleted before is not moved
   twice and a row that was not deleted keeps its file. Its writes run one after the other, each with the moves of its
   files, so a deletion and an immediate restore from another thread move the files in the order of their commits. An
-  image a generation delivers after its entry or chat went to the trash is not saved
+  image a generation delivers after it, its entry or its chat went to the trash is not saved
   (`ChatRepository.saveGeneratedImage` answers false); its file, written into the folder of the images in use, is
   removed by `ChatTrashRepository.dropLateImage` the same way, after the writes before. An image whose entry is not
   stored at all (its insert failed) keeps its file and fails. The services and the other repositories never move or
   remove these files themselves.
-- **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
-  brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
-  `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
+- **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`,
+  `chat_entries.completed_at`, `generated_images.downloaded_at`), of the brainstorm sessions (`created_at`,
+  `updated_at`; a session has no trash and is deleted for good) and the `deleted_at` of moods, frames, blocks and
+  palettes hold epoch milliseconds of the local time (`setTimestamp`);
   `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read counts as deleted now
   (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames, blocks and palettes are
   still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates); nothing reads them.
@@ -583,7 +588,19 @@ there are. A new provider is, in this order:
    brainstorm button (`ApiProvider.hasLanguageModel`, `ProviderAccounts.isBrainstormAvailable`), the seed field and
    "Copy seed" (`ImageProvider.usesSeeds()`), the safety level of an entry (`supportsSafetyTolerance`) and the removal
    of the attached images on a switch to a model that takes none or only smaller files (`supportsImageAttachment`,
-   `ApiProvider.getMaxFileSize`).
+   `ApiProvider.getMaxFileSize`);
+6. a language model, if it has one (`hasLanguageModel`), for the brainstorm and the analysis of an image, which
+   name Gemini and OpenAI so far and do not follow the registry: its chat client translating the `ChatTurn`s into
+   its own request and back (D6), a `ChatModel` of it in `service.brainstorm.ChatModel` (`choose` decides between
+   the language models for `BrainstormModels.of` and `MoodAnalysisService`, `MoodframeApplication` hands both the
+   clients), its case in `ProviderAccounts.isBrainstormAvailable` (the check of its chat model and of the web search
+   in `ApiProviderValidator`), and an engine id of its own beside "gemini" and "openai". The id is stored with each
+   brainstorm session (`brainstorm_sessions.engine`, `BrainstormSession.getEngine`) and as the default of the window
+   (`ProviderAccounts.getBrainstormEngine`, which turns any other value into "gemini" today), so the stored ids stay
+   as they are; the engine choice of the brainstorm window lists the two engines by these ids
+   (`ui.brainstorm.BrainstormChatView`: `createEngineBox`, `relabel`, `showEngine`, `chosenEngine`, an item text
+   `brainstorm.engine.<id>`) and its note on YouTube videos, which only Gemini can watch, asks for "openai"
+   (`updateVideoHint`, `changeRange`).
 
 ### D5: Detailed logging as a log level
 

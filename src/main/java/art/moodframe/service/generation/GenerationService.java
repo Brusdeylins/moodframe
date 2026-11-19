@@ -280,7 +280,19 @@ public class GenerationService {
      * @return completes once its writes are done, exceptionally if the store thread is closed
      */
     public CompletableFuture<Void> settle(ChatEntry entry) {
-        boolean running = ModelLock.read(() -> entry.getStatus() == ChatEntry.Status.PENDING
+        return settle(entry, true);
+    }
+
+    /**
+     * Settles the generation of an entry like {@link #settle(ChatEntry)}, or only waits for its writes asked for so
+     * far, before an image of it goes to the trash beside images still running.
+     *
+     * @param entry the entry
+     * @param stop  true to cancel the entry if it still runs
+     * @return completes once its writes are done, exceptionally if the store thread is closed
+     */
+    public CompletableFuture<Void> settle(ChatEntry entry, boolean stop) {
+        boolean running = stop && ModelLock.read(() -> entry.getStatus() == ChatEntry.Status.PENDING
                 || entry.getStatus() == ChatEntry.Status.PROCESSING);
         CompletableFuture<Boolean> cancelled = running ? cancel(entry) : CompletableFuture.completedFuture(false);
         return cancelled.handle((Boolean done, Throwable failure) -> null)

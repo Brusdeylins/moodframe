@@ -107,10 +107,14 @@ class MemoryStatusComponentTest {
             assertEquals("Memory: 512 MB used / 2,048 MB max (25.0%)\nAllocated: 1,024 MB / Free: 512 MB",
                     I18nManager.getText("memory.status.tooltip", 512L, 2048L, 25.0, 1024L, 512L));
             assertEquals("3 imgs", I18nManager.getText("memory.status.images", 3));
+            assertEquals("Loaded thumbnails: 1,200\nImages are loaded on demand as you scroll",
+                    I18nManager.getText("memory.status.images.tooltip", 1200));
             I18nManager.setLocale(Locale.GERMAN);
             assertEquals("Arbeitsspeicher: 512 MB belegt / 2.048 MB maximal (25,0 %)\nReserviert: 1.024 MB / Frei: "
                     + "512 MB", I18nManager.getText("memory.status.tooltip", 512L, 2048L, 25.0, 1024L, 512L));
             assertEquals("3 Bilder", I18nManager.getText("memory.status.images", 3));
+            assertEquals("Geladene Vorschaubilder: 1.200\nBilder werden beim Scrollen nach Bedarf geladen",
+                    I18nManager.getText("memory.status.images.tooltip", 1200));
         }
         finally {
             I18nManager.setLocale(before);

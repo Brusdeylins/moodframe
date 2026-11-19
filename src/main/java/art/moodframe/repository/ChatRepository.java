@@ -431,13 +431,13 @@ public class ChatRepository {
 
     /**
      * Saves an image of a generation to the database (insert or update) while its entry and chat are in use. An image
-     * whose entry or chat is in the trash is not saved, on purpose and without an error: a generation that finishes
-     * after its entry or chat went to the trash leaves no image behind, and a chat restored later shows the entry
-     * without it. Its file, written into the folder of the images in use, is no business of this class: the trash
-     * removes it ({@link ChatTrashRepository#dropLateImage}).
+     * whose entry or chat is in the trash, or which went there on its own, is not saved, on purpose and without an
+     * error: a generation that finishes after its entry, chat or image went to the trash leaves no image behind, and
+     * a chat restored later shows the entry without it. Its file, written into the folder of the images in use, is no
+     * business of this class: the trash removes it ({@link ChatTrashRepository#dropLateImage}).
      *
      * @param image the image to save
-     * @return true if it is saved, false if its entry or chat is in the trash
+     * @return true if it is saved, false if it, its entry or its chat is in the trash
      * @throws SQLException if database operation fails, or the entry of the image is not stored (its insert failed,
      *                      or it was removed from the trash for good meanwhile); nothing is saved then
      */
@@ -447,7 +447,7 @@ public class ChatRepository {
             throw new SQLException("The image " + image.getId() + " cannot be saved: its entry "
                     + image.getChatEntryId() + " is not stored");
         if (place == EntryPlace.IN_TRASH)
-            logger.debug("Image {} not saved: its entry {} or chat is in the trash", image.getId(),
+            logger.debug("Image {} not saved: it, its entry {} or chat is in the trash", image.getId(),
                     image.getChatEntryId());
         return place == EntryPlace.IN_USE;
     }
@@ -465,16 +465,17 @@ public class ChatRepository {
                     image.getChatEntryId());
     }
 
-    /*  inserts or updates an image whose entry (and, if asked, chat) is in use; tells where the entry is  */
+    /*  inserts or updates an image whose entry (and, if asked, chat) is in use; tells where the entry is, an image in
+        the trash itself counting as in the trash  */
     private EntryPlace save(GeneratedImage image, boolean withChat) throws SQLException {
         return databaseManager.inTransaction((Connection conn) -> {
             EntryPlace place = entryPlace(conn, image.getChatEntryId(), withChat);
             if (place != EntryPlace.IN_USE)
                 return place;
-            if (exists(conn, "generated_images", image.getId()))
-                updateGeneratedImage(conn, image);
-            else
+            if (!exists(conn, "generated_images", image.getId()))
                 insertGeneratedImage(conn, image);
+            else if (updateGeneratedImage(conn, image) == 0)
+                return EntryPlace.IN_TRASH;
             return place;
         });
     }
@@ -542,13 +543,14 @@ public class ChatRepository {
     }
 
     /**
-     * Updates an existing generated image in the database.
+     * Updates an existing generated image in the database, unless it is in the trash.
      *
      * @param conn  the connection of the transaction
      * @param image the image to update
+     * @return the number of rows updated, 0 for an image in the trash
      * @throws SQLException if update fails
      */
-    private static void updateGeneratedImage(Connection conn, GeneratedImage image) throws SQLException {
+    private static int updateGeneratedImage(Connection conn, GeneratedImage image) throws SQLException {
         String sql = """
                 UPDATE generated_images SET
                     image_url = ?, local_file_path = ?, file_name = ?, download_status = ?,
@@ -559,7 +561,7 @@ public class ChatRepository {
                     style_preset = ?, safety_tolerance = ?, output_format = ?, width = ?, height = ?,
                     base_cost = ?, search_cost = ?, reasoning_cost = ?, thinking_tokens = ?, thought_summary = ?,
                     is_video = ?, video_duration_seconds = ?, video_resolution = ?, has_audio = ?
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
                 """;
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -605,7 +607,7 @@ public class ChatRepository {
             stmt.setBoolean(35, image.hasAudio());
             stmt.setString(36, image.getId());
 
-            stmt.executeUpdate();
+            return stmt.executeUpdate();
         }
     }
 
