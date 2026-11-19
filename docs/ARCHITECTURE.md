@@ -376,7 +376,10 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   commit. Every move to the trash and back is guarded this way, for chats, entries, images, moods, frames, blocks
   and palettes, and so is every removal for good: it removes only rows still in the trash
   (`AND deleted_at IS NOT NULL`) and answers false otherwise, so an item restored by the main window or an agent
-  after the cleanup listed it survives with its entries, images and files.
+  after the cleanup listed it survives with its entries, images and files. The one exception is the reset of the
+  settings, which removes the style blocks of the user for good, in use and in the trash
+  (`PromptBlockRepository.deleteAll`), as its confirmation says; the moods lose their references to them in the
+  same transaction.
 - **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its

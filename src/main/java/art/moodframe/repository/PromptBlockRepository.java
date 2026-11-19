@@ -1,6 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 
 import java.sql.Connection;
@@ -166,18 +167,29 @@ public class PromptBlockRepository {
     }
 
     /**
-     * Removes all stored blocks of a type.
+     * Removes all stored blocks of a type for good, in use and in the trash, for the reset of the settings: the one
+     * removal for good that does not go through the trash. The moods, in use or in the trash, lose their references
+     * to these blocks in the same transaction, so no mood keeps the id of a removed block.
      *
      * @param type the block type
      * @return the number of removed blocks
      * @throws SQLException if the database fails
      */
     public int deleteAll(PromptBlock.Type type) throws SQLException {
-        try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE type = ?")) {
-            stmt.setString(1, type.name());
-            return stmt.executeUpdate();
-        }
+        return database.inTransaction((Connection conn) -> {
+            for (Mood.Field field : Mood.Field.values()) {
+                try (PreparedStatement stmt = conn.prepareStatement("UPDATE moods SET " + field.column()
+                        + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE " + field.column()
+                        + " IN (SELECT id FROM prompt_blocks WHERE type = ?)")) {
+                    stmt.setString(1, type.name());
+                    stmt.executeUpdate();
+                }
+            }
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE type = ?")) {
+                stmt.setString(1, type.name());
+                return stmt.executeUpdate();
+            }
+        });
     }
 
     /**

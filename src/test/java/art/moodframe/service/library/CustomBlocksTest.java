@@ -18,6 +18,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,10 +45,18 @@ class CustomBlocksTest {
     }
 
     @BeforeEach
-    void clear() {
+    void clear() throws SQLException {
         for (PromptBlock.Type type : PromptBlock.Type.values())
             blocks.resetToDefaults(type);
-        palettes.resetToDefaults();
+        removePalettes();
+    }
+
+    /*  the palettes of the user, in use and in the trash  */
+    private static void removePalettes() throws SQLException {
+        try (Connection connection = TestDatabase.get().getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM color_styles");
+        }
     }
 
     private PromptBlock add(PromptBlock.Type type, String name, String text) {
@@ -185,14 +196,14 @@ class CustomBlocksTest {
         File file = tempDir.resolve("palettes.json").toFile();
         assertTrue(palettes.exportStyles(file));
 
-        assertEquals(1, palettes.importStyles(file, true));
+        assertEquals(1, palettes.importStyles(file));
         List<ColorStyle> custom = palettes.getCustomStyles();
         assertEquals(List.of("Mine", "Mine (1)"), custom.stream().map(ColorStyle::getName).toList());
         assertNotEquals(mine.getId(), custom.get(1).getId());
         assertEquals(List.of("#112233"), custom.get(1).getColors());
 
-        palettes.resetToDefaults();
-        assertEquals(1, palettes.importStyles(file, true));
+        removePalettes();
+        assertEquals(1, palettes.importStyles(file));
         assertEquals(mine.getId(), palettes.getStyleByName("Mine").getId());
     }
 

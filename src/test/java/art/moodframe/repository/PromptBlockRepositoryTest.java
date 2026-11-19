@@ -3,6 +3,7 @@ package art.moodframe.repository;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
+import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,6 +18,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs against a fresh SQLite database, so migration V017 is applied together with all earlier ones. */
@@ -105,6 +107,37 @@ class PromptBlockRepositoryTest {
         assertTrue(repository.findById(block.getId()).isPresent());
         assertFalse(repository.delete(block.getId()), "a restored block survives a removal from the trash");
         assertTrue(repository.findById(block.getId()).isPresent());
+    }
+
+    @Test
+    void theResetRemovesTheBlocksOfATypeAndTheReferencesOfTheMoodsToThem() throws Exception {
+        PromptBlock used = new PromptBlock(null, PromptBlock.Type.STYLE, "Reset Used", "used", null, false);
+        PromptBlock trashed = new PromptBlock(null, PromptBlock.Type.STYLE, "Reset Trashed", "trashed", null, false);
+        PromptBlock camera = new PromptBlock(null, PromptBlock.Type.CAMERA, "Reset Camera", "camera", null, true);
+        repository.save(used);
+        repository.save(trashed);
+        repository.save(camera);
+        repository.moveToTrash(trashed.getId());
+        MoodRepository moods = new MoodRepository(TestDatabase.get());
+        Mood mood = new Mood(null, "Reset Mood");
+        mood.setReference(Mood.Field.STYLE, used.getId());
+        mood.setReference(Mood.Field.CAMERA, camera.getId());
+        moods.save(mood);
+        Mood inTrash = new Mood(null, "Reset Mood In Trash");
+        inTrash.setReference(Mood.Field.STYLE, trashed.getId());
+        moods.save(inTrash);
+        moods.moveToTrash(inTrash.getId());
+
+        repository.deleteAll(PromptBlock.Type.STYLE);
+
+        assertFalse(repository.existsById(used.getId()));
+        assertFalse(repository.existsById(trashed.getId()), "the reset also removes the blocks in the trash");
+        assertTrue(repository.existsById(camera.getId()));
+        Mood stored = moods.findById(mood.getId()).orElseThrow();
+        assertNull(stored.getReference(Mood.Field.STYLE), "no mood keeps the id of a removed block");
+        assertEquals(camera.getId(), stored.getReference(Mood.Field.CAMERA));
+        assertNull(moods.findDeleted().stream().filter((Mood deleted) -> deleted.getId().equals(inTrash.getId()))
+                .findFirst().orElseThrow().getReference(Mood.Field.STYLE), "a mood in the trash loses it, too");
     }
 
     @Test
