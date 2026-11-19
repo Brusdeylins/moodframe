@@ -213,6 +213,68 @@ class JobPollingTest {
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
     }
 
+    /*  an entry of two images at 0.05 each, estimated at 0.10 as the order was placed  */
+    private void twoImages() {
+        entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).cost(0.10).build();
+        for (int i = 0; i < 2; i++)
+            entry.getImages().add(new GeneratedImage.Builder().chatEntryId(entry.getId())
+                    .downloadStatus(GeneratedImage.DownloadStatus.PENDING).sortOrder(i).build());
+    }
+
+    /*  submits both images of the entry, the provider answers the jobs in this order  */
+    private void submitBoth(CompletableFuture<GenerationJobInfo> first, CompletableFuture<GenerationJobInfo> second)
+            throws Exception {
+        doReturn(first, second).when(api).submitGenerationRequest(any());
+        ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
+                GenerationModel.FLUX2_PRO.getApiModelId());
+        request.setBaseCostPerImage(0.05);
+        flow.submit(api, request, entry, 0);
+        flow.submit(api, request, entry, 1);
+        drainFxThread();
+    }
+
+    private static CompletableFuture<GenerationJobInfo> refused(Throwable failure) {
+        return CompletableFuture.<GenerationJobInfo>failedFuture(failure).thenApply((GenerationJobInfo job) -> job);
+    }
+
+    @Test
+    void aJobTheProviderRefusesFailsItsImageWhichCostsNothing() throws Exception {
+        twoImages();
+        submitBoth(refused(new ApiHttpException(402, "Payment Required")),
+                refused(new java.util.concurrent.TimeoutException()));
+
+        for (GeneratedImage image : entry.getImages()) {
+            assertEquals(GeneratedImage.DownloadStatus.FAILED, image.getDownloadStatus());
+            assertEquals(0.0, image.getBaseCost());
+            assertTrue(image.getErrorMessage() != null && !image.getErrorMessage().isBlank());
+        }
+        assertEquals(I18nManager.getText("generation.error.submit.timeout", "30"),
+                entry.getImages().get(1).getErrorMessage());
+        assertEquals(ChatEntry.Status.FAILED, entry.getStatus(), "settled once both images ended");
+        assertEquals(0.0, entry.getCost(), "no image was made, the estimate is gone");
+        assertEquals(0.0, art.moodframe.model.ChatCost.total(java.util.List.of(entry), 0.0));
+        assertTrue(entry.getErrorMessage() != null && entry.getErrorMessage().contains(
+                entry.getImages().get(1).getErrorMessage()), entry.getErrorMessage());
+    }
+
+    @Test
+    void anEntryWithOneRefusedJobCompletesWithTheCostOfTheImageMade() throws Exception {
+        twoImages();
+        submitBoth(refused(new ApiHttpException(422, "Unprocessable Entity")),
+                CompletableFuture.completedFuture(new GenerationJobInfo("job-8", "Pending")));
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, entry.getImages().get(0).getDownloadStatus());
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the other image still runs");
+
+        runPoll();
+        polls.poll().complete(answer("Ready"));
+        drainFxThread();
+        drainFxThread();
+
+        assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus());
+        assertEquals(0.05, entry.getCost(), 1e-9);
+        assertEquals(0.05, art.moodframe.model.ChatCost.total(java.util.List.of(entry), 0.0), 1e-9);
+    }
+
     @Test
     void aModeratedJobTellsItsReasonInTheLanguageOfTheUserInterfaceAndInEnglishForTheMcpServer() throws Exception {
         java.util.Locale before = I18nManager.getCurrentLocale();

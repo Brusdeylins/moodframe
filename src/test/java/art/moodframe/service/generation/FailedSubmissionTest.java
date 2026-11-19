@@ -2,6 +2,7 @@ package art.moodframe.service.generation;
 
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ChatEntry;
+import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
@@ -68,7 +69,7 @@ class FailedSubmissionTest {
                 mock(OpenAiApiService.class, CALLS_REAL_METHODS));
         requests = TestRequests.create(ConfigMocks.config(), repository, providers, Runnable::run);
 
-        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).source(source).build();
+        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).source(source).cost(0.04).build();
         CompletableFuture<ChatEntry.Status> told = new CompletableFuture<>();
         requests.addEntryListener((ChatEntry updated) -> {
             if (updated.getStatus() == ChatEntry.Status.FAILED)
@@ -86,6 +87,19 @@ class FailedSubmissionTest {
         assertEquals(ChatEntry.Status.FAILED, told.get(10, TimeUnit.SECONDS));
         assertEquals(ChatEntry.Status.FAILED, entry.getStatus());
         return entry;
+    }
+
+    @Test
+    void aFailedSubmissionFailsItsImagesAndCostsNothing() throws Exception {
+        ChatEntry entry = submitFailing(ChatEntry.Source.UI);
+        assertEquals(0.0, entry.getCost(), "the estimate of the order is gone, no image was made");
+        CompletableFuture<java.util.List<GeneratedImage>> images = new CompletableFuture<>();
+        Platform.runLater(() -> images.complete(java.util.List.copyOf(entry.getImages())));
+        for (GeneratedImage image : images.get(10, TimeUnit.SECONDS)) {
+            assertEquals(GeneratedImage.DownloadStatus.FAILED, image.getDownloadStatus());
+            assertEquals(entry.getErrorMessage(), image.getErrorMessage());
+            assertEquals(0.0, image.getBaseCost());
+        }
     }
 
     @Test

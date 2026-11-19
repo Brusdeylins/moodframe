@@ -76,9 +76,9 @@ public interface RequestResponseService {
             java.io.File attachedImageFile);
 
     /**
-     * Marks an entry failed whose submission failed: it is stored with the reason (in English for an entry of the
-     * MCP server, else in the language of the user interface), then the listeners are told. A cancelled entry stays
-     * cancelled.
+     * Marks an entry failed whose submission failed: its images not finished yet fail and cost nothing, the entry
+     * costs what its images cost and is stored with the reason (in English for an entry of the MCP server, else in the
+     * language of the user interface), then the listeners are told. A cancelled entry stays cancelled.
      *
      * @param chatEntry the entry
      * @param failure   why the submission failed, also wrapped in a {@code CompletionException}

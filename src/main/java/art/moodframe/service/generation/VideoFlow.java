@@ -75,7 +75,7 @@ public class VideoFlow {
         provider.submitGenerationRequest(request)
                 .thenAccept((GenerationJobInfo jobInfo) -> {
                     if (jobInfo.isFailed()) {
-                        failVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry));
+                        tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry));
                         return;
                     }
                     FxModel.change(() -> {
@@ -94,24 +94,9 @@ public class VideoFlow {
                 })
                 .exceptionally((Throwable throwable) -> {
                     logger.error("Video generation failed", throwable);
-                    failVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
+                    tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                     return null;
                 });
-    }
-
-    /*  Marks the placeholder of a video as failed and stores it, so the error stays visible  */
-    private void failVideo(ChatEntry chatEntry, int imageIndex, String errorMessage) {
-        FxModel.change(() -> {
-            GeneratedImage img = ChatEntryTracker.placeholder(chatEntry, imageIndex);
-            if (img != null) {
-                img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                img.setErrorMessage(errorMessage);
-                img.setBaseCost(0.0);
-                tracker.saveImage(img);
-                tracker.notifyImageUpdated(img);
-            }
-            tracker.refresh(chatEntry);
-        });
     }
 
     /**

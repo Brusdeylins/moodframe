@@ -174,22 +174,27 @@ public class JobPollingFlow {
                     // Handle successful submission
                     handleSubmissionSuccess(provider, jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
                 })
-                .exceptionally(throwable -> {
+                .exceptionally((Throwable throwable) -> {
+
+                    /*  A job the provider did not take fails its image, which costs nothing; the entry is settled
+                        with its other images  */
                     if (ProviderException.unwrap(throwable) instanceof java.util.concurrent.TimeoutException) {
                         logger.error("Timeout submitting generation request for image {}", imageIndex);
-                        tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, throwable,
+                        tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(chatEntry, throwable,
                                 "generation.error.submit.timeout", String.valueOf(SUBMIT_TIMEOUT_SECONDS)));
-                    } else {
+                    }
+                    else {
                         logger.error("Failed to submit generation request for image {}", imageIndex, throwable);
-                        tracker.markFailed(chatEntry, ChatEntryTracker.errorText(throwable, chatEntry));
+                        tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                     }
                     return null;
                 });
 
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("Failed to create generation request for image {}", imageIndex, e);
-            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, e, "generation.error.submit",
-                    e.getMessage()));
+            tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(chatEntry, e,
+                    "generation.error.submit", e.getMessage()));
         }
     }
 
@@ -264,10 +269,11 @@ public class JobPollingFlow {
                     startPolling(jobId, pendingRequest);
                 });
 
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("Failed to handle submission success", e);
-            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, e, "generation.error.submit",
-                    e.getMessage()));
+            tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(chatEntry, e,
+                    "generation.error.submit", e.getMessage()));
         }
     }
 

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -63,8 +64,8 @@ class BflSafetyToleranceTest {
         List<Integer> lowered = new CopyOnWriteArrayList<>();
         submit(NOT_APPROVED, config, tracker, sent, lowered);
 
-        /*  the retry is rejected, too: no second retry, the entry fails  */
-        verify(tracker, timeout(5000)).markFailed(any(), anyString());
+        /*  the retry is rejected, too: no second retry, the image fails  */
+        verify(tracker, timeout(5000)).failImage(any(), eq(0), anyString());
         assertEquals(List.of(5, 4), sent);
         assertEquals(List.of(4), lowered);
         verify(config).setFlux2SafetyTolerance(4);
@@ -79,7 +80,7 @@ class BflSafetyToleranceTest {
         submit("{\"detail\":{\"code\":\"safety_tolerance_not_approved\",\"requested_safety_tolerance\":5}}",
                 config, tracker, sent, lowered);
 
-        verify(tracker, timeout(5000)).markFailed(any(), anyString());
+        verify(tracker, timeout(5000)).failImage(any(), eq(0), anyString());
         assertEquals(List.of(5), sent);
         assertEquals(List.of(), lowered);
         verify(config, never()).setFlux2SafetyTolerance(anyInt());

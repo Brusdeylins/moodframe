@@ -185,16 +185,68 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Marks a chat entry as failed with the given message, stores it and then shows it.
+     * Marks a chat entry as failed as a whole with the given message, e.g. a submission that failed before its images
+     * were handed to their flow: its images not finished yet fail with the message and cost nothing, the entry gets the
+     * cost of its images (nothing without images) and is stored with them, then shown. A cancelled entry stays
+     * cancelled. A failure of a single image goes through {@link #failImage} instead.
+     *
+     * @param chatEntry    the entry
+     * @param errorMessage the message, in the language of the entry (see {@link #errorText(Throwable, ChatEntry)})
      */
     public void markFailed(ChatEntry chatEntry, String errorMessage) {
         FxModel.change(() -> {
             if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
                 return;
+            List<GeneratedImage> stopped = unfinished(chatEntry);
+            stopped.forEach((GeneratedImage image) -> fail(image, errorMessage));
             chatEntry.setStatus(ChatEntry.Status.FAILED);
             chatEntry.setErrorMessage(errorMessage);
-            notifyWhenStored(saveEntry(chatEntry), chatEntry);
+            chatEntry.setCost(totalCost(chatEntry));
+            chatEntry.setCompletedAt(LocalDateTime.now());
+            CompletableFuture<Void> stored = saveEntry(chatEntry);
+            for (GeneratedImage image : stopped)
+                stored = saveImage(image);
+            notifyWhenStored(stored, chatEntry);
         });
+    }
+
+    /**
+     * Marks the placeholder of one image as failed with its message (found by its sort order, as the answers arrive
+     * in any order), unless it is finished already (e.g. failed by a cancellation): it costs nothing, is stored and
+     * shown, and the entry is settled once all its images are finished (see {@link #refresh}), so an entry with an
+     * image made completes and one without fails with the reasons of its images.
+     *
+     * @param chatEntry    the entry
+     * @param imageIndex   the index of the image in the entry
+     * @param errorMessage the message, in the language of the entry (see {@link #errorText(Throwable, ChatEntry)})
+     */
+    public void failImage(ChatEntry chatEntry, int imageIndex, String errorMessage) {
+        FxModel.change(() -> {
+            GeneratedImage image = placeholder(chatEntry, imageIndex);
+            if (image != null && !finished(image)) {
+                fail(image, errorMessage);
+                saveImage(image);
+                notifyImageUpdated(image);
+            }
+            refresh(chatEntry);
+        });
+    }
+
+    /*  An image that was not made fails with its message and costs nothing  */
+    private static void fail(GeneratedImage image, String errorMessage) {
+        image.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+        image.setErrorMessage(errorMessage);
+        image.setBaseCost(0.0);
+    }
+
+    /*  the images of an entry neither cached nor failed yet  */
+    private static List<GeneratedImage> unfinished(ChatEntry chatEntry) {
+        return chatEntry.getImages().stream().filter((GeneratedImage image) -> !finished(image)).toList();
+    }
+
+    private static boolean finished(GeneratedImage image) {
+        return image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
+                || image.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED;
     }
 
     /*  Tells the listeners of an entry that ended once the writes asked for before are done, failed or not: the
@@ -213,9 +265,7 @@ public class ChatEntryTracker {
     public boolean cancel(ChatEntry chatEntry) {
         if (chatEntry.getStatus() != ChatEntry.Status.PENDING && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
             return false;
-        List<GeneratedImage> stopped = chatEntry.getImages().stream()
-                .filter((GeneratedImage image) -> image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED
-                        && image.getDownloadStatus() != GeneratedImage.DownloadStatus.FAILED).toList();
+        List<GeneratedImage> stopped = unfinished(chatEntry);
         String cancelled = errorText(chatEntry, null, "generation.error.cancelled");
         stopped.forEach((GeneratedImage image) -> {
             image.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);

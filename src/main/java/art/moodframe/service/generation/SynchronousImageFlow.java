@@ -58,36 +58,16 @@ public class SynchronousImageFlow {
 
                         /*  Blocked content: the placeholder fails with the reason, a blocked image costs nothing  */
                         logger.info("{} image {} blocked, stored with its error message", name, imageIndex);
-                        failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry), true);
+                        tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry));
                     }
                     else if (jobInfo.isSynchronous() && jobInfo.getBase64Image() != null)
                         storeImage(provider, jobInfo, request, chatEntry, imageIndex);
                 })
                 .exceptionally((Throwable throwable) -> {
                     logger.error("{} generation failed for image index {}", name, imageIndex, throwable);
-                    failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry), false);
+                    tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                     return null;
                 });
-    }
-
-    /**
-     * Marks the placeholder of an image as failed (found by its sort order, as the answers arrive in any order),
-     * stores it and settles the entry once all its images are finished.
-     *
-     * @param free true if the image costs nothing (blocked content)
-     */
-    private void failImage(ChatEntry chatEntry, int imageIndex, String errorMessage, boolean free) {
-        FxModel.change(() -> {
-            GeneratedImage img = ChatEntryTracker.placeholder(chatEntry, imageIndex);
-            if (img != null) {
-                img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                img.setErrorMessage(errorMessage);
-                if (free)
-                    img.setBaseCost(0.0);
-                tracker.saveImage(img);
-            }
-            tracker.refresh(chatEntry);
-        });
     }
 
     /**
