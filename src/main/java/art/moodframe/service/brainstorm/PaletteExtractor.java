@@ -1,4 +1,4 @@
-package art.moodframe.util;
+package art.moodframe.service.brainstorm;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;

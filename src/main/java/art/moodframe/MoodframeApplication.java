@@ -41,8 +41,12 @@ import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.UpdateCheckService;
+import art.moodframe.service.brainstorm.BrainstormModels;
 import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.BrainstormSessions;
+import art.moodframe.service.brainstorm.BrainstormTools;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.brainstorm.YouTubeInfoService;
 import art.moodframe.service.chat.ChatFileService;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
@@ -506,11 +510,14 @@ public class MoodframeApplication extends Application {
                 () -> new MoodAnalysisService(services.getService(GeminiApiService.class),
                         services.getService(OpenAiApiService.class), config));
 
-        /*  A brainstorm service for each brainstorm window, on the stored sessions and the language models  */
+        /*  A brainstorm service for each brainstorm window, on the stored sessions, the language models and the tools,
+            which share one lookup of the YouTube videos  */
         services.registerProvider(BrainstormService.Factory.class, () -> {
             GeminiApiService gemini = services.getService(GeminiApiService.class);
-            OpenAiApiService openAi = services.getService(OpenAiApiService.class);
-            return () -> new BrainstormService(new BrainstormRepository(database), gemini, openAi, config);
+            BrainstormSessions sessions = new BrainstormSessions(new BrainstormRepository(database));
+            BrainstormModels models = new BrainstormModels(gemini, services.getService(OpenAiApiService.class), config);
+            BrainstormTools tools = new BrainstormTools(gemini, new YouTubeInfoService(config));
+            return () -> new BrainstormService(sessions, models, tools);
         });
     }
 

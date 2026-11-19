@@ -4,7 +4,6 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.BrainstormDraft;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.GenerationModel;
@@ -12,12 +11,11 @@ import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.net.IoExecutor;
+import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderPolicy;
 import art.moodframe.util.I18nManager;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -33,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -81,8 +79,8 @@ class MoodAnalysisServiceTest {
         return image;
     }
 
-    private static CompletableFuture<BrainstormTurn> answer(String text) {
-        return CompletableFuture.completedFuture(new BrainstormTurn(text, new JSONArray(), List.of()));
+    private static CompletableFuture<ChatTurn.Model> answer(String text) {
+        return CompletableFuture.completedFuture(new ChatTurn.Model(text));
     }
 
     @BeforeEach
@@ -180,24 +178,24 @@ class MoodAnalysisServiceTest {
         assertEquals(List.of("#102040", "#FF8800"), analysis.blocks().get(Mood.Field.COLOR).colors());
         assertEquals(I18nManager.getText("mood.image.palette"), analysis.blocks().get(Mood.Field.COLOR).name());
         assertEquals(I18nManager.getText("mood.image.no.model"), analysis.notice());
-        verify(gemini, never()).chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean());
+        verify(gemini, never()).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
     }
 
     @Test
-    void geminiGetsTheImageAsInlineData() {
+    void theLanguageModelGetsTheImage() {
         when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
-        when(gemini.chatTurn(anyString(), any(JSONArray.class), eq(false), eq(false)))
+        when(gemini.chatTurn(anyString(), anyList(), eq(List.of()), eq(false)))
                 .thenReturn(answer("{\"light\": {\"name\": \"Golden Hour\", \"is_new\": false}}"));
 
         MoodAnalysisService.Analysis analysis = service.analyze(image(), context).join();
 
-        ArgumentCaptor<JSONArray> contents = ArgumentCaptor.forClass(JSONArray.class);
-        verify(gemini).chatTurn(anyString(), contents.capture(), eq(false), eq(false));
-        JSONObject image = contents.getValue().getJSONObject(0).getJSONArray("parts").getJSONObject(0)
-                .getJSONObject("inlineData");
-        assertEquals("image/jpeg", image.getString("mimeType"));
-        assertFalse(image.getString("data").isEmpty());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ChatTurn>> contents = ArgumentCaptor.forClass(List.class);
+        verify(gemini).chatTurn(anyString(), contents.capture(), eq(List.of()), eq(false));
+        ChatTurn.Image image = ((ChatTurn.User) contents.getValue().get(0)).images().get(0);
+        assertEquals("image/jpeg", image.mimeType());
+        assertFalse(image.base64().isEmpty());
         assertNull(analysis.notice());
         assertEquals("std:light:golden-hour", analysis.blocks().get(Mood.Field.LIGHT).id());
         assertTrue(analysis.blocks().containsKey(Mood.Field.COLOR));
@@ -211,21 +209,21 @@ class MoodAnalysisServiceTest {
         when(config.accounts().isOpenAiChatAvailable()).thenReturn(true);
         when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
         when(config.generation().getDefaultModel()).thenReturn(GenerationModel.OPENAI_PREFIX + "gpt-image-1");
-        when(openAi.chatTurn(eq("gpt-test"), anyString(), any(JSONArray.class), eq(false), eq(false), eq(false)))
+        when(openAi.chatTurn(eq("gpt-test"), anyString(), anyList(), eq(List.of()), eq(false)))
                 .thenReturn(answer("{\"style\": {\"name\": \"Watercolor\", \"is_new\": false}}"));
 
         MoodAnalysisService.Analysis analysis = service.analyze(image(), context).join();
 
         assertTrue(ProviderPolicy.isOpenAiOnly(config));
         assertEquals("std:style:watercolor", analysis.blocks().get(Mood.Field.STYLE).id());
-        verify(gemini, never()).chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean());
+        verify(gemini, never()).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
     }
 
     @Test
     void aFailedRequestStillGivesTheColors() {
         when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
-        when(gemini.chatTurn(anyString(), any(JSONArray.class), anyBoolean(), anyBoolean()))
+        when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean()))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("HTTP 500")));
 
         MoodAnalysisService.Analysis analysis = service.analyze(image(), context).join();
@@ -238,9 +236,9 @@ class MoodAnalysisServiceTest {
     void theAnalysisCompletesWithAnIoExecutorOfOneThread() throws Exception {
         when(config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         when(config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
-        when(gemini.chatTurn(anyString(), any(JSONArray.class), eq(false), eq(false))).thenAnswer((invocation) ->
-                CompletableFuture.supplyAsync(() -> new BrainstormTurn(
-                        "{\"light\": {\"name\": \"Golden Hour\", \"is_new\": false}}", new JSONArray(), List.of()),
+        when(gemini.chatTurn(anyString(), anyList(), eq(List.of()), eq(false))).thenAnswer((invocation) ->
+                CompletableFuture.supplyAsync(() -> new ChatTurn.Model(
+                        "{\"light\": {\"name\": \"Golden Hour\", \"is_new\": false}}"),
                         IoExecutor.get()));
         IoExecutor.replace(java.util.concurrent.Executors.newSingleThreadExecutor());
         try {

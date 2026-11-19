@@ -699,13 +699,10 @@ public class MainWindowController implements I18nChangeListener {
 
             /*  the building blocks and the mood as chosen, a locked field keeps its choice on "Adopt"  */
             Set<Mood.Field> locked = moodFramePanelController.lockedMoodFields();
-            String resolution = moodFramePanelController.modelResolution();
-            String prompt = inputBar.prompt();
-            String currentState = "Target model: " + generationPanelController.modelItem()
-                    + (resolution != null ? "\nResolution: " + resolution : "")
-                    + moodFramePanelController.describe()
-                    + "\nAspect ratio: " + moodFramePanelController.modelAspectRatio()
-                    + "\nText currently in the input field: " + (prompt.isBlank() ? "(empty)" : prompt.trim());
+            String currentState = new art.moodframe.service.brainstorm.BrainstormContext.WindowState(
+                    generationPanelController.modelItem(), moodFramePanelController.modelResolution(),
+                    moodFramePanelController.describe(), moodFramePanelController.modelAspectRatio(),
+                    inputBar.prompt()).describe();
 
             art.moodframe.service.brainstorm.BrainstormContext brainstormContext =
                     new art.moodframe.service.brainstorm.BrainstormContext(

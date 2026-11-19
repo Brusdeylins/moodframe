@@ -2,7 +2,6 @@ package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
@@ -10,8 +9,8 @@ import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import okhttp3.OkHttpClient;
-import org.json.JSONArray;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -116,9 +115,9 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     }
 
     @Override
-    public CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents, boolean withTools,
+    public CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
             boolean noMoreCalls) {
-        return chat.chatTurn(systemPrompt, contents, withTools, noMoreCalls);
+        return chat.chatTurn(systemPrompt, turns, tools, noMoreCalls);
     }
 
     @Override

@@ -1,12 +1,13 @@
 package art.moodframe.service.brainstorm;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
-import org.json.JSONArray;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -23,15 +24,15 @@ interface ChatModel {
             + "create. Answer with the name only, no quotes, no punctuation.\n\n";
 
     /**
-     * Sends one request of a conversation in the Gemini format, see {@link GeminiApiService#chatTurn}.
+     * Sends one request of a conversation; the client of the provider translates it into its own format.
      *
      * @param systemPrompt the system instruction
-     * @param contents     the conversation so far
-     * @param withTools    whether the brainstorm tools are offered
+     * @param turns        the conversation so far
+     * @param tools        the tools offered, empty for none
      * @param noMoreCalls  whether the model must answer now
      * @return the answer: text, or tool calls
      */
-    CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents, boolean withTools,
+    CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
             boolean noMoreCalls);
 
     /**
@@ -85,9 +86,9 @@ interface ChatModel {
     static ChatModel gemini(GeminiApiService gemini) {
         return new ChatModel() {
             @Override
-            public CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents,
-                    boolean withTools, boolean noMoreCalls) {
-                return gemini.chatTurn(systemPrompt, contents, withTools, noMoreCalls);
+            public CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns,
+                    List<ChatTool> tools, boolean noMoreCalls) {
+                return gemini.chatTurn(systemPrompt, turns, tools, noMoreCalls);
             }
 
             @Override
@@ -108,7 +109,7 @@ interface ChatModel {
     }
 
     /**
-     * Gets an OpenAI language model; the video tool is not offered, the videos are Gemini's.
+     * Gets an OpenAI language model; it watches no videos, the videos are Gemini's.
      *
      * @param openAi the OpenAI client
      * @param model  the model id
@@ -117,9 +118,9 @@ interface ChatModel {
     static ChatModel openAi(OpenAiApiService openAi, String model) {
         return new ChatModel() {
             @Override
-            public CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents,
-                    boolean withTools, boolean noMoreCalls) {
-                return openAi.chatTurn(model, systemPrompt, contents, withTools, noMoreCalls, false);
+            public CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns,
+                    List<ChatTool> tools, boolean noMoreCalls) {
+                return openAi.chatTurn(model, systemPrompt, turns, tools, noMoreCalls);
             }
 
             @Override

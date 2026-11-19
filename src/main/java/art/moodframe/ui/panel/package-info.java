@@ -1,7 +1,7 @@
 /**
- * The groups Mood and Frame of the right panel ({@code fxml/panel/MoodFramePanel.fxml}), self-contained, so the main
- * window and other windows such as the brainstorm dialog can show the same fields; it lies below
- * {@code ui.brainstorm} and the controllers.
+ * The groups Mood and Frame of the right panel ({@code fxml/panel/MoodFramePanel.fxml}), self-contained, so other
+ * windows can show the same fields; it lies below {@code ui.brainstorm} and the controllers, which allows the
+ * brainstorm dialog to reuse it (planned with ticket 136, not done yet).
  *
  * <p>Main classes:</p>
  * <ul>

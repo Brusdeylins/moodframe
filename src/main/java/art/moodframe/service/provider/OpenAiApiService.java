@@ -1,12 +1,10 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ResearchNote;
-import org.json.JSONArray;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -115,21 +113,17 @@ public interface OpenAiApiService extends ImageProvider {
     List<String> getImageModels();
 
     /**
-     * Asks the language model one question of a tool-calling conversation ({@code POST /chat/completions}). The
-     * conversation is given in the Gemini format of the brainstorm, with the tool calls and results of the current
-     * turn as {@code functionCall} and {@code functionResponse} parts, and images as {@code inlineData} parts of a
-     * user turn.
+     * Asks the language model one question of a tool-calling conversation ({@code POST /chat/completions}).
      *
      * @param model        the model id
      * @param systemPrompt the system prompt
-     * @param contents     the conversation, see {@link GeminiApiService#chatTurn}
-     * @param withTools    offer the brainstorm tools
+     * @param turns        the conversation so far, including the tool calls and results of the current turn
+     * @param tools        the tools offered to the model, empty for none
      * @param noMoreCalls  the model has to answer now, no more tool calls
-     * @param videoTool    also offer {@code analyze_video} (it runs on Gemini)
      * @return the answer: text, or tool calls
      */
-    CompletableFuture<BrainstormTurn> chatTurn(String model, String systemPrompt, JSONArray contents,
-            boolean withTools, boolean noMoreCalls, boolean videoTool);
+    CompletableFuture<ChatTurn.Model> chatTurn(String model, String systemPrompt, List<ChatTurn> turns,
+            List<ChatTool> tools, boolean noMoreCalls);
 
     /**
      * Checks that a language model can serve the brainstorm: it answers a plain question and calls a function.

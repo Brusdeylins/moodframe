@@ -1,12 +1,10 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;
 import art.moodframe.model.ResearchNote;
-import org.json.JSONArray;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -108,20 +106,19 @@ public interface GeminiApiService extends ImageProvider {
     );
 
     /**
-     * Sends one request of the brainstorm chat to the Gemini text model. The model is asked for a JSON answer
-     * ({@code responseMimeType application/json}); with tools it may answer with function calls
-     * ({@code research}, {@code analyze_video}) instead, which the caller runs and answers with the next request.
+     * Sends one request of a conversation to the Gemini text model, which is asked for a JSON answer
+     * ({@code responseMimeType application/json}); with tools it may answer with tool calls instead, which the caller
+     * runs and answers with the next request.
      *
      * @param systemPrompt the system instruction
-     * @param contents the conversation so far as Gemini contents, including the function calls and responses of
-     *                 the current turn; a user turn may carry an image as {@code inlineData} part
-     * @param withTools whether the functions are offered to the model
-     * @param noMoreCalls whether the model must answer now and may not call a function (only with tools)
-     * @return a CompletableFuture containing the answer
+     * @param turns the conversation so far, including the tool calls and results of the current turn
+     * @param tools the tools offered to the model, empty for none
+     * @param noMoreCalls whether the model must answer now and may not call a tool (only with tools)
+     * @return a CompletableFuture containing the answer: text, or tool calls
      * @throws IllegalStateException if the API key is not configured
      * @since 1.8.1
      */
-    CompletableFuture<BrainstormTurn> chatTurn(String systemPrompt, JSONArray contents, boolean withTools,
+    CompletableFuture<ChatTurn.Model> chatTurn(String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
             boolean noMoreCalls);
 
     /**

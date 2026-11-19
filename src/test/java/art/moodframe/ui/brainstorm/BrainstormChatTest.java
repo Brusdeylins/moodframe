@@ -1,6 +1,6 @@
 package art.moodframe.ui.brainstorm;
 
-import art.moodframe.model.BrainstormReply;
+import art.moodframe.service.brainstorm.BrainstormReply;
 import art.moodframe.ui.brainstorm.BrainstormChat.StepState;
 import org.junit.jupiter.api.Test;
 

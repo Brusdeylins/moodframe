@@ -25,7 +25,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop         |
 |              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.entry` the    |
 |              | chat entries with their images: cards, images view, full view; `ui.panel` the groups   |
-|              | Mood and Frame, which several windows show; `ui.component` the generic controls;       |
+|              | Mood and Frame, which other windows can show; `ui.component` the generic controls;     |
 |              | `ui.support` the helpers that need JavaFX or the desktop: themes, videos, opening      |
 |              | files and web pages, listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded          |
 |              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`; the root holds    |
@@ -37,7 +37,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `repository` | data access with plain JDBC, one repository per aggregate                              |
 | `database`   | SQLite connections, WAL mode, schema migrations                                         |
 | `model`      | domain data classes, records and enums                                                  |
-| `util`       | general helpers without JavaFX: i18n, images, secrets, the version, YouTube links       |
+| `util`       | general helpers without JavaFX: i18n, images, secrets, the version, the downloads      |
 | `config`     | folders of the library (`LibraryPaths`), settings (`ApplicationConfig` and its          |
 |              | sections), key encryption, the service locator (`ServiceFactory`)                       |
 
@@ -68,12 +68,14 @@ Allowed dependency directions:
   JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
   `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
   do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
-  `HttpClients` and `CertificateStore`, and that no class imports a package of the application with a wildcard,
-  from the imports and fully qualified names of `src/main/java`.
+  `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
+  that the chat clients of Gemini and OpenAI use no class of each other (D6), from the imports and fully qualified
+  names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
   `ui.entry`, `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`),
-  `ui.controller.settings` and `ui.controller` on top, so no view uses a controller, the entry cards build on the
-  generic controls and the brainstorm dialog may show the groups of `ui.panel`.
+  `ui.controller.settings` and `ui.controller` on top, so no view uses a controller and the entry cards build on the
+  generic controls; the order allows the brainstorm dialog to show the groups of `ui.panel`, which it does not do yet
+  (planned with ticket 136).
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -160,6 +162,12 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **Disk work of the views**: the views read and decode pictures, write and compare attached files and run ffmpeg
   and the other programs of the desktop on `ui.support.DiskWorker`, a pool of at most four named daemon threads
   (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
+- **Brainstorm**: `BrainstormService` queues the requests of each session; a request reads and writes the session
+  (its title from the first message, the messages, the draft) on a thread of that queue, after the request before
+  it, and "draft adopted" is stored on the same queue. `sendUserMessage`, `sendEvent` and `noteAdopted` only queue,
+  so the JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
+  creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
+  with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
@@ -207,7 +215,9 @@ every service its dependencies in the constructor, which is also how tests pass 
 `ChatRepository`, `ChatTrashRepository` and `ChatGroupQueries`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
-`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
+`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
+the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the language model of a session) and
+`BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
 No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
@@ -265,9 +275,10 @@ the language (its own, the full view's and the cards'), of the theme, the genera
 and the account checks, the timelines of the memory display and the clipboard watch, and its worker; a closed window
 stays reachable from nowhere.
 
-`ui.panel.MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog, which
-`ui.panel` lies below) can show the same fields: it takes its services as `MoodFramePanelController.Services` (with
-the trash) and the worker that writes the library, follows the chosen model with
+`ui.panel.MoodFramePanelController` is self-contained, so that another window can show the same fields; the
+brainstorm dialog, which `ui.panel` lies below, may reuse it in its result form, which is planned (ticket 136) and not
+done yet. It takes its services as `MoodFramePanelController.Services` (with the trash) and the worker that writes the
+library, follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
 `Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on. It
@@ -296,6 +307,16 @@ tests a typed key with a copy of the live client (`ImageProvider.testConnection(
 live client nor the saved key changes until "Save". A status shown from an i18n key keeps the key, so a change of the
 language relabels it. The dialog follows the language until its window closes. `SettingsPrompts` wraps the message
 boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-screen.
+
+## Brainstorm window
+
+`ui.brainstorm.BrainstormDialog` composes three parts, like the main window: `BrainstormHistory` (the stored
+sessions: open, rename, move, delete, new chat), `BrainstormChatView` (title, steps, messages with the research and
+the linked videos, quick replies, input and the choice of the language model) and `BrainstormResultForm` (the draft
+of the shown chat mapped onto the lists of the main window, the checkboxes of the adoption and "Adopt"). Each part
+reports through a listener interface of its own; the dialog keeps one `BrainstormChat` per session, so an answer
+lands in the chat that asked, sends the requests and hands each answer to the chat view and the form. The result
+form is the place where the groups of `ui.panel` can replace the fields of the mood and the frame (ticket 136).
 
 ## Folders and settings
 
@@ -441,3 +462,16 @@ The setting "detailed logging" sets the logback logger `art.moodframe` to DEBUG 
 (`config.DetailedLogging`), at startup and on every change. Code logs details with `logger.debug(...)` instead of
 asking the setting, and guards a costly argument with `logger.isDebugEnabled()`. Only the startup, the settings
 dialog and the configuration export read `getLoggingEnabled()`.
+
+### D6: A conversation with a language model in the format of no provider
+
+The brainstorm and the analysis of an image talk to Gemini or to an OpenAI language model, as
+`service.brainstorm.ChatModel` chooses. They hold the conversation as `service.provider.ChatTurn`s: a turn of the
+user (text and images), an answer of the model (text, or tool calls with their ids) and the results of the tools; the
+tools are `ChatTool`s (name, description, JSON Schema of the arguments), which the brainstorm declares and runs. Each
+chat client translates the turns into its own request (`GeminiChatClient.buildChatBody`,
+`OpenAiChatClient.buildChatBody`) and its answer back, so neither client knows the other. Gemini requires the thought
+signatures of its tool calls back unchanged: its answer keeps its parts as `replay`, which only Gemini reads; the
+answer of another model is built from its text and calls. The types live in `service.provider`, which lies below
+`service.brainstorm`. The stored messages of a session stay role and text (`brainstorm_messages`); the tool rounds of
+a turn exist only while it runs, so the database kept its format.

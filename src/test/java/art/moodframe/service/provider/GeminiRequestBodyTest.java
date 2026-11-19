@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -70,19 +71,59 @@ class GeminiRequestBodyTest {
     }
 
     @Test
-    void chatBodyPassesTheImagePartOnAndAsksForJson() {
-        JSONObject imagePart = new JSONObject().put("inlineData",
-                new JSONObject().put("mimeType", "image/jpeg").put("data", "QUJD"));
-        JSONArray contents = new JSONArray().put(new JSONObject().put("role", "user")
-                .put("parts", new JSONArray().put(imagePart).put(new JSONObject().put("text", "Find the blocks."))));
+    void chatBodyPassesTheImageOnAsInlineDataAndAsksForJson() {
+        List<ChatTurn> turns = List.of(new ChatTurn.User("Find the blocks.",
+                List.of(new ChatTurn.Image("image/jpeg", "QUJD"))));
 
-        JSONObject body = GeminiChatClient.buildChatBody("sys", contents, false, false);
+        JSONObject body = GeminiChatClient.buildChatBody("sys", turns, List.of(), false);
 
-        JSONObject sent = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts").getJSONObject(0);
-        assertEquals("image/jpeg", sent.getJSONObject("inlineData").getString("mimeType"));
-        assertEquals("QUJD", sent.getJSONObject("inlineData").getString("data"));
+        JSONArray parts = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts");
+        assertEquals("image/jpeg", parts.getJSONObject(0).getJSONObject("inlineData").getString("mimeType"));
+        assertEquals("QUJD", parts.getJSONObject(0).getJSONObject("inlineData").getString("data"));
+        assertEquals("Find the blocks.", parts.getJSONObject(1).getString("text"));
         assertEquals("application/json", body.getJSONObject("generationConfig").getString("responseMimeType"));
         assertFalse(body.has("tools"));
+    }
+
+    @Test
+    void chatBodySendsAGeminiAnswerBackWithItsSignatureAndTheToolResultsAsFunctionResponses() {
+        JSONArray answerParts = new JSONArray().put(new JSONObject().put("thoughtSignature", "sig")
+                .put("functionCall", new JSONObject().put("name", "research").put("args",
+                        new JSONObject().put("query", "q"))));
+        ChatTurn.Model answer = GeminiChatClient.parseAnswer(answerParts);
+        ChatTool research = new ChatTool("research", "Searches the web.", new JSONObject().put("type", "object"));
+        List<ChatTurn> turns = List.of(new ChatTurn.User("hi"), answer, new ChatTurn.ToolResults(
+                List.of(new ChatTurn.ToolResult(answer.calls().get(0), new JSONObject().put("result", "r")))));
+
+        JSONObject body = GeminiChatClient.buildChatBody("sys", turns, List.of(research), true);
+
+        JSONArray contents = body.getJSONArray("contents");
+        assertEquals("model", contents.getJSONObject(1).getString("role"));
+        assertEquals("sig", contents.getJSONObject(1).getJSONArray("parts").getJSONObject(0)
+                .getString("thoughtSignature"));
+        JSONObject response = contents.getJSONObject(2).getJSONArray("parts").getJSONObject(0)
+                .getJSONObject("functionResponse");
+        assertEquals("user", contents.getJSONObject(2).getString("role"));
+        assertEquals("research", response.getString("name"));
+        assertEquals("r", response.getJSONObject("response").getString("result"));
+        assertEquals("research", body.getJSONArray("tools").getJSONObject(0).getJSONArray("functionDeclarations")
+                .getJSONObject(0).getString("name"));
+        assertEquals("NONE", body.getJSONObject("toolConfig").getJSONObject("functionCallingConfig")
+                .getString("mode"));
+    }
+
+    @Test
+    void chatBodyBuildsTheAnswerOfAnotherModelFromItsTextAndCalls() {
+        ChatTurn.Model answer = new ChatTurn.Model("", List.of(new ChatTurn.ToolCall("call_x", "research",
+                new JSONObject().put("query", "q"))), null);
+
+        JSONObject body = GeminiChatClient.buildChatBody("sys", List.of(new ChatTurn.User("hi"), answer), List.of(),
+                false);
+
+        JSONObject call = body.getJSONArray("contents").getJSONObject(1).getJSONArray("parts").getJSONObject(0)
+                .getJSONObject("functionCall");
+        assertEquals("research", call.getString("name"));
+        assertEquals("q", call.getJSONObject("args").getString("query"));
     }
 
     @Test

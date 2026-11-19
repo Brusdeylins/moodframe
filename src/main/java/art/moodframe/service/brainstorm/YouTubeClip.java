@@ -1,4 +1,6 @@
-package art.moodframe.util;
+package art.moodframe.service.brainstorm;
+
+import art.moodframe.util.I18nManager;
 
 import java.util.ArrayList;
 import java.util.List;

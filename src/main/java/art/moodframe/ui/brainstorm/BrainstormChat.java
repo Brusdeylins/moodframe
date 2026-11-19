@@ -1,8 +1,8 @@
 package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.BrainstormDraft;
-import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
+import art.moodframe.service.brainstorm.BrainstormReply;
 import art.moodframe.ui.support.BoxInset;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -39,6 +39,8 @@ class BrainstormChat {
     String statusText = "";
     /** Whether the stored messages were already shown in {@link #messageBox}. */
     boolean loaded;
+    /** Whether the stored messages are being read. */
+    boolean loading;
     final VBox messageBox = new VBox(10.0);
     /** The cards of the linked videos in the order of the chat, so a stored range change finds its card. */
     final List<BrainstormVideoCard> videoCards = new ArrayList<>();

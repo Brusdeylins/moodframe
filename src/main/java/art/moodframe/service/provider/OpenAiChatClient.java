@@ -1,6 +1,5 @@
 package art.moodframe.service.provider;
 
-import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.ResearchNote;
 import okhttp3.RequestBody;
 import okhttp3.Response;
@@ -36,34 +35,43 @@ final class OpenAiChatClient {
         this.transport = transport;
     }
 
-    CompletableFuture<BrainstormTurn> chatTurn(String model, String systemPrompt, JSONArray contents,
-            boolean withTools, boolean noMoreCalls, boolean videoTool) {
+    CompletableFuture<ChatTurn.Model> chatTurn(String model, String systemPrompt, List<ChatTurn> turns,
+            List<ChatTool> tools, boolean noMoreCalls) {
         return CompletableFuture.supplyAsync(() -> {
-            JSONObject message = postChat(buildChatBody(model, systemPrompt, contents, withTools, noMoreCalls, videoTool));
-            String text = message.isNull("content") ? "" : message.optString("content", "");
-            JSONArray parts = new JSONArray();
-            List<BrainstormTurn.Call> calls = new ArrayList<>();
-            if (!text.isEmpty())
-                parts.put(new JSONObject().put("text", text));
-            JSONArray toolCalls = message.optJSONArray("tool_calls");
-            for (int i = 0; toolCalls != null && i < toolCalls.length(); i++) {
-                JSONObject function = toolCalls.getJSONObject(i).optJSONObject("function");
-                if (function == null)
-                    continue;
-                JSONObject args;
-                try {
-                    args = new JSONObject(function.optString("arguments", "{}"));
-                } catch (JSONException e) {
-                    args = new JSONObject();
-                }
-                parts.put(new JSONObject().put("functionCall",
-                        new JSONObject().put("name", function.optString("name")).put("args", args)));
-                calls.add(new BrainstormTurn.Call(function.optString("name"), args));
-            }
-            if (text.isEmpty() && calls.isEmpty())
+            ChatTurn.Model answer = parseAnswer(postChat(buildChatBody(model, systemPrompt, turns, tools,
+                    noMoreCalls)));
+            if (answer.text().isEmpty() && answer.calls().isEmpty())
                 throw ProviderException.localized("brainstorm.error.no.response");
-            return new BrainstormTurn(text, parts, calls);
+            return answer;
         }, transport.io());
+    }
+
+    /**
+     * Reads the message of an answer: its content as text and its {@code tool_calls} as tool calls with their ids
+     * ({@code call_<index>} if one has none); arguments that are no JSON object count as none.
+     *
+     * @param message the message of the first choice
+     * @return the answer, without a replay: the turn is rebuilt from the text and the calls
+     */
+    static ChatTurn.Model parseAnswer(JSONObject message) {
+        String text = message.isNull("content") ? "" : message.optString("content", "");
+        List<ChatTurn.ToolCall> calls = new ArrayList<>();
+        JSONArray toolCalls = message.optJSONArray("tool_calls");
+        for (int i = 0; toolCalls != null && i < toolCalls.length(); i++) {
+            JSONObject function = toolCalls.getJSONObject(i).optJSONObject("function");
+            if (function == null)
+                continue;
+            JSONObject args;
+            try {
+                args = new JSONObject(function.optString("arguments", "{}"));
+            }
+            catch (JSONException e) {
+                args = new JSONObject();
+            }
+            String id = toolCalls.getJSONObject(i).optString("id", "");
+            calls.add(new ChatTurn.ToolCall(id.isEmpty() ? "call_" + i : id, function.optString("name"), args));
+        }
+        return new ChatTurn.Model(text, calls, null);
     }
 
     CompletableFuture<String> checkChatModel(String model) {
@@ -212,84 +220,60 @@ final class OpenAiChatClient {
     }
 
     /**
-     * Builds the body of {@code POST /chat/completions} from a conversation in the Gemini format: a model turn with
-     * {@code functionCall} parts becomes an assistant message with tool calls, the following user turn with
-     * {@code functionResponse} parts becomes one tool message per call, in the order of the calls. A user turn with
-     * {@code inlineData} image parts becomes a message with a text part and one {@code image_url} data URL per image.
+     * Builds the body of {@code POST /chat/completions} from a conversation: an answer of the model becomes an
+     * assistant message with its tool calls, the tool results one tool message per call, in the order of the calls. A
+     * user turn with images becomes a message with a text part and one {@code image_url} data URL per image.
      *
      * @param model        the model id
      * @param systemPrompt the system prompt
-     * @param contents     the conversation in the Gemini format
-     * @param withTools    offer the brainstorm tools
+     * @param turns        the conversation
+     * @param tools        the tools offered, empty for none
      * @param noMoreCalls  forbid further tool calls
-     * @param videoTool    also offer {@code analyze_video}
      * @return the JSON body
      */
-    static JSONObject buildChatBody(String model, String systemPrompt, JSONArray contents, boolean withTools,
-            boolean noMoreCalls, boolean videoTool) {
+    static JSONObject buildChatBody(String model, String systemPrompt, List<ChatTurn> turns, List<ChatTool> tools,
+            boolean noMoreCalls) {
         JSONArray messages = new JSONArray().put(new JSONObject().put("role", "system").put("content", systemPrompt));
-        List<String> pendingIds = new ArrayList<>();
-
-        for (int i = 0; i < contents.length(); i++) {
-            JSONObject content = contents.getJSONObject(i);
-            JSONArray parts = content.getJSONArray("parts");
-            boolean fromModel = "model".equals(content.optString("role"));
-            StringBuilder text = new StringBuilder();
-            JSONArray toolCalls = new JSONArray();
-            List<JSONObject> responses = new ArrayList<>();
-            JSONArray images = new JSONArray();
-            for (int k = 0; k < parts.length(); k++) {
-                JSONObject part = parts.getJSONObject(k);
-                text.append(part.optString("text", ""));
-                JSONObject image = part.optJSONObject("inlineData");
-                if (image != null)
-                    images.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url",
-                            "data:" + image.optString("mimeType") + ";base64," + image.optString("data"))));
-                JSONObject call = part.optJSONObject("functionCall");
-                if (call != null) {
-                    String id = "call_" + i + "_" + k;
-                    pendingIds.add(id);
-                    JSONObject args = call.optJSONObject("args") != null ? call.getJSONObject("args") : new JSONObject();
-                    toolCalls.put(new JSONObject().put("id", id).put("type", "function").put("function",
-                            new JSONObject().put("name", call.optString("name")).put("arguments", args.toString())));
+        for (ChatTurn turn : turns) {
+            switch (turn) {
+                case ChatTurn.User user when user.images().isEmpty() ->
+                        messages.put(new JSONObject().put("role", "user").put("content", user.text()));
+                case ChatTurn.User user -> {
+                    JSONArray content = user.text().isEmpty() ? new JSONArray()
+                            : new JSONArray().put(new JSONObject().put("type", "text").put("text", user.text()));
+                    for (ChatTurn.Image image : user.images())
+                        content.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject()
+                                .put("url", "data:" + image.mimeType() + ";base64," + image.base64())));
+                    messages.put(new JSONObject().put("role", "user").put("content", content));
                 }
-                if (part.optJSONObject("functionResponse") != null)
-                    responses.add(part.getJSONObject("functionResponse"));
+                case ChatTurn.Model answer -> {
+                    JSONObject assistant = new JSONObject().put("role", "assistant")
+                            .put("content", answer.text().isEmpty() ? JSONObject.NULL : answer.text());
+                    JSONArray toolCalls = new JSONArray();
+                    for (ChatTurn.ToolCall call : answer.calls())
+                        toolCalls.put(new JSONObject().put("id", call.id()).put("type", "function").put("function",
+                                new JSONObject().put("name", call.name()).put("arguments", call.args().toString())));
+                    if (!toolCalls.isEmpty())
+                        assistant.put("tool_calls", toolCalls);
+                    messages.put(assistant);
+                }
+                case ChatTurn.ToolResults results -> {
+                    for (ChatTurn.ToolResult result : results.results())
+                        messages.put(new JSONObject().put("role", "tool").put("tool_call_id", result.call().id())
+                                .put("content", result.response().toString()));
+                }
             }
-
-            if (fromModel) {
-                JSONObject assistant = new JSONObject().put("role", "assistant")
-                        .put("content", text.length() > 0 ? text.toString() : JSONObject.NULL);
-                if (!toolCalls.isEmpty())
-                    assistant.put("tool_calls", toolCalls);
-                messages.put(assistant);
-            } else if (!responses.isEmpty()) {
-                for (int k = 0; k < responses.size(); k++)
-                    messages.put(new JSONObject().put("role", "tool")
-                            .put("tool_call_id", k < pendingIds.size() ? pendingIds.get(k) : "call_" + i + "_" + k)
-                            .put("content", responses.get(k).optJSONObject("response") != null
-                                    ? responses.get(k).getJSONObject("response").toString() : "{}"));
-                pendingIds.clear();
-            } else if (!images.isEmpty()) {
-                JSONArray multimodal = text.length() > 0
-                        ? new JSONArray().put(new JSONObject().put("type", "text").put("text", text.toString()))
-                        : new JSONArray();
-                messages.put(new JSONObject().put("role", "user").put("content", multimodal.putAll(images)));
-            } else
-                messages.put(new JSONObject().put("role", "user").put("content", text.toString()));
         }
 
         JSONObject body = new JSONObject().put("model", model).put("messages", messages)
                 .put("response_format", new JSONObject().put("type", "json_object"));
-        if (withTools) {
-            JSONArray tools = new JSONArray();
-            for (int i = 0; i < GeminiChatClient.BRAINSTORM_TOOLS.length(); i++) {
-                JSONObject declaration = GeminiChatClient.BRAINSTORM_TOOLS.getJSONObject(i);
-                if (!videoTool && "analyze_video".equals(declaration.optString("name")))
-                    continue;
-                tools.put(new JSONObject().put("type", "function").put("function", declaration));
-            }
-            body.put("tools", tools).put("tool_choice", noMoreCalls ? "none" : "auto");
+        if (!tools.isEmpty()) {
+            JSONArray functions = new JSONArray();
+            for (ChatTool tool : tools)
+                functions.put(new JSONObject().put("type", "function").put("function", new JSONObject()
+                        .put("name", tool.name()).put("description", tool.description())
+                        .put("parameters", tool.parameters())));
+            body.put("tools", functions).put("tool_choice", noMoreCalls ? "none" : "auto");
         }
         return body;
     }
