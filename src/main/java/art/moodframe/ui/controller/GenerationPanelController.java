@@ -681,8 +681,7 @@ public class GenerationPanelController {
             return;
 
         String model = modelComboBox.getValue();
-        art.moodframe.model.GenerationModel generationModel =
-                art.moodframe.model.GenerationModel.fromLocalizedDisplayName(model);
+        GenerationModel generationModel = GenerationModel.fromLocalizedDisplayName(model);
         String family = model != null ? art.moodframe.model.ModelFamilies.familyOf(model) : "";
         Integer seconds = selectedVideoSeconds();
         if (generationModel != null && generationModel.isVideoModel() && seconds != null)
@@ -756,7 +755,7 @@ public class GenerationPanelController {
             return;
 
         // Use the tracked model instead of trying to parse the ComboBox value
-        art.moodframe.model.GenerationModel currentModel = currentSelectedModel;
+        GenerationModel currentModel = currentSelectedModel;
 
         // If no model is tracked, try to determine it from the current selection
         if (currentModel == null) {
@@ -764,9 +763,9 @@ public class GenerationPanelController {
             if (currentSelection != null) {
 
                 // Try multiple approaches to find the current model
-                currentModel = art.moodframe.model.GenerationModel.fromDisplayName(currentSelection);
+                currentModel = GenerationModel.fromDisplayName(currentSelection);
                 if (currentModel == null) {
-                    currentModel = art.moodframe.model.GenerationModel.fromLocalizedDisplayName(currentSelection);
+                    currentModel = GenerationModel.fromLocalizedDisplayName(currentSelection);
                 }
 
                 // If found, start tracking it
@@ -784,7 +783,7 @@ public class GenerationPanelController {
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
-            String localizedName = art.moodframe.model.GenerationModel.openAiModelId(previousItem) != null
+            String localizedName = GenerationModel.openAiModelId(previousItem) != null
                     ? previousItem : ModelLabels.displayName(currentModel);
 
             if (modelComboBox.getItems().contains(localizedName)) {
@@ -795,7 +794,7 @@ public class GenerationPanelController {
                 logger.warn("Localized model name '{}' not found in items: {}", localizedName,
                         modelComboBox.getItems());
                 // Fallback to default if current model not available
-                String defaultLocalized = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
+                String defaultLocalized = ModelLabels.displayName(GenerationModel.getDefault());
                 if (modelComboBox.getItems().contains(defaultLocalized)) {
                     modelComboBox.setValue(defaultLocalized);
                 } else {
@@ -882,7 +881,7 @@ public class GenerationPanelController {
             // Check if current selection is compatible
             if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {
                 // Auto-switch to the default model, which edits images (FLUX 3 Image)
-                String defaultName = ModelLabels.displayName(art.moodframe.model.GenerationModel.getDefault());
+                String defaultName = ModelLabels.displayName(GenerationModel.getDefault());
 
                 // Make sure the item exists in the ComboBox before setting it
                 if (modelComboBox.getItems().contains(defaultName)) {
@@ -913,7 +912,7 @@ public class GenerationPanelController {
      *
      * @param generationModel the selected model, null for an unknown item
      */
-    private void updateParameterVisibility(art.moodframe.model.GenerationModel generationModel) {
+    private void updateParameterVisibility(GenerationModel generationModel) {
         boolean isVideo = generationModel != null && generationModel.isVideoModel();
         logger.info("Updating parameter visibility for model: {}, isVideo: {}", generationModel, isVideo);
 
@@ -1045,7 +1044,7 @@ public class GenerationPanelController {
 
     /** The fixed id of the selected model, null without selection. */
     public String selectedModelId() {
-        return modelComboBox != null ? art.moodframe.model.GenerationModel.idOf(modelComboBox.getValue()) : null;
+        return modelComboBox != null ? GenerationModel.idOf(modelComboBox.getValue()) : null;
     }
 
     /**
