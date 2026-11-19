@@ -8,16 +8,18 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, brainstorm, panel, dialog,        mcp
+ ui (controller, brainstorm, panel, dialog, -----> mcp
      cell, entry, component, support)
-            \                                      /
-             +--------------> service <-----------+
-                                 |          \
-                             repository     net
-                                 |
-                              database
+        |   \                                      /
+        |    +--------------> service <-----------+
+        |                        |          \
+        |                    repository     net
+        |                        |           ^
+        |                     database       |
+        +------------------------------------+
  ---------------------------------------------------------
  model, util, config: used by every layer above
+ ui -> mcp only for McpService; ui -> net only for HttpClients and CertificateStore
 ```
 
 | Package      | Role                                                                                   |
@@ -421,9 +423,10 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   removed by `ChatTrashRepository.dropLateImage` the same way, after the writes before. An image whose entry is not
   stored at all (its insert failed) keeps its file and fails. The services and the other repositories never move or
   remove these files themselves.
-- **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
-  brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
-  `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
+- **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`,
+  `chat_entries.completed_at`, `generated_images.downloaded_at`), of the brainstorm sessions (`created_at`,
+  `updated_at`; a session has no trash and is deleted for good) and the `deleted_at` of moods, frames, blocks and
+  palettes hold epoch milliseconds of the local time (`setTimestamp`);
   `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read counts as deleted now
   (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames, blocks and palettes are
   still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates); nothing reads them.

@@ -21,7 +21,8 @@
  * it also removes the file of an image a generation delivered after its entry or chat went to the trash, which
  * {@link ChatRepository} did not save ({@link ChatTrashRepository#dropLateImage}).</p>
  *
- * <p>Time columns: {@code created_at}, {@code deleted_at} and {@code updated_at} of the chats, entries and images,
+ * <p>Time columns: {@code created_at} and {@code deleted_at} of the chats, entries and images, the {@code updated_at}
+ * of the chats, the {@code completed_at} of the entries and the {@code downloaded_at} of the images,
  * {@code created_at} and {@code updated_at} of the brainstorm sessions (which have no trash and are deleted for good)
  * and the {@code deleted_at} of moods, frames, blocks and palettes are written as epoch milliseconds with
  * {@code setTimestamp(Timestamp.valueOf(LocalDateTime.now()))}, i.e. the local time of the writer as an instant, and
