@@ -391,13 +391,17 @@ public class ChatRepository {
 
     // ========== Generated Image Operations ==========
 
-    /*  whether the entry is stored and not deleted  */
-    private static boolean chatEntryExistsAndActive(Connection conn, String entryId) throws SQLException {
+    /*  whether the entry is stored and not deleted, and, if asked, its chat is not deleted either  */
+    private static boolean chatEntryExistsAndActive(Connection conn, String entryId, boolean chatActive)
+            throws SQLException {
         if (entryId == null)
             return false;
 
-        try (PreparedStatement stmt = conn.prepareStatement(
-                "SELECT 1 FROM chat_entries WHERE id = ? AND deleted_at IS NULL")) {
+        String sql = chatActive
+                ? "SELECT 1 FROM chat_entries e JOIN chats c ON c.id = e.chat_id"
+                        + " WHERE e.id = ? AND e.deleted_at IS NULL AND c.deleted_at IS NULL"
+                : "SELECT 1 FROM chat_entries WHERE id = ? AND deleted_at IS NULL";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, entryId);
             try (ResultSet rs = stmt.executeQuery()) {
                 return rs.next();
@@ -406,25 +410,54 @@ public class ChatRepository {
     }
 
     /**
-     * Saves a generated image to the database (insert or update). An image whose entry is deleted or not stored is
-     * not saved, on purpose and without an error: a generation that finishes after its entry went to the trash
-     * leaves no image behind. Only a debug message tells about it.
+     * Saves an image of a generation to the database (insert or update). An image whose entry is not stored, or whose
+     * entry or chat is in the trash, is dropped, on purpose and without an error: a generation that finishes after
+     * its entry or chat went to the trash leaves no image behind. The trash moved the files of the images it found,
+     * so the file of such a late image, written into the folder of the images in use, is removed here; its row is not
+     * written, and a chat restored later shows the entry without it. Only a debug message tells about it.
      *
      * @param image the image to save
      * @throws SQLException if database operation fails
      */
     public void saveGeneratedImage(GeneratedImage image) throws SQLException {
-        databaseManager.inTransaction((Connection conn) -> {
-            if (!chatEntryExistsAndActive(conn, image.getChatEntryId())) {
-                logger.debug("Image {} not saved: its entry {} is deleted or not stored", image.getId(),
-                        image.getChatEntryId());
-                return null;
-            }
+        if (save(image, true))
+            return;
+        logger.debug("Image {} not saved: its entry {} or chat is deleted or not stored", image.getId(),
+                image.getChatEntryId());
+        if (image.getLocalFilePath() == null)
+            return;
+        try {
+            java.nio.file.Files.deleteIfExists(java.nio.file.Path.of(image.getLocalFilePath()));
+        }
+        catch (java.io.IOException | RuntimeException e) {
+            logger.warn("The file of the dropped image {} could not be removed: {}", image.getId(),
+                    image.getLocalFilePath(), e);
+        }
+    }
+
+    /**
+     * Stores the state of an image the load corrected, also of a chat in the trash, whose images stay where the trash
+     * put them. An image whose entry is deleted or not stored is skipped without an error.
+     *
+     * @param image the image to save
+     * @throws SQLException if database operation fails
+     */
+    public void saveRepairedImage(GeneratedImage image) throws SQLException {
+        if (!save(image, false))
+            logger.debug("Image {} not saved: its entry {} is deleted or not stored", image.getId(),
+                    image.getChatEntryId());
+    }
+
+    /*  inserts or updates an image whose entry (and, if asked, chat) is in use; false if it was not saved  */
+    private boolean save(GeneratedImage image, boolean chatActive) throws SQLException {
+        return databaseManager.inTransaction((Connection conn) -> {
+            if (!chatEntryExistsAndActive(conn, image.getChatEntryId(), chatActive))
+                return false;
             if (exists(conn, "generated_images", image.getId()))
                 updateGeneratedImage(conn, image);
             else
                 insertGeneratedImage(conn, image);
-            return null;
+            return true;
         });
     }
 

@@ -261,6 +261,37 @@ class ChatRepositoryTest {
         assertEquals("flux_20261116_173617_gemini31flashimage_c8db09f7.png", stored.getFileName());
     }
 
+    @Test
+    void aLateImageOfAChatInTheTrashIsDroppedWithItsFile() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("a harbor").build());
+        GeneratedImage pending = new GeneratedImage.Builder().chatEntryId(entry.getId())
+                .downloadStatus(GeneratedImage.DownloadStatus.PENDING).build();
+        repository.saveGeneratedImage(pending);
+        assertTrue(trash.softDeleteChat(chat.getId()));
+
+        /*  the generation finishes afterwards: its file was written into the folder of the images in use  */
+        Path file = java.nio.file.Files.writeString(tempDir.resolve("late-" + pending.getId() + ".png"), "png");
+        GeneratedImage late = new GeneratedImage.Builder().chatEntryId(entry.getId())
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        late.setLocalFilePath(file.toString());
+        repository.saveGeneratedImage(late);
+        pending.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
+        repository.saveGeneratedImage(pending);
+
+        assertFalse(java.nio.file.Files.exists(file), "no file stays behind in the folder of the images in use");
+        List<GeneratedImage> stored = repository.findGeneratedImagesByEntry(entry.getId());
+        assertEquals(List.of(pending.getId()), stored.stream().map(GeneratedImage::getId).toList());
+        assertEquals(GeneratedImage.DownloadStatus.PENDING, stored.get(0).getDownloadStatus(),
+                "the row the trash found stays as it went to the trash");
+
+        /*  what the load corrects is still stored for a chat in the trash  */
+        pending.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+        repository.saveRepairedImage(pending);
+        assertEquals(GeneratedImage.DownloadStatus.FAILED,
+                repository.findGeneratedImageById(pending.getId()).orElseThrow().getDownloadStatus());
+    }
+
     private Chat chat() throws Exception {
         Chat chat = new Chat.Builder().name("Hafen").build();
         repository.saveChat(chat);
