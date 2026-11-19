@@ -4,6 +4,7 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelParameters;
 import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 
@@ -45,7 +46,8 @@ public interface GeminiApiService extends ImageProvider {
         request.setImageSize(imageSize(model));
         if (options.googleSearch() != null)
             request.setEnableGoogleSearch(options.googleSearch());
-        request.setThinkingMode(model.supportsThinkingLevel() && options.thinkingLevel() != null
+        request.setThinkingMode(model.parameter(ModelParameters.THINKING_LEVEL.name()) != null
+                && options.thinkingLevel() != null
                 ? options.thinkingLevel().toLowerCase() : null);
         List<String> referenceImages = options.referenceImages();
         if (model.supportsMultiImage() && !referenceImages.isEmpty())
@@ -53,7 +55,8 @@ public interface GeminiApiService extends ImageProvider {
 
         if (model.isVideoModel()) {
             request.setVideoResolution(model.getVideoResolution());
-            request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds() : 8);
+            request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds()
+                    : ModelParameters.DEFAULT_VIDEO_SECONDS);
             request.setGenerateAudio(true);
             request.setImageCount(1);
         }

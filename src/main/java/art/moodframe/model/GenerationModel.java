@@ -666,6 +666,28 @@ public enum GenerationModel {
     }
 
     /**
+     * Gets the parameters this model takes besides prompt, target and reference images, see
+     * {@link ModelParameters#of(GenerationModel)}.
+     *
+     * @return the parameters with their limits and defaults, empty for none
+     * @since 2.1.3
+     */
+    public java.util.List<ModelParameter> parameters() {
+        return ModelParameters.of(this);
+    }
+
+    /**
+     * Gets a parameter this model takes by its name.
+     *
+     * @param name the name, e.g. {@code guidance}
+     * @return the parameter, null if the model does not take it
+     * @since 2.1.3
+     */
+    public ModelParameter parameter(String name) {
+        return ModelParameters.find(this, name);
+    }
+
+    /**
      * Checks if a YouTube video can be passed directly as context for the image (video-to-image).
      *
      * @return true for Nano Banana 2 and Nano Banana 2 Lite

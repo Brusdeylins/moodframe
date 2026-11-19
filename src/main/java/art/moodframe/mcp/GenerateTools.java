@@ -8,6 +8,8 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.model.ModelParameter;
+import art.moodframe.model.ModelParameters;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.chat.ChatLibrary;
@@ -120,14 +122,13 @@ class GenerateTools {
                         + "one takes the default of MoodFrame")
                 .put("additionalProperties", false);
         ObjectNode paramSchemas = params.putObject("properties");
-        paramSchemas.putObject("seed").put("type", "integer");
-        paramSchemas.putObject("safetyTolerance").put("type", "integer");
-        paramSchemas.putObject("promptUpsampling").put("type", "boolean");
-        paramSchemas.putObject("guidance").put("type", "number");
-        paramSchemas.putObject("steps").put("type", "integer");
-        paramSchemas.putObject("thinkingLevel").put("type", "string");
-        paramSchemas.putObject("googleSearch").put("type", "boolean");
-        paramSchemas.putObject("videoSeconds").put("type", "integer");
+        for (ModelParameter parameter : ModelParameters.all())
+            paramSchemas.putObject(parameter.name()).put("type", switch (parameter.type()) {
+                case INTEGER -> "integer";
+                case NUMBER -> "number";
+                case BOOLEAN -> "boolean";
+                case CHOICE -> "string";
+            });
         order.set("params", params);
 
         ObjectNode preview = order.deepCopy();
@@ -326,39 +327,59 @@ class GenerateTools {
                         + ", see get_capabilities");
         }
 
-        Long seed = null;
-        if (params.hasNonNull("seed")) {
-            if (!params.get("seed").isIntegralNumber())
-                throw new McpTools.ToolException("The parameter 'seed' must be an integer");
-            seed = params.get("seed").asLong();
+        Number seed = (Number) value(params, model.parameter(ModelParameters.SEED.name()));
+        Number safety = (Number) value(params, model.parameter(ModelParameters.SAFETY_TOLERANCE.name()));
+        Number guidance = valueOrDefault(params, model.parameter(ModelParameters.GUIDANCE.name()));
+        Number steps = valueOrDefault(params, model.parameter(ModelParameters.STEPS.name()));
+        String thinkingLevel = (String) value(params, model.parameter(ModelParameters.THINKING_LEVEL.name()));
+        Boolean googleSearch = (Boolean) value(params, model.parameter(ModelParameters.GOOGLE_SEARCH.name()));
+        Number videoSeconds = valueOrDefault(params, model.parameter(ModelParameters.VIDEO_SECONDS));
+        Boolean upsampling = (Boolean) value(params, model.parameter(ModelParameters.PROMPT_UPSAMPLING.name()));
+        int tolerance = safety != null ? safety.intValue() : config.generation().getFlux2SafetyTolerance();
+        return new GenerationOrder.Parameters(seed != null ? seed.longValue() : null, tolerance,
+                safety != null ? safety.intValue() : null, upsampling != null && upsampling, thinkingLevel,
+                googleSearch, guidance != null ? guidance.doubleValue() : null,
+                steps != null ? steps.intValue() : null, videoSeconds != null ? videoSeconds.intValue() : null);
+    }
+
+    /*  the value of a parameter the model takes, the default of the settings or the provider without one  */
+    private Number valueOrDefault(JsonNode params, ModelParameter parameter) throws McpTools.ToolException {
+        Object value = value(params, parameter);
+        return (Number) (value != null || parameter == null ? value : LibraryTools.defaultOf(config, parameter));
+    }
+
+    /*  the value of a parameter, checked against its description; null if it is missing or the model takes none  */
+    private static Object value(JsonNode params, ModelParameter parameter) throws McpTools.ToolException {
+        if (parameter == null || !params.hasNonNull(parameter.name()))
+            return null;
+        String name = parameter.name();
+        JsonNode value = params.get(name);
+        switch (parameter.type()) {
+            case BOOLEAN:
+                return McpTools.flag(params, name, false);
+            case CHOICE:
+                return McpTools.choice(params, name, parameter.choices().stream().map(String::valueOf).toList(),
+                        null);
+            case NUMBER:
+                if (!value.isNumber() || !parameter.accepts(value.asDouble()))
+                    throw new McpTools.ToolException("The parameter '" + name + "' must be a number "
+                            + parameter.range());
+                return value.asDouble();
+            default:
+                if (parameter.minimum() != null && parameter.maximum() != null)
+                    return McpTools.number(params, name, parameter.minimum().intValue(),
+                            parameter.maximum().intValue(), 0);
+                if (!parameter.choices().isEmpty()) {
+                    int choice = McpTools.number(params, name, 1, Integer.MAX_VALUE, 0);
+                    if (!parameter.accepts(choice))
+                        throw new McpTools.ToolException("The parameter '" + name + "' must be one of "
+                                + parameter.choices());
+                    return choice;
+                }
+                if (!value.isIntegralNumber())
+                    throw new McpTools.ToolException("The parameter '" + name + "' must be an integer");
+                return value.asLong();
         }
-        Integer safety = params.hasNonNull("safetyTolerance")
-                ? McpTools.number(params, "safetyTolerance", 0, 5, 0) : null;
-        Double guidance = null;
-        if (params.hasNonNull("guidance")) {
-            JsonNode value = params.get("guidance");
-            if (!value.isNumber() || value.asDouble() < 1.5 || value.asDouble() > 10.0)
-                throw new McpTools.ToolException("The parameter 'guidance' must be a number from 1.5 to 10");
-            guidance = value.asDouble();
-        }
-        else if (model.isFlux2Flex())
-            guidance = config.generation().getFlux2FlexGuidance();
-        Integer steps = params.hasNonNull("steps") ? Integer.valueOf(McpTools.number(params, "steps", 1, 50, 0))
-                : model.isFlux2Flex() ? Integer.valueOf(config.generation().getFlux2FlexSteps()) : null;
-        String thinkingLevel = params.hasNonNull("thinkingLevel")
-                ? McpTools.choice(params, "thinkingLevel", List.of("minimal", "high"), null) : null;
-        Boolean googleSearch = params.hasNonNull("googleSearch") ? McpTools.flag(params, "googleSearch", false)
-                : null;
-        Integer videoSeconds = null;
-        if (model.isVideoModel()) {
-            videoSeconds = McpTools.number(params, "videoSeconds", 1, Integer.MAX_VALUE, 8);
-            if (!model.getVideoDurationChoices().contains(videoSeconds))
-                throw new McpTools.ToolException("The parameter 'videoSeconds' must be one of "
-                        + model.getVideoDurationChoices());
-        }
-        int tolerance = safety != null ? safety : config.generation().getFlux2SafetyTolerance();
-        return new GenerationOrder.Parameters(seed, tolerance, safety, McpTools.flag(params, "promptUpsampling",
-                false), thinkingLevel, googleSearch, guidance, steps, videoSeconds);
     }
 
     private static List<String> names(ObjectNode node) {

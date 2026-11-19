@@ -667,11 +667,13 @@ public class ImageGenerationRequest {
         }
 
         // Validate FLUX.2 [flex] parameters
-        if (guidance != null && (guidance < 1.5 || guidance > 10.0)) {
-            throw new IllegalArgumentException("Guidance must be between 1.5 and 10.0");
+        if (guidance != null && !ModelParameters.GUIDANCE.accepts(guidance)) {
+            throw new IllegalArgumentException("Guidance must be between " + ModelParameters.GUIDANCE.minimum()
+                    + " and " + ModelParameters.GUIDANCE.maximum());
         }
-        if (steps != null && (steps < 1 || steps > 50)) {
-            throw new IllegalArgumentException("Steps must be between 1 and 50");
+        if (steps != null && !ModelParameters.STEPS.accepts(steps)) {
+            throw new IllegalArgumentException("Steps must be between " + ModelParameters.STEPS.minimum() + " and "
+                    + ModelParameters.STEPS.maximum());
         }
 
         // Validate Gemini Omni video parameters (the duration is put into the prompt)

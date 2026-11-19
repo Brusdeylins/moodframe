@@ -6,6 +6,7 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelParameters;
 
 /**
  * Service interface for interacting with the BlackForest Labs (BFL) API.
@@ -70,14 +71,14 @@ public interface BflApiService extends ImageProvider {
     }
 
     /**
-     * Sets the safety tolerance of FLUX.2 and FLUX 3, the resolution tier of FLUX 3, guidance and steps of FLUX.2
-     * [flex] and the reference images (FLUX 3 up to 10, FLUX.2 up to 8); FLUX.2 [max] grounds on its own by the
+     * Sets the parameters the model takes ({@link GenerationModel#parameters()}: the safety tolerance of FLUX.2 and
+     * FLUX 3, guidance and steps of FLUX.2 [flex]), the resolution tier of FLUX 3 and the reference images (FLUX 3 up to 10, FLUX.2 up to 8); FLUX.2 [max] grounds on its own by the
      * prompt.
      */
     @Override
     default void prepare(ImageGenerationRequest request, GenerationModel model, RequestOptions options) {
         List<String> referenceImages = options.referenceImages();
-        if (model.isFlux2Model() || model.isFlux3Model())
+        if (model.parameter(ModelParameters.SAFETY_TOLERANCE.name()) != null)
             request.setSafetyTolerance(options.fluxSafetyTolerance());
 
         if (model.isFlux3Model()) {
@@ -87,12 +88,10 @@ public interface BflApiService extends ImageProvider {
         }
 
         if (model.isFlux2Model()) {
-            if (model.isFlux2Flex()) {
-                if (options.guidance() != null)
-                    request.setGuidance(options.guidance());
-                if (options.steps() != null)
-                    request.setSteps(options.steps());
-            }
+            if (options.guidance() != null && model.parameter(ModelParameters.GUIDANCE.name()) != null)
+                request.setGuidance(options.guidance());
+            if (options.steps() != null && model.parameter(ModelParameters.STEPS.name()) != null)
+                request.setSteps(options.steps());
             if (model.supportsMultiImage() && !referenceImages.isEmpty())
                 request.setInputImages(referenceImages);
         }
