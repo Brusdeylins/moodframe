@@ -688,15 +688,6 @@ public enum GenerationModel {
     }
 
     /**
-     * Checks if a YouTube video can be passed directly as context for the image (video-to-image).
-     *
-     * @return true for Nano Banana 2 and Nano Banana 2 Lite
-     */
-    public boolean supportsVideoSource() {
-        return supportsExtendedAspectRatios();
-    }
-
-    /**
      * Checks if this model generates video (as opposed to images).
      *
      * @return true if this is a video generation model

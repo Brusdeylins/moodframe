@@ -100,7 +100,7 @@ final class GeminiImageClient {
 
                         // Check for content blocking before extracting image
                         ProviderException blockingReason = checkForContentBlocking(responseBody,
-                                request.hasInputImage(), request.hasVideoSource());
+                                request.hasInputImage());
                         if (blockingReason != null) {
                             logger.info("Gemini content blocked: {}", blockingReason.getMessage(Locale.ENGLISH));
                             return new GenerationJobInfo.Builder()
@@ -165,20 +165,6 @@ final class GeminiImageClient {
 
         if (imageCount > 0) {
             logger.info("Gemini request includes {} input image(s)", imageCount);
-        }
-
-        // Direct video-to-image context (Nano Banana 2 and Lite only):
-        // pass a YouTube video as multimodal context alongside the prompt.
-        if (request.hasVideoSource()) {
-            GenerationModel videoModel = GenerationModel.fromApiModelId(request.getModel());
-            if (videoModel != null && videoModel.supportsVideoSource()) {
-                addGeminiVideoPart(parts, request.getVideoSourceUrl(),
-                        request.getVideoStartOffsetSeconds(), request.getVideoEndOffsetSeconds());
-                logger.info("Gemini request includes a direct video source: {}", request.getVideoSourceUrl());
-            } else {
-                logger.warn("Ignoring video source for model {} (only Nano Banana 2 and Lite support video-to-image)",
-                        request.getModel());
-            }
         }
 
         content.put("parts", parts);
@@ -253,8 +239,7 @@ final class GeminiImageClient {
      * @param hasInputImage whether an input image was attached to the request
      * @return the reason if blocked, null if not blocked
      */
-    static ProviderException checkForContentBlocking(String responseBody, boolean hasInputImage,
-            boolean hasVideoSource) {
+    static ProviderException checkForContentBlocking(String responseBody, boolean hasInputImage) {
         try {
             JSONObject json = new JSONObject(responseBody);
 
@@ -336,8 +321,7 @@ final class GeminiImageClient {
                                     ProviderException.localized("gemini.error.prohibited");
                                 case "IMAGE_OTHER" ->
                                     ProviderException.localized("gemini.error.image.other");
-                                case "NO_IMAGE" -> ProviderException.localized(hasVideoSource
-                                        ? "gemini.error.no.image.video" : "gemini.error.no.image");
+                                case "NO_IMAGE" -> ProviderException.localized("gemini.error.no.image");
                                 case "RECITATION", "IMAGE_RECITATION" ->
                                     ProviderException.localized("gemini.error.recitation");
                                 case "OTHER" ->
@@ -455,45 +439,6 @@ final class GeminiImageClient {
         inlineData.put("data", base64Image);
         imagePart.put("inline_data", inlineData);
         parts.put(imagePart);
-    }
-
-    /**
-     * Adds a video file_data part (YouTube URL) to the parts array for
-     * video-to-image generation with gemini-3.1-flash-image.
-     *
-     * <p>Mirrors the structure used by {@code buildYouTubeAnalysisRequestBody}:
-     * a part holding {@code file_data.fileUri} plus an optional sibling
-     * {@code video_metadata} with {@code start_offset}/{@code end_offset}.</p>
-     *
-     * @param parts the JSONArray of parts to add the video to
-     * @param videoUrl the YouTube URL
-     * @param startSec optional start offset in seconds (null/0 = from start)
-     * @param endSec optional end offset in seconds (null/0 = until end)
-     */
-    private static void addGeminiVideoPart(JSONArray parts, String videoUrl, Integer startSec, Integer endSec) {
-        JSONObject fileDataPart = new JSONObject();
-        JSONObject fileData = new JSONObject();
-        fileData.put("fileUri", videoUrl.trim());
-        fileDataPart.put("file_data", fileData);
-
-        int start = startSec != null ? startSec : 0;
-        int end = endSec != null ? endSec : 0;
-        if (start > 0 || end > 0) {
-            JSONObject videoMetadata = new JSONObject();
-            if (start > 0) {
-                JSONObject startOffset = new JSONObject();
-                startOffset.put("seconds", start);
-                videoMetadata.put("start_offset", startOffset);
-            }
-            if (end > 0) {
-                JSONObject endOffset = new JSONObject();
-                endOffset.put("seconds", end);
-                videoMetadata.put("end_offset", endOffset);
-            }
-            fileDataPart.put("video_metadata", videoMetadata);
-        }
-
-        parts.put(fileDataPart);
     }
 
     /**

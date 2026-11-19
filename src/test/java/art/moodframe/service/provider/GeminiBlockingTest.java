@@ -17,7 +17,7 @@ class GeminiBlockingTest {
     @Test
     void aBlockedPromptNamesTheAttachedImageInEveryLanguage() {
         ProviderException blocked = GeminiImageClient.checkForContentBlocking(
-                "{\"promptFeedback\":{\"blockReason\":\"SAFETY\"}}", true, false);
+                "{\"promptFeedback\":{\"blockReason\":\"SAFETY\"}}", true);
         assertEquals(I18nManager.getTextIn(Locale.ENGLISH, "gemini.error.safety.with.image"),
                 blocked.getMessage(Locale.ENGLISH));
         assertEquals(I18nManager.getTextIn(Locale.GERMAN, "gemini.error.safety.with.image"),
@@ -27,14 +27,14 @@ class GeminiBlockingTest {
     @Test
     void aFinishReasonOrAnUnknownReasonIsLocalizable() {
         ProviderException recitation = GeminiImageClient.checkForContentBlocking(
-                "{\"candidates\":[{\"finishReason\":\"IMAGE_RECITATION\"}]}", false, false);
+                "{\"candidates\":[{\"finishReason\":\"IMAGE_RECITATION\"}]}", false);
         assertEquals(I18nManager.getTextIn(Locale.ENGLISH, "gemini.error.recitation"),
                 recitation.getMessage(Locale.ENGLISH));
         ProviderException unknown = GeminiImageClient.checkForContentBlocking(
-                "{\"promptFeedback\":{\"blockReason\":\"NEW_REASON\"}}", false, false);
+                "{\"promptFeedback\":{\"blockReason\":\"NEW_REASON\"}}", false);
         assertEquals(I18nManager.getTextIn(Locale.ENGLISH, "gemini.error.default", "NEW_REASON"),
                 unknown.getMessage(Locale.ENGLISH));
-        assertNull(GeminiImageClient.checkForContentBlocking("{\"candidates\":[{\"finishReason\":\"STOP\"}]}", false,
+        assertNull(GeminiImageClient.checkForContentBlocking("{\"candidates\":[{\"finishReason\":\"STOP\"}]}",
                 false));
     }
 

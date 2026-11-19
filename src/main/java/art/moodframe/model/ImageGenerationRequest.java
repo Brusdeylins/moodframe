@@ -1,7 +1,5 @@
 package art.moodframe.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -15,33 +13,24 @@ import java.util.List;
  * 
  * @since 1.0.0
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ImageGenerationRequest {
     
-    @JsonProperty("prompt")
     private String prompt;
     
     // Note: Model is determined by endpoint, not a request parameter
     
-    @JsonProperty("width")
     private Integer width;
     
-    @JsonProperty("height")
     private Integer height;
     
-    @JsonProperty("output_format")
     private String outputFormat;
     
-    @JsonProperty("safety_tolerance")
     private Integer safetyTolerance;
     
-    @JsonProperty("prompt_upsampling")
     private Boolean promptUpsampling;
     
-    @JsonProperty("seed")
     private Long seed;
     
-    @JsonProperty("aspect_ratio")
     private String aspectRatio;
     
     // Image count (handled at client level, not API level) - NOT part of BFL API
@@ -65,10 +54,8 @@ public class ImageGenerationRequest {
     private String thinkingMode; // "off", "low", "high" - unified for both Gemini 2.5 and 3
 
     // FLUX.2 specific parameters
-    @JsonProperty("guidance")
     private Double guidance; // FLUX.2 [flex] only: 1.5-10.0, controls prompt adherence
 
-    @JsonProperty("steps")
     private Integer steps; // FLUX.2 [flex] only: 1-50, inference steps
 
     // Note: grounding_search parameter was removed as it does not exist in the BFL API
@@ -77,13 +64,6 @@ public class ImageGenerationRequest {
     // Video-specific parameters (Gemini Omni)
     private String videoResolution;     // "360p", "720p", "1080p", "4k"
     private Integer videoDuration;      // 3 to 10 seconds
-    private Boolean generateAudio;      // Enable native audio generation (default: false)
-
-    // Video-to-image source (gemini-3.1-flash-image only): a YouTube video passed
-    // directly as multimodal context to generate thumbnails/posters/infographics.
-    private String videoSourceUrl;           // YouTube URL used as file_data context
-    private Integer videoStartOffsetSeconds; // optional start offset (seconds)
-    private Integer videoEndOffsetSeconds;   // optional end offset (seconds, 0/null = end)
 
     // Cost tracking - actual model base cost (not sent to API, for internal tracking)
     private Double baseCostPerImage; // The actual model's base generation cost
@@ -504,28 +484,6 @@ public class ImageGenerationRequest {
     public Integer getVideoDuration() { return videoDuration; }
     public void setVideoDuration(Integer videoDuration) { this.videoDuration = videoDuration; }
 
-    public Boolean getGenerateAudio() { return generateAudio; }
-    public void setGenerateAudio(Boolean generateAudio) { this.generateAudio = generateAudio; }
-
-    public String getVideoSourceUrl() { return videoSourceUrl; }
-    public void setVideoSourceUrl(String videoSourceUrl) { this.videoSourceUrl = videoSourceUrl; }
-
-    public Integer getVideoStartOffsetSeconds() { return videoStartOffsetSeconds; }
-    public void setVideoStartOffsetSeconds(Integer videoStartOffsetSeconds) { this.videoStartOffsetSeconds = videoStartOffsetSeconds; }
-
-    public Integer getVideoEndOffsetSeconds() { return videoEndOffsetSeconds; }
-    public void setVideoEndOffsetSeconds(Integer videoEndOffsetSeconds) { this.videoEndOffsetSeconds = videoEndOffsetSeconds; }
-
-    /**
-     * Checks whether a direct video source (YouTube URL) is attached for
-     * video-to-image generation.
-     *
-     * @return true if a non-empty video source URL is present
-     */
-    public boolean hasVideoSource() {
-        return videoSourceUrl != null && !videoSourceUrl.trim().isEmpty();
-    }
-
     /**
      * Checks if a model id belongs to the OpenAI provider: an OpenAI image model, or any model of an OpenAI-compatible
      * gateway (e.g. {@code qwen-image-2.1}), as all BFL ids start with {@code flux.} and Gemini ids contain
@@ -586,15 +544,6 @@ public class ImageGenerationRequest {
                 if (!isFlux && !lowerModel.contains("gemini") && !isOpenAiModel) {
                     throw new IllegalArgumentException("Input image is only supported with FLUX 3, FLUX.2, Gemini, and OpenAI models");
                 }
-            }
-        }
-
-        // Validate direct video source (only Nano Banana 2 and Lite support it)
-        if (hasVideoSource()) {
-            GenerationModel videoModel = GenerationModel.fromApiModelId(model);
-            if (videoModel == null || !videoModel.supportsVideoSource()) {
-                throw new IllegalArgumentException(
-                        "Video source input is only supported with Nano Banana 2 and Nano Banana 2 Lite");
             }
         }
 
