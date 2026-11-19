@@ -10,7 +10,7 @@
  * {@link ImageSources}</li>
  * <li>{@link ImageGrid}: the images of a chat or a group in a grid</li>
  * <li>{@link ImagePreviewOverlay}: the large preview of an image or video, which plays a video with
- * {@link VideoPlayback}</li>
+ * {@link VideoPlayback} and keeps its zoom and pan in {@link ZoomLevel}</li>
  * <li>{@link ImageActionBar}, {@link ImageSizeLabel}, {@link EntryBadge}: the action bar, the size line and the
  * badges the cards and the images view share, and the tooltip of an image from {@link ImageDetails}</li>
  * </ul>
