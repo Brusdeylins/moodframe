@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
@@ -111,14 +112,17 @@ class MoodServiceTest {
 
     @Test
     void renamesAMoodOfTheUserThatIsNamedLikeAStandardMoodAndKeepsItsBlocks() throws Exception {
-        MoodRepository repository = new MoodRepository(DatabaseConfig.getDatabase());
+        MoodRepository repository = new MoodRepository(TestDatabase.get());
         Mood clash = new Mood(null, "Lifestyle Product");
         clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
         assertTrue(repository.save(clash));
 
-        TestLibraryServices.moods(blocks, colors);
+        MoodService created = TestLibraryServices.moods(blocks, colors);
+        assertEquals("Lifestyle Product", repository.findById(clash.getId()).orElseThrow().getName(),
+                "creating the service writes nothing");
+        created.start();
 
-        Mood renamed = repository.findById(clash.getId());
+        Mood renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Lifestyle Product (1)", renamed.getName());
         assertEquals(Map.of(Mood.Field.CAMERA, "std:camera:classic-portrait"), renamed.getReferences());
         assertEquals("std:mood:lifestyle-product", moods.find("std:mood:lifestyle-product").getId());
@@ -424,7 +428,7 @@ class MoodServiceTest {
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getDatabase().getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }
@@ -443,7 +447,7 @@ class MoodServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        MoodService service = new MoodService(database, blocks, colors, new LibraryEvents());
+        MoodService service = new MoodService(new MoodRepository(database), blocks, colors, new LibraryEvents());
         Mood own = new Mood(null, "Own Mood");
         assertTrue(service.add(own));
 

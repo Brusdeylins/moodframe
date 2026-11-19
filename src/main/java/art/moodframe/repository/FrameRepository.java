@@ -11,13 +11,15 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repository for the frames of the user in SQLite (table {@code frames}).
  *
  * <p>The standard frames come from code and are never stored. The finders skip the frames in the trash
- * ({@code deleted_at} set), except {@link #findDeleted()} and {@link #exists(String)}.</p>
+ * ({@code deleted_at} set), except {@link #findDeleted()} and {@link #exists(String)}; a finder of one frame answers
+ * with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
@@ -133,24 +135,22 @@ public class FrameRepository {
      * Finds a stored frame by its id.
      *
      * @param id the frame id
-     * @return the frame, null if there is none in use
+     * @return the frame, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public Frame findById(String id) throws SQLException {
-        List<Frame> frames = query("SELECT * FROM frames WHERE id = ? AND deleted_at IS NULL", id);
-        return frames.isEmpty() ? null : frames.get(0);
+    public Optional<Frame> findById(String id) throws SQLException {
+        return first(query("SELECT * FROM frames WHERE id = ? AND deleted_at IS NULL", id));
     }
 
     /**
      * Finds a stored frame by its name.
      *
      * @param name the frame name
-     * @return the frame, null if there is none in use
+     * @return the frame, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public Frame findByName(String name) throws SQLException {
-        List<Frame> frames = query("SELECT * FROM frames WHERE name = ? AND deleted_at IS NULL", name);
-        return frames.isEmpty() ? null : frames.get(0);
+    public Optional<Frame> findByName(String name) throws SQLException {
+        return first(query("SELECT * FROM frames WHERE name = ? AND deleted_at IS NULL", name));
     }
 
     /**
@@ -188,6 +188,10 @@ public class FrameRepository {
             stmt.setString(1, value);
             return stmt.executeUpdate();
         }
+    }
+
+    private static Optional<Frame> first(List<Frame> frames) {
+        return frames.isEmpty() ? Optional.empty() : Optional.of(frames.get(0));
     }
 
     private List<Frame> query(String sql, String... values) throws SQLException {

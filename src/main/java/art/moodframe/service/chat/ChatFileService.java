@@ -109,8 +109,9 @@ public class ChatFileService implements ChatFiles {
         // Ensure all thumbnails are deleted (cleanup for any missed thumbnails)
         fileManagerService.deleteAllThumbnailsForChat(chatId, images);
 
-        // Also try to delete the entire chat directory
-        fileManagerService.deleteChatImages(chatId);
+        /*  Also try to delete the entire chat directory, only when the whole chat goes  */
+        if (chatId != null)
+            fileManagerService.deleteChatImages(chatId);
         return allDeleted;
     }
 }

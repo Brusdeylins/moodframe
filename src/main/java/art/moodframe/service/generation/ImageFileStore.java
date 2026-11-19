@@ -15,7 +15,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Locale;
@@ -86,7 +85,7 @@ public class ImageFileStore {
         if (imageUrl == null || imageUrl.trim().isEmpty())
             throw new java.io.IOException("No image URL available for download: " + generatedImage.getId());
 
-        Path imagesDir = Paths.get(config.getImagesPath());
+        Path imagesDir = config.paths().images();
         Files.createDirectories(imagesDir);
 
         HttpResponse<byte[]> downloadResponse = fetch(imageUrl, Map.of(), IMAGE_TIMEOUT,
@@ -150,7 +149,7 @@ public class ImageFileStore {
 
     /*  the directory of the images and videos  */
     private Path imagesDirectory() {
-        return Paths.get(config.getImagesPath());
+        return config.paths().images();
     }
 
     /*  the one download of the store: GET with the headers of the provider, a status other than 200 fails with the
@@ -229,7 +228,7 @@ public class ImageFileStore {
         }
 
         String fileExtension = detectedFormat.toLowerCase();
-        Path imagesDir = Paths.get(config.getImagesPath());
+        Path imagesDir = config.paths().images();
         Files.createDirectories(imagesDir);
         String filename = filenameWithoutExtension(generatedImage) + "." + fileExtension;
         Path imagePath = imagesDir.resolve(filename);

@@ -2,6 +2,7 @@ package art.moodframe.service.trash;
 
 import art.moodframe.model.Chat;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.chat.ChatTrashGroup;
 import org.junit.jupiter.api.Test;
 
@@ -22,11 +23,12 @@ class TrashCleanupServiceTest {
         Chat failing = new Chat.Builder().id("stuck").deletedAt(LocalDateTime.now().minusDays(90)).build();
         ChatRepository repository = mock(ChatRepository.class);
         when(repository.findDeletedChats()).thenReturn(List.of(expired, recent, failing));
-        when(repository.deleteChatPermanently("old")).thenReturn(true);
-        when(repository.deleteChatPermanently("stuck")).thenReturn(false);
+        ChatTrashRepository trash = mock(ChatTrashRepository.class);
+        when(trash.deleteChatPermanently("old")).thenReturn(true);
+        when(trash.deleteChatPermanently("stuck")).thenReturn(false);
 
         TrashCenter center = new TrashCenter();
-        center.register(new ChatTrashGroup(repository));
+        center.register(new ChatTrashGroup(repository, trash));
         TrashCleanupService service = new TrashCleanupService(center, 60);
         List<String> reported = new ArrayList<>();
         center.addListener(new TrashCenter.Listener() {

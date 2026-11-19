@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -26,7 +27,8 @@ import java.util.UUID;
  * </ul>
  *
  * <p>The finders skip color styles in the trash ({@code deleted_at} set); the name checks do not,
- * as such a name stays taken (unique column) until the style is deleted for good.</p>
+ * as such a name stays taken (unique column) until the style is deleted for good. A finder of one style answers
+ * with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
@@ -158,10 +160,10 @@ public class ColorStyleRepository {
      * Finds a color style by its ID.
      *
      * @param id the ID of the color style
-     * @return the color style if found, null otherwise
+     * @return the color style, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public ColorStyle findById(String id) throws SQLException {
+    public Optional<ColorStyle> findById(String id) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NULL";
 
         try (Connection conn = database.getConnection();
@@ -171,22 +173,22 @@ public class ColorStyleRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return mapResultSetToColorStyle(rs);
+                    return Optional.of(mapResultSetToColorStyle(rs));
                 }
             }
         }
 
-        return null;
+        return Optional.empty();
     }
 
     /**
      * Finds a color style in the trash by its ID.
      *
      * @param id the ID of the color style
-     * @return the color style, null if it is not in the trash
+     * @return the color style, empty if it is not in the trash
      * @throws SQLException if the database fails
      */
-    public ColorStyle findInTrash(String id) throws SQLException {
+    public Optional<ColorStyle> findInTrash(String id) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE id = ? AND deleted_at IS NOT NULL";
 
         try (Connection conn = database.getConnection();
@@ -194,20 +196,20 @@ public class ColorStyleRepository {
             stmt.setString(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next())
-                    return mapResultSetToColorStyle(rs);
+                    return Optional.of(mapResultSetToColorStyle(rs));
             }
         }
-        return null;
+        return Optional.empty();
     }
 
     /**
      * Finds a color style by its name.
      *
      * @param name the name of the color style
-     * @return the color style if found, null otherwise
+     * @return the color style, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public ColorStyle findByName(String name) throws SQLException {
+    public Optional<ColorStyle> findByName(String name) throws SQLException {
         String sql = "SELECT * FROM color_styles WHERE name = ? AND deleted_at IS NULL";
 
         try (Connection conn = database.getConnection();
@@ -217,12 +219,12 @@ public class ColorStyleRepository {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return mapResultSetToColorStyle(rs);
+                    return Optional.of(mapResultSetToColorStyle(rs));
                 }
             }
         }
 
-        return null;
+        return Optional.empty();
     }
 
     /**
@@ -312,20 +314,36 @@ public class ColorStyleRepository {
     }
 
     /**
-     * Moves a color style to the trash or takes it out again.
+     * Moves a color style to the trash.
      *
      * @param id the ID of the color style
-     * @param deletedAt when it was moved to the trash, null to take it out
-     * @return true if the color style was changed
+     * @return true if it was in use and is in the trash now
      * @throws SQLException if the database fails
      */
-    public boolean setDeletedAt(String id, java.time.LocalDateTime deletedAt) throws SQLException {
-        String sql = "UPDATE color_styles SET deleted_at = ? WHERE id = ?";
+    public boolean moveToTrash(String id) throws SQLException {
+        String sql = "UPDATE color_styles SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL";
 
         try (Connection conn = database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setTimestamp(1, deletedAt != null ? Timestamp.valueOf(deletedAt) : null);
+            stmt.setTimestamp(1, Timestamp.valueOf(java.time.LocalDateTime.now()));
             stmt.setString(2, id);
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Takes a color style out of the trash, back into use.
+     *
+     * @param id the ID of the color style
+     * @return true if it was in the trash and is in use now
+     * @throws SQLException if the database fails
+     */
+    public boolean restore(String id) throws SQLException {
+        String sql = "UPDATE color_styles SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL";
+
+        try (Connection conn = database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, id);
             return stmt.executeUpdate() > 0;
         }
     }

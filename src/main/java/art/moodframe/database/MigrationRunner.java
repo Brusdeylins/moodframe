@@ -122,16 +122,13 @@ final class MigrationRunner {
 
     /**
      * Returns true if the given table exists in the database.
+     *
+     * @throws SQLException if the schema cannot be read; a failure is no answer
      */
-    private static boolean tableExists(Connection connection, String tableName) {
-        try {
-            DatabaseMetaData meta = connection.getMetaData();
-            try (ResultSet rs = meta.getTables(null, null, tableName, null)) {
-                return rs.next();
-            }
-        } catch (SQLException e) {
-            logger.warn("Could not check table existence for {}: {}", tableName, e.getMessage());
-            return false;
+    private static boolean tableExists(Connection connection, String tableName) throws SQLException {
+        DatabaseMetaData meta = connection.getMetaData();
+        try (ResultSet rs = meta.getTables(null, null, tableName, null)) {
+            return rs.next();
         }
     }
 
@@ -142,58 +139,51 @@ final class MigrationRunner {
                 || message.contains("UNIQUE constraint failed");
     }
 
+    /*  The columns of V011, video support, with their definitions as V011 adds them  */
+    private static final String[][] V011_COLUMNS = {
+            {"is_video", "BOOLEAN NOT NULL DEFAULT FALSE"},
+            {"video_duration_seconds", "INTEGER DEFAULT 0"},
+            {"video_resolution", "TEXT"},
+            {"has_audio", "BOOLEAN NOT NULL DEFAULT FALSE"},
+            {"negative_prompt", "TEXT"}};
+
     /**
-     * Detects and repairs migrations that were recorded in schema_migrations
-     * but whose schema changes were never actually applied to the database.
-     * This can happen when the legacy-database detection incorrectly marks
-     * new migrations (e.g. V011 video support) as applied without running them.
+     * Detects and repairs migrations that were recorded in schema_migrations but whose schema changes were never
+     * applied, as the former legacy detection could mark V011 (video support) as applied without running it.
+     *
+     * <p>The repair adds only the columns that are missing, so it can run again; it runs in one transaction with
+     * the record of V011. Like the legacy path, a real failure (disk full, lock) surfaces and rolls the repair
+     * back, instead of leaving a half repaired schema behind.</p>
      *
      * @param connection the database connection
+     * @throws SQLException if the schema cannot be read or the repair fails
      */
-    private static void repairIncorrectlySkippedMigrations(Connection connection) {
-        // V011 – video support: check if any of its columns are missing.
-        // SQLite does not roll back ALTER TABLE inside a transaction, so V011 may have
-        // been partially applied (some columns exist, others don't). We add each
-        // column individually and silently skip ones that already exist.
-        boolean anyV011ColumnMissing =
-                !columnExists(connection, "generated_images", "is_video")
-                || !columnExists(connection, "generated_images", "video_duration_seconds")
-                || !columnExists(connection, "generated_images", "video_resolution")
-                || !columnExists(connection, "generated_images", "has_audio")
-                || !columnExists(connection, "generated_images", "negative_prompt");
+    static void repairIncorrectlySkippedMigrations(Connection connection) throws SQLException {
+        List<String> missing = new ArrayList<>();
+        for (String[] column : V011_COLUMNS)
+            if (!columnExists(connection, "generated_images", column[0]))
+                missing.add(column[0]);
+        if (missing.isEmpty())
+            return;
 
-        if (anyV011ColumnMissing) {
-            logger.warn("Schema inconsistency: one or more V011 columns missing – repairing column by column");
-            String[] v011Statements = {
-                "ALTER TABLE generated_images ADD COLUMN is_video BOOLEAN NOT NULL DEFAULT FALSE",
-                "ALTER TABLE generated_images ADD COLUMN video_duration_seconds INTEGER DEFAULT 0",
-                "ALTER TABLE generated_images ADD COLUMN video_resolution TEXT",
-                "ALTER TABLE generated_images ADD COLUMN has_audio BOOLEAN NOT NULL DEFAULT FALSE",
-                "ALTER TABLE generated_images ADD COLUMN negative_prompt TEXT",
-                "CREATE INDEX IF NOT EXISTS idx_generated_images_is_video ON generated_images(is_video)"
-            };
-            for (String sql : v011Statements) {
-                try (Statement stmt = connection.createStatement()) {
-                    stmt.execute(sql);
-                } catch (SQLException e) {
-                    if (e.getMessage() != null && e.getMessage().toLowerCase().contains("duplicate column")) {
-                        logger.info("V011 repair: column already exists, skipping – {}", e.getMessage());
-                    } else {
-                        logger.error("V011 repair: unexpected error executing '{}': {}", sql, e.getMessage());
-                    }
-                }
-            }
-            // Ensure V011 is recorded as applied
-            try {
-                if (!getAppliedMigrations(connection).contains("011")) {
-                    recordMigration(connection, MIGRATIONS.stream()
-                            .filter((Migration m) -> "011".equals(m.version())).findFirst().orElseThrow());
-                }
-            } catch (SQLException e) {
-                logger.error("V011 repair: could not record migration in schema_migrations", e);
-            }
-            logger.info("V011 repair complete – video support schema restored");
+        logger.warn("Schema inconsistency: V011 columns {} missing – repairing them", missing);
+        connection.setAutoCommit(false);
+        try (Statement stmt = connection.createStatement()) {
+            for (String[] column : V011_COLUMNS)
+                if (missing.contains(column[0]))
+                    stmt.execute("ALTER TABLE generated_images ADD COLUMN " + column[0] + " " + column[1]);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_generated_images_is_video ON generated_images(is_video)");
+            if (!getAppliedMigrations(connection).contains("011"))
+                recordMigration(connection, MIGRATIONS.stream()
+                        .filter((Migration m) -> "011".equals(m.version())).findFirst().orElseThrow());
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
         }
+        logger.info("V011 repair complete – video support schema restored");
     }
 
     /**
@@ -203,17 +193,13 @@ final class MigrationRunner {
      * @param tableName  the table to check
      * @param columnName the column to look for
      * @return true if the column exists
+     * @throws SQLException if the schema cannot be read; a failure is no answer
      */
-    private static boolean columnExists(Connection connection, String tableName, String columnName) {
-        try {
-            DatabaseMetaData meta = connection.getMetaData();
-            try (ResultSet rs = meta.getColumns(null, null, tableName, columnName)) {
-                return rs.next();
-            }
-        } catch (SQLException e) {
-            logger.warn("Could not check column existence for {}.{}: {}", tableName, columnName,
-                    e.getMessage());
-            return false;
+    private static boolean columnExists(Connection connection, String tableName, String columnName)
+            throws SQLException {
+        DatabaseMetaData meta = connection.getMetaData();
+        try (ResultSet rs = meta.getColumns(null, null, tableName, columnName)) {
+            return rs.next();
         }
     }
 

@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
+import art.moodframe.repository.ColorStyleRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,7 +26,7 @@ class ColorStyleServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         database.initialize();
-        ColorStyleService service = new ColorStyleService(database, new LibraryEvents());
+        ColorStyleService service = new ColorStyleService(new ColorStyleRepository(database), new LibraryEvents());
         ColorStyle own = new ColorStyle("Own Palette", List.of("#112233"));
         assertTrue(service.addCustomStyle(own));
 

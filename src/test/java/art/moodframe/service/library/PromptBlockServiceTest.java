@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
@@ -241,13 +242,13 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() throws Exception {
-        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
+        PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
 
-        TestLibraryServices.blocks();
+        TestLibraryServices.blocks().start();
 
-        PromptBlock renamed = repository.findById(clash.getId());
+        PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Fog (1)", renamed.getName());
         assertEquals("my own fog", renamed.getText());
         assertEquals("std:atmosphere:fog",
@@ -292,14 +293,14 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAStyleOfTheUserThatIsNamedLikeAStandardStyleAndKeepsItsText() throws Exception {
-        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
+        PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.STYLE, "Infographic Flat", "my own flat look", null,
                 true);
         repository.save(clash);
 
-        TestLibraryServices.blocks();
+        TestLibraryServices.blocks().start();
 
-        PromptBlock renamed = repository.findById(clash.getId());
+        PromptBlock renamed = repository.findById(clash.getId()).orElseThrow();
         assertEquals("Infographic Flat (1)", renamed.getName());
         assertEquals("my own flat look", renamed.getText());
         assertEquals("std:style:infographic-flat",
@@ -338,9 +339,10 @@ class PromptBlockServiceTest {
         ColorStyle own = new ColorStyle("Silver Screen", List.of("#112233", "#445566"), false);
         own.setId("own-silver-screen");
         own.setSortOrder(150);
-        assertTrue(new art.moodframe.repository.ColorStyleRepository(DatabaseConfig.getDatabase()).save(own));
+        assertTrue(new art.moodframe.repository.ColorStyleRepository(TestDatabase.get()).save(own));
 
         ColorStyleService service = TestLibraryServices.palettes();
+        service.start();
         assertTrue(service.isDefaultStyle("Silver Screen"));
         ColorStyle renamed = service.getStyleByName("Silver Screen (1)");
         assertNotNull(renamed);
@@ -351,7 +353,7 @@ class PromptBlockServiceTest {
     void answersADatabaseErrorWithFalseNullOrNothing() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        PromptBlockService service = new PromptBlockService(database, new LibraryEvents());
+        PromptBlockService service = new PromptBlockService(new PromptBlockRepository(database), new LibraryEvents());
         PromptBlock own = new PromptBlock(null, PromptBlock.Type.STYLE, "Own Style", "own", null, true);
         assertTrue(service.addCustom(own));
 

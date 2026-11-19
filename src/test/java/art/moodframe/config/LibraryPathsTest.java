@@ -3,9 +3,11 @@ package art.moodframe.config;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** The folders of the library: where they are by default and that the configured images folder counts. */
 class LibraryPathsTest {
@@ -30,16 +32,28 @@ class LibraryPathsTest {
     }
 
     @Test
-    void aFreshConfigurationWritesTheDefaultFoldersAsBefore() {
+    void aFreshConfigurationWritesTheDefaultImagesFolderAsBefore() {
         LibraryPaths paths = LibraryPaths.under(home);
         ApplicationConfig config = new ApplicationConfig(paths);
 
-        /*  the same strings as the former ~/.moodframe constants, so no stored path moves  */
-        String root = home + "/.moodframe";
-        assertEquals(root + "/images", config.getProperty("path.images"));
-        assertEquals(root + "/db/moodframe.db", config.getProperty("path.database"));
-        assertEquals(root + "/logs", config.getProperty("path.logs"));
+        /*  the same string as the former ~/.moodframe constant, so no stored path moves; the database and the logs
+            are no settings  */
+        assertEquals(home + "/.moodframe/images", config.getProperty("path.images"));
+        assertNull(config.getProperty("path.database"));
+        assertNull(config.getProperty("path.logs"));
         assertEquals(paths, config.paths());
+    }
+
+    @Test
+    void theDatabaseAndTheLogsStayInTheLibraryWhateverAFormerFileSays() throws Exception {
+        LibraryPaths paths = LibraryPaths.under(home);
+        Files.createDirectories(paths.root());
+        Files.writeString(paths.configFile(), "path.database=/elsewhere/other.db\npath.logs=/elsewhere/logs\n");
+
+        ApplicationConfig config = new ApplicationConfig(paths);
+
+        assertEquals(paths.database(), config.paths().database());
+        assertEquals(paths.logs(), config.paths().logs());
     }
 
     @Test

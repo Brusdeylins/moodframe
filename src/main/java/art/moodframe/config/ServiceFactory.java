@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * // Register a lazy provider
  * ServiceFactory.getInstance().registerProvider(FrameService.class,
- *     () -> new FrameService(database, events));
+ *     () -> new FrameService(new FrameRepository(database), events));
  *
  * // Retrieve a service
  * FrameService frames = ServiceFactory.getInstance().getService(FrameService.class);

@@ -11,13 +11,15 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Repository for the moods of the user in SQLite (table {@code moods}).
  *
  * <p>The standard moods come from code and are never stored. The finders skip the moods in the trash
- * ({@code deleted_at} set), except {@link #findDeleted()} and {@link #exists(String)}.</p>
+ * ({@code deleted_at} set), except {@link #findDeleted()} and {@link #exists(String)}; a finder of one mood answers
+ * with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
  *
@@ -130,18 +132,24 @@ public class MoodRepository {
     }
 
     /**
-     * Empties every field of the stored moods, in use or in the trash, that refers to a block.
+     * Empties every field of the stored moods, in use or in the trash, that refers to a block, in one transaction.
      *
      * @param blockId the id of the block
      * @return the number of emptied fields
      * @throws SQLException if the database fails
      */
     public int dropReference(String blockId) throws SQLException {
-        int dropped = 0;
-        for (Mood.Field field : Mood.Field.values())
-            dropped += execute("UPDATE moods SET " + field.column() + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE "
-                    + field.column() + " = ?", blockId);
-        return dropped;
+        return database.inTransaction((Connection conn) -> {
+            int dropped = 0;
+            for (Mood.Field field : Mood.Field.values()) {
+                try (PreparedStatement stmt = conn.prepareStatement("UPDATE moods SET " + field.column()
+                        + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE " + field.column() + " = ?")) {
+                    stmt.setString(1, blockId);
+                    dropped += stmt.executeUpdate();
+                }
+            }
+            return dropped;
+        });
     }
 
     /**
@@ -159,24 +167,22 @@ public class MoodRepository {
      * Finds a stored mood by its id.
      *
      * @param id the mood id
-     * @return the mood, null if there is none in use
+     * @return the mood, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public Mood findById(String id) throws SQLException {
-        List<Mood> moods = query("SELECT * FROM moods WHERE id = ? AND deleted_at IS NULL", id);
-        return moods.isEmpty() ? null : moods.get(0);
+    public Optional<Mood> findById(String id) throws SQLException {
+        return first(query("SELECT * FROM moods WHERE id = ? AND deleted_at IS NULL", id));
     }
 
     /**
      * Finds a stored mood by its name.
      *
      * @param name the mood name
-     * @return the mood, null if there is none in use
+     * @return the mood, empty if there is none in use
      * @throws SQLException if the database fails
      */
-    public Mood findByName(String name) throws SQLException {
-        List<Mood> moods = query("SELECT * FROM moods WHERE name = ? AND deleted_at IS NULL", name);
-        return moods.isEmpty() ? null : moods.get(0);
+    public Optional<Mood> findByName(String name) throws SQLException {
+        return first(query("SELECT * FROM moods WHERE name = ? AND deleted_at IS NULL", name));
     }
 
     /**
@@ -205,6 +211,10 @@ public class MoodRepository {
             stmt.setString(1, value);
             return stmt.executeUpdate();
         }
+    }
+
+    private static Optional<Mood> first(List<Mood> moods) {
+        return moods.isEmpty() ? Optional.empty() : Optional.of(moods.get(0));
     }
 
     private List<Mood> query(String sql, String... values) throws SQLException {
