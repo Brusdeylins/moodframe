@@ -217,8 +217,10 @@ class BrainstormDialogTest {
         CountDownLatch done = new CountDownLatch(1);
         Platform.runLater(() -> {
             try {
+                /*  The worker runs at once, so the stored session is open when the dialog is built  */
                 BrainstormDialog dialog = new BrainstormDialog(null, null, service, context,
-                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), adopted::set);
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), adopted::set,
+                        new BrainstormWorker(Runnable::run, Runnable::run));
                 dialog.getScene().getRoot().applyCss();
                 checks.set(dialog.getScene().getRoot().lookupAll(".check-box").stream()
                         .map((node) -> (CheckBox) node).toList());
@@ -249,6 +251,54 @@ class BrainstormDialogTest {
         assertEquals("Harbor Tele", camera.name());
         assertEquals(tele, camera.settings(), "the new camera is adopted with its settings");
         assertFalse(adopted.get().blocks().containsKey(Mood.Field.LIGHT));
+    }
+
+    @Test
+    void readsTheStoredSessionsOffTheJavaFxThreadAndOpensTheLastOne() throws Exception {
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        List<Boolean> onFxThread = new java.util.concurrent.CopyOnWriteArrayList<>();
+        when(repository.findAllSessions()).thenAnswer((invocation) -> {
+            onFxThread.add(Platform.isFxApplicationThread());
+            return List.of(new BrainstormSession("s1", "Leuchtturm", LocalDateTime.now(), LocalDateTime.now()));
+        });
+        when(repository.findMessages("s1")).thenAnswer((invocation) -> {
+            onFxThread.add(Platform.isFxApplicationThread());
+            return List.of(new art.moodframe.model.BrainstormMessage(art.moodframe.model.BrainstormMessage.ROLE_USER,
+                    "Ein Leuchtturm"));
+        });
+        when(repository.findLatestDraft("s1")).thenAnswer((invocation) -> {
+            onFxThread.add(Platform.isFxApplicationThread());
+            return Optional.of(BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"A lighthouse at dusk\"}")));
+        });
+        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+
+        AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
+        Platform.runLater(() -> dialog.set(new BrainstormDialog(null, null, service, context,
+                ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { })));
+
+        /*  The stored session opens once the worker has read it, its draft fills the prompt  */
+        long until = System.currentTimeMillis() + 10_000;
+        String prompt = "";
+        while (!"A lighthouse at dusk".equals(prompt) && System.currentTimeMillis() < until) {
+            Thread.sleep(50);
+            AtomicReference<String> shown = new AtomicReference<>("");
+            CountDownLatch read = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                if (dialog.get() != null) {
+                    dialog.get().getScene().getRoot().applyCss();
+                    dialog.get().getScene().getRoot().lookupAll(".text-area").stream()
+                            .map((node) -> ((javafx.scene.control.TextArea) node).getText())
+                            .filter((text) -> text.startsWith("A lighthouse")).findFirst().ifPresent(shown::set);
+                }
+                read.countDown();
+            });
+            read.await(5, TimeUnit.SECONDS);
+            prompt = shown.get();
+        }
+        assertEquals("A lighthouse at dusk", prompt);
+        assertEquals(List.of(false, false, false), onFxThread, "the window reads the sessions on its worker");
     }
 
     @Test

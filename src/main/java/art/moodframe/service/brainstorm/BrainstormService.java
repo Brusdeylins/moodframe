@@ -25,6 +25,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Runs the guided brainstorm chat of a window: queues the requests of each session, lets
@@ -32,6 +33,12 @@ import java.util.function.Consumer;
  * Every session is independent: requests of different sessions run in parallel, requests of one session run one
  * after the other, and deleting a session stops its running request. With Gemini, the YouTube videos a message links
  * are watched before the answer, with the message as instruction ({@link BrainstormTools}).
+ *
+ * <p>Threads: {@link #sendUserMessage}, {@link #sendEvent} and {@link #noteAdopted} only queue the request and
+ * return at once, so the JavaFX thread may call them; the request reads and writes the session on a thread of the
+ * queue of its session, after the request before it. Every other method that reads or writes the sessions blocks on
+ * the database and is called off the JavaFX thread (the window runs it on its worker). The listeners are called on
+ * background threads.</p>
  *
  * @since 1.7.0
  */
@@ -243,7 +250,8 @@ public class BrainstormService {
     }
 
     /**
-     * Sends a user message and returns the AI reply.
+     * Sends a user message and returns the AI reply. The first message of a session is its title until the session
+     * gets its short name.
      *
      * @param session the session
      * @param text the user message
@@ -252,10 +260,6 @@ public class BrainstormService {
      */
     public CompletableFuture<BrainstormReply> sendUserMessage(
             BrainstormSession session, String text, BrainstormContext context) {
-        if (sessions.messages(session.getId()).isEmpty()) {
-            session.setTitle(firstMessageTitle(text));
-            sessions.updateTitle(session.getId(), session.getTitle());
-        }
         return send(session, new BrainstormMessage(BrainstormMessage.ROLE_USER, text), context);
     }
 
@@ -292,24 +296,33 @@ public class BrainstormService {
      * message, so another image asked for afterwards starts a new round.
      *
      * @param session the session
+     * @return completes when the event is stored, after the requests of the session before it
      */
-    public void noteAdopted(BrainstormSession session) {
-        sessions.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
-                BrainstormSessions.EVENT_PREFIX + new JSONObject().put("event", "draft_adopted")));
+    public CompletableFuture<Void> noteAdopted(BrainstormSession session) {
+        return enqueue(session.getId(), () -> {
+            sessions.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
+                    BrainstormSessions.EVENT_PREFIX + new JSONObject().put("event", "draft_adopted")));
+            return null;
+        });
     }
 
     private CompletableFuture<BrainstormReply> send(
             BrainstormSession session, BrainstormMessage message, BrainstormContext context) {
-        String sessionId = session.getId();
-        CompletableFuture<BrainstormReply> result;
+
+        // The history is read when the request is its turn, so it contains the answer of the one before
+        return enqueue(session.getId(), () -> process(session, message, context));
+    }
+
+    /** Runs work of a session after the work of the session queued before it, on a thread of its own. */
+    private <T> CompletableFuture<T> enqueue(String sessionId, Supplier<T> work) {
+        CompletableFuture<T> result;
         synchronized (tails) {
             CompletableFuture<?> previous = tails.getOrDefault(sessionId, CompletableFuture.completedFuture(null));
-            // The history is read when the request is its turn, so it contains the answer of the one before
             result = previous.handle((Object ignored, Throwable error) -> null)
-                    .thenApplyAsync((Object ignored) -> process(session, message, context), TURNS);
+                    .thenApplyAsync((Object ignored) -> work.get(), TURNS);
             tails.put(sessionId, result);
         }
-        result.whenComplete((BrainstormReply reply, Throwable error) -> tails.remove(sessionId, result));
+        result.whenComplete((T done, Throwable error) -> tails.remove(sessionId, result));
         return result;
     }
 
@@ -318,6 +331,10 @@ public class BrainstormService {
         ensureNotDeleted(sessionId);
         sessions.addMessage(sessionId, message);
         List<BrainstormMessage> history = sessions.messages(sessionId);
+        if (BrainstormMessage.ROLE_USER.equals(message.getRole()) && history.size() == 1) {
+            session.setTitle(firstMessageTitle(message.getContent()));
+            sessions.updateTitle(sessionId, session.getTitle());
+        }
         String currentDraft = sessions.latestDraft(sessionId)
                 .map((BrainstormDraft draft) -> draft.toJson().toString()).orElse("");
         BrainstormConversation.Answer answer = conversation.answer(session, message, history, currentDraft, context,

@@ -145,6 +145,33 @@ class BrainstormServiceTest {
     }
 
     @Test
+    void sendingTouchesTheDatabaseOnlyOnTheQueueOfTheSession() throws Exception {
+        Thread caller = Thread.currentThread();
+        List<Thread> threads = new java.util.concurrent.CopyOnWriteArrayList<>();
+        when(repository.findMessages("s1")).thenAnswer((invocation) -> {
+            threads.add(Thread.currentThread());
+            return new ArrayList<>(stored);
+        });
+        org.mockito.Mockito.doAnswer((invocation) -> threads.add(Thread.currentThread()))
+                .when(repository).updateTitle(anyString(), anyString());
+        CompletableFuture<ChatTurn.Model> gate = new CompletableFuture<>();
+        when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean())).thenReturn(gate);
+
+        CompletableFuture<BrainstormReply> reply = service.sendUserMessage(session, "Ein Logo", context);
+        CompletableFuture<Void> adopted = service.noteAdopted(session);
+
+        assertFalse(adopted.isDone(), "the note waits for the request before it");
+        gate.complete(text(VALID_REPLY));
+        reply.get(5, TimeUnit.SECONDS);
+        adopted.get(5, TimeUnit.SECONDS);
+        assertFalse(threads.isEmpty());
+        assertFalse(threads.contains(caller), "the calling thread, e.g. the JavaFX thread, waits for no database");
+        verify(repository).updateTitle("s1", "Ein Logo");
+        assertEquals(List.of(BrainstormMessage.ROLE_USER, BrainstormMessage.ROLE_ASSISTANT,
+                BrainstormMessage.ROLE_EVENT), stored.stream().map(BrainstormMessage::getRole).toList());
+    }
+
+    @Test
     void refersTheMoodAndTheBlocksOfTheDraftToTheirEntriesById() {
         PromptBlock calm = new PromptBlock("own-calm", PromptBlock.Type.ATMOSPHERE, "My Calm", "calm", null, false);
         PromptBlock portrait = new PromptBlock("std:camera:classic-portrait", PromptBlock.Type.CAMERA,
@@ -192,7 +219,7 @@ class BrainstormServiceTest {
 
     @Test
     void notesAnAdoptedDraftAsEventWithoutAskingTheAi() {
-        service.noteAdopted(session);
+        service.noteAdopted(session).join();
 
         assertEquals(BrainstormMessage.ROLE_EVENT, stored.get(0).getRole());
         assertEquals("[APP EVENT] {\"event\":\"draft_adopted\"}", stored.get(0).getContent());
@@ -725,7 +752,7 @@ class BrainstormServiceTest {
         BrainstormRepository broken = new BrainstormRepository(database);
         BrainstormService service = new BrainstormService(broken, gemini);
         BrainstormSession own = service.startSession().orElseThrow();
-        service.noteAdopted(own);
+        service.noteAdopted(own).join();
 
         try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE brainstorm_drafts");
@@ -741,7 +768,7 @@ class BrainstormServiceTest {
         assertFalse(service.deleteSession(own.getId()));
         assertDoesNotThrow(() -> service.renameSession(own.getId(), "Renamed"));
         assertDoesNotThrow(() -> service.setEngine(own, "openai"));
-        assertDoesNotThrow(() -> service.noteAdopted(own));
+        assertDoesNotThrow(() -> service.noteAdopted(own).join());
         assertEquals(List.of(own), service.moveSession(List.of(own), own, null));
     }
 }

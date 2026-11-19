@@ -39,6 +39,8 @@ class BrainstormChat {
     String statusText = "";
     /** Whether the stored messages were already shown in {@link #messageBox}. */
     boolean loaded;
+    /** Whether the stored messages are being read. */
+    boolean loading;
     final VBox messageBox = new VBox(10.0);
     /** The cards of the linked videos in the order of the chat, so a stored range change finds its card. */
     final List<BrainstormVideoCard> videoCards = new ArrayList<>();

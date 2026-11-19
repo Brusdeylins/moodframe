@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -38,6 +39,10 @@ import java.util.function.Supplier;
  *
  * <p>Every chat has its own {@link BrainstormChat}: several chats can wait for the AI at the same time, the answer
  * lands in the chat that asked, and the history list marks chats that are running or have an unread answer.</p>
+ *
+ * <p>Threads: the window reads and writes the stored sessions on its {@link BrainstormWorker}, never on the JavaFX
+ * thread; the requests to the AI only queue there, the service runs them. Every result comes back to the JavaFX
+ * thread.</p>
  *
  * @since 1.7.0
  */
@@ -70,11 +75,14 @@ public class BrainstormDialog extends Stage {
     private final ApplicationConfig config;
     private final BrainstormContext context;
     private final Consumer<Result> onAdopt;
+    private final BrainstormWorker worker;
 
     /** The state of every chat of the history that was touched, by session id. */
     private final Map<String, BrainstormChat> chats = new HashMap<>();
     /** The chat that is shown. */
     private BrainstormChat chat = new BrainstormChat(null);
+    /** The session the user opened last, shown once its messages are read; null for a new chat. */
+    private BrainstormSession opening;
 
     private final BrainstormHistory history;
     private final BrainstormChatView chatView;
@@ -92,6 +100,23 @@ public class BrainstormDialog extends Stage {
      */
     public BrainstormDialog(Stage owner, ApplicationConfig config, BrainstormService service,
                             BrainstormContext context, String currentModel, Consumer<Result> onAdopt) {
+        this(owner, config, service, context, currentModel, onAdopt, BrainstormWorker.create());
+    }
+
+    /**
+     * Creates the dialog with the worker of its blocking work.
+     *
+     * @param owner the owner window
+     * @param config the accounts and the remembered resolutions (may be null: none)
+     * @param service the brainstorm service
+     * @param context the selectable values and the current main window state
+     * @param currentModel localized display name of the model currently selected in the main window
+     * @param onAdopt called with the adopted values when the user clicks "Adopt"
+     * @param worker reads and writes the stored sessions off the JavaFX thread
+     */
+    BrainstormDialog(Stage owner, ApplicationConfig config, BrainstormService service, BrainstormContext context,
+            String currentModel, Consumer<Result> onAdopt, BrainstormWorker worker) {
+        this.worker = worker;
         this.config = config;
         this.service = service;
         this.context = context;
@@ -101,8 +126,8 @@ public class BrainstormDialog extends Stage {
         initModality(Modality.WINDOW_MODAL);
         setTitle(I18nManager.getText("brainstorm.title"));
 
-        history = new BrainstormHistory(service, (BrainstormSession listed) -> chatOf(listed).markerProperty(),
-                new HistoryListener());
+        history = new BrainstormHistory(service, worker,
+                (BrainstormSession listed) -> chatOf(listed).markerProperty(), new HistoryListener());
         chatView = new BrainstormChatView(config, service, new ChatListener());
         resultForm = new BrainstormResultForm(config, context, currentModel, new ResultListener());
         SplitPane root = new SplitPane(history, chatView, resultForm);
@@ -134,10 +159,9 @@ public class BrainstormDialog extends Stage {
         }));
 
         showNewSession();
-        history.refresh();
 
         // The chat that was worked on last opens, wherever the user put it in the history
-        history.selectLast();
+        history.refreshAndSelectLast();
     }
 
     /** What the history does in the window. */
@@ -160,7 +184,7 @@ public class BrainstormDialog extends Stage {
 
         @Override
         public BrainstormSession shown() {
-            return chat.session;
+            return opening != null ? opening : chat.session;
         }
 
         @Override
@@ -185,8 +209,11 @@ public class BrainstormDialog extends Stage {
         @Override
         public void engineChosen(String engine) {
             chat.engine = engine;
-            if (chat.session != null)
-                service.setEngine(chat.session, engine);
+            BrainstormSession session = chat.session;
+            if (session != null) {
+                session.setEngine(engine);
+                worker.run(() -> service.setEngine(session, engine));
+            }
             if (config != null)
                 config.accounts().setBrainstormEngine(engine);
         }
@@ -211,7 +238,8 @@ public class BrainstormDialog extends Stage {
         @Override
         public void adopted(Result result) {
 
-            /*  The AI reads it with the next message: another image asked for then starts a new round  */
+            /*  The AI reads it with the next message: another image asked for then starts a new round; it is stored
+                on the queue of the session  */
             if (chat.session != null)
                 service.noteAdopted(chat.session);
             onAdopt.accept(result);
@@ -237,10 +265,10 @@ public class BrainstormDialog extends Stage {
             if (alert.showAndWait().orElse(null) != yes)
                 return;
         }
-        service.deleteSession(toDelete.getId());
         chats.remove(toDelete.getId());
         if (chat.session != null && chat.session.getId().equals(toDelete.getId()))
             showNewSession();
+        worker.run(() -> service.deleteSession(toDelete.getId()));
         history.refresh();
     }
 
@@ -256,35 +284,59 @@ public class BrainstormDialog extends Stage {
         fresh.quickReplies = List.of(I18nManager.getText("brainstorm.quick.image"),
                 I18nManager.getText("brainstorm.quick.video"));
         fresh.loaded = true;
+        opening = null;
         activate(fresh);
         history.clearSelection();
     }
 
+    /** The stored messages and the latest draft of a session. */
+    private record Stored(List<BrainstormMessage> messages, BrainstormDraft draft) {
+    }
+
+    /** Shows a session of the history; its stored messages are read on the worker the first time. */
     private void loadSession(BrainstormSession selected) {
         BrainstormChat target = chatOf(selected);
-        if (!target.loaded) {
-            for (BrainstormMessage message : service.loadMessages(selected.getId())) {
-                switch (message.getRole()) {
-                    case BrainstormMessage.ROLE_USER -> chatView.addBubble(target, message.getContent(), true);
-                    case BrainstormMessage.ROLE_EVENT -> chatView.addStoredEvent(target, message.getContent());
-                    default -> {
-                        try {
-                            BrainstormReply reply = BrainstormReply.parse(message.getContent());
-                            if (target.progress(reply))
-                                chatView.addEvent(target, I18nManager.getText("brainstorm.round", reply.getRound()));
-                            chatView.addBubble(target, reply.getMessage(), false);
-                        }
-                        catch (IllegalArgumentException e) {
-                            logger.warn("Skipping unreadable stored brainstorm reply", e);
-                        }
+        opening = selected;
+        if (target.loaded) {
+            activate(target);
+            return;
+        }
+        if (target.loading)
+            return;
+
+        target.loading = true;
+        String sessionId = selected.getId();
+        worker.run(() -> new Stored(service.loadMessages(sessionId),
+                service.latestDraft(sessionId).orElseGet(BrainstormDraft::new)), (Stored stored) -> {
+            target.loading = false;
+            showStored(target, stored);
+            if (opening == selected)
+                activate(target);
+        });
+    }
+
+    /** Shows the stored messages of a chat. */
+    private void showStored(BrainstormChat target, Stored stored) {
+        for (BrainstormMessage message : stored.messages()) {
+            switch (message.getRole()) {
+                case BrainstormMessage.ROLE_USER -> chatView.addBubble(target, message.getContent(), true);
+                case BrainstormMessage.ROLE_EVENT -> chatView.addStoredEvent(target, message.getContent());
+                default -> {
+                    try {
+                        BrainstormReply reply = BrainstormReply.parse(message.getContent());
+                        if (target.progress(reply))
+                            chatView.addEvent(target, I18nManager.getText("brainstorm.round", reply.getRound()));
+                        chatView.addBubble(target, reply.getMessage(), false);
+                    }
+                    catch (IllegalArgumentException e) {
+                        logger.warn("Skipping unreadable stored brainstorm reply", e);
                     }
                 }
             }
-            target.draft = service.latestDraft(selected.getId()).orElseGet(BrainstormDraft::new);
-            target.scrollPosition = 1.0;
-            target.loaded = true;
         }
-        activate(target);
+        target.draft = stored.draft();
+        target.scrollPosition = 1.0;
+        target.loaded = true;
     }
 
     /** Shows a chat in the parts: its messages, steps, draft, quick replies and whether it waits for the AI. */
@@ -298,11 +350,10 @@ public class BrainstormDialog extends Stage {
     }
 
     private void send(String text) {
-        if (!ensureSession())
-            return;
         BrainstormChat target = chat;
         chatView.addBubble(target, text, true);
-        ask(target, () -> service.sendUserMessage(target.session, text, context));
+        ask(target, () -> sessionOf(target).thenCompose((BrainstormSession session) ->
+                service.sendUserMessage(session, text, context)));
     }
 
     private void sendEvent(JSONObject event) {
@@ -313,17 +364,21 @@ public class BrainstormDialog extends Stage {
         ask(target, () -> service.sendEvent(target.session, event.toString(), context));
     }
 
-    private boolean ensureSession() {
-        if (chat.session != null)
-            return true;
-        chat.session = service.startSession(chatView.chosenEngine()).orElse(null);
-        if (chat.session == null) {
-            chatView.addEvent(chat, I18nManager.getText("brainstorm.error.session"));
-            return false;
-        }
-        chats.put(chat.session.getId(), chat);
-        history.refresh();
-        return true;
+    /** The session of a chat: a new chat is stored with its first message, on the worker, and then listed. */
+    private CompletableFuture<BrainstormSession> sessionOf(BrainstormChat target) {
+        if (target.session != null)
+            return CompletableFuture.completedFuture(target.session);
+
+        String engine = chatView.chosenEngine();
+        CompletableFuture<Optional<BrainstormSession>> created = worker.supply(() -> service.startSession(engine));
+        return created.thenApplyAsync((Optional<BrainstormSession> stored) -> {
+            BrainstormSession session = stored.orElseThrow(() ->
+                    new IllegalStateException(I18nManager.getText("brainstorm.error.session")));
+            target.session = session;
+            chats.put(session.getId(), target);
+            history.refresh();
+            return session;
+        }, worker.fx());
     }
 
     /**
@@ -339,10 +394,12 @@ public class BrainstormDialog extends Stage {
             chatView.setQuickReplies(List.of());
         }
 
-        request.get().whenComplete((BrainstormReply reply, Throwable error) -> Platform.runLater(() -> {
+        request.get().whenCompleteAsync((BrainstormReply reply, Throwable error) -> {
             Throwable cause = error instanceof CompletionException && error.getCause() != null
                     ? error.getCause() : error;
-            boolean deleted = target.session == null || chats.get(target.session.getId()) != target;
+
+            /*  A new chat whose session could not be stored has none and shows the failure  */
+            boolean deleted = target.session != null && chats.get(target.session.getId()) != target;
             if (deleted || cause instanceof CancellationException)
                 return;
 
@@ -362,7 +419,7 @@ public class BrainstormDialog extends Stage {
             if (open)
                 applyBusy(target);
             history.refresh();
-        }));
+        }, worker.fx());
     }
 
     /** Shows whether the shown chat waits for the AI: its input and the result are disabled meanwhile. */

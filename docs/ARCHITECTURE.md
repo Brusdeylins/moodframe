@@ -139,6 +139,12 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
   of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
   analysis of an image into a mood composes the answer of the language model instead of waiting for it.
+- **Brainstorm**: `BrainstormService` queues the requests of each session; a request reads and writes the session
+  (its title from the first message, the messages, the draft) on a thread of that queue, after the request before
+  it, and "draft adopted" is stored on the same queue. `sendUserMessage`, `sendEvent` and `noteAdopted` only queue,
+  so the JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
+  creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
+  with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O

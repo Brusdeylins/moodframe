@@ -21,7 +21,8 @@ import java.util.function.Function;
 
 /**
  * The history column of the brainstorm window: the stored sessions, which the user opens, renames, moves and deletes,
- * and the button for a new chat. The window decides what opening and deleting do.
+ * and the button for a new chat. The window decides what opening and deleting do. The sessions are read and
+ * written on the worker of the window.
  *
  * @since 2.1.3
  */
@@ -47,6 +48,7 @@ final class BrainstormHistory extends VBox {
     }
 
     private final BrainstormService service;
+    private final BrainstormWorker worker;
     private final Listener listener;
     private final ListView<BrainstormSession> list = new ListView<>();
     private boolean updating;
@@ -55,12 +57,14 @@ final class BrainstormHistory extends VBox {
      * Creates the column.
      *
      * @param service  the brainstorm service with the stored sessions
+     * @param worker   the worker of the window, which reads and writes the sessions
      * @param markerOf the marker of a session: running, unread or failed
      * @param listener what the window does
      */
-    BrainstormHistory(BrainstormService service, Function<BrainstormSession, ObjectProperty<BrainstormMarker>> markerOf,
-            Listener listener) {
+    BrainstormHistory(BrainstormService service, BrainstormWorker worker,
+            Function<BrainstormSession, ObjectProperty<BrainstormMarker>> markerOf, Listener listener) {
         this.service = service;
+        this.worker = worker;
         this.listener = listener;
 
         FontIcon newIcon = new FontIcon("mdi2p-plus");
@@ -95,15 +99,18 @@ final class BrainstormHistory extends VBox {
         setMaxWidth(420.0);
     }
 
-    /** Lists the stored sessions anew and selects the one of the shown chat. */
+    /** Lists the stored sessions anew, after the work of the window asked for before, and selects the shown one. */
     void refresh() {
-        show(service.listSessions());
+        worker.run(service::listSessions, this::show);
     }
 
-    /** Selects the session the user worked on last, wherever it is in the list; it opens. */
-    void selectLast() {
-        list.getItems().stream().max(Comparator.comparing(BrainstormSession::getUpdatedAt))
-                .ifPresent((BrainstormSession last) -> list.getSelectionModel().select(last));
+    /** Lists the stored sessions and selects the one the user worked on last, wherever it is in the list; it opens. */
+    void refreshAndSelectLast() {
+        worker.run(service::listSessions, (List<BrainstormSession> sessions) -> {
+            show(sessions);
+            list.getItems().stream().max(Comparator.comparing(BrainstormSession::getUpdatedAt))
+                    .ifPresent((BrainstormSession last) -> list.getSelectionModel().select(last));
+        });
     }
 
     /** Selects no session, for a new chat. */
@@ -138,13 +145,14 @@ final class BrainstormHistory extends VBox {
 
     /** Moves a session to a gap of the list (0 above the first one) and stores the order; the shown chat stays. */
     private void move(BrainstormSession moved, int gap) {
-        List<BrainstormSession> listed = list.getItems();
-        show(service.moveSession(listed, moved, gap < listed.size() ? listed.get(gap) : null));
+        List<BrainstormSession> listed = List.copyOf(list.getItems());
+        BrainstormSession before = gap < listed.size() ? listed.get(gap) : null;
+        worker.run(() -> service.moveSession(listed, moved, before), this::show);
     }
 
     private void rename(BrainstormSession toRename, String title) {
-        service.renameSession(toRename.getId(), title);
         toRename.setTitle(title);
+        worker.run(() -> service.renameSession(toRename.getId(), title));
         refresh();
     }
 }
