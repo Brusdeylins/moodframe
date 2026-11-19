@@ -335,7 +335,8 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`,
   `DeletedCostCorrection`) runs in the same sequence and carries the prices and formulas it books with (frozen at
   2.1.3), so a later version books the same. A migration runs only when it is listed in `MigrationRunner.MIGRATIONS`;
-  it is applied and recorded in one transaction. A legacy library (tables, but no records) gets each migration
+  it is applied and recorded in one transaction, which reads the record again under the write lock, so of two
+  instances of the application starting on the same library at once only one applies it. A legacy library (tables, but no records) gets each migration
   statement by statement: a statement whose table, index, trigger or column is already there is skipped, the others
   are applied, and the migration is recorded once all are applied or skipped. A real failure always surfaces: on the
   legacy path and in the repair of a V011 that was recorded without its columns, which adds only what is missing, in
