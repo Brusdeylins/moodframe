@@ -308,6 +308,28 @@ class ImagePreviewOverlayTest {
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
+    @Test
+    void theOverlayStopsListeningToTheLanguageWhenDisposedOrItsWindowCloses() throws Exception {
+        Platform.setImplicitExit(false);
+        onFxThread(() -> {
+            int before = I18nManager.getChangeListenerCount();
+            ImagePreviewOverlay disposed = atOnce();
+            assertEquals(before + 1, I18nManager.getChangeListenerCount());
+            disposed.dispose();
+            assertEquals(before, I18nManager.getChangeListenerCount(), "a disposed overlay no longer listens");
+
+            ImagePreviewOverlay hosted = atOnce();
+            Stage window = new Stage();
+            window.setScene(new Scene(new StackPane(hosted), 400, 300));
+            window.show();
+            assertEquals(before + 1, I18nManager.getChangeListenerCount());
+            window.hide();
+            assertEquals(before, I18nManager.getChangeListenerCount(),
+                    "the overlay of a closed window no longer listens");
+            return null;
+        });
+    }
+
     /*  The remedy of a case, its text in English and German, the command to copy and the note, null for none  */
     private record Case(Remedy remedy, String key, Object[] parameters, String english, String german,
             String command, String noteKey) {
