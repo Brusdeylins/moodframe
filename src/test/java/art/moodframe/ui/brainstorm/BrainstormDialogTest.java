@@ -339,4 +339,95 @@ class BrainstormDialogTest {
         assertEquals(List.of(I18nManager.getText("brainstorm.engine.openai", "gpt-x")), items.get());
         assertTrue(disabled.get(), "a single account leaves nothing to choose");
     }
+
+    @Test
+    void aReopenedWindowWaitsForTheTurnOfTheClosedOneAndShowsItsAnswer() throws Exception {
+        BrainstormSession stored = new BrainstormSession("s1", "Leuchtturm", LocalDateTime.now(), LocalDateTime.now());
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        List<art.moodframe.model.BrainstormMessage> messages = new java.util.concurrent.CopyOnWriteArrayList<>();
+        List<String> drafts = new java.util.concurrent.CopyOnWriteArrayList<>();
+        when(repository.findAllSessions()).thenReturn(List.of(stored));
+        when(repository.findMessages("s1")).thenAnswer((invocation) -> new ArrayList<>(messages));
+        when(repository.findLatestDraft("s1")).thenAnswer((invocation) ->
+                drafts.isEmpty() ? Optional.empty() : Optional.of(drafts.getLast()));
+        org.mockito.Mockito.doAnswer((invocation) -> messages.add(invocation.getArgument(1)))
+                .when(repository).addMessage(org.mockito.ArgumentMatchers.eq("s1"), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.doAnswer((invocation) -> drafts.add(invocation.getArgument(1)))
+                .when(repository).addDraft(org.mockito.ArgumentMatchers.eq("s1"), org.mockito.ArgumentMatchers.any());
+        GeminiApiService gemini = mock(GeminiApiService.class);
+        java.util.concurrent.CompletableFuture<art.moodframe.service.provider.ChatTurn.Model> gate =
+                new java.util.concurrent.CompletableFuture<>();
+        when(gemini.chatTurn(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(gate);
+
+        /*  Both windows work on the one store of the sessions, as the factory of the composition root hands it out  */
+        art.moodframe.service.brainstorm.BrainstormSessions sessions =
+                new art.moodframe.service.brainstorm.BrainstormSessions(repository);
+        BrainstormService closed = new BrainstormService(sessions,
+                new art.moodframe.service.brainstorm.BrainstormModels(gemini, null, null),
+                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null));
+        BrainstormService reopened = new BrainstormService(sessions,
+                new art.moodframe.service.brainstorm.BrainstormModels(gemini, null, null),
+                new art.moodframe.service.brainstorm.BrainstormTools(gemini, null));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+        closed.sendUserMessage(stored, "Ein Leuchtturm", context);
+        org.mockito.Mockito.verify(gemini, org.mockito.Mockito.timeout(5000)).chatTurn(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyBoolean());
+
+        AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
+        Platform.runLater(() -> dialog.set(new BrainstormDialog(null, null, reopened, context,
+                ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
+                new BrainstormWorker(Runnable::run, Platform::runLater))));
+        assertTrue(waitFor(dialog, (texts) -> texts.contains("Ein Leuchtturm")), "the stored question is shown");
+        assertFalse(texts(dialog).contains("Ein Licht am Meer?"));
+
+        gate.complete(new art.moodframe.service.provider.ChatTurn.Model("{\"step\": 1, "
+                + "\"message\": \"Ein Licht am Meer?\", \"draft\": {\"prompt\": \"A lighthouse at dusk\"}}"));
+        assertTrue(waitFor(dialog, (texts) -> texts.contains("Ein Licht am Meer?")
+                && texts.contains("A lighthouse at dusk")), "the answer of the closed window arrives here");
+    }
+
+    /*  Polls the texts of the labels, text flows and text areas of the window until they match  */
+    private static boolean waitFor(AtomicReference<BrainstormDialog> dialog,
+            java.util.function.Predicate<List<String>> match) throws Exception {
+        long until = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < until) {
+            if (match.test(texts(dialog)))
+                return true;
+            Thread.sleep(50);
+        }
+        return false;
+    }
+
+    private static List<String> texts(AtomicReference<BrainstormDialog> dialog) throws Exception {
+        List<String> texts = new java.util.concurrent.CopyOnWriteArrayList<>();
+        CountDownLatch read = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            if (dialog.get() != null) {
+                javafx.scene.Parent root = dialog.get().getScene().getRoot();
+                root.applyCss();
+                collect(root, texts);
+            }
+            read.countDown();
+        });
+        read.await(5, TimeUnit.SECONDS);
+        return texts;
+    }
+
+    private static void collect(javafx.scene.Node node, List<String> texts) {
+        if (node instanceof Label label)
+            texts.add(label.getText());
+        else if (node instanceof javafx.scene.text.Text text)
+            texts.add(text.getText());
+        else if (node instanceof javafx.scene.control.TextInputControl input)
+            texts.add(input.getText());
+        if (node instanceof javafx.scene.Parent parent) {
+            for (javafx.scene.Node child : parent.getChildrenUnmodifiable())
+                collect(child, texts);
+        }
+        if (node instanceof javafx.scene.control.ScrollPane pane && pane.getContent() != null)
+            collect(pane.getContent(), texts);
+    }
 }

@@ -17,6 +17,8 @@ import java.util.Optional;
 /**
  * The stored brainstorm sessions with their messages and drafts. A database error is logged and answered with
  * nothing (false, empty), so the window stays usable; it runs on the calling thread, never the JavaFX thread.
+ * The composition root creates it once, so its {@link BrainstormQueue} is the one queue of every session in all
+ * brainstorm windows.
  *
  * @since 2.1.3
  */
@@ -29,6 +31,7 @@ public class BrainstormSessions {
 
     private final BrainstormRepository repository;
     private final RepositoryAccess access = new RepositoryAccess(logger);
+    private final BrainstormQueue queue = new BrainstormQueue();
 
     /**
      * Creates the store.
@@ -37,6 +40,11 @@ public class BrainstormSessions {
      */
     public BrainstormSessions(BrainstormRepository repository) {
         this.repository = repository;
+    }
+
+    /** The queue of the sessions, shared by every brainstorm service on these sessions. */
+    BrainstormQueue queue() {
+        return queue;
     }
 
     /**
