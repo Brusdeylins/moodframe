@@ -268,6 +268,16 @@ live client nor the saved key changes until "Save". A status shown from an i18n 
 language relabels it. The dialog follows the language until its window closes. `SettingsPrompts` wraps the message
 boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-screen.
 
+## Brainstorm window
+
+`ui.brainstorm.BrainstormDialog` composes three parts, like the main window: `BrainstormHistory` (the stored
+sessions: open, rename, move, delete, new chat), `BrainstormChatView` (title, steps, messages with the research and
+the linked videos, quick replies, input and the choice of the language model) and `BrainstormResultForm` (the draft
+of the shown chat mapped onto the lists of the main window, the checkboxes of the adoption and "Adopt"). Each part
+reports through a listener interface of its own; the dialog keeps one `BrainstormChat` per session, so an answer
+lands in the chat that asked, sends the requests and hands each answer to the chat view and the form. The result
+form is the place where the groups of `ui.panel` can replace the fields of the mood and the frame (ticket 136).
+
 ## Folders and settings
 
 - **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with

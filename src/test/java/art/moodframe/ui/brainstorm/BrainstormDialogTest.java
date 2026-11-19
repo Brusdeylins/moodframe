@@ -30,7 +30,6 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -274,9 +273,8 @@ class BrainstormDialogTest {
             try {
                 BrainstormDialog dialog = new BrainstormDialog(null, config, service, context,
                         ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { });
-                Field engineBox = BrainstormDialog.class.getDeclaredField("engineBox");
-                engineBox.setAccessible(true);
-                ComboBox<?> box = (ComboBox<?>) engineBox.get(dialog);
+                dialog.getScene().getRoot().applyCss();
+                ComboBox<?> box = (ComboBox<?>) dialog.getScene().getRoot().lookup(".combo-box");
                 items.set(box.getItems().stream().map(String::valueOf).toList());
                 disabled.set(box.isDisabled());
             } catch (Throwable t) {
