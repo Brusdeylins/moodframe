@@ -54,6 +54,7 @@ class JobPollingTest {
     private BflApiService api;
     private ImageFileStore files;
     private ApplicationConfig config;
+    private ChatRepository repository;
     private ChatEntryTracker tracker;
     private JobPollingFlow flow;
     private ChatEntry entry;
@@ -96,7 +97,8 @@ class JobPollingTest {
                 "png", "image/png", 1024, 1024, 1000));
         config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
-        tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
+        repository = mock(ChatRepository.class);
+        tracker = new ChatEntryTracker(repository, Runnable::run);
         flow = new JobPollingFlow(config, tracker, files, scheduler, Runnable::run);
 
         entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
@@ -211,6 +213,96 @@ class JobPollingTest {
         assertEquals(0, scheduled.size());
         assertEquals(1, entry.getImages().size(), "no image is added to a cancelled entry");
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+    }
+
+    /*  an entry of two images at 0.05 each, estimated at 0.10 as the order was placed  */
+    private void twoImages() {
+        entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).cost(0.10).build();
+        for (int i = 0; i < 2; i++)
+            entry.getImages().add(new GeneratedImage.Builder().chatEntryId(entry.getId())
+                    .downloadStatus(GeneratedImage.DownloadStatus.PENDING).sortOrder(i).build());
+    }
+
+    /*  submits both images of the entry, the provider answers the jobs in this order  */
+    private void submitBoth(CompletableFuture<GenerationJobInfo> first, CompletableFuture<GenerationJobInfo> second)
+            throws Exception {
+        doReturn(first, second).when(api).submitGenerationRequest(any());
+        ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
+                GenerationModel.FLUX2_PRO.getApiModelId());
+        request.setBaseCostPerImage(0.05);
+        flow.submit(api, request, entry, 0);
+        flow.submit(api, request, entry, 1);
+        drainFxThread();
+    }
+
+    private static CompletableFuture<GenerationJobInfo> refused(Throwable failure) {
+        return CompletableFuture.<GenerationJobInfo>failedFuture(failure).thenApply((GenerationJobInfo job) -> job);
+    }
+
+    @Test
+    void aJobTheProviderRefusesFailsItsImageWhichCostsNothing() throws Exception {
+        twoImages();
+        submitBoth(refused(new ApiHttpException(402, "Payment Required")),
+                refused(new java.util.concurrent.TimeoutException()));
+
+        for (GeneratedImage image : entry.getImages()) {
+            assertEquals(GeneratedImage.DownloadStatus.FAILED, image.getDownloadStatus());
+            assertEquals(0.0, image.getBaseCost());
+            assertTrue(image.getErrorMessage() != null && !image.getErrorMessage().isBlank());
+        }
+        assertEquals(I18nManager.getText("generation.error.submit.timeout", "30"),
+                entry.getImages().get(1).getErrorMessage());
+        assertEquals(ChatEntry.Status.FAILED, entry.getStatus(), "settled once both images ended");
+        assertEquals(0.0, entry.getCost(), "no image was made, the estimate is gone");
+        assertEquals(0.0, art.moodframe.model.ChatCost.total(java.util.List.of(entry), 0.0));
+        assertTrue(entry.getErrorMessage() != null && entry.getErrorMessage().contains(
+                entry.getImages().get(1).getErrorMessage()), entry.getErrorMessage());
+    }
+
+    @Test
+    void anEntryWithOneRefusedJobCompletesWithTheCostOfTheImageMade() throws Exception {
+        twoImages();
+        submitBoth(refused(new ApiHttpException(422, "Unprocessable Entity")),
+                CompletableFuture.completedFuture(new GenerationJobInfo("job-8", "Pending")));
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, entry.getImages().get(0).getDownloadStatus());
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the other image still runs");
+
+        runPoll();
+        polls.poll().complete(answer("Ready"));
+        drainFxThread();
+        drainFxThread();
+
+        assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus());
+        assertEquals(0.05, entry.getCost(), 1e-9);
+        assertEquals(0.05, art.moodframe.model.ChatCost.total(java.util.List.of(entry), 0.0), 1e-9);
+    }
+
+    @Test
+    void anImageThatCannotBeDownloadedFailsWithItsReasonIsStoredAndCostsNothing() throws Exception {
+        when(files.download(any(), any())).thenThrow(new java.io.IOException("connection reset"));
+        entry.setCost(0.05);
+        ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
+                GenerationModel.FLUX2_PRO.getApiModelId());
+        request.setBaseCostPerImage(0.05);
+        doReturn(CompletableFuture.completedFuture(new GenerationJobInfo("job-9", "Pending"))).when(api)
+                .submitGenerationRequest(any());
+        flow.submit(api, request, entry, 0);
+        drainFxThread();
+        runPoll();
+        polls.poll().complete(answer("Ready"));
+        drainFxThread();
+        drainFxThread();
+
+        String reason = I18nManager.getText("generation.error.download", "connection reset");
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, image().getDownloadStatus());
+        assertEquals(reason, image().getErrorMessage());
+        assertEquals(0.0, image().getBaseCost());
+        verify(repository, org.mockito.Mockito.atLeastOnce()).saveGeneratedImage(org.mockito.ArgumentMatchers
+                .argThat((GeneratedImage saved) -> saved == image()
+                        && saved.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED));
+        assertEquals(ChatEntry.Status.FAILED, entry.getStatus());
+        assertEquals(reason, entry.getErrorMessage(), "the entry tells why, for the window and the MCP server");
+        assertEquals(0.0, entry.getCost());
     }
 
     @Test

@@ -58,36 +58,16 @@ public class SynchronousImageFlow {
 
                         /*  Blocked content: the placeholder fails with the reason, a blocked image costs nothing  */
                         logger.info("{} image {} blocked, stored with its error message", name, imageIndex);
-                        failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry), true);
+                        tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry));
                     }
                     else if (jobInfo.isSynchronous() && jobInfo.getBase64Image() != null)
                         storeImage(provider, jobInfo, request, chatEntry, imageIndex);
                 })
                 .exceptionally((Throwable throwable) -> {
                     logger.error("{} generation failed for image index {}", name, imageIndex, throwable);
-                    failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry), false);
+                    tracker.failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(throwable, chatEntry));
                     return null;
                 });
-    }
-
-    /**
-     * Marks the placeholder of an image as failed (found by its sort order, as the answers arrive in any order),
-     * stores it and settles the entry once all its images are finished.
-     *
-     * @param free true if the image costs nothing (blocked content)
-     */
-    private void failImage(ChatEntry chatEntry, int imageIndex, String errorMessage, boolean free) {
-        FxModel.change(() -> {
-            GeneratedImage img = ChatEntryTracker.placeholder(chatEntry, imageIndex);
-            if (img != null) {
-                img.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-                img.setErrorMessage(errorMessage);
-                if (free)
-                    img.setBaseCost(0.0);
-                tracker.saveImage(img);
-            }
-            tracker.refresh(chatEntry);
-        });
     }
 
     /**
@@ -116,24 +96,22 @@ public class SynchronousImageFlow {
                 return;
             }
 
-            ImageFileStore.StoredImage stored = null;
-            String error = null;
+            ImageFileStore.StoredImage stored;
             try {
                 stored = imageFiles.writeBase64(jobInfo.getBase64Image(), placeholder);
             }
             catch (Exception e) {
+
+                /*  Without its file the image fails with the reason, is stored and costs nothing; the entry is
+                    settled with its other images  */
                 logger.error("Failed to save the {} image", provider.getProvider().getDisplayName(), e);
-                error = ChatEntryTracker.errorText(chatEntry, e, "generation.error.save", e.getMessage());
+                tracker.failImage(chatEntry, imageIndex,
+                        ChatEntryTracker.errorText(chatEntry, e, "generation.error.save", e.getMessage()));
+                return;
             }
 
-            ImageFileStore.StoredImage result = stored;
-            if (error != null)
-                tracker.markFailed(chatEntry, error);
             FxModel.change(() -> {
-                if (result != null)
-                    applyStoredImage(provider, placeholder, result, jobInfo, request, chatEntry);
-                else
-                    placeholder.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+                applyStoredImage(provider, placeholder, stored, jobInfo, request, chatEntry);
                 tracker.notifyEntryUpdated(chatEntry);
                 tracker.notifyImageUpdated(placeholder);
                 tracker.refresh(chatEntry);
@@ -167,10 +145,17 @@ public class SynchronousImageFlow {
                     String.format("%.4f", extra.search()), String.format("%.4f", extra.reasoning()));
 
         tracker.saveImage(generatedImage).exceptionally((Throwable failure) -> {
+
+            /*  An image the database does not keep fails alone, the entry is settled again with its other images  */
             Throwable cause = ProviderException.unwrap(failure);
-            FxModel.change(() -> generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED));
-            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, cause, "generation.error.save",
-                    cause.getMessage()));
+            String error = ChatEntryTracker.errorText(chatEntry, cause, "generation.error.save", cause.getMessage());
+            FxModel.change(() -> {
+                generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+                generatedImage.setErrorMessage(error);
+                generatedImage.setBaseCost(0.0);
+                tracker.notifyImageUpdated(generatedImage);
+                tracker.refresh(chatEntry);
+            });
             return null;
         });
 

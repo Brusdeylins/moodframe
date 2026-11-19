@@ -296,7 +296,8 @@ class McpEditToolsTest {
         JsonNode palette = found.path("blocks").path("color");
         assertTrue(palette.path("new").asBoolean());
         assertFalse(palette.path("colors").isEmpty(), "the palette comes from the pixels");
-        assertFalse(found.path("notice").isNull(), "without a language model, the notice says why");
+        assertEquals(art.moodframe.util.I18nManager.getTextIn(java.util.Locale.ENGLISH, "mood.image.no.model"),
+                found.path("notice").asText(), "without a language model, the notice says why, in English");
         assertEquals(palettes, colors.getAllStyles().size(), "nothing is stored");
         assertTrue(error("mood_from_image", "{\"image\":\"no-such-image\"}").contains("No image"));
     }

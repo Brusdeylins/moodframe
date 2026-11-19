@@ -34,7 +34,8 @@ import java.util.function.Consumer;
  *
  * <p>{@link #submit(GenerationOrder)} adds the entry to its chat through the {@link ChatLibrary}, so it shows in the
  * main window, whoever placed the order. It may be called on the JavaFX thread: it checks the order in memory and
- * leaves the database to the store executor.</p>
+ * leaves the writes to the store executor; only the copy of the mood looks up a palette without id by its name, a
+ * short read like those that feed what the window shows at once.</p>
  *
  * @since 2.1.0
  */
@@ -102,8 +103,9 @@ public class GenerationService {
      * @param entry the chat entry, to be shown at once; it is in its chat and stored once {@code stored} completes
      * @param stored completes once the entry is in its chat and stored (kept in memory only if the database fails),
      *               exceptionally if that could not run (the entry is marked failed then)
-     * @param submitted completes once the request is handed to the provider, after {@code stored}, exceptionally if
-     *                  that failed (the entry is marked failed then)
+     * @param submitted completes once the requests are handed to the flows of the provider, after {@code stored},
+     *                  exceptionally if that failed (the entry is marked failed then); what the provider answers, a
+     *                  refusal included, arrives later and ends in {@code finished}
      * @param finished completes with the state the entry ends in: COMPLETED, FAILED or CANCELLED
      */
     public record Submission(ChatEntry entry, CompletableFuture<Void> stored, CompletableFuture<Void> submitted,
@@ -256,10 +258,11 @@ public class GenerationService {
      * Carries out an order: stores the chat entry and submits the request.
      *
      * <p><strong>Threading:</strong> the checks that refuse an order (empty prompt, prompt too long, no chat, unknown
-     * model, missing key) and the building of the entry and the request run on the calling thread, in memory only. The
-     * entry goes into its chat and the database on the store executor, and only then is the request dispatched, so its
-     * images find the row of their entry. The caller, e.g. the JavaFX thread, never waits for the database: it shows
-     * the entry at once; a caller that needs the entry in the library waits for {@link Submission#stored()}.</p>
+     * model, missing key) and the building of the entry and the request run on the calling thread, in memory but for
+     * one short read: the copy of the mood looks up a palette without id by its name ({@link MoodService#snapshot}).
+     * The entry goes into its chat and the database on the store executor, and only then is the request dispatched,
+     * so its images find the row of their entry. The caller, e.g. the JavaFX thread, never waits for a write: it
+     * shows the entry at once; a caller that needs the entry in the library waits for {@link Submission#stored()}.</p>
      *
      * @param order the order
      * @return the entry with the progress of its storing and its request

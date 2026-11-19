@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
@@ -76,5 +77,37 @@ class RequestDispatchTest {
         assertEquals("job-7", image.get(10, TimeUnit.SECONDS).getGenerationJobId());
         assertTrue(image.get().getSeed() != 0);
         assertEquals(1, entry.getImages().size());
+    }
+
+    @Test
+    void anEntryCancelledBeforeItsDispatchSendsNothingAndCostsNothing() throws Exception {
+        GeminiApiService gemini = mock(GeminiApiService.class, CALLS_REAL_METHODS);
+        ProviderRegistry providers = new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS), gemini,
+                mock(OpenAiApiService.class, CALLS_REAL_METHODS));
+        java.util.Queue<Runnable> io = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        requests = TestRequests.create(ConfigMocks.config(), mock(ChatRepository.class), providers, io::add);
+
+        /*  cancel_generation right after generate: the entry is cancelled while its dispatch still waits  */
+        ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).cost(0.04).build();
+        ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
+                GenerationModel.NANO_BANANA2_1K.getApiModelId());
+        request.setImageCount(1);
+        CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, null);
+        assertTrue(requests.cancelEntry(entry).get(10, TimeUnit.SECONDS));
+        for (int i = 0; i < 100 && !submitted.isDone(); i++) {
+            Runnable task = io.poll();
+            if (task != null)
+                task.run();
+            else
+                Thread.sleep(20);
+        }
+
+        submitted.get(10, TimeUnit.SECONDS);
+        verify(gemini, never()).submitGenerationRequest(any());
+        CompletableFuture<Integer> images = new CompletableFuture<>();
+        Platform.runLater(() -> images.complete(entry.getImages().size()));
+        assertEquals(0, images.get(10, TimeUnit.SECONDS), "no placeholder for a request never sent");
+        assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+        assertEquals(0.0, entry.getCost());
     }
 }

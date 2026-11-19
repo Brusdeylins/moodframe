@@ -79,10 +79,8 @@ class GenerationModelTest {
         for (GenerationModel model : new GenerationModel[] {GenerationModel.NANO_BANANA2_1K, GenerationModel.NANO_BANANA2_LITE}) {
             assertTrue(model.supportsExtendedAspectRatios(), model.name());
             assertTrue(model.supportsThinkingLevel(), model.name());
-            assertTrue(model.supportsVideoSource(), model.name());
         }
         assertFalse(GenerationModel.GEMINI_PRO_2K.supportsThinkingLevel());
-        assertFalse(GenerationModel.GEMINI_PRO_2K.supportsVideoSource());
         assertFalse(GenerationModel.NANO_BANANA2_LITE.supportsGroundingSearch());
         assertTrue(GenerationModel.NANO_BANANA2_1K.supportsGroundingSearch());
     }

@@ -358,7 +358,7 @@ class LibraryEditTools {
             if (block.isNew() && block.settings() != null)
                 node.set("settings", McpTools.parse(block.settings().toJson()));
         }
-        return new McpTools.Result(result.put("notice", found.notice()));
+        return new McpTools.Result(result.put("notice", found.englishNotice()));
     }
 
     /*  ===== Building blocks =====  */

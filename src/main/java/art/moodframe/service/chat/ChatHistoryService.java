@@ -167,7 +167,7 @@ public class ChatHistoryService {
                                 image.setErrorMessage("Request was interrupted by application restart");
                                 // Save the corrected image status to database
                                 try {
-                                    chatRepository.saveGeneratedImage(image);
+                                    chatRepository.saveRepairedImage(image);
                                 } catch (Exception e) {
                                     logger.warn("Failed to save corrected image status for image {}",
                                             image.getId(), e);
@@ -185,7 +185,7 @@ public class ChatHistoryService {
                                 image.setErrorMessage("Image download was interrupted by application restart");
                                 // Save the corrected image status to database
                                 try {
-                                    chatRepository.saveGeneratedImage(image);
+                                    chatRepository.saveRepairedImage(image);
                                 } catch (Exception e) {
                                     logger.warn("Failed to save corrected image status for image {}",
                                             image.getId(), e);
@@ -202,7 +202,7 @@ public class ChatHistoryService {
                                                     + image.getLocalFilePath());
                                     // Save the corrected image status to database
                                     try {
-                                        chatRepository.saveGeneratedImage(image);
+                                        chatRepository.saveRepairedImage(image);
                                     } catch (Exception e) {
                                         logger.warn("Failed to save corrected status for missing image {}",
                                                 image.getId(), e);
@@ -233,7 +233,7 @@ public class ChatHistoryService {
                                         img.setDownloadStatus(
                                                 GeneratedImage.DownloadStatus.CACHED);
                                         try {
-                                            chatRepository.saveGeneratedImage(img);
+                                            chatRepository.saveRepairedImage(img);
                                         } catch (Exception e) {
                                             logger.warn("Failed to save image status update for {}",
                                                     img.getId(), e);
@@ -250,7 +250,7 @@ public class ChatHistoryService {
                                                 "Image file missing for {} (checked both active and trash): original={}",
                                                 img.getId(), img.getLocalFilePath());
                                         try {
-                                            chatRepository.saveGeneratedImage(img);
+                                            chatRepository.saveRepairedImage(img);
                                         } catch (Exception e) {
                                             logger.warn("Failed to save image status update for {}",
                                                     img.getId(), e);

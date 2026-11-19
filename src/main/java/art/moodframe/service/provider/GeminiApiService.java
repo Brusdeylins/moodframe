@@ -56,7 +56,6 @@ public interface GeminiApiService extends ImageProvider {
             request.setVideoResolution(model.getVideoResolution());
             request.setVideoDuration(options.videoSeconds() != null ? options.videoSeconds()
                     : ModelParameters.DEFAULT_VIDEO_SECONDS);
-            request.setGenerateAudio(true);
             request.setImageCount(1);
         }
     }

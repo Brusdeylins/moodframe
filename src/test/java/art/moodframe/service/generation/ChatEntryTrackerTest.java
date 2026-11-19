@@ -156,6 +156,27 @@ class ChatEntryTrackerTest {
     }
 
     @Test
+    void anEntryThatFailedAsAWholeCostsOnlyWhatItsImagesCost() throws Exception {
+        ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
+        ChatEntry empty = new ChatEntry.Builder().status(ChatEntry.Status.PENDING).cost(0.12).build();
+        GeneratedImage made = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.CACHED)
+                .baseCost(0.04).build();
+        GeneratedImage running = new GeneratedImage.Builder().downloadStatus(GeneratedImage.DownloadStatus.PENDING)
+                .baseCost(0.04).build();
+        ChatEntry partial = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).cost(0.08).build();
+        partial.getImages().addAll(made, running);
+
+        tracker.markFailed(empty, "not stored");
+        tracker.markFailed(partial, "no answer");
+        drainFxThread();
+        assertEquals(ChatEntry.Status.FAILED, empty.getStatus());
+        assertEquals(0.0, empty.getCost(), "an order that sent nothing costs nothing");
+        assertEquals(0.04, partial.getCost(), 1e-9);
+        assertEquals(GeneratedImage.DownloadStatus.FAILED, running.getDownloadStatus());
+        assertEquals("no answer", running.getErrorMessage());
+    }
+
+    @Test
     void storesOnAWorkerAfterTheChangeOnTheFxThread() throws Exception {
         ChatRepository repository = mock(ChatRepository.class);
         List<String> saved = new CopyOnWriteArrayList<>();

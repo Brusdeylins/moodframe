@@ -178,6 +178,8 @@ class MoodAnalysisServiceTest {
         assertEquals(List.of("#102040", "#FF8800"), analysis.blocks().get(Mood.Field.COLOR).colors());
         assertEquals(I18nManager.getText("mood.image.palette"), analysis.blocks().get(Mood.Field.COLOR).name());
         assertEquals(I18nManager.getText("mood.image.no.model"), analysis.notice());
+        assertEquals(I18nManager.getTextIn(java.util.Locale.ENGLISH, "mood.image.no.model"),
+                analysis.englishNotice(), "the MCP clients read English");
         verify(gemini, never()).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
     }
 
@@ -226,10 +228,20 @@ class MoodAnalysisServiceTest {
         when(gemini.chatTurn(anyString(), anyList(), anyList(), anyBoolean()))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("HTTP 500")));
 
-        MoodAnalysisService.Analysis analysis = service.analyze(image(), context).join();
+        java.util.Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(java.util.Locale.GERMAN);
+        try {
+            MoodAnalysisService.Analysis analysis = service.analyze(image(), context).join();
 
-        assertEquals(Set.of(Mood.Field.COLOR), analysis.blocks().keySet());
-        assertEquals(I18nManager.getText("mood.image.error", "HTTP 500"), analysis.notice());
+            assertEquals(Set.of(Mood.Field.COLOR), analysis.blocks().keySet());
+            assertEquals(I18nManager.getText("mood.image.error", "HTTP 500"), analysis.notice());
+            assertEquals(I18nManager.getTextIn(java.util.Locale.ENGLISH, "mood.image.error", "HTTP 500"),
+                    analysis.englishNotice(), "the MCP clients read English");
+            assertFalse(analysis.notice().equals(analysis.englishNotice()));
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 
     @Test
