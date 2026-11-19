@@ -133,7 +133,7 @@ class LibraryTools {
                     : model.getResolutionLabel() != null ? List.of(model.getResolutionLabel()) : List.of();
             GenerationCost.Quote cost = GenerationCost.quote(model,
                     model.isVideoModel() ? ModelParameters.DEFAULT_VIDEO_SECONDS : null, null, 1);
-            ObjectNode node = list.addObject().put("id", id).put("name", item)
+            ObjectNode node = list.addObject().put("id", id).put("name", GenerationModel.displayNameOf(id))
                     .put("family", ModelFamilies.familyOf(item)).put("provider", model.getProvider().getDisplayName())
                     .put("video", model.isVideoModel());
             node.set("aspectRatios", McpTools.JSON.valueToTree(AspectRatios.forItem(item)));

@@ -18,6 +18,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.SplitPane;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,6 +159,9 @@ public class BrainstormDialog extends Stage {
                     chatView.applyBusy(researching);
             }
         }));
+
+        /*  The window hears the events of every session until it closes  */
+        addEventHandler(WindowEvent.WINDOW_HIDDEN, (WindowEvent event) -> service.close());
 
         showNewSession();
 

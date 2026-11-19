@@ -14,6 +14,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.util.I18nManager;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
@@ -57,6 +58,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -125,7 +127,7 @@ class McpEditToolsTest {
         frames = TestLibraryServices.frames(events);
         favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ChatTrashGroup(chatTrash));
         trash.register(new ImageTrashGroup(repository, chatTrash, null, null));
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));
@@ -391,6 +393,19 @@ class McpEditToolsTest {
     private static final String ORDER = "\"prompt\":\"a harbor at dawn\",\"model\":\"" + MODEL + "\","
             + "\"moodId\":\"std:mood:film-noir\",\"blocks\":{\"atmosphere\":null},"
             + "\"frameId\":\"Social Post\",\"aspectRatio\":\"16:9\",\"count\":2";
+
+    @Test
+    void thePreviewNamesTheModelInEnglishWhateverTheLanguageOfTheWindow() throws Exception {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(),
+                    call("preview_generation", "{" + ORDER + "}").path("name").asText());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
+    }
 
     @Test
     void previewTellsWhatTheMainWindowSends() throws Exception {

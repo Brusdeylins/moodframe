@@ -37,12 +37,13 @@ public class ChatEntryTracker {
     private final List<Consumer<GeneratedImage>> imageListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates the tracker without the trash: the file of an image delivered after its entry went to the trash stays.
+     * Creates the tracker without the trash, for the tests of the generation: the file of an image delivered after
+     * its entry went to the trash stays. The application wires the trash in.
      *
      * @param chatRepository where entries and images are stored
      * @param executor       runs the database writes; a single thread keeps them in their order
      */
-    public ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
+    ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
         this(chatRepository, null, executor);
     }
 
@@ -309,7 +310,7 @@ public class ChatEntryTracker {
 
     /**
      * Checks if all images in a ChatEntry are finished (either CACHED or FAILED). If so, the entry gets the cost of
-     * its images (a blocked image costs nothing), its final status and completion time, in a change queued after
+     * its images (a blocked image costs nothing, a deleted one its booked share), its final status and completion time, in a change queued after
      * the current one, and is stored; the listeners learn of it once it is stored. Call it on the FX thread whenever
      * the status of an image changed.
      *
@@ -366,9 +367,10 @@ public class ChatEntryTracker {
         });
     }
 
-    /*  the sum of the base, Google Search and reasoning costs of the images of an entry  */
+    /*  the sum of the base, Google Search and reasoning costs of the images of an entry, with the share of those
+        deleted meanwhile, which their deletion booked (see ChatCost)  */
     private static double totalCost(ChatEntry chatEntry) {
-        double totalCost = 0.0;
+        double totalCost = chatEntry.getDeletedCost();
         for (GeneratedImage img : chatEntry.getImages()) {
             if (img.getBaseCost() != null)
                 totalCost += img.getBaseCost();

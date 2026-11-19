@@ -68,6 +68,25 @@ public final class ChatCost {
         return stored > 0 ? openCost * stored(image) / stored : openCost / images.size();
     }
 
+    /**
+     * Gets the share of an image in the cost of its entry that is still open, see
+     * {@link #imageShare(double, List, GeneratedImage)}. The cost of an entry still running, or cancelled while it
+     * ran, is the estimate of all its images, while only the finished ones are stored or carry a cost, so an image of
+     * it is booked with what it cost by itself; the entry adds what its deleted images cost to the sum of the others
+     * once all are finished, and its last image books the rest with the entry.
+     *
+     * @param entry  the entry with its cost and deleted cost
+     * @param images the images the open cost is split among, the image included
+     * @param image  the image
+     * @return the cost in dollars, never negative
+     */
+    public static double imageShare(ChatEntry entry, List<GeneratedImage> images, GeneratedImage image) {
+        if (entry.getStatus() == ChatEntry.Status.PENDING || entry.getStatus() == ChatEntry.Status.PROCESSING
+                || entry.getStatus() == ChatEntry.Status.CANCELLED)
+            return stored(image);
+        return imageShare(entry.getCost() - entry.getDeletedCost(), images, image);
+    }
+
     /*  what the image cost by itself, as the entry cost is summed from it (see ChatEntryTracker)  */
     private static double stored(GeneratedImage image) {
         return value(image.getBaseCost()) + value(image.getSearchCost()) + value(image.getReasoningCost());

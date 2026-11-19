@@ -1,13 +1,9 @@
 package art.moodframe.service.brainstorm;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.ResearchNote;
-import art.moodframe.repository.BrainstormRepository;
-import art.moodframe.service.provider.gemini.GeminiApiService;
-import art.moodframe.service.provider.openai.OpenAiApiService;
 import art.moodframe.util.I18nManager;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -37,7 +33,8 @@ import java.util.function.Supplier;
  * return at once, so the JavaFX thread may call them; the request reads and writes the session on a thread of the
  * queue of its session, after the request before it. Every other method that reads or writes the sessions blocks on
  * the database and is called off the JavaFX thread (the window runs it on its worker). The listeners are called on
- * background threads.</p>
+ * background threads with the events of every session, whichever window sent its request, until {@link #close()}; a
+ * rename or a note of a session deleted meanwhile is not stored.</p>
  *
  * @since 1.7.0
  */
@@ -60,10 +57,23 @@ public class BrainstormService {
     private final BrainstormModels models;
     private final BrainstormTools tools;
     private final BrainstormConversation conversation;
-    private BiConsumer<String, String> onToolStatus = (String sessionId, String status) -> { };
-    private Consumer<BrainstormSession> onTitleChanged = (BrainstormSession session) -> { };
+    private volatile BiConsumer<String, String> onToolStatus = (String sessionId, String status) -> { };
+    private volatile Consumer<BrainstormSession> onTitleChanged = (BrainstormSession session) -> { };
     /** The queue of the sessions, shared with every other window on the same sessions. */
     private final BrainstormQueue queue;
+    /*  hands the events of every session to the listeners of this window while it is open  */
+    private final BrainstormQueue.Listener events = new BrainstormQueue.Listener() {
+
+        @Override
+        public void toolStatus(String sessionId, String status) {
+            onToolStatus.accept(sessionId, status);
+        }
+
+        @Override
+        public void titleChanged(BrainstormSession session) {
+            onTitleChanged.accept(session);
+        }
+    };
 
     /** Creates a service for each brainstorm window, with the sessions and language models of the application. */
     @FunctionalInterface
@@ -93,47 +103,34 @@ public class BrainstormService {
     }
 
     /**
-     * Creates the service with Gemini only and without the lookup of YouTube videos.
-     *
-     * @param repository the session storage
-     * @param geminiService the Gemini API service
-     */
-    public BrainstormService(BrainstormRepository repository, GeminiApiService geminiService) {
-        this(repository, geminiService, null, null);
-    }
-
-    /**
-     * Creates the service that can also talk to OpenAI, without the lookup of YouTube videos. The engine is read from
-     * the configuration for every request, so a change in the dialog applies to the next message.
-     *
-     * @param repository the session storage
-     * @param geminiService the Gemini API service, also does the research
-     * @param openAiService the OpenAI API service, null if there is none
-     * @param config the configuration with the chosen engine and OpenAI language model, null for Gemini only
-     */
-    public BrainstormService(BrainstormRepository repository, GeminiApiService geminiService,
-            OpenAiApiService openAiService, ApplicationConfig config) {
-        this(new BrainstormSessions(repository), new BrainstormModels(geminiService, openAiService, config),
-                new BrainstormTools(geminiService, null));
-    }
-
-    /**
      * Sets the listener that is told what the AI is about to research (a search question or a video URL),
-     * called from a background thread before the tool runs, with the id of the session and the status.
+     * called from a background thread before the tool runs, with the id of the session and the status. It hears the
+     * turns of every session, also those another window started, until {@link #close()}.
      *
      * @param onToolStatus the listener
      */
     public void setOnToolStatus(BiConsumer<String, String> onToolStatus) {
         this.onToolStatus = onToolStatus;
+        queue.listen(events);
     }
 
     /**
-     * Sets the listener that is told when a session got its short name, called from a background thread.
+     * Sets the listener that is told when a session got its short name, called from a background thread. It hears
+     * every session, also one another window named, until {@link #close()}.
      *
      * @param onTitleChanged the listener
      */
     public void setOnTitleChanged(Consumer<BrainstormSession> onTitleChanged) {
         this.onTitleChanged = onTitleChanged;
+        queue.listen(events);
+    }
+
+    /**
+     * Stops telling the listeners of this service, when its window closes; the requests it queued go on and report
+     * to the windows open then.
+     */
+    public void close() {
+        queue.ignore(events);
     }
 
     /** Creates a new empty session. */
@@ -226,10 +223,7 @@ public class BrainstormService {
      * @return completes when the title is stored
      */
     public CompletableFuture<Void> renameSession(String sessionId, String title) {
-        return enqueue(sessionId, () -> {
-            sessions.updateTitle(sessionId, title);
-            return null;
-        });
+        return write(sessionId, () -> sessions.updateTitle(sessionId, title));
     }
 
     public List<BrainstormMessage> loadMessages(String sessionId) {
@@ -310,9 +304,16 @@ public class BrainstormService {
      * @return completes when the event is stored, after the requests of the session before it
      */
     public CompletableFuture<Void> noteAdopted(BrainstormSession session) {
-        return enqueue(session.getId(), () -> {
-            sessions.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
-                    BrainstormSessions.EVENT_PREFIX + new JSONObject().put("event", "draft_adopted")));
+        return write(session.getId(), () -> sessions.addMessage(session.getId(), new BrainstormMessage(
+                BrainstormMessage.ROLE_EVENT,
+                BrainstormSessions.EVENT_PREFIX + new JSONObject().put("event", "draft_adopted"))));
+    }
+
+    /*  Runs a write of a session on its queue; a session deleted meanwhile is left alone  */
+    private CompletableFuture<Void> write(String sessionId, Runnable write) {
+        return enqueue(sessionId, () -> {
+            if (!queue.isDeleted(sessionId))
+                write.run();
             return null;
         });
     }
@@ -341,7 +342,7 @@ public class BrainstormService {
         String currentDraft = sessions.latestDraft(sessionId)
                 .map((BrainstormDraft draft) -> BrainstormJson.toJson(draft).toString()).orElse("");
         BrainstormConversation.Answer answer = conversation.answer(session, message, history, currentDraft, context,
-                (String status) -> onToolStatus.accept(sessionId, status), () -> ensureNotDeleted(sessionId));
+                (String status) -> queue.toolStatus(sessionId, status), () -> ensureNotDeleted(sessionId));
         BrainstormReply reply = answer.reply();
 
         // The session may have been deleted while the AI was answering: then nothing is stored any more
@@ -397,7 +398,7 @@ public class BrainstormService {
         if (queue.isDeleted(session.getId()) || !sessions.replaceTitle(session.getId(), automatic, name))
             return null;
         session.setTitle(name);
-        onTitleChanged.accept(session);
+        queue.titleChanged(session);
         return null;
     }
 

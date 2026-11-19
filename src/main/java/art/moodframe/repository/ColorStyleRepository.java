@@ -334,7 +334,7 @@ public class ColorStyleRepository {
      * @return true if the ID is taken
      * @throws SQLException if the database fails
      */
-    public boolean existsById(String id) throws SQLException {
+    public boolean exists(String id) throws SQLException {
         String sql = "SELECT COUNT(*) FROM color_styles WHERE id = ?";
 
         try (Connection conn = database.getConnection();

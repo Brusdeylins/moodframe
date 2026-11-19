@@ -458,7 +458,7 @@ public class PromptBlockService {
                     !Boolean.FALSE.equals(entry.get("photographic")));
             block.setParams((String) entry.get("params"));
             if (entry.get("id") instanceof String id && !id.startsWith(PromptBlock.STANDARD_PREFIX)
-                    && !access.call(() -> repository.existsById(id), false, "Failed to load prompt blocks"))
+                    && !access.call(() -> repository.exists(id), false, "Failed to load prompt blocks"))
                 block.setId(id);
             if (addCustom(block))
                 imported++;

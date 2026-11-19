@@ -29,7 +29,8 @@ import java.util.function.Function;
  * {@link LibraryEvents.Kind#CHAT} or {@link LibraryEvents.Kind#ENTRY}.
  *
  * <p>The methods may be called from any thread, and none waits for the JavaFX thread but the deletion of a running
- * entry or of its chat, which cancels the generation first (see {@link Generations}), so the deletions run off that
+ * entry, of its chat or of an image it still makes, which cancels the generation first (see {@link Generations}), so
+ * the deletions run off that
  * thread: they access the database on the calling thread and change the list and the models under the
  * {@link ModelLock}, then report the change. The user
  * interface keeps a list of its own, which follows the reports (see {@link LibraryEvents}); the listeners the views
@@ -357,7 +358,12 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /**
-     * Moves an image to the trash; with its last image the entry leaves its chat as well.
+     * Moves an image to the trash; with its last image the entry leaves its chat as well. While the generation of
+     * the entry runs, an image it still makes, or the last image it made (the entry would go to the trash with it),
+     * is deleted after the generation is cancelled and its writes are awaited, as {@link #deleteEntry} does, so the
+     * entry ends and the chat books the cost the cancellation settled. A finished image deleted beside images still
+     * running leaves the generation alone; its share stays in the cost of the entry (see {@link ChatCost}). It waits
+     * for the JavaFX thread then, so call it off that thread.
      *
      * @param entry the entry of the image
      * @param image the image
@@ -365,6 +371,8 @@ public class ChatLibrary implements TrashCenter.Listener {
      * @throws SQLException if it cannot be marked as deleted
      */
     public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
+        if (stopsGeneration(entry, image))
+            settle(List.of(entry));
         ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
                 : inMemory(entry, image);
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
@@ -376,6 +384,20 @@ public class ChatLibrary implements TrashCenter.Listener {
         });
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
         return deletion.entryDeleted();
+    }
+
+    /*  Tells whether deleting the image of a running entry cancels its generation: the image is not finished yet, or
+        no other image is, so the entry would go to the trash with it  */
+    private static boolean stopsGeneration(ChatEntry entry, GeneratedImage image) {
+        return ModelLock.read(() -> (entry.getStatus() == ChatEntry.Status.PENDING
+                || entry.getStatus() == ChatEntry.Status.PROCESSING) && (!finished(image)
+                || entry.getImages().stream().noneMatch((GeneratedImage other) -> other != image && finished(other))));
+    }
+
+    /*  an image cached or failed, as the generation stores it  */
+    private static boolean finished(GeneratedImage image) {
+        return image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED
+                || image.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED;
     }
 
     /*  Settles the generations of the entries before they go to the trash, waiting at most SETTLE_SECONDS; a deletion
@@ -408,7 +430,7 @@ public class ChatLibrary implements TrashCenter.Listener {
         return ModelLock.read(() -> entry.getImages().size() == 1
                 ? new ChatHistoryService.ImageDeletion(true, entry.getCost())
                 : new ChatHistoryService.ImageDeletion(false, entry.getDeletedCost()
-                        + ChatCost.imageShare(entry.getCost() - entry.getDeletedCost(), entry.getImages(), image)));
+                        + ChatCost.imageShare(entry, entry.getImages(), image)));
     }
 
     /*  the chat of an entry in the list, under the lock  */

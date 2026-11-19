@@ -179,7 +179,8 @@ class DeletedCostCorrectionTest {
 
     private static void saveEntry(ChatRepository chats, String id, String model, double cost) throws Exception {
         chats.saveChat(new Chat.Builder().id(id).name(id).build());
-        chats.saveChatEntry(new ChatEntry.Builder().id(id).chatId(id).userPrompt(id).model(model).cost(cost).build());
+        chats.saveChatEntry(new ChatEntry.Builder().id(id).chatId(id).userPrompt(id).model(model).cost(cost)
+                .status(ChatEntry.Status.COMPLETED).build());
     }
 
     private static void image(ChatRepository chats, String entryId, String id, String model, double base,

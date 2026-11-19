@@ -431,7 +431,7 @@ public class MoodframeApplication extends Application {
             TrashCenter trashCenter = new TrashCenter();
             ChatRepository chatRepo = services.getService(ChatRepository.class);
             ChatTrashRepository chatTrash = services.getService(ChatTrashRepository.class);
-            trashCenter.register(new ChatTrashGroup(chatRepo, chatTrash));
+            trashCenter.register(new ChatTrashGroup(chatTrash));
             trashCenter.register(new ImageTrashGroup(chatRepo, chatTrash, services.getService(TrashManager.class),
                     services.getService(ThumbnailManager.class)));
             trashCenter.register(new BlockTrashGroup(services.getService(PromptBlockService.class),

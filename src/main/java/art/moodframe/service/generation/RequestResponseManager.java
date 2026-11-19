@@ -113,14 +113,13 @@ public class RequestResponseManager implements RequestResponseService {
                 });
     }
 
-    /*  Encodes an attachment and checks the request and its prompt against the limit of the provider, which decides
-        seeds and flow  */
+    /*  Encodes an attachment and checks the request against what its model takes (see ImageProvider#checkRequest);
+        the provider decides seeds and flow  */
     private ImageProvider prepare(ImageGenerationRequest request, File attachedImageFile) {
         if (attachedImageFile != null)
             attachImage(request, attachedImageFile);
-        request.validate();
         ImageProvider provider = providers.forModel(request.getModel());
-        provider.checkPromptLength(request);
+        provider.checkRequest(request);
         return provider;
     }
 

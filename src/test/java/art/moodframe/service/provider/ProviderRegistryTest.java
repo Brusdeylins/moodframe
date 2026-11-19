@@ -115,8 +115,8 @@ class ProviderRegistryTest {
         doCallRealMethod().when(realBfl).checkImageInput(any());
         assertDoesNotThrow(() -> realBfl.checkImageInput("flux.3-image"));
         assertDoesNotThrow(() -> realBfl.checkImageInput("flux.2-klein-4b"));
-        assertThrows(IllegalArgumentException.class, () -> realBfl.checkImageInput("flux-pro-1.1"));
-        assertThrows(IllegalArgumentException.class, () -> realBfl.checkImageInput(null));
+        assertThrows(ProviderException.class, () -> realBfl.checkImageInput("flux-pro-1.1"));
+        assertThrows(ProviderException.class, () -> realBfl.checkImageInput(null));
     }
 
     @Test

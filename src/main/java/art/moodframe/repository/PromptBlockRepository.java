@@ -18,7 +18,7 @@ import java.util.UUID;
  * Repository for the prompt building blocks of the user in SQLite (table {@code prompt_blocks}).
  *
  * <p>The standard blocks come from code and are never stored. All queries skip the blocks
- * in the trash ({@code deleted_at} set), except {@link #existsById}, {@link #deleteAll} and those for the trash
+ * in the trash ({@code deleted_at} set), except {@link #exists}, {@link #deleteAll} and those for the trash
  * itself ({@link #findDeleted()}, {@link #findInTrash}). A finder of one block answers with an {@link Optional}.</p>
  *
  * <p>A database error is thrown as {@link SQLException}, the caller decides what follows.</p>
@@ -151,7 +151,7 @@ public class PromptBlockRepository {
      * @return true if the id is taken
      * @throws SQLException if the database fails
      */
-    public boolean existsById(String id) throws SQLException {
+    public boolean exists(String id) throws SQLException {
         return !query("SELECT * FROM prompt_blocks WHERE id = ?", id).isEmpty();
     }
 

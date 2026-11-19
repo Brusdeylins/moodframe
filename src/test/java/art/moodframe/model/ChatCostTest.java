@@ -74,6 +74,24 @@ class ChatCostTest {
         assertEquals(0.0, ChatCost.imageShare(-0.01, List.of(first), first), 1e-9, "never negative");
     }
 
+    @Test
+    void anImageOfAnEntryThatDidNotSettleItsCostIsBookedWithWhatItCostItself() {
+        GeneratedImage made = image(0.04, null, null);
+        GeneratedImage running = image(null, null, null);
+        ChatEntry entry = new ChatEntry.Builder().cost(0.12).status(ChatEntry.Status.PROCESSING).build();
+
+        /*  The cost of a running entry is the estimate of all three images, only one of them is made  */
+        assertEquals(0.04, ChatCost.imageShare(entry, List.of(made, running), made), 1e-9, "not the estimate");
+        entry.setStatus(ChatEntry.Status.CANCELLED);
+        assertEquals(0.04, ChatCost.imageShare(entry, List.of(made, running), made), 1e-9,
+                "a cancelled entry keeps the estimate as well");
+        assertEquals(0.0, ChatCost.imageShare(entry, List.of(made, running), running), 1e-9);
+
+        entry.setStatus(ChatEntry.Status.COMPLETED);
+        entry.setDeletedCost(0.02);
+        assertEquals(0.10, ChatCost.imageShare(entry, List.of(made), made), 1e-9, "a settled entry shares its cost");
+    }
+
     private static GeneratedImage image(Double base, Double search, Double reasoning) {
         return new GeneratedImage.Builder().baseCost(base).searchCost(search).reasoningCost(reasoning).build();
     }

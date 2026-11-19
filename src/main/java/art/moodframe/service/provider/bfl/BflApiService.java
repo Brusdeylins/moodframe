@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageDimensions;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;
 import art.moodframe.service.provider.GenerationJobInfo;
@@ -152,13 +153,39 @@ public interface BflApiService extends ImageProvider {
     }
 
     /**
-     * Only FLUX 3 and FLUX.2 take an attached image.
+     * Takes an attached image as the constant of its model tells (FLUX 3 and FLUX.2); a former FLUX model, which is no
+     * constant, takes none.
      */
     @Override
     default void checkImageInput(String modelId) {
-        String lower = modelId != null ? modelId.toLowerCase() : "";
-        if (!lower.startsWith("flux.3-") && !lower.startsWith("flux.2-"))
-            throw new IllegalArgumentException("Image input is only supported with FLUX 3 and FLUX.2 models");
+        if (GenerationModel.fromApiModelId(modelId) == null)
+            throw ProviderException.localized("generation.error.input.image", modelId);
+        ImageProvider.super.checkImageInput(modelId);
+    }
+
+    /**
+     * Checks besides the limits of every provider the width and height of a model sized by them, FLUX.2 and a former
+     * FLUX model (FLUX 3 is sized by its resolution tier): within the sides and in the multiple of
+     * {@link ImageDimensions}.
+     */
+    @Override
+    default void checkRequest(ImageGenerationRequest request) {
+        ImageProvider.super.checkRequest(request);
+        GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
+        if (model != null && model.isFlux3Model())
+            return;
+        checkSide(request.getWidth(), model, "generation.error.width");
+        checkSide(request.getHeight(), model, "generation.error.height");
+    }
+
+    /*  a width or height within the sides of the model and in its multiple, none set taken as it is  */
+    private static void checkSide(Integer side, GenerationModel model, String key) {
+        int minimum = ImageDimensions.minimumFor(model);
+        int maximum = ImageDimensions.maximumFor(model);
+        int multiple = ImageDimensions.multipleFor(model);
+        if (side != null && (side < minimum || side > maximum || side % multiple != 0))
+            throw ProviderException.localized(key, String.valueOf(minimum), String.valueOf(maximum),
+                    String.valueOf(multiple));
     }
 
     /**

@@ -32,7 +32,7 @@ class ChatTrashGroupTest {
     private static ChatRepository repository;
     private static ChatTrashRepository trash;
 
-    private final ChatTrashGroup group = new ChatTrashGroup(repository, trash);
+    private final ChatTrashGroup group = new ChatTrashGroup(trash);
 
     @BeforeAll
     static void createDatabase() throws Exception {

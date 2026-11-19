@@ -7,6 +7,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ModelParameter;
 import art.moodframe.model.ModelParameters;
@@ -16,7 +17,6 @@ import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationOrder;
 import art.moodframe.service.generation.GenerationService;
-import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
@@ -49,7 +49,7 @@ import java.util.concurrent.TimeoutException;
  */
 class GenerateTools {
 
-    private static final int MAX_COUNT = 4;
+    private static final int MAX_COUNT = ImageGenerationRequest.MAX_IMAGE_COUNT;
     private static final int MAX_REFERENCES = 14;
     private static final int DEFAULT_WAIT = 120;
     private static final int MAX_WAIT = 600;
@@ -235,7 +235,7 @@ class GenerateTools {
 
     /*  the model and the format it makes of the target  */
     private static void format(ObjectNode node, GenerationOrder order, GenerationService.Preview preview) {
-        node.put("model", order.modelId()).put("name", ModelLabels.itemOf(order.modelId()))
+        node.put("model", order.modelId()).put("name", GenerationModel.displayNameOf(order.modelId()))
                 .put("aspectRatio", preview.aspectRatio()).put("resolution", preview.resolution())
                 .put("count", order.imageCount());
     }

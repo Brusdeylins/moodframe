@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -77,7 +78,7 @@ class BrainstormServiceTest {
         when(repository.findLatestDraft("s1")).thenReturn(Optional.empty());
         org.mockito.Mockito.doAnswer(invocation -> stored.add(invocation.getArgument(1)))
                 .when(repository).addMessage(eq("s1"), any(BrainstormMessage.class));
-        service = new BrainstormService(repository, gemini);
+        service = TestBrainstorm.service(repository, gemini);
     }
 
     private static ChatTurn.Model text(String reply) {
@@ -306,7 +307,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         openAiService.sendUserMessage(session, "Hallo", context).join();
 
@@ -323,7 +324,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         /*  The start check found no web search at OpenAI while the window was open; Gemini is not usable either  */
         openAiService.sendUserMessage(session, "Hallo", context).join();
@@ -345,7 +346,7 @@ class BrainstormServiceTest {
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
         when(openAi.research("m", "nautilus")).thenReturn(CompletableFuture.completedFuture(
                 new ResearchNote("nautilus", "The nautilus has chambers.", List.of(SOURCE))));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         BrainstormReply reply = openAiService.sendUserMessage(session, "Ein Nautilus", context).join();
 
@@ -364,7 +365,7 @@ class BrainstormServiceTest {
         when(config.accounts().getOpenAiChatModel()).thenReturn("m");
         when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
-        BrainstormService service = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService service = TestBrainstorm.service(repository, gemini, openAi, config);
         answers(text(VALID_REPLY));
 
         /*  The window says OpenAI, but this session was started with Gemini  */
@@ -509,7 +510,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         openAiService.sendUserMessage(session, "https://youtu.be/dQw4w9WgXcQ", context).join();
 
@@ -830,11 +831,59 @@ class BrainstormServiceTest {
     }
 
     @Test
+    void theShortNameReachesTheWindowsOpenNotTheOneThatAsked() throws Exception {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        List<BrainstormSession> heardByClosed = new CopyOnWriteArrayList<>();
+        closed.setOnTitleChanged(heardByClosed::add);
+        closed.close();
+        CountDownLatch named = new CountDownLatch(1);
+        reopened.setOnTitleChanged((BrainstormSession changed) -> named.countDown());
+        when(gemini.suggestTitle(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture("Nautilus-Infografik"));
+        when(repository.replaceTitle(eq("s1"), anyString(), eq("Nautilus-Infografik"))).thenReturn(true);
+        answers(text(STEP_TWO_REPLY));
+
+        closed.sendUserMessage(session, "Ich brauche eine Infografik zum Aufbau eines Nautilus-Gehäuses", context)
+                .join();
+
+        assertTrue(named.await(5, TimeUnit.SECONDS), "the window opened meanwhile learns the short name");
+        assertTrue(heardByClosed.isEmpty(), "the closed window hears nothing");
+    }
+
+    @Test
+    void theResearchOfATurnReachesTheWindowsOpen() {
+        BrainstormSessions sessions = new BrainstormSessions(repository);
+        BrainstormService closed = otherWindow(sessions);
+        BrainstormService reopened = otherWindow(sessions);
+        List<String> status = new CopyOnWriteArrayList<>();
+        reopened.setOnToolStatus((String sessionId, String text) -> status.add(sessionId + ": " + text));
+        researchFinds("The nautilus has chambers.");
+        answers(call("research", new JSONObject().put("query", "nautilus shell")), text(VALID_REPLY));
+
+        closed.sendUserMessage(session, "Infografik Nautilus", context).join();
+
+        assertEquals(List.of("s1: nautilus shell"), status);
+    }
+
+    @Test
+    void aDeletedSessionIsNeitherRenamedNorNoted() throws Exception {
+        service.deleteSession("s1");
+
+        service.renameSession("s1", "Neuer Name").get(5, TimeUnit.SECONDS);
+        service.noteAdopted(session).get(5, TimeUnit.SECONDS);
+
+        verify(repository, never()).updateTitle(anyString(), anyString());
+        verify(repository, never()).addMessage(anyString(), any(BrainstormMessage.class));
+    }
+
+    @Test
     void answersADatabaseErrorWithNothingStored(@TempDir Path tempDir) throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         database.initialize();
         BrainstormRepository broken = new BrainstormRepository(database);
-        BrainstormService service = new BrainstormService(broken, gemini);
+        BrainstormService service = TestBrainstorm.service(broken, gemini);
         BrainstormSession own = service.startSession().orElseThrow();
         service.noteAdopted(own).join();
 

@@ -338,7 +338,8 @@ class LibraryEditTools {
                 blocks.getAll(PromptBlock.Type.ATMOSPHERE), blocks.getAll(PromptBlock.Type.LIGHT),
                 blocks.getAll(PromptBlock.Type.CAMERA), colors.getAllStyles(), List.of(), List.of(), "", List.of(),
                 Set.of());
-        MoodAnalysisService.Analysis found = analysis.analyze(MoodAnalysisService.scaledDown(image), context).join();
+        MoodAnalysisService.Analysis found = analysis.analyze(MoodAnalysisService.scaledDown(image), context,
+                true).join();
 
         ObjectNode result = McpTools.JSON.createObjectNode();
         ObjectNode fields = result.putObject("blocks");

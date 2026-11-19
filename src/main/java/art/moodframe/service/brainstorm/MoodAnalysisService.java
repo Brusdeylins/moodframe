@@ -126,20 +126,37 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Analyzes an image in the background. Without a language model, or if its request fails, only the palette is
-     * found and the analysis says why.
+     * Analyzes an image in the background for the user interface: a new palette without a name from the language
+     * model is named in its language. Without a language model, or if its request fails, only the palette is found
+     * and the analysis says why.
      *
      * @param image the image
      * @param context the lists of the building blocks the language model chooses from
      * @return the found blocks
      */
     public CompletableFuture<Analysis> analyze(BufferedImage image, BrainstormContext context) {
+        return analyze(image, context, false);
+    }
+
+    /**
+     * Analyzes an image in the background, see {@link #analyze(BufferedImage, BrainstormContext)}.
+     *
+     * @param image the image
+     * @param context the lists of the building blocks the language model chooses from
+     * @param english true to name a new palette without a name in English, as for the MCP clients
+     * @return the found blocks
+     */
+    public CompletableFuture<Analysis> analyze(BufferedImage image, BrainstormContext context, boolean english) {
+        String paletteName = english ? I18nManager.getTextIn(Locale.ENGLISH, "mood.image.palette")
+                : I18nManager.getText("mood.image.palette");
+
         /*  The colors and the encoded image on a worker; the answer of the language model is composed, so the worker
             never waits for another task of the IoExecutor  */
         return CompletableFuture.supplyAsync(() -> prepare(image, context), IoExecutor.get())
                 .thenCompose((Prepared prepared) -> {
                     if (!prepared.asks())
-                        return CompletableFuture.completedFuture(new Analysis(colorsOnly(context, prepared.colors()),
+                        return CompletableFuture.completedFuture(new Analysis(
+                                colorsOnly(context, prepared.colors(), paletteName),
                                 I18nManager.getText("mood.image.no.model"),
                                 I18nManager.getTextIn(Locale.ENGLISH, "mood.image.no.model")));
                     CompletableFuture<String> raw = prepared.failure() != null
@@ -148,7 +165,8 @@ public class MoodAnalysisService {
                     return raw.handle((String reply, Throwable error) -> {
                         if (error == null) {
                             try {
-                                return new Analysis(parseReply(reply, context, prepared.colors()), null, null);
+                                return new Analysis(parseReply(reply, context, prepared.colors(), paletteName),
+                                        null, null);
                             }
                             catch (RuntimeException e) {
                                 error = e;
@@ -157,7 +175,7 @@ public class MoodAnalysisService {
                         Throwable cause = error instanceof CompletionException && error.getCause() != null
                                 ? error.getCause() : error;
                         logger.warn("Image analysis failed: {}", cause.getMessage());
-                        return new Analysis(colorsOnly(context, prepared.colors()),
+                        return new Analysis(colorsOnly(context, prepared.colors(), paletteName),
                                 I18nManager.getText("mood.image.error", ProviderException.messageOf(cause, false)),
                                 I18nManager.getTextIn(Locale.ENGLISH, "mood.image.error",
                                         ProviderException.messageOf(cause, true)));
@@ -265,11 +283,12 @@ public class MoodAnalysisService {
      * @param raw the answer, a JSON object possibly with text around it
      * @param context the lists
      * @param colors the colors of the pixels
+     * @param paletteName the name of the palette if the answer names none
      * @return the blocks by field
      * @throws IllegalArgumentException if the answer holds no JSON object
      */
     static Map<Mood.Field, BrainstormDraft.Block> parseReply(String raw, BrainstormContext context,
-            List<String> colors) {
+            List<String> colors, String paletteName) {
         int start = raw == null ? -1 : raw.indexOf('{');
         int end = raw == null ? -1 : raw.lastIndexOf('}');
         if (start < 0 || end <= start)
@@ -290,26 +309,27 @@ public class MoodAnalysisService {
             else if (!block.isNew() && context.idOf(field, block.name()) != null)
                 blocks.put(field, block.withId(context.idOf(field, block.name())));
         }
-        BrainstormDraft.Block palette = palette(context, colors, json.optString("color_name", "").trim());
+        String named = json.optString("color_name", "").trim();
+        BrainstormDraft.Block palette = palette(context, colors, named.isEmpty() ? paletteName : named);
         if (palette != null)
             blocks.put(Mood.Field.COLOR, palette);
         return blocks;
     }
 
-    private static Map<Mood.Field, BrainstormDraft.Block> colorsOnly(BrainstormContext context, List<String> colors) {
+    private static Map<Mood.Field, BrainstormDraft.Block> colorsOnly(BrainstormContext context, List<String> colors,
+            String paletteName) {
         Map<Mood.Field, BrainstormDraft.Block> blocks = new EnumMap<>(Mood.Field.class);
-        BrainstormDraft.Block palette = palette(context, colors, "");
+        BrainstormDraft.Block palette = palette(context, colors, paletteName);
         if (palette != null)
             blocks.put(Mood.Field.COLOR, palette);
         return blocks;
     }
 
-    /** The colors as a new palette under a free name, a default name if none is given; null without colors. */
+    /** The colors as a new palette under a free name; null without colors. */
     private static BrainstormDraft.Block palette(BrainstormContext context, List<String> colors, String name) {
         if (colors.isEmpty())
             return null;
-        String wanted = name.isEmpty() ? I18nManager.getText("mood.image.palette") : name;
-        return new BrainstormDraft.Block(null, freeName(context, Mood.Field.COLOR, wanted), null, List.copyOf(colors),
+        return new BrainstormDraft.Block(null, freeName(context, Mood.Field.COLOR, name), null, List.copyOf(colors),
                 true);
     }
 

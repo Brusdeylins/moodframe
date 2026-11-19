@@ -582,7 +582,7 @@ public class ColorStyleService {
             style.setDefault(false);
             style.setName(freeName(style.getName()));
             String id = style.getId();
-            if (id == null || id.isEmpty() || id.startsWith("std:") || access.call(() -> repository.existsById(id),
+            if (id == null || id.isEmpty() || id.startsWith("std:") || access.call(() -> repository.exists(id),
                     false, "Failed to check if color style ID exists: " + id))
                 style.setId(UUID.randomUUID().toString());
             style.setSortOrder(getNextCustomSortOrder());

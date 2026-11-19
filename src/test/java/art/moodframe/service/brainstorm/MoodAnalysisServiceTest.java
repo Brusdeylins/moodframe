@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -99,7 +100,8 @@ class MoodAnalysisServiceTest {
                 + " \"style\": {\"name\": \"Ink Wash\", \"text\": \"loose ink wash on rough paper\", \"is_new\": true},"
                 + " \"light\": null, \"color_name\": \"Night Port\"}\n```";
 
-        Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply(raw, context, COLORS);
+        Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply(raw, context, COLORS,
+                "Image colors");
 
         assertEquals(new BrainstormDraft.Block("u1", "Harbor Mist", null, List.of(), false),
                 blocks.get(Mood.Field.ATMOSPHERE));
@@ -114,23 +116,24 @@ class MoodAnalysisServiceTest {
         Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply("{\"camera\": {\"name\": "
                 + "\"Classic Portrait\", \"is_new\": true, \"settings\": {\"body\": \"DRONE\", \"lens\": \"MM_24\", "
                 + "\"aperture\": \"F_11\", \"perspective\": \"TOP_DOWN\", \"shot\": \"EXTREME_WIDE\"}}}",
-                context, List.of());
+                context, List.of(), "Image colors");
 
         assertEquals(new BrainstormDraft.Block(null, "Classic Portrait (1)", null, List.of(), new CameraSettings(
                 CameraSettings.Body.DRONE, CameraSettings.Lens.MM_24, CameraSettings.Aperture.F_11, null, null,
                 CameraSettings.Perspective.TOP_DOWN, CameraSettings.Shot.EXTREME_WIDE), true),
                 blocks.get(Mood.Field.CAMERA));
         assertEquals("std:camera:classic-portrait", MoodAnalysisService.parseReply(
-                "{\"camera\": {\"name\": \"Classic Portrait\", \"is_new\": false}}", context, List.of())
-                .get(Mood.Field.CAMERA).id());
+                "{\"camera\": {\"name\": \"Classic Portrait\", \"is_new\": false}}", context, List.of(),
+                "Image colors").get(Mood.Field.CAMERA).id());
         assertFalse(MoodAnalysisService.parseReply("{\"camera\": {\"name\": \"Wide\", \"text\": \"24mm\", "
-                + "\"is_new\": true}}", context, List.of()).containsKey(Mood.Field.CAMERA), "a camera needs settings");
+                + "\"is_new\": true}}", context, List.of(), "Image colors").containsKey(Mood.Field.CAMERA), "a camera needs settings");
     }
 
     @Test
     void anEntryTheListDoesNotHaveIsLeftOut() {
         Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply(
-                "{\"light\": {\"name\": \"Neon Glow\", \"is_new\": false}, \"style\": \"Watercolor\"}", context, List.of());
+                "{\"light\": {\"name\": \"Neon Glow\", \"is_new\": false}, \"style\": \"Watercolor\"}", context, List.of(),
+                "Image colors");
 
         assertFalse(blocks.containsKey(Mood.Field.LIGHT));
         assertEquals("std:style:watercolor", blocks.get(Mood.Field.STYLE).id());
@@ -141,7 +144,7 @@ class MoodAnalysisServiceTest {
     void aNewBlockNamedLikeAnEntryGetsTheNextFreeName() {
         Map<Mood.Field, BrainstormDraft.Block> blocks = MoodAnalysisService.parseReply(
                 "{\"atmosphere\": {\"name\": \"Foggy\", \"text\": \"thin morning fog\", \"is_new\": true},"
-                        + " \"color_name\": \"Ocean\"}", context, COLORS);
+                        + " \"color_name\": \"Ocean\"}", context, COLORS, "Image colors");
 
         assertEquals("Foggy (1)", blocks.get(Mood.Field.ATMOSPHERE).name());
         assertTrue(blocks.get(Mood.Field.ATMOSPHERE).isNew());
@@ -151,7 +154,8 @@ class MoodAnalysisServiceTest {
 
     @Test
     void anAnswerWithoutJsonIsRejected() {
-        assertThrows(IllegalArgumentException.class, () -> MoodAnalysisService.parseReply("no idea", context, COLORS));
+        assertThrows(IllegalArgumentException.class, () -> MoodAnalysisService.parseReply("no idea", context, COLORS,
+                "Image colors"));
     }
 
     @Test
@@ -181,6 +185,21 @@ class MoodAnalysisServiceTest {
         assertEquals(I18nManager.getTextIn(java.util.Locale.ENGLISH, "mood.image.no.model"),
                 analysis.englishNotice(), "the MCP clients read English");
         verify(gemini, never()).chatTurn(anyString(), anyList(), anyList(), anyBoolean());
+    }
+
+    @Test
+    void aPaletteForTheMcpClientsIsNamedInEnglish() {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            assertEquals("Image colors", service.analyze(image(), context, true).join().blocks()
+                    .get(Mood.Field.COLOR).name());
+            assertEquals("Bildfarben", service.analyze(image(), context).join().blocks().get(Mood.Field.COLOR).name(),
+                    "the window names it in the language of the user interface");
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 
     @Test

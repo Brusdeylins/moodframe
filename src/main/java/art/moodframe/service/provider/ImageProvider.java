@@ -3,6 +3,7 @@ package art.moodframe.service.provider;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.model.ModelParameters;
 
 import java.util.List;
 import java.util.Map;
@@ -93,6 +94,45 @@ public interface ImageProvider {
         if (request.getPrompt() != null && request.getPrompt().length() > limit)
             throw ProviderException.localized("generation.error.prompt.too.long", String.valueOf(limit),
                     getProvider().getDisplayName());
+    }
+
+    /**
+     * Checks a request against what its model takes, before it is sent, by the one table of the models
+     * ({@link GenerationModel}, {@link ModelParameters}): a prompt and a model, one to
+     * {@link ImageGenerationRequest#MAX_IMAGE_COUNT} images, the guidance and steps within their limits, a video
+     * length the model offers, an input image only for a model that {@link #checkImageInput takes one}, and the
+     * {@link #checkPromptLength prompt limit}. A provider adds what only its models need, e.g. BFL the width and height
+     * of FLUX.2.
+     *
+     * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
+     * @throws ProviderException if the model does not take the request
+     */
+    default void checkRequest(ImageGenerationRequest request) {
+        if (request.getPrompt() == null || request.getPrompt().isBlank())
+            throw ProviderException.localized("generation.error.prompt.empty");
+        if (request.getModel() == null || request.getModel().isBlank())
+            throw ProviderException.localized("generation.error.model.missing");
+        Integer count = request.getImageCount();
+        if (count != null && (count < 1 || count > ImageGenerationRequest.MAX_IMAGE_COUNT))
+            throw ProviderException.localized("generation.error.image.count", "1",
+                    String.valueOf(ImageGenerationRequest.MAX_IMAGE_COUNT));
+        if (request.getGuidance() != null && !ModelParameters.GUIDANCE.accepts(request.getGuidance()))
+            throw ProviderException.localized("generation.error.guidance",
+                    String.valueOf(ModelParameters.GUIDANCE.minimum()),
+                    String.valueOf(ModelParameters.GUIDANCE.maximum()));
+        if (request.getSteps() != null && !ModelParameters.STEPS.accepts(request.getSteps()))
+            throw ProviderException.localized("generation.error.steps",
+                    String.valueOf(ModelParameters.STEPS.minimum()), String.valueOf(ModelParameters.STEPS.maximum()));
+
+        /*  the length of a video among the choices of its model  */
+        GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
+        List<Integer> seconds = model != null ? model.getVideoDurationChoices() : List.of();
+        if (request.getVideoDuration() != null && !seconds.isEmpty() && !seconds.contains(request.getVideoDuration()))
+            throw ProviderException.localized("generation.error.video.duration",
+                    String.valueOf(seconds.getFirst()), String.valueOf(seconds.getLast()));
+        if (request.hasInputImage())
+            checkImageInput(request.getModel());
+        checkPromptLength(request);
     }
 
     /**
@@ -239,11 +279,15 @@ public interface ImageProvider {
     }
 
     /**
-     * Checks that a model of this provider takes an attached image.
+     * Checks that a model of this provider takes an attached image, as {@link GenerationModel#supportsImageAttachment()}
+     * tells for a constant; a model the provider lists beyond the constants takes one.
      *
      * @param modelId the API model id (may be null)
-     * @throws IllegalArgumentException if the model takes no image
+     * @throws ProviderException if the model takes no image
      */
     default void checkImageInput(String modelId) {
+        GenerationModel model = GenerationModel.fromApiModelId(modelId);
+        if (model != null && !model.supportsImageAttachment())
+            throw ProviderException.localized("generation.error.input.image", modelId);
     }
 }
