@@ -33,9 +33,9 @@ import static art.moodframe.repository.ChatRepository.now;
  * <p>It is the one owner of the files of these deletions: each write reads what it changes inside its transaction,
  * guards its update ({@code AND deleted_at IS NULL}) and hands {@link ChatFiles} the files that follow the rows it
  * changed after the commit (of a chat the images in use, as those deleted on their own lie in the trash already); the
- * file of an image a generation delivered after its entry or chat went to the trash, which has no row, it removes as
- * well ({@link #dropLateImage}). The writes run one after the other, each with the moves of its files, so the files
- * follow the commits in their order. A file that does not move is logged, the rows stay as committed.</p>
+ * file of an image a generation delivered after its entry or chat went to the trash, which no deletion moved, it
+ * removes as well ({@link #dropLateImage}). The writes run one after the other, each with the moves of its files, so
+ * the files follow the commits in their order. A file that does not move is logged, the rows stay as committed.</p>
  *
  * @since 2.1.3
  */
@@ -419,10 +419,10 @@ public class ChatTrashRepository {
 
     /**
      * Removes the file and thumbnail of an image a generation delivered after its entry or chat went to the trash,
-     * which {@link ChatRepository#saveGeneratedImage} did not save: it has no row, so no deletion moved its file out
-     * of the folder of the images in use. It runs after the writes before, like every write of the trash, and only
-     * while the image still has no row and its entry or chat is still in the trash; an entry restored meanwhile keeps
-     * the file, which is logged.
+     * which {@link ChatRepository#saveGeneratedImage} did not save: the file was written after the deletion, so no
+     * deletion moved it out of the folder of the images in use (a row of the image in the trash, e.g. the placeholder
+     * a cancellation stored, does not know it). It runs after the writes before, like every write of the trash, and
+     * only while the entry or chat is still in the trash; an entry restored meanwhile keeps the file, which is logged.
      *
      * @param image the image that was not saved
      * @return true if its files were handed over for removal
@@ -431,9 +431,10 @@ public class ChatTrashRepository {
     public boolean dropLateImage(GeneratedImage image) throws SQLException {
         writes.lock();
         try {
-            boolean dropped = databaseManager.inTransaction((Connection conn) ->
-                    findGeneratedImageById(conn, image.getId()).isEmpty()
-                            && entryPlace(conn, image.getChatEntryId(), true) == ChatRepository.EntryPlace.IN_TRASH);
+            boolean dropped;
+            try (Connection conn = databaseManager.getConnection()) {
+                dropped = entryPlace(conn, image.getChatEntryId(), true) == ChatRepository.EntryPlace.IN_TRASH;
+            }
             if (!dropped) {
                 logger.warn("Image {} of entry {} was not saved, but its entry is no longer in the trash: its file "
                         + "stays", image.getId(), image.getChatEntryId());

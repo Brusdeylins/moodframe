@@ -285,6 +285,13 @@ class ChatRepositoryTest {
         assertTrue(removing.dropLateImage(late));
         assertEquals(List.of(late.getId()), removed, "the trash hands the file of the late image to ChatFiles");
         assertFalse(java.nio.file.Files.exists(file), "no file stays behind in the folder of the images in use");
+
+        /*  the placeholder went to the trash without a file; the file its answer brought later goes as well  */
+        Path answer = java.nio.file.Files.writeString(tempDir.resolve("answer-" + pending.getId() + ".png"), "png");
+        pending.setLocalFilePath(answer.toString());
+        assertTrue(removing.dropLateImage(pending));
+        assertFalse(java.nio.file.Files.exists(answer));
+        pending.setLocalFilePath(null);
         List<GeneratedImage> stored = repository.findGeneratedImagesByEntry(entry.getId());
         assertEquals(List.of(pending.getId()), stored.stream().map(GeneratedImage::getId).toList());
         assertEquals(GeneratedImage.DownloadStatus.PENDING, stored.get(0).getDownloadStatus(),

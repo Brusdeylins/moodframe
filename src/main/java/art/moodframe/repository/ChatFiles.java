@@ -62,7 +62,7 @@ public interface ChatFiles {
 
     /**
      * Removes the files and thumbnails of images a generation wrote into the folder of the images in use after their
-     * entry or chat went to the trash: they have no row, so no deletion moved them.
+     * entry or chat went to the trash: they were written after the deletion, so no deletion moved them.
      *
      * @param images the dropped images
      */
