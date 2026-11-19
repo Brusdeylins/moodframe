@@ -144,13 +144,14 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **Database writes** run off the JavaFX thread, as a write may wait up to the busy timeout of 5 s for one of the MCP
   server: a generation on its own worker (see below); the chats, the trash and the groups Mood and Frame on the worker
   of the main window (`ui.panel.PanelWorker`: moods, frames, building blocks, palettes and favorites of the lists, and
-  the "Manage…" dialog of the building blocks, which waits meanwhile); the backup, its import and the reset of the
-  settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled meanwhile. The
-  panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the writes of the
-  "Manage…" windows of moods and frames and the renaming and deleting of brainstorm sessions. Reads that feed what is
-  shown at once (the lists of the panel, the fields of a chosen mood) stay on the JavaFX thread: they are short, and
-  SQLite in WAL mode lets them read beside a running write. Which moods have a block in the trash (up to five queries
-  per mood) the worker finds once per load of the list; the rows and the warning of the chosen mood follow.
+  the "Manage…" windows of the building blocks, moods and frames, which wait meanwhile); the backup, its import and
+  the reset of the settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled
+  meanwhile. The panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the
+  renaming and deleting of brainstorm sessions. Reads that feed what is shown at once (the lists of the panel and of
+  the "Manage…" windows, the fields of a chosen mood) stay on the JavaFX thread: they are short, and SQLite in WAL mode
+  lets them read beside a running write. Which moods have a block in the trash (up to five queries per mood) the
+  worker finds once per load of a list, in the panel and in the "Manage…" window of the moods; the rows and the
+  warning of the chosen mood follow.
 - **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
   never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
   `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
