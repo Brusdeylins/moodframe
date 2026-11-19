@@ -30,6 +30,7 @@ import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
+import art.moodframe.ui.panel.MoodFramePanelController;
 import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
@@ -203,7 +204,7 @@ public class MainWindowController implements I18nChangeListener {
 
         inputBar = chatViewController.inputBar();
         TrashWindow.Opener trash = new TrashWindow.Opener(services.getService(TrashCenter.class),
-                services.getService(TrashCleanupService.class));
+                services.getService(TrashCleanupService.class), worker);
         chatViewController.useImageSources(new ImageSources(services.getService(ThumbnailManager.class),
                 services.getService(ImageSizeCheck.class)));
         chatViewController.init(config, chatLibrary, chatHistory, worker, (StackPane) mainBorderPane.getParent(),
@@ -498,7 +499,7 @@ public class MainWindowController implements I18nChangeListener {
                     if (kind == TrashGroup.Kind.CHATS)
                         Platform.runLater(() -> statusBarController.status(I18nManager.getText("status.chat.restored")));
                     else if (kind == TrashGroup.Kind.IMAGES)
-                        Platform.runLater(() -> showImagesRestoredStatus(id));
+                        showImagesRestoredStatus(id);
                 }
 
                 /*  A mood that lost its last block with these blocks may go to the trash as well  */
@@ -545,15 +546,22 @@ public class MainWindowController implements I18nChangeListener {
         }
     }
 
-    /** Tells whether an entry or one of its images came back from the trash. */
+    /** Tells whether an entry or one of its images came back from the trash; the worker asks the database. */
     private void showImagesRestoredStatus(String id) {
-        boolean image = false;
         try {
-            image = chatHistory != null && chatHistory.findGeneratedImageById(id).isPresent();
-        } catch (Exception e) {
-            logger.warn("Failed to find the restored image {}", id, e);
+            worker.execute(() -> {
+                boolean image = false;
+                try {
+                    image = chatHistory != null && chatHistory.findGeneratedImageById(id).isPresent();
+                } catch (Exception e) {
+                    logger.warn("Failed to find the restored image {}", id, e);
+                }
+                String key = image ? "status.image.restored" : "status.entry.restored";
+                Platform.runLater(() -> statusBarController.status(I18nManager.getText(key)));
+            });
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            logger.debug("The window closed before the restore of {} was shown", id);
         }
-        statusBarController.status(I18nManager.getText(image ? "status.image.restored" : "status.entry.restored"));
     }
 
     /**

@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.ui.component.MemoryStatusComponent;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;

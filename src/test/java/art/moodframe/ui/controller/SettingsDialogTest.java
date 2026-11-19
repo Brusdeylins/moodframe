@@ -477,9 +477,16 @@ class SettingsDialogTest {
         onFx(() -> this.<Button>node(button).fire());
     }
 
+    /*  the node of an ID, looked up on the FX thread, which may change the scene graph meanwhile  */
     @SuppressWarnings("unchecked")
     private <T extends Node> T node(String id) {
-        return (T) scene.lookup("#" + id);
+        if (Platform.isFxApplicationThread())
+            return (T) scene.lookup("#" + id);
+        try {
+            return onFx(() -> (T) scene.lookup("#" + id));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static void waitFor(Callable<Boolean> condition, String what) throws Exception {

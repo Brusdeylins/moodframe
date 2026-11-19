@@ -11,7 +11,7 @@
      each with its controller, which MainWindowController wires together:
      - LibrarySidebar.fxml: the chats, or the moods or frames images were generated with
      - ChatView.fxml: the header and the entries of the chat, with InputBar.fxml below
-     - MoodFramePanel.fxml and GenerationPanel.fxml: the groups of the right panel
+     - panel/MoodFramePanel.fxml and GenerationPanel.fxml: the groups of the right panel
      - StatusBar.fxml: the footer with status message, memory and API key status -->
 <StackPane xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
            fx:controller="art.moodframe.ui.controller.MainWindowController"
@@ -117,7 +117,7 @@
                              which remembers the unfolded group) -->
 
                         <!-- Mood and Frame: the look and the format of the image -->
-                        <fx:include fx:id="moodFramePanel" source="MoodFramePanel.fxml" />
+                        <fx:include fx:id="moodFramePanel" source="panel/MoodFramePanel.fxml" />
 
                         <!-- Generation: model, the fields of the model, count and the attachment -->
                         <fx:include fx:id="generationPanel" source="GenerationPanel.fxml" />

@@ -36,7 +36,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,15 +93,11 @@ class ImagePreviewOverlayTest {
             started.countDown();
         }
         started.await(10, TimeUnit.SECONDS);
-
-        /*  The tests of the layout measure the image at once; theNextImageIsDecodedInTheBackground checks the
-            loading  */
-        ImagePreviewOverlay.decodeInBackground = false;
     }
 
-    @AfterAll
-    static void decodeInTheBackgroundAgain() {
-        ImagePreviewOverlay.decodeInBackground = true;
+    /*  The tests of the layout measure the image at once; theNextImageIsDecodedInTheBackground checks the loading  */
+    private static ImagePreviewOverlay atOnce() {
+        return new ImagePreviewOverlay(null, false);
     }
 
     @BeforeEach
@@ -259,7 +254,7 @@ class ImagePreviewOverlayTest {
         ImageIO.write(new BufferedImage(64, 48, BufferedImage.TYPE_INT_RGB), "png", image.toFile());
 
         ImagePreviewOverlay overlay = onFxThread(() -> {
-            ImagePreviewOverlay created = new ImagePreviewOverlay();
+            ImagePreviewOverlay created = atOnce();
             new Scene(created, 1000, 700);
             created.showImages(List.of(video.toString(), image.toString()), 0);
             return created;
@@ -302,7 +297,7 @@ class ImagePreviewOverlayTest {
         assertFalse(MediaSupport.isUsable());
 
         onFxThread(() -> {
-            ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+            ImagePreviewOverlay overlay = atOnce();
             new Scene(overlay, 1000, 700);
             overlay.showImage(video.toString());
             assertTrue(shown(hint(overlay)));
@@ -339,7 +334,7 @@ class ImagePreviewOverlayTest {
                 List<String> status = new ArrayList<>();
                 ImagePreviewOverlay overlay = onFxThread(() -> {
                     I18nManager.setLocale(Locale.ENGLISH);
-                    ImagePreviewOverlay created = new ImagePreviewOverlay();
+                    ImagePreviewOverlay created = atOnce();
                     new Scene(created, 1000, 700);
                     created.setOnStatusMessage(status::add);
                     created.showImage(video.toString());
@@ -410,7 +405,7 @@ class ImagePreviewOverlayTest {
         /*  While the detection runs, the hint is shown as before, and every change of a label is recorded  */
         List<String> changes = new CopyOnWriteArrayList<>();
         ImagePreviewOverlay overlay = onFxThread(() -> {
-            ImagePreviewOverlay created = new ImagePreviewOverlay();
+            ImagePreviewOverlay created = atOnce();
             new Scene(created, 1000, 700);
             created.showImage(video.toString());
             assertTrue(shown(hint(created)));
@@ -448,7 +443,7 @@ class ImagePreviewOverlayTest {
         /*  JavaFX Media is still usable: the problem is the file, not the system  */
         assumeRemedy(new Remedy(Kind.ARCH, 0));
         onFxThread(() -> {
-            ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+            ImagePreviewOverlay overlay = atOnce();
             new Scene(overlay, 1000, 700);
             overlay.showImage(dir.resolve("gone.mp4").toString());
             assertNull(labelWithText(overlay, arch));
@@ -460,7 +455,7 @@ class ImagePreviewOverlayTest {
         assumeRemedy(null);
         MediaSupport.failed(new RuntimeException("com.sun.media.jfxmedia.MediaException: Could not create player!"));
         onFxThread(() -> {
-            ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+            ImagePreviewOverlay overlay = atOnce();
             new Scene(overlay, 1000, 700);
             overlay.showImage(video.toString());
             assertTrue(shown(hint(overlay)));
@@ -490,7 +485,7 @@ class ImagePreviewOverlayTest {
                     Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
 
                     /*  Narrow on purpose: the text wraps, the command does not  */
-                    ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+                    ImagePreviewOverlay overlay = atOnce();
                     Scene scene = new Scene(overlay, 420, 700);
                     scene.getStylesheets().add(iconButtonCss);
                     overlay.showImage(video.toString());
@@ -531,7 +526,12 @@ class ImagePreviewOverlayTest {
     }
 
     private static ImagePreviewOverlay overlayOfSize(double width, double height, ApplicationConfig config) {
-        ImagePreviewOverlay overlay = new ImagePreviewOverlay(config);
+        return overlayOfSize(width, height, config, false);
+    }
+
+    private static ImagePreviewOverlay overlayOfSize(double width, double height, ApplicationConfig config,
+            boolean decodeInBackground) {
+        ImagePreviewOverlay overlay = new ImagePreviewOverlay(config, decodeInBackground);
         Scene scene = new Scene(overlay, width, height);
         scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
         overlay.applyCss();
@@ -633,35 +633,29 @@ class ImagePreviewOverlayTest {
     void theNextImageIsDecodedInTheBackground() throws Exception {
         Path first = image(dir, "first.png", 640, 480, 0x202020);
         Path second = image(dir, "second.png", 1600, 900, 0x404040);
-        ImagePreviewOverlay.decodeInBackground = true;
+        ImagePreviewOverlay overlay = onFxThread(() -> {
+            ImagePreviewOverlay created = overlayOfSize(1000, 700, null, true);
+            created.showImages(List.of(first.toString(), second.toString()), 0);
+            return created;
+        });
         try {
-            ImagePreviewOverlay overlay = onFxThread(() -> {
-                ImagePreviewOverlay created = overlayOfSize(1000, 700);
-                created.showImages(List.of(first.toString(), second.toString()), 0);
-                return created;
-            });
-            try {
-                waitUntilLoaded(overlay);
-                assertEquals(640.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
+            waitUntilLoaded(overlay);
+            assertEquals(640.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
 
-                /*  the next image comes once it is decoded, and is fitted from its pixel size  */
-                onFxThread(() -> {
-                    press(overlay, KeyCode.RIGHT);
-                    return null;
-                });
-                waitUntilLoaded(overlay);
-                assertEquals(1600.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
-                assertTrue(onFxThread(() -> imageView(overlay).getBoundsInParent().getWidth()) <= 1000.0);
-            }
-            finally {
-                onFxThread(() -> {
-                    overlay.closeOverlay();
-                    return I18nManager.removeChangeListener(overlay);
-                });
-            }
+            /*  the next image comes once it is decoded, and is fitted from its pixel size  */
+            onFxThread(() -> {
+                press(overlay, KeyCode.RIGHT);
+                return null;
+            });
+            waitUntilLoaded(overlay);
+            assertEquals(1600.0, onFxThread(() -> imageView(overlay).getImage().getWidth()));
+            assertTrue(onFxThread(() -> imageView(overlay).getBoundsInParent().getWidth()) <= 1000.0);
         }
         finally {
-            ImagePreviewOverlay.decodeInBackground = false;
+            onFxThread(() -> {
+                overlay.closeOverlay();
+                return I18nManager.removeChangeListener(overlay);
+            });
         }
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
@@ -771,7 +765,7 @@ class ImagePreviewOverlayTest {
                     /*  The app behind the preview at its brightest: white  */
                     Region app = new Region();
                     app.setStyle("-fx-background-color: white;");
-                    ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+                    ImagePreviewOverlay overlay = atOnce();
                     Scene scene = new Scene(new StackPane(app, overlay), 1000, 700);
                     scene.getStylesheets().add(iconButtonCss);
                     overlay.showImage(image.toString());
@@ -807,7 +801,7 @@ class ImagePreviewOverlayTest {
     /*  The overlay of the given size in a theme, styled as in the app and laid out as by a pulse  */
     private static ImagePreviewOverlay styledOverlayOfSize(String theme, double width, double height) {
         Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme(theme).getUserAgentStylesheet());
-        ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+        ImagePreviewOverlay overlay = atOnce();
         Scene scene = new Scene(overlay, width, height);
         scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
         overlay.applyCss();
@@ -1216,7 +1210,7 @@ class ImagePreviewOverlayTest {
         AtomicReference<Stage> stage = new AtomicReference<>();
         ImagePreviewOverlay overlay = onFxThread(() -> {
             Application.setUserAgentStylesheet(ThemeManager.getAtlantaFXTheme("primer-dark").getUserAgentStylesheet());
-            return new ImagePreviewOverlay();
+            return atOnce();
         });
         try {
 
@@ -1374,7 +1368,7 @@ class ImagePreviewOverlayTest {
         Platform.setImplicitExit(false);
         AtomicReference<Stage> stage = new AtomicReference<>();
         ImagePreviewOverlay overlay = onFxThread(() -> {
-            ImagePreviewOverlay created = new ImagePreviewOverlay();
+            ImagePreviewOverlay created = atOnce();
             stage.set(new Stage());
             stage.get().setScene(new Scene(created, 1000, 700));
             stage.get().show();

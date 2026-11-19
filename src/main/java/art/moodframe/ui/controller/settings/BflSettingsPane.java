@@ -173,7 +173,7 @@ public class BflSettingsPane implements SettingsSection {
             }
         }
 
-        config.setProperty("api.timeout_seconds", timeoutSpinner.getValue().toString());
+        config.accounts().setApiTimeoutSeconds(timeoutSpinner.getValue());
         config.accounts().setApiRegion(regionComboBox.getValue());
     }
 

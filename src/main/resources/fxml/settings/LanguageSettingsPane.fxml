@@ -16,7 +16,7 @@
         <Label fx:id="languageTitleLabel" styleClass="text-bold" text="%settings.language.title" />
         <Label fx:id="languageDescLabel" text="%settings.language.description" />
 
-        <VBox fx:id="languageSelectionContainer" spacing="5.0">
+        <VBox spacing="5.0">
             <RadioButton fx:id="germanRadio" text="%settings.language.german" />
             <RadioButton fx:id="englishRadio" text="%settings.language.english" />
         </VBox>

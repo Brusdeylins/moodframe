@@ -27,7 +27,7 @@
 
     <!-- Main Content: Split Layout with List and Content -->
     <content>
-        <SplitPane fx:id="settingsSplitPane" dividerPositions="0.25" orientation="HORIZONTAL" VBox.vgrow="ALWAYS">
+        <SplitPane dividerPositions="0.25" orientation="HORIZONTAL" VBox.vgrow="ALWAYS">
 
             <!-- Left Side: Settings Categories List -->
             <VBox maxWidth="250" minWidth="200" spacing="5">
@@ -42,7 +42,7 @@
             </VBox>
 
             <!-- Right Side: Settings Content -->
-            <StackPane fx:id="settingsContentPane" alignment="TOP_LEFT" minWidth="500" style="-fx-padding: 0;" SplitPane.resizableWithParent="true">
+            <StackPane alignment="TOP_LEFT" minWidth="500" style="-fx-padding: 0;" SplitPane.resizableWithParent="true">
 
                 <!-- API Configuration Content: one tab per provider -->
                 <VBox fx:id="apiConfigurationPane" managed="true" spacing="15.0" visible="true">
@@ -50,7 +50,7 @@
                         <Insets bottom="0" left="20.0" right="20.0" top="0" />
                     </padding>
 
-                    <TabPane fx:id="apiProviderTabs" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+                    <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
                         <Tab closable="false" text="BFL">
                             <fx:include fx:id="bflPane" source="settings/BflSettingsPane.fxml" />
                         </Tab>

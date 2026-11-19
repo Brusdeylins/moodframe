@@ -156,32 +156,6 @@ public class ThemeManager {
     }
     
     /**
-     * Changes the application theme and saves the preference.
-     * 
-     * @param themeName the name of the theme to apply
-     * @return true if theme was changed successfully
-     */
-    public static boolean changeTheme(String themeName) {
-        logger.debug("Changing theme to: {}", themeName);
-        
-        if (applyTheme(themeName)) {
-            // Save theme preference
-            try {
-                ApplicationConfig config = ThemeManager.config;
-                if (config != null) {
-                    config.ui().setUiTheme(themeName);
-                    logger.debug("Theme preference saved: {}", themeName);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to save theme preference", e);
-                // Don't fail the theme change just because we couldn't save the preference
-            }
-            return true;
-        }
-        return false;
-    }
-    
-    /**
      * Gets the current theme from application configuration.
      * 
      * @return the current theme name, or default if not found

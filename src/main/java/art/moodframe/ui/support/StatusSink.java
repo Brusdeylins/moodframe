@@ -1,10 +1,10 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.support;
 
 import javafx.application.Platform;
 
 /**
  * Where a part of the main window reports what it did: a status message, or an error, which stays shown for a few
- * seconds against the next status messages (see {@link StatusBarController}).
+ * seconds against the next status messages (see {@code ui.controller.StatusBarController}).
  *
  * @since 2.1.3
  */

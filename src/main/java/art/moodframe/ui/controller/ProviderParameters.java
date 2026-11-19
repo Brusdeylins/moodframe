@@ -242,7 +242,6 @@ final class ProviderParameters {
             // Load saved values from config
             double savedGuidance = config.generation().getFlux2FlexGuidance();
             int savedSteps = config.generation().getFlux2FlexSteps();
-            boolean savedGroundingSearch = config.generation().getFlux2GroundingSearchEnabled();
 
             // Setup Guidance slider
             if (flux2GuidanceSlider != null && flux2GuidanceLabel != null) {
@@ -295,8 +294,8 @@ final class ProviderParameters {
                 }
             }
 
-            // Note: Grounding Search checkbox removed - FLUX.2 [max] has built-in automatic grounding
-            // that activates based on prompt content (e.g., "current", "today", "latest")
+            /*  FLUX.2 [max] grounds on its own by the prompt ("current", "today", "latest"): the API takes no
+                parameter for it, so the group only names it  */
 
             // Initially hidden - visibility controlled by updateFlux2ParameterVisibility
             if (flux2ParametersContainer != null) {
@@ -304,8 +303,7 @@ final class ProviderParameters {
                 flux2ParametersContainer.setManaged(false);
             }
 
-            logger.info("FLUX.2 parameters initialized: guidance={}, steps={}, groundingSearch={}",
-                        savedGuidance, savedSteps, savedGroundingSearch);
+            logger.info("FLUX.2 parameters initialized: guidance={}, steps={}", savedGuidance, savedSteps);
 
         } catch (Exception e) {
             logger.error("Failed to setup FLUX.2 parameters", e);
@@ -374,7 +372,7 @@ final class ProviderParameters {
     /**
      * Updates FLUX.2 specific parameter visibility based on the selected model.
      * <ul>
-     *   <li><b>FLUX.2 [max]:</b> Shows Grounding Search checkbox</li>
+     *   <li><b>FLUX.2 [max]:</b> Names its web search, which it starts on its own</li>
      *   <li><b>FLUX.2 [flex]:</b> Shows Guidance and Steps sliders</li>
      *   <li><b>Other models:</b> Hides all FLUX.2 parameters</li>
      * </ul>
@@ -383,7 +381,8 @@ final class ProviderParameters {
      */
     private void updateFlux2ParameterVisibility(GenerationModel generationModel) {
         boolean isFlux2 = generationModel != null && (generationModel.isFlux2Model() || generationModel.isFlux3Model());
-        boolean isFlux2Max = generationModel == GenerationModel.FLUX2_MAX;
+        boolean searchesTheWeb = generationModel != null && generationModel.getProvider() == ApiProvider.BFL
+                && generationModel.supportsGroundingSearch();
         boolean takesGuidance = generationModel != null
                 && generationModel.parameter(art.moodframe.model.ModelParameters.GUIDANCE.name()) != null;
         boolean takesSteps = generationModel != null
@@ -393,10 +392,10 @@ final class ProviderParameters {
         flux2ParametersContainer.setVisible(isFlux2);
         flux2ParametersContainer.setManaged(isFlux2);
 
-        // FLUX.2 [max] Grounding Search - only for FLUX2_MAX
+        // The web search of FLUX.2 [max], only for the BFL models that ground their prompt
         if (flux2GroundingSearchContainer != null) {
-            flux2GroundingSearchContainer.setVisible(isFlux2Max);
-            flux2GroundingSearchContainer.setManaged(isFlux2Max);
+            flux2GroundingSearchContainer.setVisible(searchesTheWeb);
+            flux2GroundingSearchContainer.setManaged(searchesTheWeb);
         }
 
         // Guidance and steps sliders - for the models that take them (FLUX.2 [flex])
@@ -420,7 +419,7 @@ final class ProviderParameters {
             flux1SafetyContainer.setManaged(!isFlux2);
         }
 
-        logger.debug("FLUX.2 parameter visibility: isFlux2={}, isFlux2Max={}, guidance={}, steps={}",
-                     isFlux2, isFlux2Max, takesGuidance, takesSteps);
+        logger.debug("FLUX.2 parameter visibility: isFlux2={}, webSearch={}, guidance={}, steps={}",
+                     isFlux2, searchesTheWeb, takesGuidance, takesSteps);
     }
 }

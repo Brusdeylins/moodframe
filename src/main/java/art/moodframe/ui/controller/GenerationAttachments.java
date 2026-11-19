@@ -6,6 +6,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.ui.dnd.DragDropHandler;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.Button;

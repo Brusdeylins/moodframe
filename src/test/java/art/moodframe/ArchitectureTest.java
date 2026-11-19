@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Guards the layers of docs/ARCHITECTURE.md: reads the imports and fully qualified names of {@code src/main/java} and
  * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
  * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
- * interface only the coordinators do, the order of the parts of the user interface and that no class imports a
- * package of the application with a wildcard.
+ * interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
+ * uses and that no class imports a package of the application with a wildcard.
  */
 class ArchitectureTest {
 
@@ -190,7 +190,7 @@ class ArchitectureTest {
     /*  The subpackages of ui, each using only those before it: support at the bottom, the controllers on top, so no
         view uses a controller  */
     private static final List<String> UI = List.of("ui.support", "ui.dnd", "ui.component", "ui.cell", "ui.dialog",
-            "ui.brainstorm", "ui", "ui.controller.settings", "ui.controller");
+            "ui.panel", "ui.brainstorm", "ui", "ui.controller.settings", "ui.controller");
 
     @Test
     void everyPartOfTheUserInterfaceUsesOnlyThePartsBelowIt() {
@@ -204,6 +204,26 @@ class ArchitectureTest {
         assertEquals(List.of(), violations);
         assertEquals(new TreeSet<>(UI), new TreeSet<>(uses.keySet().stream()
                 .filter((String pkg) -> layerOf(pkg).equals("ui")).toList()), "every part of ui is ordered");
+    }
+
+    /*  The classes of mcp and net the user interface may use: the lifecycle of the MCP server, and the HTTP clients
+        with their proxy and the folder of the certificates for the settings  */
+    private static final Set<String> UI_USES_OF_MCP_AND_NET = Set.of("mcp.McpService", "net.HttpClients",
+            "net.CertificateStore");
+
+    @Test
+    void theUserInterfaceUsesOnlyTheLifecycleOfTheMcpServerAndTheSetupOfTheNetwork() throws IOException {
+        Pattern reference = Pattern.compile("\\bart\\.moodframe\\.((?:mcp|net)\\.[A-Z]\\w*)");
+        Set<String> used = new TreeSet<>();
+        try (Stream<Path> walk = Files.walk(SOURCES.resolve("art/moodframe/ui"))) {
+            for (Path file : walk.filter((Path path) -> path.toString().endsWith(".java")).toList()) {
+                Matcher matcher = reference.matcher(COMMENTS.matcher(Files.readString(file)).replaceAll(""));
+                while (matcher.find())
+                    used.add(matcher.group(1));
+            }
+        }
+        used.removeAll(UI_USES_OF_MCP_AND_NET);
+        assertEquals(Set.of(), used, "no view uses the tools of the MCP server or the network pool");
     }
 
     @Test

@@ -22,8 +22,8 @@
         </padding>
         <!-- OpenAI API Section -->
         <VBox spacing="8.0">
-            <Label fx:id="openaiApiLabel" styleClass="text-bold" text="%settings.openai.title" />
-            <Label fx:id="openaiApiDescLabel" text="%settings.openai.description" />
+            <Label styleClass="text-bold" text="%settings.openai.title" />
+            <Label text="%settings.openai.description" />
 
             <TextField fx:id="openaiBaseUrlField" promptText="%settings.openai.baseurl.placeholder" />
 

@@ -5,6 +5,7 @@ import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.beans.value.ObservableBooleanValue;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -94,6 +95,17 @@ public class TrashEntryCell extends ListCell<TrashEntry> {
         previews.setAlignment(Pos.CENTER_LEFT);
         previews.setMinWidth(Label.USE_PREF_SIZE);
         row.getChildren().addAll(previews, texts, timeLabel, restoreButton, deleteButton);
+    }
+
+    /**
+     * Disables the buttons of the cell while a task of the trash runs.
+     *
+     * @param busy whether a task runs
+     */
+    public void disableActions(ObservableBooleanValue busy) {
+        restoreButton.disableProperty().bind(busy);
+        deleteButton.disableProperty().bind(busy);
+        previews.disableProperty().bind(busy);
     }
 
     /*  the preview of a part: its image, or a placeholder without one  */

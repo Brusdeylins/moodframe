@@ -855,8 +855,10 @@ class MainWindowFlowsTest {
 
         /*  open: its entries in front of the chat, a new one counts and shows at once  */
         String name = MoodGroupListCell.nameOf(moodGroup(mood));
+        List<ChatEntry> ofTheChat = onFx(() -> entryList().getItems());
         onFxThread(() -> moodGroups().getSelectionModel().select(moodGroup(mood)));
         assertEquals(name, header().getText());
+        waitUntil("the group shows its entries", () -> entryList().getItems() != ofTheChat);
         assertEquals(1, entryList().getItems().size());
         assertEquals(I18nManager.getText("sidebar.group.target", chat.getName()), cost().getText());
         ChatEntry second = send(chat, "a quiet harbour at night");
@@ -880,8 +882,10 @@ class MainWindowFlowsTest {
                 .anyMatch((group) -> frame.getId().equals(group.frameId()) && group.imageCount() == 2));
 
         /*  the link of an entry of an open group leads to its chat  */
+        List<ChatEntry> shownBefore = onFx(() -> entryList().getItems());
         onFxThread(() -> frameGroups().getSelectionModel().select(frameGroups().getItems().stream()
                 .filter((group) -> frame.getId().equals(group.frameId())).findFirst().orElseThrow()));
+        waitUntil("the group shows its entries", () -> entryList().getItems() != shownBefore);
         assertEquals(2, entryList().getItems().size());
         onFxThread(() -> find(card(second), Hyperlink.class).fire());
         assertTrue(chatList().isVisible(), "the list of the chats shows again");
@@ -949,14 +953,16 @@ class MainWindowFlowsTest {
         /*  back from the trash: the image, then the entry, each with its status and cost  */
         fromAnotherThread(() -> assertTrue(trash.restore(TrashGroup.Kind.IMAGES, image.getId())));
         waitUntil("the image is back", () -> showsItsImages(card(two), two) && two.getImages().size() == 2);
-        assertEquals(I18nManager.getText("status.image.restored"), status().getText());
+        waitUntil("the status tells the image is back",
+                () -> I18nManager.getText("status.image.restored").equals(status().getText()));
         assertEquals(I18nManager.getText("chat.total.cost.with.deleted", dollars(0.30), dollars(0.10)),
                 cost().getText());
         fromAnotherThread(() -> assertTrue(trash.restore(TrashGroup.Kind.IMAGES, one.getId())));
         waitUntil("the entry is back", () -> entryList().getItems().size() == 2);
         assertEquals(List.of(two.getId(), one.getId()), entryList().getItems().stream().map(ChatEntry::getId)
                 .toList());
-        assertEquals(I18nManager.getText("status.entry.restored"), status().getText());
+        waitUntil("the status tells the entry is back",
+                () -> I18nManager.getText("status.entry.restored").equals(status().getText()));
         assertEquals(I18nManager.getText("chat.total.cost", dollars(0.30)), cost().getText());
     }
 

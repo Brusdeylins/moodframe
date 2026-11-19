@@ -8,6 +8,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyStringProperty;
@@ -152,8 +153,6 @@ public class GenerationPanelController {
     private ChoiceBox<String> videoDurationChoiceBox;
     @FXML
     private Tooltip videoDurationTooltip;
-    @FXML
-    private CheckBox videoAudioCheckBox;
 
     // Attachment
     @FXML
@@ -251,7 +250,6 @@ public class GenerationPanelController {
         // The video durations (the items follow the selected video model)
         videoDurationChoiceBox.getItems().addAll("3s", "4s", "5s", "6s", "7s", "8s", "9s", "10s");
         videoDurationChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> updateCostDisplay());
-        videoAudioCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> updateCostDisplay());
 
         // BFL prompt upsampling is off by default, the thinking level of Gemini minimal (the API default)
         bflPromptUpsamplingCheckBox.setSelected(false);
@@ -279,10 +277,8 @@ public class GenerationPanelController {
         this.listener = listener;
 
         populateAvailableModels();
-        if (config != null) {
+        if (config != null)
             videoDurationChoiceBox.setValue(config.generation().getDefaultVideoDuration());
-            videoAudioCheckBox.setSelected(config.generation().isVideoAudioEnabled());
-        }
         else
             videoDurationChoiceBox.setValue("8s");
         parameters.setUp(config, this::updateCostDisplay);
@@ -633,6 +629,10 @@ public class GenerationPanelController {
             if (newVal != null && config != null)
                 config.generation().setDefaultImageCount((int) newVal.doubleValue());
             updateCostDisplay();
+        });
+        videoDurationChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && config != null)
+                config.generation().setDefaultVideoDuration(newVal);
         });
         bflPromptUpsamplingCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null && config != null)

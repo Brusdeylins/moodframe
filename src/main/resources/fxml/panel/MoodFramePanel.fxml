@@ -9,7 +9,7 @@
 <!-- The groups Mood and Frame of the right panel of the main window, a part of its own that a dialog can show as well:
      the building blocks of the image and its target aspect ratio and resolution -->
 <VBox xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="art.moodframe.ui.controller.MoodFramePanelController"
+      fx:controller="art.moodframe.ui.panel.MoodFramePanelController"
       spacing="10.0">
 
     <!-- Mood: the building blocks that decide how the image looks -->

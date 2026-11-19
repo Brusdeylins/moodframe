@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.panel;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
@@ -19,6 +19,7 @@ import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.component.MoodChoice;
 import art.moodframe.ui.component.StylePresetItem;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.value.ObservableValue;
@@ -220,14 +221,14 @@ public class MoodFramePanelController {
     private art.moodframe.ui.dialog.TrashWindow.Opener trash;
 
     /*  the group Frame  */
-    private FrameGroup frames;
+    private FrameGroupPart frames;
 
     @FXML
     private void initialize() {
         blocks = new BlockChoices(new BlockChoices.Nodes(atmosphereComboBox, atmosphereLockButton,
                 stylePresetsComboBox, styleLockButton, colorStyleComboBox, colorLockButton, lightComboBox,
                 lightLockButton, cameraComboBox, cameraLockButton));
-        frames = new FrameGroup(new FrameGroup.Nodes(frameComboBox, aspectRatioComboBox, aspectRatioHintLabel,
+        frames = new FrameGroupPart(new FrameGroupPart.Nodes(frameComboBox, aspectRatioComboBox, aspectRatioHintLabel,
                 resolutionChoiceBox, resolutionHintLabel, saveFrameButton, saveFrameAsButton), this::modelItem);
     }
 
@@ -309,12 +310,12 @@ public class MoodFramePanelController {
     }
 
     /** The field of the target resolution, for the tests. */
-    ChoiceBox<String> resolutionChoice() {
+    public ChoiceBox<String> resolutionChoice() {
         return resolutionChoiceBox;
     }
 
     /** The hint below the resolution, for the tests. */
-    Label resolutionHint() {
+    public Label resolutionHint() {
         return resolutionHintLabel;
     }
 

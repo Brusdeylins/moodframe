@@ -23,10 +23,11 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | Package      | Role                                                                                   |
 |--------------|----------------------------------------------------------------------------------------|
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
-|              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.support` the   |
-|              | helpers that need JavaFX or the desktop: themes, videos, opening files and web pages,   |
-|              | listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`,    |
-|              | `ListReorder`, `BoxInset`; the root holds only `SplashScreen`, shown before the window) |
+|              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.panel` the     |
+|              | groups Mood and Frame, which several windows show; `ui.support` the helpers that need   |
+|              | JavaFX or the desktop: themes, videos, opening files and web pages, listener cleanup,   |
+|              | `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`, `ListReorder`,       |
+|              | `BoxInset`, `StatusSink`; the root holds only `SplashScreen`, shown before the window)  |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |
@@ -43,7 +44,9 @@ Allowed dependency directions:
 - `ui` → `service` → `repository` → `database`; each layer may also use `model`, `util` and `config`.
 - `ui` → `net` and `service` → `net`: the provider clients and the downloads build their HTTP clients with
   `net.HttpClients` and run on `net.IoExecutor`; the settings dialog manages the certificates with
-  `net.CertificateStore` and tells `HttpClients` that the proxy changed. `net` uses only `config` and `util`.
+  `net.CertificateStore` and tells `HttpClients` that the proxy changed, which is all the user interface uses of
+  `net` (its own disk work, e.g. a pasted image, runs on its own workers, not on the network pool). `net` uses only
+  `config` and `util`.
 - `mcp` → `service`, never `ui`. Whatever the UI can do to the library, the MCP tools do through the same services.
 - `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
   `mcp.McpService` and shows its command line. No view uses the tools of the server.
@@ -61,11 +64,12 @@ Allowed dependency directions:
   depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
   JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
   `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
-  do, the order of the parts of `ui` (below) and that no class imports a package of the application with a
-  wildcard, from the imports and fully qualified names of `src/main/java`.
+  do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
+  `HttpClients` and `CertificateStore`, and that no class imports a package of the application with a wildcard,
+  from the imports and fully qualified names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
-  `ui.cell`, `ui.dialog`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
-  `ui.controller` on top, so no view uses a controller.
+  `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
+  `ui.controller` on top, so no view uses a controller and the brainstorm dialog may show the groups of `ui.panel`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -123,7 +127,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   Only work in memory runs under the lock, and nobody holding it waits for another thread, so the JavaFX thread
   waits at most for such work and the MCP server never waits for the JavaFX thread. The views learn of a change
   through `LibraryEvents`, the sidebar keeps a list of its own that follows the chats of the library, and the
-  listeners the views put on the models hand their work to the JavaFX thread.
+  listeners the views put on the models hand their work to the JavaFX thread. Nothing of the scene graph follows a
+  model directly: the entry card sizes its tiles from a count of the images it keeps on the JavaFX thread, not from
+  the live list, which the worker of the window and the MCP threads change.
 - **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
   executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
 - **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
@@ -142,7 +148,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
-  a burst of events gives one query.
+  a burst of events gives one query. The entries of an open group and whether a restored item was an image are
+  queried there as well, and the trash window lists, restores and deletes on it, its buttons disabled meanwhile.
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
 - **MCP server**: each request runs on a virtual thread of its own (`mcp-server-N`), never on the JavaFX thread, and
@@ -175,7 +182,10 @@ dependencies in the constructor, which is also how tests pass mocks: the provide
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
-No class of `service` or `mcp` uses the locator (`ArchitectureTest`).
+No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
+registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
+`registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
+services, not in the wiring: `MoodService.followTrash` lets the moods lose the blocks deleted for good in the trash.
 
 Creating a service reads and writes nothing. What a service does once per program start is its `start()`, which
 the startup calls after the registration: `PromptBlockService`, `ColorStyleService` and `MoodService` give a block,
@@ -188,14 +198,15 @@ folders of the thumbnails and the trash are created by the first file written th
 The locator is left to the coordinators of the user interface: `MainWindowController` and `SettingsController` look
 up the services once and hand them to their parts, which hand them on to the dialogs and components they open
 (`ArchitectureTest`): the managers and editors of moods, frames, blocks and palettes take their services in the
-constructor, the trash windows open through `TrashWindow.Opener`, the entry cards and the images view get the
+constructor, the trash windows open through `TrashWindow.Opener` (with the worker of the window), the entry cards
+and the images view get the
 thumbnails and the size check as `ImageSources`, the full view and the brainstorm dialog the configuration.
 `MoodframeApplication` hands `ThemeManager` the configuration at the start.
 
 ## The main window
 
 `MainWindow.fxml` holds the header (version, update hint, info, settings) and includes its parts with `fx:include`;
-each part has an FXML file and a controller of its own in `ui.controller`:
+each part has an FXML file and a controller of its own in `ui.controller`, the groups Mood and Frame in `ui.panel`:
 
 | Part                  | Controller                  | Shows                                                         |
 |-----------------------|-----------------------------|---------------------------------------------------------------|
@@ -203,7 +214,7 @@ each part has an FXML file and a controller of its own in `ui.controller`:
 |                       |                             | the selection (current chat, open group)                      |
 | `ChatView.fxml`       | `ChatViewController`        | chat header, entries as chat or images, full view, download   |
 |                       |                             | and delete; includes `InputBar.fxml` (`InputBarController`)   |
-| `MoodFramePanel.fxml` | `MoodFramePanelController`  | the groups Mood and Frame of the right panel                  |
+| `panel/MoodFramePanel`| `MoodFramePanelController`  | the groups Mood and Frame of the right panel (`ui.panel`)     |
 | `GenerationPanel.fxml`| `GenerationPanelController` | model, provider fields, count, attachments, price             |
 | `StatusBar.fxml`      | `StatusBarController`       | status message, memory, API key status                        |
 
@@ -213,7 +224,8 @@ nodes); a part never asks the locator. The window has one worker thread for its 
 downloads, deletes), which the sidebar and the chat view get as an `Executor`. A part reports back through a listener
 interface of its own (`LibrarySidebarController.Listener`, `ChatViewController.Actions`,
 `GenerationPanelController.Listener`, `MoodFramePanelController.Listener`, `InputBarController.Listener`) and shows
-messages through `StatusSink`, where an error is told by the caller, not read from its text. The coordinator carries
+messages through `ui.support.StatusSink`, where an error is told by the caller, not read from its text. The
+coordinator carries
 out what spans parts: sending, the brainstorm, reusing and editing an entry, the changes of the library, the trash and
 the running generations. On a change of the language it calls `updateTexts()` of every part, which relabels itself.
 `PanelGroups` folds the three groups of the right panel, `CornerCloud` draws the cloud behind the window.
@@ -225,16 +237,18 @@ the language (its own, the full view's and the cards'), of the theme, the genera
 and the account checks, the timelines of the memory display and the clipboard watch, and its worker; a closed window
 stays reachable from nowhere.
 
-`MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog) can show the same
-fields: it takes its services as `MoodFramePanelController.Services` (with the trash), follows the chosen model with
+`ui.panel.MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog, which
+`ui.panel` lies below) can show the same fields: it takes its services as `MoodFramePanelController.Services` (with
+the trash), follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
 `Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on. It
 keeps the moods and hands the rest to parts on its nodes: `BlockChoices` (the building block fields with their
-favorites, locks and dialogs) and `FrameGroup` (frame, aspect ratio, resolution and the hints of the model).
+favorites, locks and dialogs) and `FrameGroupPart` (frame, aspect ratio, resolution and the hints of the model).
 `GenerationPanelController` likewise hands the attached images to `GenerationAttachments` and the fields of BFL and
-Gemini to `ProviderParameters`; `ChatEntryCard` loads the pictures of its tiles with `EntryTilePictures` and builds
-its context menus with `EntryMenus`.
+Gemini to `ProviderParameters`; `ChatViewController` its full view with the steps from entry to entry to
+`EntryFullView`; `ChatEntryCard` loads the pictures of its tiles with `EntryTilePictures` and builds its context
+menus with `EntryMenus`; the full view (`ImagePreviewOverlay`) plays a video with `VideoPlayback`.
 
 ## Settings dialog
 
@@ -265,12 +279,14 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   logging starts before any code.
 - **Settings**: `ApplicationConfig` sits on one `ConfigStore` (the properties file, the immediate and the delayed
   writing, the secrets) and groups the settings in sections: `ui()` (`UiState`: theme, language, window, dividers,
-  selections), `generation()` (`GenerationDefaults`: model, frame, building blocks, model parameters),
+  selections, the resolution of each model family), `generation()` (`GenerationDefaults`: model, frame, building
+  blocks, model parameters, the duration of a video),
   `accounts()` (`ProviderAccounts`: key, validation, activation, chat checks keyed by `ApiProvider`, the BFL and
   OpenAI extras, the brainstorm engine), `proxy()` (`ProxySettings`) and `mcp()` (`McpSettings`). The property keys
   are those of all former versions, so an existing file loads unchanged. `ApplicationConfig` itself keeps the
   folders, detailed logging, the update hint, raw properties, the reset and a few shortcuts for the provider
-  clients and the generation. A file that cannot be read is logged and copied to
+  clients and the generation; the user interface reads and writes only the typed methods of the sections, no raw
+  keys. A file that cannot be read is logged and copied to
   `config.properties.unreadable-<time>` before the defaults are written over it (if the copy fails, nothing is
   written in that session); the main window tells the user once where the copy is. The reset holds the lock of the
   writing, so the delayed writer never writes the file without the secrets.

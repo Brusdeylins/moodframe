@@ -19,8 +19,8 @@
         </padding>
         <!-- Google Gemini API Section -->
         <VBox spacing="8.0">
-            <Label fx:id="geminiApiLabel" styleClass="text-bold" text="%settings.gemini.title" />
-            <Label fx:id="geminiApiDescLabel" text="%settings.gemini.description" />
+            <Label styleClass="text-bold" text="%settings.gemini.title" />
+            <Label text="%settings.gemini.description" />
 
             <HBox alignment="CENTER_LEFT" spacing="10.0">
                 <PasswordField fx:id="geminiApiKeyField" promptText="%settings.gemini.key.placeholder" HBox.hgrow="ALWAYS" />
