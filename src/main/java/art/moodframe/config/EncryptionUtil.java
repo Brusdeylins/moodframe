@@ -4,10 +4,13 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -86,16 +89,7 @@ public class EncryptionUtil {
                 key = new byte[32];
                 new SecureRandom().nextBytes(key);
                 Files.createDirectories(keyFile.getParent());
-                Files.writeString(keyFile, Base64.getEncoder().encodeToString(key), StandardCharsets.US_ASCII);
-                try {
-                    Files.setPosixFilePermissions(keyFile, PosixFilePermissions.fromString("rw-------"));
-                }
-                catch (UnsupportedOperationException e) {
-
-                    /*  Windows: the file stays in the user profile, which only the user can read by default  */
-                    keyFile.toFile().setReadable(false, false);
-                    keyFile.toFile().setReadable(true, true);
-                }
+                writeKeyFile(Base64.getEncoder().encodeToString(key));
             }
             if (key.length != 32)
                 throw new IllegalStateException("Invalid key file: " + keyFile);
@@ -106,6 +100,35 @@ public class EncryptionUtil {
         }
     }
     
+    /**
+     * Writes a new key file that nobody but the user can read at any time: where the file system has POSIX
+     * permissions, the key goes into a temporary file created with {@code rw-------}, which is then moved into
+     * place, so the key file appears at once with its content and permissions.
+     *
+     * @param key the key, Base64
+     * @throws IOException if the file cannot be written
+     */
+    private void writeKeyFile(String key) throws IOException {
+        Path directory = keyFile.getParent();
+        if (!Files.getFileStore(directory).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            Files.writeString(keyFile, key, StandardCharsets.US_ASCII);
+
+            /*  Windows: the file stays in the user profile, which only the user can read by default  */
+            keyFile.toFile().setReadable(false, false);
+            keyFile.toFile().setReadable(true, true);
+            return;
+        }
+
+        Path temporary = Files.createTempFile(directory, keyFile.getFileName().toString(), ".tmp",
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        try {
+            Files.writeString(temporary, key, StandardCharsets.US_ASCII);
+            Files.move(temporary, keyFile, StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
     /**
      * Encrypts a plaintext string using AES-256-GCM encryption.
      * 
