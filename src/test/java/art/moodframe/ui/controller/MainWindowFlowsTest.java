@@ -750,6 +750,15 @@ class MainWindowFlowsTest {
         fromAnotherThread(() -> chats.createChat("After closing"));
         onFx(() -> null);
         assertEquals(listed, onFx(() -> chatList().getItems().size()));
+
+        /*  work asked of the closed window, whose worker is drained, is dropped instead of refused with an error  */
+        onFxThread(() -> {
+            InPlaceEditableLabel name = find(chatCell(chat), InPlaceEditableLabel.class);
+            name.startEdit();
+            find(name, TextField.class).setText("After the window closed");
+            name.confirmEdit();
+        });
+        assertEquals("Before closing", chat.getName());
     }
 
     /**
