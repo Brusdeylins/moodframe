@@ -44,9 +44,9 @@ public class GenerationDefaults {
         store.set("model.default_resolution", resolution);
     }
 
-    /** @return the default number of images (default 2) */
+    /** @return the default number of images (default 1, as a fresh installation writes it) */
     public int getDefaultImageCount() {
-        return Integer.parseInt(store.get("model.default_image_count", "2"));
+        return Integer.parseInt(store.get("model.default_image_count", "1"));
     }
 
     /** @param count the default number of images */
@@ -108,9 +108,9 @@ public class GenerationDefaults {
 
     /*  ===== BFL =====  */
 
-    /** @return the safety tolerance of the FLUX.1 models (0-6), default 6 */
+    /** @return the safety tolerance of the FLUX.1 models (0-6), default 2, as a fresh installation writes it */
     public int getDefaultSafetyTolerance() {
-        return Integer.parseInt(store.get("model.default_safety_tolerance", "6"));
+        return Integer.parseInt(store.get("model.default_safety_tolerance", "2"));
     }
 
     /** @param safetyTolerance the safety tolerance of the FLUX.1 models (0-6) */

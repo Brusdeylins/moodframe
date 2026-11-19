@@ -40,6 +40,19 @@ class ConfigFileCompatibilityTest {
     }
 
     @Test
+    void aFileWithoutTheModelDefaultsGetsTheValuesOfAFreshInstallation() throws Exception {
+        Properties stored = new Properties();
+        stored.setProperty("ui.theme", "nord-dark");
+        ApplicationConfig former = withFile(stored);
+
+        ApplicationConfig fresh = new ApplicationConfig(LibraryPaths.under(home.resolve("fresh")));
+        assertEquals(fresh.generation().getDefaultImageCount(), former.generation().getDefaultImageCount());
+        assertEquals(fresh.generation().getDefaultSafetyTolerance(), former.generation().getDefaultSafetyTolerance());
+        assertEquals(1, former.generation().getDefaultImageCount());
+        assertEquals(2, former.generation().getDefaultSafetyTolerance());
+    }
+
+    @Test
     void readsTheKeysOfAFormerVersion() throws Exception {
         Properties stored = new Properties();
         stored.setProperty("provider.bfl.validated", "true");
