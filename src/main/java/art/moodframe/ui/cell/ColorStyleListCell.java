@@ -112,7 +112,7 @@ public class ColorStyleListCell extends ListCell<ColorStyleItem> {
             icon.setVisible(!item.isDefault());
 
             // Set name
-            nameLabel.setText(item.getName());
+            nameLabel.setText(item.getDisplayName());
             if (star != null)
                 star.show(item.getId() != null ? item : null);
 

@@ -157,11 +157,12 @@ final class BlockChoices {
         return colorChoice;
     }
 
-    /** Relabels the actions of the lists in the current language. */
+    /** Relabels the actions of the lists in the current language and fills the lists anew for "None". */
     void updateTexts() {
         blockChoices.values().forEach(BlockChoice::updateTexts);
         if (colorChoice != null)
             colorChoice.updateTexts();
+        refreshBlockChoices();
     }
 
     /**
@@ -226,7 +227,7 @@ final class BlockChoices {
 
         colorChoice = new BlockChoice<>(colorStyleComboBox, colorLockButton,
                 (name) -> new ColorStyleItem(name, Collections.emptyList(), true),
-                (item) -> !"None".equals(item.getName()),
+                (item) -> !ColorStyleItem.NONE.equals(item.getName()),
                 new BlockChoice.Actions<>() {
                     @Override
                     public void edit(ColorStyleItem entry) {
@@ -260,7 +261,7 @@ final class BlockChoices {
      */
     void fillBlockChoice(PromptBlock.Type type, String name) {
         List<StylePresetItem> entries = new ArrayList<>();
-        entries.add(new StylePresetItem("None", "", false));
+        entries.add(StylePresetItem.none());
         PromptBlockService service = blockService;
         boolean grouped = type == PromptBlock.Type.STYLE;
         Predicate<StylePresetItem> favorite = (item) -> item.getBlock() != null
@@ -301,7 +302,7 @@ final class BlockChoices {
      */
     void fillColorChoice(String name) {
         List<ColorStyleItem> entries = new ArrayList<>();
-        entries.add(new ColorStyleItem("None", Collections.emptyList(), true));
+        entries.add(ColorStyleItem.none());
         ColorStyleService service = colorService;
         if (service == null)
             logger.warn("ColorStyleService not available, color list only offers None");

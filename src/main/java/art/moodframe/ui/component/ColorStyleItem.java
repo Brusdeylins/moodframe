@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.model.ColorStyle;
+import art.moodframe.util.I18nManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +19,9 @@ import java.util.List;
  * @since 1.3.0
  */
 public class ColorStyleItem {
+
+    /** The name of the "None" item, also remembered as the choice of no palette; the list shows it localized. */
+    public static final String NONE = "None";
 
     private final String id;
     private final String name;
@@ -93,8 +97,18 @@ public class ColorStyleItem {
         return colors;
     }
 
+    /** @return the "None" item, which selects no palette */
+    public static ColorStyleItem none() {
+        return new ColorStyleItem(NONE, Collections.emptyList(), true);
+    }
+
     public String getName() {
         return name;
+    }
+
+    /** @return the name shown in the list: "None" in the current language, a palette by its name */
+    public String getDisplayName() {
+        return id == null && NONE.equals(name) ? I18nManager.getText("block.none") : name;
     }
 
     /**

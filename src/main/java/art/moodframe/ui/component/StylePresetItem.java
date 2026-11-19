@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.model.PromptBlock;
+import art.moodframe.util.I18nManager;
 
 /**
  * Represents a Style Preset item for image generation.
@@ -11,6 +12,9 @@ import art.moodframe.model.PromptBlock;
  * @since 1.0.0
  */
 public class StylePresetItem {
+
+    /** The name of the "None" item, also remembered as the choice of no block; the list shows it localized. */
+    public static final String NONE = "None";
 
     private final String name;
     private final String promptText;
@@ -53,8 +57,18 @@ public class StylePresetItem {
         this.block = block;
     }
 
+    /** @return the "None" item, which selects no block */
+    public static StylePresetItem none() {
+        return new StylePresetItem(NONE, "", false);
+    }
+
     public String getName() {
         return name;
+    }
+
+    /** @return the name shown in the list: "None" in the current language, a block by its name */
+    public String getDisplayName() {
+        return block == null && NONE.equals(name) ? I18nManager.getText("block.none") : name;
     }
 
     public String getPromptText() {
