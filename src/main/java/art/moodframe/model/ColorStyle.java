@@ -128,10 +128,13 @@ public class ColorStyle {
         colors.set(index, color);
     }
 
+    /*  The getter and the setter name the property of the field, so the palette file holds "isDefault" only  */
+    @JsonProperty("isDefault")
     public boolean isDefault() {
         return isDefault;
     }
 
+    @JsonProperty("isDefault")
     public void setDefault(boolean isDefault) {
         this.isDefault = isDefault;
     }
