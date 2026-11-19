@@ -314,8 +314,8 @@ public class BflApiServiceImpl implements BflApiService {
         return getJobStatus(job.getJobId());
     }
 
-    @Override
-    public CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
+    /*  the state of a job by its id, for a job without polling URL  */
+    CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
         if (!isConfigured()) {
             return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
         }
@@ -358,8 +358,8 @@ public class BflApiServiceImpl implements BflApiService {
         return getApiKey() != null && !getApiKey().trim().isEmpty();
     }
     
-    @Override
-    public String getApiBaseUrl() {
+    /*  the base URL of the API in the chosen region  */
+    String getApiBaseUrl() {
         if (config != null) {
             // Use API region to determine the correct endpoint
             String region = fixedRegion != null ? fixedRegion : config.getApiRegion();
@@ -412,8 +412,7 @@ public class BflApiServiceImpl implements BflApiService {
      * @param pollingUrl the polling URL returned from the original generation request
      * @return CompletableFuture with GenerationJobResult
      */
-    @Override
-    public CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl) {
+    CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl) {
         if (pollingUrl == null || pollingUrl.trim().isEmpty()) {
             return CompletableFuture.failedFuture(ProviderException.localized("bfl.error.no.job"));
         }

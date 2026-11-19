@@ -99,8 +99,8 @@ class StatelessConnectionTestTest {
 
     @Test
     void bflTestsTheTypedKeyInTheChosenRegion() throws Exception {
-        BflApiService bfl = new BflApiServiceImpl(config);
-        BflApiService typed = bfl.withCredentials("typed", "EU");
+        BflApiServiceImpl bfl = new BflApiServiceImpl(config);
+        BflApiServiceImpl typed = (BflApiServiceImpl) bfl.withCredentials("typed", "EU");
 
         assertEquals("typed", typed.getApiKey());
         assertEquals("https://api.eu.bfl.ai", typed.getApiBaseUrl());

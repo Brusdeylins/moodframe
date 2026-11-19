@@ -379,21 +379,23 @@ public class ChatHistoryService {
     }
 
     /**
-     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow.
+     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow;
+     * the order of the window goes through {@link ChatLibrary#moveChat(Chat, Chat)}.
      *
      * @param chats  all chats of the list in their order, also the hidden ones in the trash
      * @param chat   the chat to move
      * @param before the chat it goes in front of, null for the end of the list
      * @throws SQLException if the order cannot be stored; the chats keep their new numbers anyway
      */
-    public void moveChat(List<Chat> chats, Chat chat, Chat before) throws SQLException {
+    void moveChat(List<Chat> chats, Chat chat, Chat before) throws SQLException {
         if (chat == before)
             return;
         saveChatOrder(order(chats, chat, before));
     }
 
     /**
-     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow,
+     * Moves a chat to another place in the list and numbers all chats of the list anew, from 0 on, as they follow;
+     * the order of the window goes through {@link ChatLibrary#moveChat(Chat, Chat)}.
      * without storing anything.
      *
      * @param chats  all chats of the list in their order, also the hidden ones in the trash

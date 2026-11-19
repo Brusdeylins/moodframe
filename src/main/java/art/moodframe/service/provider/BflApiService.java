@@ -183,37 +183,4 @@ public interface BflApiService extends ImageProvider {
      * @return a CompletableFuture that completes with true if SSL handshake succeeds
      */
     CompletableFuture<Boolean> testSslConnection();
-
-    /**
-     * Polls the status of a generation job and retrieves results if completed.
-     * 
-     * <p>
-     * This method checks the current status of a previously submitted
-     * generation job. If the job is completed, it returns the generated
-     * image URLs and metadata.
-     * </p>
-     * 
-     * @param jobId the unique identifier of the generation job
-     * @return a CompletableFuture containing the current job status and results
-     * @throws IllegalArgumentException if the job ID is null or empty
-     * @throws IllegalStateException    if no API key is configured
-     */
-    CompletableFuture<GenerationJobResult> getJobStatus(String jobId);
-
-    /**
-     * Gets the status of a job from the polling URL BFL answered the submission with; the URL leads to the region
-     * that runs the job, the job id alone may answer HTTP 404.
-     *
-     * @param pollingUrl the polling URL of the submission
-     * @return a CompletableFuture containing the current job status and results
-     * @since 2.1.3
-     */
-    CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl);
-
-    /**
-     * Gets the current API endpoint base URL being used.
-     * 
-     * @return the base URL for BFL API requests
-     */
-    String getApiBaseUrl();
 }
