@@ -196,13 +196,22 @@ public class BflApiServiceImpl implements BflApiService {
             }
             catch (javax.net.ssl.SSLException e) {
                 logger.warn("SSL connection test failed (SSL error): {}", e.getMessage());
-                throw new RuntimeException(e);
+
+                /*  The text names SSL/TLS in every language, which the settings dialog tells apart  */
+                throw ProviderException.localized(e, "bfl.error.ssl", reasonOf(e));
             }
             catch (Exception e) {
                 logger.warn("SSL connection test failed: {}", e.getMessage());
-                throw new RuntimeException(e);
+                if (e instanceof InterruptedException)
+                    Thread.currentThread().interrupt();
+                throw ProviderException.localized(e, "bfl.error.connection", reasonOf(e));
             }
         }, io);
+    }
+
+    /*  the message of a failure, its kind if it has none  */
+    private static String reasonOf(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     @Override
