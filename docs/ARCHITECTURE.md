@@ -57,8 +57,8 @@ Allowed dependency directions:
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 - `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
   depend on each other in a cycle, that `model` (besides the known deviation), `util` and `service.chat` need no
-  JavaFX and that no class of `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names
-  of `src/main/java`.
+  JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, and that no class of
+  `service` or `mcp` uses the `ServiceFactory`, from the imports and fully qualified names of `src/main/java`.
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -77,11 +77,12 @@ The subpackages of `service`, each using only those above it in the table (no cy
 `service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
 items in `service.chat` and `service.library`, so the trash depends on none of them.
 
-Known deviations: some services use `Platform.runLater` to hand results to the JavaFX thread (`LibraryEvents`,
-`service.generation`), and some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`,
-`GeneratedImage`, `ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which
-carry such properties, only through `service.generation.FxModel`. `service.chat` itself needs no JavaFX: the
-`ChatLibrary` changes these models on the calling thread (see "Threading").
+Known deviations: some model classes carry JavaFX properties for binding (`Chat`, `ChatEntry`, `GeneratedImage`,
+`ColorStyleItem`, `StylePresetItem`). A generation changes the chat entry and its images, which carry such
+properties, only through `service.generation.FxModel`, the one class of `service` that uses JavaFX (it also hands the
+notifications of a generation to the JavaFX thread). `service.chat` itself needs no JavaFX: the `ChatLibrary` changes
+these models on the calling thread (see "Threading"). `LibraryEvents` calls each listener through the executor it
+was added with; the views add theirs with `ui.support.FxLibraryEvents`, which passes `Platform::runLater`.
 
 ## Threading
 
@@ -123,8 +124,9 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   executor, the BFL polling on named daemon threads. The listeners learn of an entry that ended (completed, failed,
   cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
   queries then include it.
-- **Library events**: services report every successful write to `LibraryEvents`; listeners run on the JavaFX
-  thread, later in its queue, so a listener never runs in the middle of the write that caused it. This is how the
+- **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
+  executor it was added with, never in the middle of the write that caused it. The views add theirs with
+  `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
   main window shows changes made by the MCP server. The main window queries what it shows on a worker of its own;
   a burst of events gives one query.
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a

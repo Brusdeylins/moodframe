@@ -1,17 +1,19 @@
 package art.moodframe.service.library;
 
 import art.moodframe.model.PromptBlock;
-import javafx.application.Platform;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 /**
  * Reports what changed in the library: the services report every successful write, no matter who asked for it, so
  * the main window shows the changes of other callers without a restart.
  *
- * <p>The listeners learn of a change on the JavaFX thread, later in its queue, also when the write happened on it:
- * a listener never runs in the middle of the write that caused it.</p>
+ * <p>Each listener learns of a change on the executor it was added with, which must run the call later, never in
+ * the middle of the write that caused it. The user interface adds its listeners with {@code Platform::runLater}
+ * (see {@code ui.support.FxLibraryEvents}), so they run on the JavaFX thread, later in its queue, also when the
+ * write happened on it. The library itself knows no JavaFX.</p>
  *
  * @since 2.1.0
  */
@@ -32,7 +34,7 @@ public class LibraryEvents {
         }
     }
 
-    /** Learns of a change, on the JavaFX thread. */
+    /** Learns of a change, on the executor it was added with. */
     public interface Listener {
 
         /**
@@ -45,15 +47,20 @@ public class LibraryEvents {
         void changed(Kind kind, String id);
     }
 
-    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    /*  a listener with the executor that calls it  */
+    private record Registration(Listener listener, Executor executor) {
+    }
+
+    private final List<Registration> listeners = new CopyOnWriteArrayList<>();
 
     /**
      * Adds a listener.
      *
      * @param listener the listener
+     * @param executor calls the listener for each change, later than the write (e.g. {@code Platform::runLater})
      */
-    public void addListener(Listener listener) {
-        listeners.add(listener);
+    public void addListener(Listener listener, Executor executor) {
+        listeners.add(new Registration(listener, executor));
     }
 
     /**
@@ -62,17 +69,17 @@ public class LibraryEvents {
      * @param listener the listener
      */
     public void removeListener(Listener listener) {
-        listeners.remove(listener);
+        listeners.removeIf((Registration registration) -> registration.listener() == listener);
     }
 
     /**
-     * Reports a change to the listeners; without listeners nothing happens, so the services also run without JavaFX.
+     * Reports a change to the listeners, each on its executor; without listeners nothing happens.
      *
      * @param kind what changed
      * @param id   the ID of the changed entry, null if several changed
      */
     public void changed(Kind kind, String id) {
-        for (Listener listener : listeners)
-            Platform.runLater(() -> listener.changed(kind, id));
+        for (Registration registration : listeners)
+            registration.executor().execute(() -> registration.listener().changed(kind, id));
     }
 }

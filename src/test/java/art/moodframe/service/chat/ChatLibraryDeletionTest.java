@@ -56,7 +56,7 @@ class ChatLibraryDeletionTest {
     void anImageAndThenItsEntryAreBookedOnceInTheDatabaseAndInTheChat() throws Exception {
         List<String> reported = Collections.synchronizedList(new ArrayList<>());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((kind, id) -> reported.add(kind + " " + id));
+        events.addListener((kind, id) -> reported.add(kind + " " + id), Platform::runLater);
         ChatLibrary library = new ChatLibrary(history, events);
         Chat chat = library.createChat("Kosten");
         ChatEntry entry = entry(library, chat, true, 0.09, 0.03, 0.06);
