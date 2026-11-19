@@ -10,7 +10,7 @@
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <!-- Advanced: detailed logging, backup and reset of the settings, about -->
-<VBox fx:id="advancedPane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AdvancedSettingsPane">
+<VBox fx:id="advancedPane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/23" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AdvancedSettingsPane">
     <padding>
         <Insets bottom="0" left="20.0" right="20.0" top="0" />
     </padding>

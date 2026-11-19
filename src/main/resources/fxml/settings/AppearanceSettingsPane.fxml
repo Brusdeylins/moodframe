@@ -11,7 +11,7 @@
 <?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <!-- Appearance: theme, background image, preview frame -->
-<VBox fx:id="appearancePane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AppearanceSettingsPane">
+<VBox fx:id="appearancePane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/23" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.AppearanceSettingsPane">
     <padding>
         <Insets bottom="0" left="20.0" right="20.0" top="0" />
     </padding>
