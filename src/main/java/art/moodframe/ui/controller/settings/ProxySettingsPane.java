@@ -36,6 +36,16 @@ public class ProxySettingsPane implements SettingsSection {
 
     private static final Logger logger = LoggerFactory.getLogger(ProxySettingsPane.class);
 
+    /** What a status line shows, as far as a change of the language relabels it. */
+    enum Shown {
+        /** "No test yet", the text of the FXML. */
+        NONE,
+        /** The success of the test. */
+        SUCCESS,
+        /** Another text, e.g. with the details of an error, which stays. */
+        OTHER
+    }
+
     @FXML
     private CheckBox enableProxyCheckBox;
     @FXML
@@ -113,6 +123,8 @@ public class ProxySettingsPane implements SettingsSection {
     private ApplicationConfig config;
     private StatusLine proxyStatus;
     private StatusLine certificateStatus;
+    private Shown proxyShown = Shown.NONE;
+    private Shown certificateShown = Shown.NONE;
     private ObservableList<String> certificatesList;
 
     @Override
@@ -261,18 +273,40 @@ public class ProxySettingsPane implements SettingsSection {
         proxyUsernameField.setPromptText(I18nManager.getText("settings.proxy.username.placeholder"));
         proxyPasswordField.setPromptText(I18nManager.getText("settings.proxy.password.placeholder"));
 
-        /*  The status lines are relabeled only while they show a known text  */
-        String proxyText = proxyConnectionStatusLabel.getText();
-        if (proxyText.contains("No proxy connection"))
-            proxyConnectionStatusLabel.setText(I18nManager.getText("settings.proxy.connection.none"));
-        else if (proxyText.contains("Proxy connection successful") || proxyText.contains("Proxy-Verbindung erfolgreich"))
-            proxyConnectionStatusLabel.setText(I18nManager.getText("settings.test.proxy.success"));
-        String certificateText = certificateConnectionStatusLabel.getText();
-        if (certificateText.contains("No certificate connection"))
-            certificateConnectionStatusLabel.setText(I18nManager.getText("settings.certificates.connection.none"));
-        else if (certificateText.contains("Certificate connection successful")
-                || certificateText.contains("Zertifikat-Verbindung erfolgreich"))
-            certificateConnectionStatusLabel.setText(I18nManager.getText("settings.test.certificate.success"));
+        /*  The status lines are relabeled only while they show a text without details  */
+        proxyConnectionStatusLabel.setText(text(proxyShown, proxyConnectionStatusLabel.getText(),
+                "settings.proxy.connection.none", "settings.test.proxy.success"));
+        certificateConnectionStatusLabel.setText(text(certificateShown, certificateConnectionStatusLabel.getText(),
+                "settings.certificates.connection.none", "settings.test.certificate.success"));
+    }
+
+    /**
+     * Tells the text of a status line in the current language.
+     *
+     * @param shown      what the line shows
+     * @param text       the text it shows
+     * @param noneKey    the key of "no test yet"
+     * @param successKey the key of the success
+     * @return the text in the current language, or the shown text for another one
+     */
+    static String text(Shown shown, String text, String noneKey, String successKey) {
+        return switch (shown) {
+            case NONE -> I18nManager.getText(noneKey);
+            case SUCCESS -> I18nManager.getText(successKey);
+            case OTHER -> text;
+        };
+    }
+
+    /*  shows a status of the proxy test; of its results only a success is relabeled  */
+    private void showProxyStatus(String status, String message) {
+        proxyShown = "success".equals(status) ? Shown.SUCCESS : Shown.OTHER;
+        proxyStatus.show(status, message);
+    }
+
+    /*  shows a status of the certificate test; of its results only a success is relabeled  */
+    private void showCertificateStatus(String status, String message) {
+        certificateShown = "success".equals(status) ? Shown.SUCCESS : Shown.OTHER;
+        certificateStatus.show(status, message);
     }
 
     /** Enables the proxy fields while the proxy is on and the settings, not a policy, set it. */
@@ -456,13 +490,13 @@ public class ProxySettingsPane implements SettingsSection {
     /** Tests the saved proxy with the BFL client. */
     @FXML
     private void onTestProxyConnection() {
-        proxyStatus.show("testing", I18nManager.getText("settings.test.proxy.testing.status"));
+        showProxyStatus("testing", I18nManager.getText("settings.test.proxy.testing.status"));
         ConnectionTest.run(testProxyConnectionButton, I18nManager.getText("settings.proxy.test"),
                 () -> services.bfl().testConnectionWithProxy().get(), (success) -> {
             if (success)
-                proxyStatus.show("success", I18nManager.getText("settings.test.proxy.success"));
+                showProxyStatus("success", I18nManager.getText("settings.test.proxy.success"));
             else
-                proxyStatus.show("error", I18nManager.getText("settings.test.proxy.failed"));
+                showProxyStatus("error", I18nManager.getText("settings.test.proxy.failed"));
         }, (exception) -> {
             String errorMessage = I18nManager.getText("settings.test.proxy.error");
             String exceptionMessage = exception != null ? exception.getMessage() : null;
@@ -479,7 +513,7 @@ public class ProxySettingsPane implements SettingsSection {
                     errorMessage = I18nManager.getText("settings.test.proxy.error.other", exceptionMessage);
                 }
             }
-            proxyStatus.show("error", errorMessage);
+            showProxyStatus("error", errorMessage);
             logger.warn("Proxy connection test failed: {}", exception != null ? exception.getMessage() : "Unknown error");
         });
     }
@@ -516,11 +550,11 @@ public class ProxySettingsPane implements SettingsSection {
     @FXML
     private void onTestCertificateConnection() {
         if (certificatesList.isEmpty()) {
-            certificateStatus.show("error", I18nManager.getText("settings.certificates.none.found"));
+            showCertificateStatus("error", I18nManager.getText("settings.certificates.none.found"));
             return;
         }
 
-        certificateStatus.show("testing", I18nManager.getText("settings.test.certificate.testing.status"));
+        showCertificateStatus("testing", I18nManager.getText("settings.test.certificate.testing.status"));
         ConnectionTest.run(testCertificateButton, I18nManager.getText("settings.certificates.test"), () -> {
             var bfl = services.bfl();
 
@@ -529,9 +563,9 @@ public class ProxySettingsPane implements SettingsSection {
             return bfl.testSslConnection().get();
         }, (success) -> {
             if (success)
-                certificateStatus.show("success", I18nManager.getText("settings.test.certificate.success"));
+                showCertificateStatus("success", I18nManager.getText("settings.test.certificate.success"));
             else
-                certificateStatus.show("error", I18nManager.getText("settings.test.certificate.failed"));
+                showCertificateStatus("error", I18nManager.getText("settings.test.certificate.failed"));
         }, (exception) -> {
             String errorMessage = I18nManager.getText("settings.test.certificate.error");
             String exceptionMessage = exception != null ? exception.getMessage() : null;
@@ -549,7 +583,7 @@ public class ProxySettingsPane implements SettingsSection {
                     errorMessage = I18nManager.getText("settings.test.certificate.error.other", exceptionMessage);
                 }
             }
-            certificateStatus.show("error", errorMessage);
+            showCertificateStatus("error", errorMessage);
             logger.warn("Certificate connection test failed: {}",
                     exception != null ? exception.getMessage() : "Unknown error");
         });

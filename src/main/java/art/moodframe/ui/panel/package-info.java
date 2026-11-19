@@ -11,6 +11,7 @@
  * <li>{@link FrameGroupPart}: frame, aspect ratio, resolution and the hints of the model</li>
  * <li>{@link PanelWorker}: runs the writes of the library on the worker of the window and shows their outcome on the
  * JavaFX thread</li>
+ * <li>{@link ManagedLibraries}: the moods and frames of the user for their "Manage…" windows, changed on that worker</li>
  * </ul>
  */
 package art.moodframe.ui.panel;

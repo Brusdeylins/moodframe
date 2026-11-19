@@ -293,7 +293,7 @@ public class MoodFramePanelController {
         loadSelections();
         setupPersistenceListeners();
         setupMoods();
-        frames.setUp(config, frameService, favoriteService, trash, writes, status, this::window,
+        frames.setUp(config, frameService, trash, writes, status, this::window,
                 blocks.favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId),
                 (String id) -> blocks.isFavorite(FavoriteService.Kind.FRAME, id));
         this.listener = listener;
@@ -725,8 +725,7 @@ public class MoodFramePanelController {
     /*  Finds the moods with a block in the trash on the worker, as each asks the trash for up to five blocks; then
         the warning of the chosen mood and the rows of the list show them  */
     private void findIncompleteMoods(List<Mood> moods) {
-        writes.call(() -> moods.stream().filter((mood) -> !moodService.trashedBlocks(mood).isEmpty())
-                .map(Mood::getId).collect(java.util.stream.Collectors.toUnmodifiableSet()))
+        writes.call(() -> ManagedLibraries.incomplete(moodService, moods))
                 .whenComplete((ids, failure) -> {
                     if (failure != null) {
                         logger.error("Failed to find the moods with a block in the trash", failure);
@@ -836,7 +835,7 @@ public class MoodFramePanelController {
         Mood saved = null;
         if (save) {
             String name = art.moodframe.ui.dialog.MoodManageDialog.askName(window(),
-                    moodService, I18nManager.getText("mood.name.new"),
+                    moodService::exists, I18nManager.getText("mood.name.new"),
                     combination.getName() != null ? moodService.freeName(combination.getName()) : "", null);
             if (name == null)
                 return false;
@@ -1038,7 +1037,7 @@ public class MoodFramePanelController {
             mood = chosen;
         else {
             String name = art.moodframe.ui.dialog.MoodManageDialog.askName(window(),
-                    moodService, I18nManager.getText("mood.name.new"),
+                    moodService::exists, I18nManager.getText("mood.name.new"),
                     chosen != null ? moodService.freeName(chosen.getName()) : "", null);
             if (name == null)
                 return;
@@ -1063,7 +1062,8 @@ public class MoodFramePanelController {
 
     /** Opens the window for the moods of the user; the list follows its changes. */
     private void manageMoods() {
-        new art.moodframe.ui.dialog.MoodManageDialog(window(), moodService, favoriteService, trash).showAndWait();
+        new art.moodframe.ui.dialog.MoodManageDialog(window(), ManagedLibraries.moods(moodService, writes),
+                blocks.favorites(null, FavoriteService.Kind.MOOD, Mood::getId), trash).showAndWait();
     }
 
     @FXML

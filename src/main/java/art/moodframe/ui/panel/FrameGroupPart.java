@@ -62,12 +62,14 @@ final class FrameGroupPart {
 
     private ApplicationConfig config;
     private FrameService frameService;
-    private FavoriteService favoriteService;
     private TrashWindow.Opener trash;
     private PanelWorker writes;
     private StatusSink status;
     private Supplier<Window> window;
     private Predicate<String> isFavorite;
+
+    /*  the favorite stars of the rows of the "Manage…" window  */
+    private FavoriteStar.Favorites<Frame> starred;
 
     /*  whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame selection sets
         them  */
@@ -101,7 +103,6 @@ final class FrameGroupPart {
      *
      * @param config         remembers the chosen frame (may be null)
      * @param frameService   the frames (may be null: no frame selection)
-     * @param favorites      the favorites, listed first
      * @param trash          opens the trash on the frames (may be null)
      * @param writes         stores the frames off the JavaFX thread
      * @param status         shows what the group did
@@ -109,17 +110,17 @@ final class FrameGroupPart {
      * @param stars          the favorite stars of the rows of the list
      * @param isFavorite     whether the frame of an id is a favorite
      */
-    void setUp(ApplicationConfig config, FrameService frameService, FavoriteService favorites,
-               TrashWindow.Opener trash, PanelWorker writes, StatusSink status, Supplier<Window> window,
-               FavoriteStar.Favorites<Frame> stars, Predicate<String> isFavorite) {
+    void setUp(ApplicationConfig config, FrameService frameService, TrashWindow.Opener trash, PanelWorker writes,
+               StatusSink status, Supplier<Window> window, FavoriteStar.Favorites<Frame> stars,
+               Predicate<String> isFavorite) {
         this.config = config;
         this.frameService = frameService;
-        this.favoriteService = favorites;
         this.trash = trash;
         this.writes = writes;
         this.status = status;
         this.window = window;
         this.isFavorite = isFavorite;
+        this.starred = new FavoriteStar.Favorites<>(null, stars.favorite(), stars.toggle());
         if (frameService == null || frameComboBox == null) {
             logger.warn("FrameService not available, no frame selection");
             return;
@@ -272,8 +273,9 @@ final class FrameGroupPart {
         if (!asNew && chosen != null && !chosen.isDefault())
             frame = chosen;
         else {
-            String name = FrameManageDialog.askName(window.get(), frameService, I18nManager.getText("frame.name.new"),
-                    chosen != null ? frameService.freeName(chosen.getName()) : "", null);
+            String name = FrameManageDialog.askName(window.get(), frameService::exists,
+                    I18nManager.getText("frame.name.new"), chosen != null ? frameService.freeName(chosen.getName()) : "",
+                    null);
             if (name == null)
                 return;
             frame = new Frame(null, name);
@@ -304,7 +306,7 @@ final class FrameGroupPart {
     void saveAsNew(String name, String aspectRatio, String resolution) {
         if (frameService == null)
             return;
-        name = FrameManageDialog.askName(window.get(), frameService, I18nManager.getText("frame.name.new"),
+        name = FrameManageDialog.askName(window.get(), frameService::exists, I18nManager.getText("frame.name.new"),
                 name != null ? frameService.freeName(name) : "", null);
         if (name == null)
             return;
@@ -326,7 +328,8 @@ final class FrameGroupPart {
     /** Opens the window for the frames of the user; the list follows its changes. */
     void manageFrames() {
         if (frameService != null)
-            new FrameManageDialog(window.get(), frameService, favoriteService, trash).showAndWait();
+            new FrameManageDialog(window.get(), ManagedLibraries.frames(frameService, writes), starred, trash)
+                    .showAndWait();
     }
 
     /** Shows the hints of what the chosen model makes of aspect ratio and resolution. */

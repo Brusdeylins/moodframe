@@ -63,9 +63,10 @@
                  Google Search grounding -->
             <VBox fx:id="flux2GroundingSearchContainer" spacing="5.0"
                   visible="false" managed="false">
-                <Label text="Web Search" styleClass="text-bold">
+                <Label fx:id="flux2GroundingSearchLabel" text="Web Search" styleClass="text-bold">
                     <tooltip>
-                        <Tooltip text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt." />
+                        <Tooltip fx:id="flux2GroundingSearchTooltip"
+                                 text="Automatically enabled for current information. Use 'current', 'today', or 'latest' in your prompt." />
                     </tooltip>
                 </Label>
             </VBox>

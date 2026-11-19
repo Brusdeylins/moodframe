@@ -19,8 +19,15 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -122,6 +129,69 @@ class FavoriteServiceTest {
         assertFalse(restarted.isFavorite(FavoriteService.Kind.FRAME, frame.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.LIGHT, light.getId()));
         assertFalse(restarted.isFavorite(FavoriteService.Kind.COLOR, palette.getId()));
+    }
+
+    @Test
+    void answersWhetherAFavoriteWhileItsWriteWaitsForTheDatabase() throws Exception {
+        CountDownLatch writing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        FavoriteService favorites = new FavoriteService(new FavoriteRepository(TestDatabase.get()) {
+            @Override
+            public boolean add(String kind, String id) throws SQLException {
+                writing.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return super.add(kind, id);
+            }
+        }, new LibraryEvents());
+        String id = "slow-" + System.nanoTime();
+        ExecutorService toggler = Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> toggled = toggler.submit(() -> favorites.toggle(FavoriteService.Kind.MOOD, id));
+            assertTrue(writing.await(10, TimeUnit.SECONDS));
+
+            /*  the write holds no lock that the readers take, and they see the switch at once  */
+            assertTrue(CompletableFuture.supplyAsync(() -> favorites.isFavorite(FavoriteService.Kind.MOOD, id))
+                    .get(2, TimeUnit.SECONDS));
+            assertFalse(toggled.isDone());
+            release.countDown();
+            assertTrue(toggled.get(10, TimeUnit.SECONDS));
+        }
+        finally {
+            release.countDown();
+            toggler.shutdownNow();
+        }
+        assertTrue(TestLibraryServices.favorites().isFavorite(FavoriteService.Kind.MOOD, id));
+    }
+
+    @Test
+    void storesTheLastOfConcurrentTogglesWhateverOrderTheirWritesRunIn() throws Exception {
+        FavoriteService favorites = TestLibraryServices.favorites();
+        String even = "even-" + System.nanoTime();
+        String odd = "odd-" + System.nanoTime();
+        ExecutorService threads = Executors.newFixedThreadPool(8);
+        try {
+            List<Future<Boolean>> toggles = new ArrayList<>();
+            for (int i = 0; i < 40; i++)
+                toggles.add(threads.submit(() -> favorites.toggle(FavoriteService.Kind.FRAME, even)));
+            for (int i = 0; i < 41; i++)
+                toggles.add(threads.submit(() -> favorites.toggle(FavoriteService.Kind.FRAME, odd)));
+            for (Future<Boolean> toggle : toggles)
+                toggle.get(20, TimeUnit.SECONDS);
+        }
+        finally {
+            threads.shutdownNow();
+        }
+
+        assertFalse(favorites.isFavorite(FavoriteService.Kind.FRAME, even));
+        assertTrue(favorites.isFavorite(FavoriteService.Kind.FRAME, odd));
+        FavoriteService restarted = TestLibraryServices.favorites();
+        assertFalse(restarted.isFavorite(FavoriteService.Kind.FRAME, even), "the database agrees");
+        assertTrue(restarted.isFavorite(FavoriteService.Kind.FRAME, odd), "the database agrees");
     }
 
     @Test
