@@ -28,8 +28,9 @@ the persistence and the main decisions. The `package-info.java` of each package 
 |              | Mood and Frame, which other windows can show; `ui.component` the generic controls;     |
 |              | `ui.support` the helpers that need JavaFX or the desktop: themes, videos, opening      |
 |              | files and web pages, listener cleanup, `FxI18n`, `CoalescedLoad`, the decoded          |
-|              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`; the root holds    |
-|              | only `SplashScreen`, shown before the window)                                          |
+|              | thumbnails in `ImageCache`, `ListReorder`, `BoxInset`, `StatusSink`, and the texts     |
+|              | several views share without JavaFX (`SafetyTolerance`), as it is the lowest part of    |
+|              | `ui` they all may use; the root holds only `SplashScreen`, shown before the window)    |
 | `mcp`        | MCP server for local AI agents, a second adapter beside the UI on the same services    |
 | `service`    | application logic, split by topic into subpackages (see below)                         |
 | `net`        | network access: HTTP clients with proxy and corporate certificates, the certificate     |

@@ -1,7 +1,8 @@
 /**
  * Helpers of the user interface that need JavaFX or the desktop: themes, videos, opening files and web pages,
- * listener cleanup, loading on a worker, the decoded images, the reordering of list items, the common inset and the
- * texts shared by several views.
+ * listener cleanup, loading on a worker, the decoded images, the reordering of list items and the common inset. The
+ * texts shared by several views ({@link SafetyTolerance}) need no JavaFX; they live here as this is the lowest part of
+ * {@code ui}, which every view and controller may use, and they are texts of the user interface only.
  *
  * <p>Main classes:</p>
  * <ul>
