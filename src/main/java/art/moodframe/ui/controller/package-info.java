@@ -1,7 +1,8 @@
 /**
  * The controllers of the FXML views in {@code src/main/resources/fxml}. The main window is split into parts, each
  * with its FXML file and controller, which the coordinator {@link MainWindowController} wires together; it looks up
- * the services once and hands them to the parts, which never ask the service locator themselves, and lets go of what
+ * the services once and hands them to the parts, which never ask the service locator themselves (only the
+ * coordinators and {@link SettingsController} do), and lets go of what
  * the window registered beyond itself when it closes. The sidebar keeps its own list of the chats, which follows the
  * {@code ChatLibrary}.
  *
@@ -12,8 +13,9 @@
  * <li>{@link ChatViewController}: the entries of the chat or group ({@code ChatView.fxml})</li>
  * <li>{@link InputBarController}: the prompt and the send button ({@code InputBar.fxml})</li>
  * <li>{@link MoodFramePanelController}: the groups Mood and Frame ({@code MoodFramePanel.fxml}), also for other
- * windows</li>
- * <li>{@link GenerationPanelController}: the group Generation ({@code GenerationPanel.fxml})</li>
+ * windows, with its parts {@link BlockChoices} (the building block fields) and {@link FrameGroup}</li>
+ * <li>{@link GenerationPanelController}: the group Generation ({@code GenerationPanel.fxml}), with its parts
+ * {@link GenerationAttachments} and {@link ProviderParameters}</li>
  * <li>{@link StatusBarController}: the status bar ({@code StatusBar.fxml})</li>
  * <li>{@link SettingsController}: the settings dialog ({@code SettingsDialog.fxml}), coordinator of its sections in
  * {@code ui.controller.settings}</li>

@@ -84,7 +84,7 @@ final class EntryTilePictures {
 
     /**
      * Loads thumbnail image asynchronously for optimal performance.
-     * 
+     *
      * @param generatedImage    the generated image
      * @param imageView         the image view component
      * @param loadingOverlay    the loading overlay
@@ -185,7 +185,7 @@ final class EntryTilePictures {
 
     /**
      * Loads an image from the specified file path.
-     * 
+     *
      * @param imagePath  the path to the image file
      * @param imageView  the image view component
      * @param imageIndex the image index for click handling
@@ -271,7 +271,7 @@ final class EntryTilePictures {
     /**
      * Fallback method to load original image (used when thumbnail system
      * unavailable).
-     * 
+     *
      * @param generatedImage the generated image
      * @param imageView      the image view component
      * @param imageIndex     the image index for click handling
