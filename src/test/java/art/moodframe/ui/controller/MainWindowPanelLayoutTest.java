@@ -641,6 +641,8 @@ class MainWindowPanelLayoutTest {
                 .orElseThrow();
         onFxThread(() -> duration.setValue(other));
         assertEquals(other.replace("s", "") + " s · Gemini Omni", text("generationSummaryModel"));
+        assertEquals(other, ServiceFactory.getInstance().getService(ApplicationConfig.class).generation()
+                .getDefaultVideoDuration(), "the next start takes the chosen duration");
 
         /*  and the attached images, also in German  */
         chooseModel("Nano Banana Pro");

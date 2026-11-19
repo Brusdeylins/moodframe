@@ -167,29 +167,12 @@
               visible="false" managed="false">
 
             <!-- Video Duration, explained in the tooltip of label and field -->
-            <VBox fx:id="videoDurationContainer" spacing="5.0">
+            <VBox spacing="5.0">
                 <fx:define>
                     <Tooltip fx:id="videoDurationTooltip" text="Video length (1080p/4K require 8s)" />
                 </fx:define>
                 <Label text="Duration" styleClass="text-bold" tooltip="$videoDurationTooltip" />
                 <ChoiceBox fx:id="videoDurationChoiceBox" maxWidth="Infinity" minWidth="0" tooltip="$videoDurationTooltip" />
-            </VBox>
-
-            <!-- Audio Toggle, explained in its tooltip -->
-            <VBox fx:id="videoAudioContainer" spacing="5.0" visible="false" managed="false">
-                <CheckBox fx:id="videoAudioCheckBox" text="Generate Audio">
-                    <tooltip>
-                        <Tooltip text="Audio doubles generation cost" />
-                    </tooltip>
-                </CheckBox>
-            </VBox>
-
-            <!-- Negative Prompt -->
-            <VBox fx:id="videoNegativePromptContainer" spacing="5.0" visible="false" managed="false">
-                <Label text="Negative Prompt" styleClass="text-bold" />
-                <TextArea fx:id="videoNegativePromptTextArea"
-                          promptText="Describe what to avoid..."
-                          prefHeight="60" wrapText="true" />
             </VBox>
 
         </VBox>
@@ -251,10 +234,6 @@
 
             </HBox>
 
-            <!-- Attachment Info -->
-            <Label fx:id="attachmentInfoLabel" text=""
-                   styleClass="text-small, text-muted"
-                   visible="false" managed="false" />
 
         </VBox>
 
