@@ -14,6 +14,9 @@ import java.util.List;
  */
 public sealed interface ChatTurn {
 
+    /*  The question of every web search check: no model knows the current time from its training, only a search  */
+    String SEARCH_CHECK_QUESTION = "Search the web: what time is it right now in Berlin? Answer with the time only.";
+
     /**
      * A turn of the user.
      *

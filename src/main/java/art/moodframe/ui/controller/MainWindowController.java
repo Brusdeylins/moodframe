@@ -32,7 +32,7 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
-import art.moodframe.service.provider.ApiProviderValidator;
+import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;

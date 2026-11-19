@@ -1,8 +1,10 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.ProviderException;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;

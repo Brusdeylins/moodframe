@@ -4,8 +4,8 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.service.provider.ChatTool;
 import art.moodframe.service.provider.ChatTurn;
-import art.moodframe.service.provider.GeminiApiService;
-import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

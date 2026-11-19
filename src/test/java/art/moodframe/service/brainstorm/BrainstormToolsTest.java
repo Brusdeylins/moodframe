@@ -3,8 +3,8 @@ package art.moodframe.service.brainstorm;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.service.provider.ChatTool;
 import art.moodframe.service.provider.ChatTurn;
-import art.moodframe.service.provider.GeminiApiService;
-import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 

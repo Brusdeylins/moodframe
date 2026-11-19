@@ -1,6 +1,7 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.provider.ApiHttpException;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.json.JSONArray;

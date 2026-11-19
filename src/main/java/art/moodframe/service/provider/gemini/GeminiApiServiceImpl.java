@@ -1,4 +1,4 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
@@ -7,6 +7,9 @@ import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
+import art.moodframe.service.provider.GenerationJobInfo;
 import okhttp3.OkHttpClient;
 
 import java.util.List;
@@ -142,7 +145,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
     /**
      * Returns the base URL of the Gemini API. The tests override it to answer the requests themselves.
      */
-    String getApiBaseUrl() {
+    public String getApiBaseUrl() {
         return GEMINI_API_BASE_URL;
     }
 

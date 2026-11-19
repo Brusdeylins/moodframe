@@ -1,7 +1,9 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.ProviderException;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;

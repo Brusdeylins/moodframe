@@ -3,11 +3,11 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.service.provider.ApiProviderValidator;
-import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.MockProviders;
-import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
+import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 

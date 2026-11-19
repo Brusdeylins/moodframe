@@ -3,8 +3,8 @@ package art.moodframe.service.brainstorm;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.BrainstormSession;
-import art.moodframe.service.provider.GeminiApiService;
-import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 
 /**
  * The language models of the brainstorm: which one answers a session, read for every request, so a change of the

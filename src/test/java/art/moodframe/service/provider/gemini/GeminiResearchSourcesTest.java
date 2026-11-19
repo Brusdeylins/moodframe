@@ -1,4 +1,4 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ResearchNote;

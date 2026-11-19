@@ -5,6 +5,8 @@ import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.bfl.BflApiException;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

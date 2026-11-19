@@ -1,7 +1,7 @@
 package art.moodframe.ui.controller.settings;
 
-import art.moodframe.service.provider.ApiProviderValidator.ModelCheck;
-import art.moodframe.service.provider.ApiProviderValidator.Outcome;
+import art.moodframe.service.provider.validation.ApiProviderValidator.ModelCheck;
+import art.moodframe.service.provider.validation.ApiProviderValidator.Outcome;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 

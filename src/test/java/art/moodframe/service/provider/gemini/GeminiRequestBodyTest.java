@@ -1,7 +1,9 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;

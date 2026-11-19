@@ -1,7 +1,11 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.validation;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
+import art.moodframe.service.provider.ProviderPolicy;
+import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 import art.moodframe.util.I18nManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +47,6 @@ import java.util.function.Function;
 public class ApiProviderValidator {
 
     private static final Logger logger = LoggerFactory.getLogger(ApiProviderValidator.class);
-
-    /*  The question of every web search check: no model knows the current time from its training, only a search  */
-    static final String SEARCH_CHECK_QUESTION = "Search the web: what time is it right now in Berlin? Answer with "
-            + "the time only.";
 
     /**
      * A check of an account: every account gets its connection checked, Google Gemini and OpenAI also their

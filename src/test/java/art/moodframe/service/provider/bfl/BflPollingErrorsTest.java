@@ -1,7 +1,8 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.bfl;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
+import art.moodframe.service.provider.ProviderException;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;

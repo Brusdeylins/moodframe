@@ -1,6 +1,10 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
+import art.moodframe.service.provider.ProviderException;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import org.json.JSONArray;
@@ -115,7 +119,7 @@ final class OpenAiChatClient {
             if (!transport.isConfigured())
                 return "OpenAI API key not configured";
 
-            String body = webSearchBody(model, ApiProviderValidator.SEARCH_CHECK_QUESTION).toString();
+            String body = webSearchBody(model, ChatTurn.SEARCH_CHECK_QUESTION).toString();
             try (Response response = transport.post(transport.researchClient().get(), "/responses", () -> RequestBody.create(body, OpenAiTransport.JSON))) {
                 String problem = webSearchProblem(response.code(), response.body() != null ? response.body().string() : "");
                 if (problem != null)

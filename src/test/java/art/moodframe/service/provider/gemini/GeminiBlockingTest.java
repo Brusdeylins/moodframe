@@ -1,5 +1,7 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 

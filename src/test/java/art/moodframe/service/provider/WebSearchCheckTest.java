@@ -2,15 +2,16 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.service.provider.bfl.BflApiServiceImpl;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
+import art.moodframe.service.provider.openai.OpenAiApiServiceImpl;
 import com.sun.net.httpserver.HttpServer;
-import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -18,7 +19,6 @@ import java.util.Queue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Sends the checks of the language models and their web search to a local server: the question, the retry of Gemini,
- * the definite and the transient outcomes, and the timeout of the OpenAI research.
+ * the definite and the transient outcomes.
  */
 class WebSearchCheckTest {
 
@@ -71,7 +71,7 @@ class WebSearchCheckTest {
     private GeminiApiServiceImpl gemini() {
         return new GeminiApiServiceImpl(config) {
             @Override
-            String getApiBaseUrl() {
+            public String getApiBaseUrl() {
                 return baseUrl;
             }
         };
@@ -172,15 +172,5 @@ class WebSearchCheckTest {
         assertThrows(CompletionException.class, () -> bfl.testConnection().join());
         answers.add(new Answer(401, "{}"));
         assertEquals(false, bfl.testConnection().join());
-    }
-
-    @Test
-    void openAiResearchWaitsAtMost60Seconds() throws Exception {
-        Field transport = OpenAiApiServiceImpl.class.getDeclaredField("transport");
-        transport.setAccessible(true);
-
-        Supplier<OkHttpClient> research = ((OpenAiTransport) transport.get(new OpenAiApiServiceImpl(config)))
-                .researchClient();
-        assertEquals(60_000, research.get().readTimeoutMillis());
     }
 }

@@ -1,4 +1,6 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.bfl;
+
+import art.moodframe.service.provider.ApiHttpException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 

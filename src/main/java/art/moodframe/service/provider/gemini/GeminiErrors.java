@@ -1,4 +1,7 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
+
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.ProviderException;
 
 import org.json.JSONException;
 import org.json.JSONObject;

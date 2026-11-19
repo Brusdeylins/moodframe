@@ -1,10 +1,14 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
+import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.RequestOptions;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

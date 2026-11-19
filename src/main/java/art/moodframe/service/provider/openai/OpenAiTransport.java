@@ -1,8 +1,9 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.net.HttpClients;
+import art.moodframe.service.provider.ApiHttpException;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;

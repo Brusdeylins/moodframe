@@ -1,4 +1,4 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.bfl;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;

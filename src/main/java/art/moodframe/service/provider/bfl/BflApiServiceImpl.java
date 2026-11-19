@@ -1,4 +1,4 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.bfl;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
@@ -6,6 +6,10 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobResult;
+import art.moodframe.service.provider.ProviderException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -359,7 +363,7 @@ public class BflApiServiceImpl implements BflApiService {
     }
     
     /*  the base URL of the API in the chosen region  */
-    String getApiBaseUrl() {
+    public String getApiBaseUrl() {
         if (config == null)
             return DEFAULT_BASE_URL;
         return BflApiService.endpointOf(fixedRegion != null ? fixedRegion : config.getApiRegion());

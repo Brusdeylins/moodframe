@@ -3,11 +3,11 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
-import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.MockProviders;
-import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 

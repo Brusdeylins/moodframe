@@ -1,4 +1,4 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.bfl;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -6,6 +6,11 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobResult;
+import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.ProviderException;
+import art.moodframe.service.provider.RequestOptions;
 
 /**
  * Service interface for interacting with the BlackForest Labs (BFL) API.

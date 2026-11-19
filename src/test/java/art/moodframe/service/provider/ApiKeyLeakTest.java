@@ -10,6 +10,9 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.bfl.BflApiServiceImpl;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
+import art.moodframe.service.provider.openai.OpenAiApiServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,7 +103,7 @@ class ApiKeyLeakTest {
         when(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI)).thenReturn(KEY);
         GeminiApiServiceImpl service = new GeminiApiServiceImpl(config) {
             @Override
-            String getApiBaseUrl() {
+            public String getApiBaseUrl() {
                 return baseUrl;
             }
         };

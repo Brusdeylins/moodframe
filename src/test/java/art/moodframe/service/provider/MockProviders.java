@@ -1,6 +1,9 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.clearInvocations;

@@ -1,14 +1,22 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.openai;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
+import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.provider.ProviderException;
+import okhttp3.OkHttpClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -284,12 +292,22 @@ class OpenAiApiServiceTest {
 
     @Test
     void webSearchCheckAsksForTheCurrentTimeAndCountsATimeWithoutSearchAsNoSearch() {
-        assertTrue(ApiProviderValidator.SEARCH_CHECK_QUESTION.contains("what time is it right now"));
+        assertTrue(ChatTurn.SEARCH_CHECK_QUESTION.contains("what time is it right now"));
         String body = new JSONObject().put("output", new JSONArray()
                 .put(new JSONObject().put("type", "message").put("role", "assistant").put("content", new JSONArray()
                         .put(new JSONObject().put("type", "output_text").put("text", "14:32"))))).toString();
 
         assertEquals("The model did not search the web.", OpenAiChatClient.webSearchProblem(200, body));
+    }
+
+    @Test
+    void openAiResearchWaitsAtMost60Seconds() throws Exception {
+        Field transport = OpenAiApiServiceImpl.class.getDeclaredField("transport");
+        transport.setAccessible(true);
+
+        OpenAiApiServiceImpl service = new OpenAiApiServiceImpl(art.moodframe.config.ConfigMocks.withEmptyTexts());
+        Supplier<OkHttpClient> research = ((OpenAiTransport) transport.get(service)).researchClient();
+        assertEquals(60_000, research.get().readTimeoutMillis());
     }
 
     private static JSONObject citation(String url) {

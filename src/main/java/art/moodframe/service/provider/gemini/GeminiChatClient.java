@@ -1,6 +1,10 @@
-package art.moodframe.service.provider;
+package art.moodframe.service.provider.gemini;
 
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.ChatTool;
+import art.moodframe.service.provider.ChatTurn;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.Request;
@@ -441,7 +445,7 @@ final class GeminiChatClient {
         return transport.async(() -> {
             try {
                 requireApiKey();
-                ResearchNote note = researchWithRetry(ApiProviderValidator.SEARCH_CHECK_QUESTION);
+                ResearchNote note = researchWithRetry(ChatTurn.SEARCH_CHECK_QUESTION);
                 return note.sources().isEmpty() ? "The model did not search the web." : null;
             } catch (RuntimeException e) {
                 logger.warn("Gemini web search check failed: {}", e.getMessage());
