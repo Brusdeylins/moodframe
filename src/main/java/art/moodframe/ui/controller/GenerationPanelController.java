@@ -511,6 +511,7 @@ public class GenerationPanelController {
         removeImageTooltip.setText(I18nManager.getText("params.image.remove.tooltip"));
         updateModelNames();
         parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
+        updateCostDisplay();
     }
 
     /**
@@ -661,10 +662,10 @@ public class GenerationPanelController {
             GenerationCost.Quote quote = GenerationCost.quote(model, selectedVideoSeconds(), googleSearch,
                     (int) imageCountSlider.getValue());
             costText.set(!quote.known() ? I18nManager.getText("cost.unknown")
-                    : String.format(model != null && model.isOmniModel() ? "~$%.2f" : "$%.2f", quote.total()));
+                    : (model != null && model.isOmniModel() ? "~$" : "$") + I18nManager.formatCost(quote.total()));
         } catch (Exception e) {
             logger.warn("Error updating cost display", e);
-            costText.set("$0.00");
+            costText.set("$" + I18nManager.formatCost(0));
         }
     }
 

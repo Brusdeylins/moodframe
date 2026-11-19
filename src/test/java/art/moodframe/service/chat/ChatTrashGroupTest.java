@@ -55,7 +55,8 @@ class ChatTrashGroupTest {
         TrashEntry entry = trashed(deleted).orElseThrow();
         assertEquals("Regen", entry.name());
         assertNotNull(entry.deletedAt());
-        assertEquals(I18nManager.getText("trash.context.chat.plural", 3, String.format("%.2f", 0.12)), entry.context());
+        assertEquals(I18nManager.getText("trash.context.chat.plural", 3, I18nManager.formatCost(0.12)),
+                entry.context());
     }
 
     @Test
@@ -69,7 +70,7 @@ class ChatTrashGroupTest {
         assertEquals(0.70, headerCost, 0.0001);
 
         trash.softDeleteChat(chat.getId());
-        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, String.format("%.2f", headerCost)),
+        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, I18nManager.formatCost(headerCost)),
                 trashed(chat).orElseThrow().context());
 
         assertTrue(group.restore(chat.getId()));

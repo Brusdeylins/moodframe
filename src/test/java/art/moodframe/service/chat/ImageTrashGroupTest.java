@@ -75,7 +75,7 @@ class ImageTrashGroupTest {
 
         TrashEntry row = trashed(entry).orElseThrow();
         assertEquals("a harbor at dawn", row.name());
-        assertEquals(I18nManager.getText("trash.context.images.singular", "Hafen", 1, String.format("%.2f", 0.04)),
+        assertEquals(I18nManager.getText("trash.context.images.singular", "Hafen", 1, I18nManager.formatCost(0.04)),
                 row.context());
         assertEquals(List.of(image.getId()), row.parts().stream().map(TrashEntry.Part::id).toList());
         assertEquals(trashManager.getTrashPath(image.getLocalFilePath(), false), row.parts().get(0).preview());
@@ -101,7 +101,7 @@ class ImageTrashGroupTest {
 
         TrashEntry row = trashed(entry).orElseThrow();
         assertEquals(4, row.parts().size());
-        assertEquals(I18nManager.getText("trash.context.images.plural", "Sturm", 4, String.format("%.2f", 0.16)),
+        assertEquals(I18nManager.getText("trash.context.images.plural", "Sturm", 4, I18nManager.formatCost(0.16)),
                 row.context());
 
         assertTrue(group.restore(entry.getId()));
