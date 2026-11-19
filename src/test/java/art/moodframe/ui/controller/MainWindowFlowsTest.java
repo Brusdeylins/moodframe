@@ -946,8 +946,9 @@ class MainWindowFlowsTest {
         waitUntil("the image is gone", () -> two.getImages().size() == 1 && showsItsImages(card(two), two));
         assertFalse(two.getImages().contains(image));
         assertEquals(List.of(two, one), List.copyOf(entryList().getItems()));
+        assertEquals(I18nManager.getText("chat.total.cost", dollars(0.30)), cost().getText());
         assertEquals(I18nManager.getText("chat.total.cost.with.deleted", dollars(0.30), dollars(0.10)),
-                cost().getText());
+                cost().getTooltip().getText(), "the tooltip names the deleted part");
 
         /*  the second entry, from the menu of its card  */
         onFxThread(() -> {
@@ -961,8 +962,9 @@ class MainWindowFlowsTest {
         waitUntil("the entry leaves the list", () -> !entryList().getItems().contains(one));
         assertEquals(List.of(two), List.copyOf(entryList().getItems()));
         assertEquals(List.of(two), List.copyOf(chat.getEntries()));
+        assertEquals(I18nManager.getText("chat.total.cost", dollars(0.30)), cost().getText());
         assertEquals(I18nManager.getText("chat.total.cost.with.deleted", dollars(0.30), dollars(0.20)),
-                cost().getText());
+                cost().getTooltip().getText(), "the tooltip names the deleted part");
 
         /*  the database books the same  */
         assertEquals(0.10, repository.findChatById(chat.getId()).orElseThrow().getDeletedCost(), 1e-9);
@@ -976,8 +978,9 @@ class MainWindowFlowsTest {
         waitUntil("the image is back", () -> showsItsImages(card(two), two) && two.getImages().size() == 2);
         waitUntil("the status tells the image is back",
                 () -> I18nManager.getText("status.image.restored").equals(status().getText()));
+        assertEquals(I18nManager.getText("chat.total.cost", dollars(0.30)), cost().getText());
         assertEquals(I18nManager.getText("chat.total.cost.with.deleted", dollars(0.30), dollars(0.10)),
-                cost().getText());
+                cost().getTooltip().getText());
         fromAnotherThread(() -> assertTrue(trash.restore(TrashGroup.Kind.IMAGES, one.getId())));
         waitUntil("the entry is back", () -> entryList().getItems().size() == 2);
         assertEquals(List.of(two.getId(), one.getId()), entryList().getItems().stream().map(ChatEntry::getId)
@@ -1298,8 +1301,9 @@ class MainWindowFlowsTest {
 
         fromAnotherThread(() -> chats.deleteEntry(entry));
         waitUntil("the entry leaves", () -> entryList().getItems().isEmpty());
+        assertEquals(I18nManager.getText("chat.total.cost", dollars(0.10)), cost().getText());
         assertEquals(I18nManager.getText("chat.total.cost.with.deleted", dollars(0.10), dollars(0.10)),
-                cost().getText());
+                cost().getTooltip().getText());
     }
 
     // ===== 8. The language =====
