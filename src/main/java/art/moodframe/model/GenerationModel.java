@@ -903,20 +903,6 @@ public enum GenerationModel {
     }
 
     /**
-     * Gets all available models as display names for UI components.
-     * 
-     * @return array of display names
-     */
-    public static String[] getDisplayNames() {
-        GenerationModel[] models = values();
-        String[] names = new String[models.length];
-        for (int i = 0; i < models.length; i++) {
-            names[i] = models[i].displayName;
-        }
-        return names;
-    }
-
-    /**
      * Gets the name of the model family: the variants that differ only by their resolution share it (for example
      * the Nano Banana 2 variants for 512, 1K, 2K and 4K). The model dropdown lists one entry per family and the
      * resolution has its own choice.

@@ -368,20 +368,6 @@ public class I18nManager {
     }
     
     /**
-     * Gets current locale information as a formatted string.
-     * Useful for debugging and status display.
-     * 
-     * @return formatted locale information
-     */
-    public static String getLocaleInfo() {
-        return String.format("Current locale: %s (%s), Available: %s, Cache size: %d",
-                           currentLocale.toString(),
-                           currentLocale.getDisplayName(),
-                           java.util.Arrays.toString(getAvailableLocales()),
-                           bundleCache.size());
-    }
-    
-    /**
      * Notifies all registered listeners that the language has changed, each through its executor.
      */
     private static void notifyLanguageChanged() {
