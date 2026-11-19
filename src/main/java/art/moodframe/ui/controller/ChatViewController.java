@@ -978,9 +978,35 @@ public class ChatViewController {
 
     /**
      * Shows the entries of the open group, the oldest first as in a chat. They are the entries of the loaded chats, so
-     * running requests keep updating them.
+     * running requests keep updating them. The worker queries which entries the group holds; the entries show once
+     * the answer is there, unless another group or a chat was opened meanwhile.
      */
     private void showGroup() {
+        EntryGroup shown = group.get();
+
+        /*  Back in a chat, the view scrolls to its latest entry  */
+        lastChatEntriesCount = 0;
+        updateGroupHeader();
+        welcomeContainer.setVisible(false);
+        showEntries(true);
+        worker.execute(() -> {
+            List<String> ids = List.of();
+            try {
+                if (chatHistory != null)
+                    ids = chatHistory.findChatEntryIds(shown);
+            } catch (Exception e) {
+                logger.error("Failed to load the entries of the group {}", shown, e);
+            }
+            List<String> found = ids;
+            Platform.runLater(() -> {
+                if (group.get() == shown)
+                    showGroupEntries(found);
+            });
+        });
+    }
+
+    /*  Shows the entries of the open group in the order of their IDs, as far as the loaded chats hold them  */
+    private void showGroupEntries(List<String> ids) {
         java.util.Map<String, ChatEntry> loaded = chatLibrary.read((chats) -> {
             java.util.Map<String, ChatEntry> entries = new java.util.HashMap<>();
             chats.stream().filter((chat) -> !chat.isDeleted())
@@ -988,19 +1014,7 @@ public class ChatViewController {
             return entries;
         });
         ObservableList<ChatEntry> entries = FXCollections.observableArrayList();
-        try {
-            if (chatHistory != null)
-                chatHistory.findChatEntryIds(group.get()).stream().map(loaded::get)
-                        .filter(java.util.Objects::nonNull).forEach(entries::add);
-        } catch (Exception e) {
-            logger.error("Failed to load the entries of the group {}", group.get(), e);
-        }
-
-        /*  Back in a chat, the view scrolls to its latest entry  */
-        lastChatEntriesCount = 0;
-        updateGroupHeader();
-        welcomeContainer.setVisible(false);
-        showEntries(true);
+        ids.stream().map(loaded::get).filter(java.util.Objects::nonNull).forEach(entries::add);
         chatEntriesListView.setItems(entries);
         if (!entries.isEmpty())
             Platform.runLater(() -> chatEntriesListView.scrollTo(entries.size() - 1));
