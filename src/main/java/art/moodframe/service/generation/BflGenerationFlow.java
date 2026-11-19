@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +45,10 @@ public class BflGenerationFlow {
     private final ScheduledExecutorService scheduler;
     private final Executor io;
     private final Map<String, PendingRequest> activeRequests = new ConcurrentHashMap<>();
+    /*  The first poll of a job and the pause after each answer  */
+    private static final long FIRST_POLL_SECONDS = 5;
+    private static final long POLL_INTERVAL_SECONDS = 3;
+
     private final SecureRandom secureRandom = new SecureRandom(); // High-entropy random for seed generation
     private volatile IntConsumer onSafetyToleranceLowered = (value) -> { };
 
@@ -223,9 +228,12 @@ public class BflGenerationFlow {
                         .baseCost(request.getBaseCostPerImage() != null ? request.getBaseCostPerImage() : 0.0)
                         .build();
 
-                // Replace placeholder or add to chat entry (on FX thread) and persist to
-                // database (async)
-                FxModel.change(() -> {
+                /*  The image replaces its placeholder on the FX thread, unless the entry was cancelled meanwhile:
+                    then the job is left alone, so no image arrives in a cancelled entry  */
+                FxModel.changeAndGet(() -> {
+                    if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
+                        return false;
+
                     // Find and replace the placeholder with sortOrder matching imageIndex
                     boolean replacedPlaceholder = false;
                     for (int j = 0; j < chatEntry.getImages().size(); j++) {
@@ -248,18 +256,21 @@ public class BflGenerationFlow {
                     // Notify listeners immediately for UI update
                     tracker.notifyEntryUpdated(chatEntry);
                     tracker.notifyImageUpdated(generatedImage);
+
+                    /*  Stored after the change, then polled  */
+                    tracker.saveImage(generatedImage);
+                    return true;
+                }).thenAccept((Boolean wanted) -> {
+                    if (!wanted) {
+                        logger.info("Job {} of a cancelled entry is not polled", jobId);
+                        return;
+                    }
+                    PendingRequest pendingRequest = new PendingRequest(jobId, chatEntry, generatedImage, request);
+                    // CRITICAL: Store the polling URL from BFL response to avoid 404 errors
+                    pendingRequest.setPollingUrl(jobInfo.getPollingUrl());
+                    activeRequests.put(jobId, pendingRequest);
+                    startPolling(jobId, pendingRequest);
                 });
-
-                // Persist to database asynchronously (the new image is not shown yet, so no change waits for it)
-                tracker.saveImage(generatedImage);
-
-                // Start polling for this job
-                PendingRequest pendingRequest = new PendingRequest(jobId, chatEntry, generatedImage, request);
-                // CRITICAL: Store the polling URL from BFL response to avoid 404 errors
-                pendingRequest.setPollingUrl(jobInfo.getPollingUrl());
-                activeRequests.put(jobId, pendingRequest);
-                startPolling(jobId, pendingRequest);
-
 
         } catch (Exception e) {
             logger.error("Failed to handle submission success", e);
@@ -271,46 +282,61 @@ public class BflGenerationFlow {
      * Starts polling for job status updates with proper initial delay.
      */
     private void startPolling(String jobId, PendingRequest pendingRequest) {
-        ScheduledFuture<?> pollingTask = scheduler.scheduleAtFixedRate(() -> {
-            PendingRequest currentRequest = activeRequests.get(jobId);
-            if (currentRequest != null) {
-                pollJobStatus(jobId, currentRequest);
-            }
-        }, 5, 3, TimeUnit.SECONDS); // Start after 5s, then every 3s (increased initial delay)
+        schedulePoll(jobId, pendingRequest, FIRST_POLL_SECONDS);
+        logger.debug("Started polling for job {} (initial delay: {}s, interval: {}s)",
+            jobId.substring(0, Math.min(8, jobId.length())), FIRST_POLL_SECONDS, POLL_INTERVAL_SECONDS);
+    }
 
-        pendingRequest.setPollingTask(pollingTask);
-        
-        logger.debug("Started polling for job {} (initial delay: 5s, interval: 3s)",
-            jobId.substring(0, Math.min(8, jobId.length())));
+    /*  Polls a job once after a delay. The next poll is scheduled once this one is answered, so at most one poll of a
+        job is in flight, however slow the answer  */
+    private void schedulePoll(String jobId, PendingRequest pendingRequest, long delaySeconds) {
+        if (activeRequests.get(jobId) != pendingRequest)
+            return;
+        try {
+            pendingRequest.setPollingTask(scheduler.schedule(() -> pollJobStatus(jobId, pendingRequest),
+                    delaySeconds, TimeUnit.SECONDS));
+        } catch (RejectedExecutionException e) {
+            logger.debug("Polling of job {} ends with the scheduler", jobId);
+        }
+    }
+
+    /*  Takes a job out of the polling to handle its end: true only for the first caller while it is still polled,
+        so a late answer after a cancellation, a timeout or another end changes nothing  */
+    private boolean claim(String jobId, PendingRequest pendingRequest) {
+        if (!activeRequests.remove(jobId, pendingRequest))
+            return false;
+        pendingRequest.cancelPolling();
+        return true;
     }
 
     /**
      * Polls the BFL API for job status updates with improved error handling.
      */
     private void pollJobStatus(String jobId, PendingRequest pendingRequest) {
+        if (activeRequests.get(jobId) != pendingRequest)
+            return;
+
         // Increment polling attempts
         pendingRequest.incrementPollingAttempts();
-        
+
         // Calculate max attempts based on configured timeout
-        // Polling interval is 3 seconds, so max attempts = timeout_seconds / 3
         int timeoutSeconds = config != null ? config.getApiTimeoutSeconds() : 600;
-        int maxPollingAttempts = timeoutSeconds / 3;
-        
+        int maxPollingAttempts = (int) (timeoutSeconds / POLL_INTERVAL_SECONDS);
+
         // Stop polling if we've tried too many times
         if (pendingRequest.pollingAttempts > maxPollingAttempts) {
-            logger.warn("Stopping polling for job {} after {} attempts ({} seconds)", 
-                jobId.substring(0, Math.min(8, jobId.length())), 
+            logger.warn("Stopping polling for job {} after {} attempts ({} seconds)",
+                jobId.substring(0, Math.min(8, jobId.length())),
                 pendingRequest.pollingAttempts,
-                pendingRequest.pollingAttempts * 3);
-            pendingRequest.cancelPolling();
-            activeRequests.remove(jobId);
-            FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout"));
+                pendingRequest.pollingAttempts * POLL_INTERVAL_SECONDS);
+            if (claim(jobId, pendingRequest))
+                FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout"));
             return;
         }
-        
+
         try {
             CompletableFuture<GenerationJobResult> pollingFuture;
-            
+
             // Use the correct polling URL from the BFL response instead of constructing one
             if (pendingRequest.pollingUrl != null && !pendingRequest.pollingUrl.isEmpty()) {
                 pollingFuture = bflApiService.getJobResultWithPollingUrl(pendingRequest.pollingUrl);
@@ -319,103 +345,105 @@ public class BflGenerationFlow {
                 logger.warn("No polling URL available for job {}, using fallback method", jobId);
                 pollingFuture = bflApiService.getJobStatus(jobId);
             }
-            
-            /*  The image is bound to the UI, so its status is handled on the FX thread  */
-            pollingFuture.thenAccept(jobResult -> {
-                    FxModel.change(() -> handleJobStatusUpdate(jobResult, jobId, pendingRequest));
-                })
-                .exceptionally(throwable -> {
-                    // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
-                    // This is expected behavior, not an error condition
-                    if (ProviderException.unwrap(throwable) instanceof ApiHttpException http
-                            && http.getStatusCode() == 404) {
-                        
-                        logger.debug("Job {} status check returned 404 (attempt {}/{}) - job still processing", 
-                            jobId.substring(0, Math.min(8, jobId.length())), 
-                            pendingRequest.pollingAttempts, maxPollingAttempts);
-                        return null; // Continue polling - 404 is normal until job completes
-                    }
-                    
+
+            pollingFuture.whenComplete((GenerationJobResult jobResult, Throwable throwable) -> {
+                if (throwable == null) {
+                    handleJobStatusUpdate(jobResult, jobId, pendingRequest);
+                    return;
+                }
+
+                // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
+                // This is expected behavior, not an error condition
+                if (ProviderException.unwrap(throwable) instanceof ApiHttpException http
+                        && http.getStatusCode() == 404) {
+                    logger.debug("Job {} status check returned 404 (attempt {}/{}) - job still processing",
+                        jobId.substring(0, Math.min(8, jobId.length())),
+                        pendingRequest.pollingAttempts, maxPollingAttempts);
+                } else {
                     // Other errors - log but continue polling (network issues, etc.)
-                    logger.warn("Polling error for job {} (attempt {}): {}", 
-                        jobId.substring(0, Math.min(8, jobId.length())), 
+                    logger.warn("Polling error for job {} (attempt {}): {}",
+                        jobId.substring(0, Math.min(8, jobId.length())),
                         pendingRequest.pollingAttempts, throwable.getMessage());
-                    return null;
-                });
+                }
+                schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
+            });
         } catch (Exception e) {
             logger.error("Failed to poll status for job: {}", jobId, e);
+            schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
         }
     }
 
     /**
-     * Handles job status update from BFL API.
+     * Handles a status answered by BFL, on the thread of the answer: a job that ended is claimed here, so it is handled
+     * once; the image, bound to the UI, is changed on the FX thread. A job still running is polled again.
      */
     private void handleJobStatusUpdate(GenerationJobResult jobResult, String jobId, PendingRequest pendingRequest) {
-        try {
-            String status = jobResult.getStatus();
+        String status = jobResult != null ? jobResult.getStatus() : null;
+        if (status == null) {
+            logger.error("No status in the answer for job: {}", jobId);
+            schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
+            return;
+        }
 
-            // Job status checked - handle all valid BFL API status values
-            switch (status.toLowerCase()) {
-                case "pending" -> {
-                    // Job is queued and waiting to be processed
-                    // Only notify UI if status actually changed (avoid unnecessary UI updates during polling)
-                    String currentApiStatus = pendingRequest.generatedImage.getApiStatus();
-                    if (!"pending".equals(currentApiStatus)) {
-                        pendingRequest.generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.PENDING);
-                        pendingRequest.generatedImage.setApiStatus("pending");
-                        tracker.notifyImageUpdated(pendingRequest.generatedImage);
-                    }
-
-                    if (pendingRequest.pollingAttempts % 5 == 0) {
-                        logger.debug("Job {} still pending (attempt {})",
-                            jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
-                    }
-                }
-                case "running", "reasoning", "generating" -> {
-                    // Job is currently being processed (FLUX 3 reports Reasoning and Generating)
-                    // Only notify UI if status actually changed (avoid unnecessary UI updates during polling)
-                    String currentApiStatus = pendingRequest.generatedImage.getApiStatus();
-                    if (!"running".equals(currentApiStatus)) {
-                        pendingRequest.generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.PENDING);
-                        pendingRequest.generatedImage.setApiStatus("running");
-                        tracker.notifyImageUpdated(pendingRequest.generatedImage);
-                    }
-
-                    logger.debug("Job {} is running (attempt {})",
+        // Job status checked - handle all valid BFL API status values
+        switch (status.toLowerCase()) {
+            case "pending" -> {
+                // Job is queued and waiting to be processed
+                FxModel.change(() -> showProgress(pendingRequest, jobId, "pending"));
+                if (pendingRequest.pollingAttempts % 5 == 0) {
+                    logger.debug("Job {} still pending (attempt {})",
                         jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
                 }
-                case "ready" -> {
-                    // Image is ready for download
-                    handleJobCompleted(jobId, pendingRequest, jobResult);
-                }
-                case "failed", "error", "content moderated", "request moderated", "task not found" -> {
-                    // Job failed
-                    handleJobFailed(jobId, pendingRequest, status);
-                }
-                default -> {
-                    // Unknown status - log and continue polling for a while
-                    logger.warn("Unknown job status '{}' for job {} (attempt {})", 
-                        status, jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
-                    
-                    // If we've been polling for too long with unknown status, treat as failure
-                    if (pendingRequest.pollingAttempts > 20) {
-                        logger.error("Stopping polling for job {} after {} unknown status responses", 
-                            jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
-                        
-                        pendingRequest.cancelPolling();
-                        activeRequests.remove(jobId);
-                        handleJobFailed(jobId, pendingRequest, "Unknown status: " + status);
-                    }
+                schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
+            }
+            case "running", "reasoning", "generating" -> {
+                // Job is currently being processed (FLUX 3 reports Reasoning and Generating)
+                FxModel.change(() -> showProgress(pendingRequest, jobId, "running"));
+                logger.debug("Job {} is running (attempt {})",
+                    jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
+                schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
+            }
+            case "ready" -> {
+                // Image is ready for download
+                if (claim(jobId, pendingRequest))
+                    FxModel.change(() -> handleJobCompleted(jobId, pendingRequest, jobResult));
+            }
+            case "failed", "error", "content moderated", "request moderated", "task not found" -> {
+                // Job failed
+                if (claim(jobId, pendingRequest))
+                    FxModel.change(() -> handleJobFailed(jobId, pendingRequest, status));
+            }
+            default -> {
+                // Unknown status - log and continue polling for a while
+                logger.warn("Unknown job status '{}' for job {} (attempt {})",
+                    status, jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
+
+                // If we've been polling for too long with unknown status, treat as failure
+                if (pendingRequest.pollingAttempts > 20) {
+                    logger.error("Stopping polling for job {} after {} unknown status responses",
+                        jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
+                    if (claim(jobId, pendingRequest))
+                        FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Unknown status: " + status));
+                } else {
+                    schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
                 }
             }
+        }
+    }
 
-        } catch (Exception e) {
-            logger.error("Failed to handle status update for job: {}", jobId, e);
+    /*  Shows the progress of a job still polled; only a change of the status reaches the UI. Call on the FX thread  */
+    private void showProgress(PendingRequest pendingRequest, String jobId, String apiStatus) {
+        if (activeRequests.get(jobId) != pendingRequest)
+            return;
+        if (!apiStatus.equals(pendingRequest.generatedImage.getApiStatus())) {
+            pendingRequest.generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.PENDING);
+            pendingRequest.generatedImage.setApiStatus(apiStatus);
+            tracker.notifyImageUpdated(pendingRequest.generatedImage);
         }
     }
 
     /**
-     * Handles completed image generation jobs.
+     * Handles completed image generation jobs, claimed before (see {@link #claim}). Call on the FX thread.
      */
     private void handleJobCompleted(String jobId, PendingRequest pendingRequest, GenerationJobResult jobResult) {
         try {
@@ -448,10 +476,6 @@ public class BflGenerationFlow {
                 handleJobFailed(jobId, pendingRequest, "No image URL in response");
             }
 
-            // Stop polling and remove from active requests
-            pendingRequest.cancelPolling();
-            activeRequests.remove(jobId);
-
             // Check if all images for this chat entry are done
             FxModel.change(() -> tracker.refresh(pendingRequest.chatEntry));
 
@@ -462,7 +486,7 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Handles failed image generation jobs.
+     * Handles failed image generation jobs, claimed before (see {@link #claim}). Call on the FX thread.
      */
     private void handleJobFailed(String jobId, PendingRequest pendingRequest, String reason) {
         logger.warn("Job {} failed: {}", jobId, reason);
@@ -483,10 +507,6 @@ public class BflGenerationFlow {
 
         // Persist error information to database
         tracker.saveImage(pendingRequest.generatedImage);
-
-        // Stop polling and remove from active requests
-        pendingRequest.cancelPolling();
-        activeRequests.remove(jobId);
 
         // Check chat entry completion
         FxModel.change(() -> tracker.refresh(pendingRequest.chatEntry));
@@ -608,8 +628,8 @@ public class BflGenerationFlow {
     private static class PendingRequest {
         final ChatEntry chatEntry;
         final GeneratedImage generatedImage;
-        ScheduledFuture<?> pollingTask;
-        int pollingAttempts = 0;
+        volatile ScheduledFuture<?> pollingTask;
+        volatile int pollingAttempts = 0;
         String pollingUrl; // CRITICAL: Store the polling URL from BFL response
 
         PendingRequest(String jobId, ChatEntry chatEntry, GeneratedImage generatedImage,

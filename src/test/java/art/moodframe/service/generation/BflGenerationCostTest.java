@@ -70,7 +70,7 @@ class BflGenerationCostTest {
 
         /*  the status is polled once at once, the database writes on the scheduler are left out  */
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
-        when(scheduler.scheduleAtFixedRate(any(), anyLong(), anyLong(), any())).thenAnswer((invocation) -> {
+        when(scheduler.schedule(any(Runnable.class), anyLong(), any())).thenAnswer((invocation) -> {
             invocation.<Runnable>getArgument(0).run();
             return mock(ScheduledFuture.class);
         });
