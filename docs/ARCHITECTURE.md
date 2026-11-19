@@ -47,17 +47,18 @@ Allowed dependency directions:
   `net.CertificateStore` and tells `HttpClients` that the proxy changed, which is all the user interface uses of
   `net` (its own disk work, e.g. a pasted image, runs on its own workers, not on the network pool). `net` uses only
   `config` and `util`.
-- `mcp` → `service`, never `ui`. Whatever the UI can do to the library, the MCP tools do through the same services.
+- `mcp` → `service`, never `ui` or `net`. Whatever the UI can do to the library, the MCP tools do through the same
+  services. `service` reaches `database` only through `repository`.
 - `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
   `mcp.McpService` and shows its command line. No view uses the tools of the server.
 - `model` depends on nothing of the application. `GenerationModel` names only the i18n key of a localized display
   name (`displayNameKey`); `service.generation.ModelLabels` gives the dropdown items in the current language. An item
   in any language leads back to its model with `GenerationModel.fromLocalizedDisplayName`, since a localized name
   differs from the display name only after the family name.
-- `util` may use `config` and uses nothing today; neither `util` nor `model` imports JavaFX, except `ChatEntry` and
-  `GeneratedImage` with the properties the views observe (see the known deviations below). `I18nManager` notifies
-  each listener through the executor it was registered with; the views register with `ui.support.FxI18n`, which
-  notifies them on the JavaFX thread.
+- `util` may use `config` and uses nothing today; `config` uses only `model` (not `util`, so the two never form a
+  cycle); neither `util` nor `model` imports JavaFX, except `ChatEntry` and `GeneratedImage` with the properties the
+  views observe (see the known deviations below). `I18nManager` notifies each listener through the executor it was
+  registered with; the views register with `ui.support.FxI18n`, which notifies them on the JavaFX thread.
 - No layer depends on a layer above it. Where a lower layer needs something from above, it owns an interface and
   the upper layer implements it, e.g. `repository.ChatFiles` implemented by `service.chat.ChatFileService`.
 - `ArchitectureTest` checks these directions, the order of the service subpackages below, that no packages
