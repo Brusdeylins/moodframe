@@ -3,6 +3,7 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.ProviderException;
 import org.slf4j.Logger;
@@ -29,19 +30,33 @@ public class ChatEntryTracker {
     private static final Logger logger = LoggerFactory.getLogger(ChatEntryTracker.class);
 
     private final ChatRepository chatRepository;
+    private final ChatTrashRepository trash;
     private final Executor executor;
 
     private final List<Consumer<ChatEntry>> entryListeners = new CopyOnWriteArrayList<>();
     private final List<Consumer<GeneratedImage>> imageListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates the tracker.
+     * Creates the tracker without the trash: the file of an image delivered after its entry went to the trash stays.
      *
      * @param chatRepository where entries and images are stored
      * @param executor       runs the database writes; a single thread keeps them in their order
      */
     public ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
+        this(chatRepository, null, executor);
+    }
+
+    /**
+     * Creates the tracker.
+     *
+     * @param chatRepository where entries and images are stored
+     * @param trash          removes the file of an image delivered after its entry or chat went to the trash (may be
+     *                       null: the file stays)
+     * @param executor       runs the database writes; a single thread keeps them in their order
+     */
+    public ChatEntryTracker(ChatRepository chatRepository, ChatTrashRepository trash, Executor executor) {
         this.chatRepository = chatRepository;
+        this.trash = trash;
         this.executor = executor;
     }
 
@@ -95,16 +110,19 @@ public class ChatEntryTracker {
     /**
      * Stores an image on the worker of the database writes. Call it after the change it stores, e.g. at the end of a
      * {@link FxModel#change(Runnable) change}: the write sees the change and keeps its place after the writes before.
+     * An image whose entry or chat went to the trash meanwhile is dropped, and the trash removes its file; one whose
+     * entry is not stored (its insert failed) keeps its file and fails.
      *
      * @param image the image
-     * @return completes once it is stored, exceptionally if that failed (which is logged)
+     * @return completes once it is stored or dropped, exceptionally if that failed (which is logged)
      */
     public CompletableFuture<Void> saveImage(GeneratedImage image) {
         return CompletableFuture.runAsync(() -> {
             if (chatRepository == null)
                 return;
             try {
-                chatRepository.saveGeneratedImage(image);
+                if (!chatRepository.saveGeneratedImage(image) && trash != null)
+                    trash.dropLateImage(image);
             } catch (Exception e) {
                 logger.error("Failed to save the image {}", image.getId(), e);
                 throw new java.util.concurrent.CompletionException(e);
@@ -113,17 +131,21 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Stores a chat entry on the worker of the database writes, like {@link #saveImage(GeneratedImage)}.
+     * Stores the changes of a chat entry on the worker of the database writes, like {@link #saveImage(GeneratedImage)}.
+     * An entry that went to the trash meanwhile, on its own or with its chat, keeps what the trash booked, and one
+     * that is not stored (removed for good, or its insert failed) is not inserted (see
+     * {@link ChatRepository#updateChatEntry}).
      *
      * @param chatEntry the entry
-     * @return completes once it is stored, exceptionally if that failed (which is logged)
+     * @return completes once it is stored or left alone, exceptionally if that failed (which is logged)
      */
     public CompletableFuture<Void> saveEntry(ChatEntry chatEntry) {
         return CompletableFuture.runAsync(() -> {
             if (chatRepository == null)
                 return;
             try {
-                chatRepository.saveChatEntry(chatEntry);
+                if (!chatRepository.updateChatEntry(chatEntry))
+                    logger.debug("Entry {} not saved: it is in the trash or not stored", chatEntry.getId());
             } catch (Exception e) {
                 logger.error("Failed to save the chat entry {}", chatEntry.getId(), e);
                 throw new java.util.concurrent.CompletionException(e);
@@ -262,11 +284,12 @@ public class ChatEntryTracker {
      * thread as well).
      *
      * @param chatEntry the entry
-     * @return true if it was pending or processing
+     * @return completes once the cancelled entry and its images are stored (also if that failed, which is logged);
+     *         null if the entry was neither pending nor processing
      */
-    public boolean cancel(ChatEntry chatEntry) {
+    public CompletableFuture<Void> cancel(ChatEntry chatEntry) {
         if (chatEntry.getStatus() != ChatEntry.Status.PENDING && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
-            return false;
+            return null;
         if (chatEntry.getStatus() == ChatEntry.Status.PENDING)
             chatEntry.setCost(0.0);
         List<GeneratedImage> stopped = unfinished(chatEntry);
@@ -281,7 +304,7 @@ public class ChatEntryTracker {
         for (GeneratedImage image : stopped)
             stored = saveImage(image);
         notifyWhenStored(stored, chatEntry);
-        return true;
+        return stored.handle((Void done, Throwable failure) -> null);
     }
 
     /**

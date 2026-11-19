@@ -482,15 +482,21 @@ public class MoodframeApplication extends Application {
                     .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
                             .followRedirects(HttpClient.Redirect.NORMAL).build()));
             return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
-                    new ChatEntryTracker(services.getService(ChatRepository.class), workers.store()), files,
+                    new ChatEntryTracker(services.getService(ChatRepository.class),
+                            services.getService(ChatTrashRepository.class), workers.store()), files,
                     workers, io);
         });
 
-        /*  Carries out a generation order without the user interface: entry, request and submission  */
-        services.registerProvider(GenerationService.class, () -> new GenerationService(config,
-                services.getService(ChatLibrary.class), services.getService(MoodService.class),
-                services.getService(RequestResponseManager.class), services.getService(ProviderRegistry.class),
-                services.getService(GenerationWorkers.class).store()));
+        /*  Carries out a generation order without the user interface: entry, request and submission; the chats let it
+            settle the generation of an entry before the entry goes to the trash  */
+        services.registerProvider(GenerationService.class, () -> {
+            ChatLibrary chats = services.getService(ChatLibrary.class);
+            GenerationService generation = new GenerationService(config, chats, services.getService(MoodService.class),
+                    services.getService(RequestResponseManager.class), services.getService(ProviderRegistry.class),
+                    services.getService(GenerationWorkers.class).store());
+            chats.setGenerations(generation::settle);
+            return generation;
+        });
     }
 
     /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled  */

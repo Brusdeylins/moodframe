@@ -17,6 +17,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -24,8 +28,10 @@ import java.util.function.Function;
  * loaded once at the start, and every change goes through here, also what leaves the trash, and is reported as
  * {@link LibraryEvents.Kind#CHAT} or {@link LibraryEvents.Kind#ENTRY}.
  *
- * <p>The methods may be called from any thread, none waits for the JavaFX thread: they access the database on the
- * calling thread and change the list and the models under the {@link ModelLock}, then report the change. The user
+ * <p>The methods may be called from any thread, and none waits for the JavaFX thread but the deletion of a running
+ * entry or of its chat, which cancels the generation first (see {@link Generations}), so the deletions run off that
+ * thread: they access the database on the calling thread and change the list and the models under the
+ * {@link ModelLock}, then report the change. The user
  * interface keeps a list of its own, which follows the reports (see {@link LibraryEvents}); the listeners the views
  * put on the models hand their work to the JavaFX thread.</p>
  *
@@ -39,10 +45,33 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatLibrary.class);
 
+    /*  how long a deletion waits for the generations of its entries to settle  */
+    private static final long SETTLE_SECONDS = 15;
+
+    /**
+     * Stops the generation of an entry before the entry goes to the trash, so its cost is settled and stored before
+     * the trash books it. The generation implements it (the {@code GenerationService} of
+     * {@code service.generation}, which lies below), the composition root hands it in with {@link #setGenerations}.
+     */
+    @FunctionalInterface
+    public interface Generations {
+
+        /**
+         * Cancels the generation of an entry if it still runs.
+         *
+         * @param entry the entry
+         * @return completes once the writes of its generation asked for so far are done, those of the cancellation
+         *         included
+         */
+        CompletableFuture<Void> settle(ChatEntry entry);
+    }
+
     private final ChatHistoryService history;
     private final LibraryEvents events;
     /*  the chats in their order, guarded by the ModelLock  */
     private final List<Chat> chats = new ArrayList<>();
+    /*  settles the generations before a deletion; without generation nothing runs  */
+    private volatile Generations generations = (ChatEntry entry) -> CompletableFuture.completedFuture(null);
 
     /**
      * Creates the library.
@@ -53,6 +82,15 @@ public class ChatLibrary implements TrashCenter.Listener {
     public ChatLibrary(ChatHistoryService history, LibraryEvents events) {
         this.history = history;
         this.events = events;
+    }
+
+    /**
+     * Sets what settles the generation of an entry before it goes to the trash, alone or with its chat.
+     *
+     * @param generations the generation, see {@link Generations}
+     */
+    public void setGenerations(Generations generations) {
+        this.generations = generations;
     }
 
     /**
@@ -222,15 +260,17 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /**
      * Moves a chat and its files to the trash. A chat without entries leaves the list, so it does not come back later;
-     * a new chat that was never stored is just removed. A generation still running is not stopped: an image it
-     * delivers afterwards is dropped with its file (see
-     * {@link art.moodframe.repository.ChatRepository#saveGeneratedImage}).
+     * a new chat that was never stored is just removed. The generations of its entries still running are cancelled
+     * first and their writes awaited (see {@link Generations}); an image a provider still delivers afterwards is
+     * dropped with its file (see {@link art.moodframe.repository.ChatTrashRepository#dropLateImage}). It waits for
+     * the JavaFX thread while an entry runs, so call it off that thread.
      *
      * @param chat the chat
      * @return true if it is gone from the shown chats
      * @throws SQLException if it cannot be marked as deleted
      */
     public boolean moveToTrash(Chat chat) throws SQLException {
+        settle(entriesOf(chat));
         boolean stored = history != null && history.softDeleteChat(chat.getId());
         boolean gone = ModelLock.changeAndGet(() -> {
             if (!stored && !chat.getEntries().isEmpty())
@@ -266,7 +306,9 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /**
-     * Adds an entry to a chat and stores both; if storing fails, the entry is kept in memory only.
+     * Adds an entry to a chat and stores both; if storing fails, the entry is kept in memory only, and the images a
+     * generation makes for it keep their files but are not stored (see
+     * {@link art.moodframe.repository.ChatRepository#saveGeneratedImage}).
      *
      * @param chat  the chat
      * @param entry the new entry
@@ -297,12 +339,16 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /**
      * Moves an entry with its images to the trash; it leaves its chat, whose deleted cost grows by its whole cost
-     * (see {@link ChatCost}).
+     * (see {@link ChatCost}). A generation of the entry still running is cancelled first and its writes awaited (see
+     * {@link Generations}), so the chat books the cost the cancellation settled, and nothing the generation delivers
+     * later changes the entry in the trash. It waits for the JavaFX thread while the entry runs, so call it off that
+     * thread.
      *
      * @param entry the entry of a chat of the list
      * @throws SQLException if it cannot be marked as deleted
      */
     public void deleteEntry(ChatEntry entry) throws SQLException {
+        settle(List.of(entry));
         if (history != null)
             history.deleteEntry(entry.getId());
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
@@ -330,6 +376,21 @@ public class ChatLibrary implements TrashCenter.Listener {
         });
         events.changed(LibraryEvents.Kind.ENTRY, entry.getId());
         return deletion.entryDeleted();
+    }
+
+    /*  Settles the generations of the entries before they go to the trash, waiting at most SETTLE_SECONDS; a deletion
+        that goes on without them books what is stored then, and the generation changes no entry in the trash  */
+    private void settle(List<ChatEntry> entries) {
+        CompletableFuture<?>[] settled = entries.stream().map(generations::settle).toArray(CompletableFuture[]::new);
+        try {
+            CompletableFuture.allOf(settled).get(SETTLE_SECONDS, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        catch (ExecutionException | TimeoutException e) {
+            logger.warn("The generations of {} entries did not settle before their deletion", entries.size(), e);
+        }
     }
 
     /*  A deleted entry leaves its chat, which takes the deleted cost as stored, without database it books the

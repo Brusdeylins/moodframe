@@ -11,6 +11,7 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.provider.ProviderException;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.trash.TrashCenter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,7 +29,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.ToIntFunction;
 
 /**
  * The tools of the MCP server, each with name, description, JSON schema of its input and handler. A handler answers
@@ -108,7 +108,7 @@ public class McpTools {
     /**
      * Creates the reading tools of the chats, the library and the models.
      *
-     * @param config      the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param config      the configuration (enabled providers, keys, defaults of the parameters)
      * @param chats       the chats of the main window
      * @param moods       the moods
      * @param blocks      the text building blocks
@@ -117,23 +117,22 @@ public class McpTools {
      * @param favorites   the favorites
      * @param trash       the trash
      * @param events      where a download is reported for the status bar
-     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it, e.g.
-     *                    {@code ProviderRegistry::promptLimit}
+     * @param providers   the providers: their models to choose from and their prompt limits
      * @return the tools
      */
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, LibraryEvents events, ToIntFunction<String> promptLimit) {
+            TrashCenter trash, LibraryEvents events, ProviderRegistry providers) {
         McpTools tools = new McpTools();
         new ChatTools(chats, events, config.paths().downloads()).addTo(tools);
-        new LibraryTools(config, moods, blocks, colors, frames, favorites, trash, promptLimit).addTo(tools);
+        new LibraryTools(config, moods, blocks, colors, frames, favorites, trash, providers).addTo(tools);
         return tools;
     }
 
     /**
      * Creates all tools: those that read, those that change the chats and the library, and those that generate.
      *
-     * @param config     the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param config     the configuration (enabled providers, keys, defaults of the parameters)
      * @param chats      the chats of the main window
      * @param moods      the moods
      * @param blocks     the text building blocks
@@ -150,7 +149,7 @@ public class McpTools {
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events, GenerationService generation, MoodAnalysisService analysis) {
         McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
-                generation::promptLimit);
+                generation.providers());
         new ChatEditTools(chats, generation).addTo(tools);
         new LibraryEditTools(chats, moods, blocks, colors, frames, favorites, trash, analysis).addTo(tools);
         new GenerateTools(config, chats, moods, blocks, colors, frames, generation).addTo(tools);

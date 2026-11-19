@@ -726,7 +726,7 @@ public class GenerationPanelController {
                     config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI));
 
         // Add models from enabled providers with valid API keys
-        modelComboBox.getItems().addAll(GenerationService.availableItems(config));
+        modelComboBox.getItems().addAll(generationService.availableItems(config, 0));
 
         logger.info("Available models after filtering: {}", modelComboBox.getItems());
 
@@ -786,7 +786,7 @@ public class GenerationPanelController {
         String previousItem = modelComboBox.getValue();
         modelComboBox.getItems().clear();
         if (config != null)
-            modelComboBox.getItems().addAll(GenerationService.availableItems(config, attachments.count()));
+            modelComboBox.getItems().addAll(generationService.availableItems(config, attachments.count()));
 
         // Restore selection using localized name (an OpenAI model keeps its item name)
         if (currentModel != null) {
@@ -846,7 +846,7 @@ public class GenerationPanelController {
         String currentSelection = modelComboBox.getValue();
 
         // Clear and rebuild with the models of the usable providers that take this many images
-        modelComboBox.getItems().setAll(GenerationService.availableItems(config, imageCount));
+        modelComboBox.getItems().setAll(generationService.availableItems(config, imageCount));
 
         logger.info("Filtered models for {} images: {}", imageCount, modelComboBox.getItems());
 
@@ -883,7 +883,7 @@ public class GenerationPanelController {
 
         if (hasAttachment) {
             // Filter to only show the models of the usable providers that take the attached images
-            modelComboBox.getItems().setAll(GenerationService.availableItems(config, Math.max(1, attachments.count())));
+            modelComboBox.getItems().setAll(generationService.availableItems(config, Math.max(1, attachments.count())));
 
             // Check if current selection is compatible
             if (currentSelection == null || !modelComboBox.getItems().contains(currentSelection)) {

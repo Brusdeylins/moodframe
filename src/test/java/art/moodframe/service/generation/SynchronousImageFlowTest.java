@@ -96,6 +96,6 @@ class SynchronousImageFlowTest {
                 && saved.getDownloadStatus() == GeneratedImage.DownloadStatus.FAILED));
         assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus(), "the other image was made");
         assertEquals(0.04, entry.getCost(), 1e-9);
-        verify(repository, atLeastOnce()).saveChatEntry(eq(entry));
+        verify(repository, atLeastOnce()).updateChatEntry(eq(entry));
     }
 }

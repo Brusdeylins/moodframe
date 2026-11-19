@@ -20,6 +20,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.prompt.PromptComposer;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
@@ -30,7 +31,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.ToIntFunction;
 
 /**
  * The tools that read the library and the models: {@code get_capabilities}, {@code list_moods}, {@code get_mood},
@@ -54,24 +54,24 @@ class LibraryTools {
     private final FrameService frames;
     private final FavoriteService favorites;
     private final TrashCenter trash;
-    private final ToIntFunction<String> promptLimit;
+    private final ProviderRegistry providers;
 
     /**
      * Creates the tools.
      *
-     * @param config    the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param config    the configuration (enabled providers, keys, defaults of the parameters)
      * @param moods     the moods
      * @param blocks    the text building blocks
      * @param colors    the palettes
      * @param frames    the frames
      * @param favorites the favorites
      * @param trash     the trash
-     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it
+     * @param providers the providers: their models to choose from and the prompt limit of each
      */
     LibraryTools(ApplicationConfig config, MoodService moods, PromptBlockService blocks, ColorStyleService colors,
-            FrameService frames, FavoriteService favorites, TrashCenter trash, ToIntFunction<String> promptLimit) {
+            FrameService frames, FavoriteService favorites, TrashCenter trash, ProviderRegistry providers) {
         this.config = config;
-        this.promptLimit = promptLimit;
+        this.providers = providers;
         this.moods = moods;
         this.blocks = blocks;
         this.colors = colors;
@@ -125,7 +125,7 @@ class LibraryTools {
     private McpTools.Result capabilities(JsonNode arguments) {
         ObjectNode result = McpTools.JSON.createObjectNode();
         ArrayNode list = result.putArray("models");
-        for (String item : GenerationService.availableItems(config)) {
+        for (String item : GenerationService.availableItems(config, providers, 0)) {
             String id = GenerationModel.idOf(item);
             GenerationModel model = GenerationModel.fromId(id);
             List<String> free = ModelFamilies.freeResolutions(item);
@@ -143,7 +143,7 @@ class LibraryTools {
                 node.put("cost", McpTools.usd(cost.perImage()));
             else
                 node.putNull("cost");
-            node.put("maxPromptLength", promptLimit.applyAsInt(id));
+            node.put("maxPromptLength", providers.promptLimit(id));
             node.set("parameters", parameters(config, model));
         }
         result.set("camera", camera());
@@ -362,7 +362,7 @@ class LibraryTools {
         ObjectNode result = McpTools.JSON.createObjectNode();
         for (TrashGroup.Kind kind : TrashGroup.Kind.values()) {
             ArrayNode list = result.putArray(kind.name().toLowerCase(Locale.ROOT));
-            for (TrashEntry entry : trash.list(kind)) {
+            for (TrashEntry entry : trash.list(kind, Locale.ENGLISH)) {
                 ObjectNode node = list.addObject().put("id", entry.id()).put("name", entry.name())
                         .put("deletedAt", McpTools.time(entry.deletedAt())).put("context", entry.context());
                 node.set("parts", McpTools.JSON.valueToTree(entry.parts().stream().map(TrashEntry.Part::id).toList()));

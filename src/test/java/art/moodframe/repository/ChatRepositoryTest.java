@@ -262,24 +262,36 @@ class ChatRepositoryTest {
     }
 
     @Test
-    void aLateImageOfAChatInTheTrashIsDroppedWithItsFile() throws Exception {
+    void aLateImageOfAChatInTheTrashIsDroppedAndTheTrashRemovesItsFile() throws Exception {
+        List<String> removed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ChatTrashRepository removing = new ChatTrashRepository(databaseManager, removing(removed));
         Chat chat = chat();
         ChatEntry entry = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("a harbor").build());
         GeneratedImage pending = new GeneratedImage.Builder().chatEntryId(entry.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.PENDING).build();
-        repository.saveGeneratedImage(pending);
-        assertTrue(trash.softDeleteChat(chat.getId()));
+        assertTrue(repository.saveGeneratedImage(pending));
+        assertTrue(removing.softDeleteChat(chat.getId()));
 
         /*  the generation finishes afterwards: its file was written into the folder of the images in use  */
         Path file = java.nio.file.Files.writeString(tempDir.resolve("late-" + pending.getId() + ".png"), "png");
         GeneratedImage late = new GeneratedImage.Builder().chatEntryId(entry.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
         late.setLocalFilePath(file.toString());
-        repository.saveGeneratedImage(late);
+        assertFalse(repository.saveGeneratedImage(late));
         pending.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
-        repository.saveGeneratedImage(pending);
+        assertFalse(repository.saveGeneratedImage(pending));
+        assertTrue(java.nio.file.Files.exists(file), "the repository of the chats removes no file");
 
+        assertTrue(removing.dropLateImage(late));
+        assertEquals(List.of(late.getId()), removed, "the trash hands the file of the late image to ChatFiles");
         assertFalse(java.nio.file.Files.exists(file), "no file stays behind in the folder of the images in use");
+
+        /*  the placeholder went to the trash without a file; the file its answer brought later goes as well  */
+        Path answer = java.nio.file.Files.writeString(tempDir.resolve("answer-" + pending.getId() + ".png"), "png");
+        pending.setLocalFilePath(answer.toString());
+        assertTrue(removing.dropLateImage(pending));
+        assertFalse(java.nio.file.Files.exists(answer));
+        pending.setLocalFilePath(null);
         List<GeneratedImage> stored = repository.findGeneratedImagesByEntry(entry.getId());
         assertEquals(List.of(pending.getId()), stored.stream().map(GeneratedImage::getId).toList());
         assertEquals(GeneratedImage.DownloadStatus.PENDING, stored.get(0).getDownloadStatus(),
@@ -290,6 +302,62 @@ class ChatRepositoryTest {
         repository.saveRepairedImage(pending);
         assertEquals(GeneratedImage.DownloadStatus.FAILED,
                 repository.findGeneratedImageById(pending.getId()).orElseThrow().getDownloadStatus());
+
+        /*  restored meanwhile, the entry keeps the file of an image that was not saved  */
+        assertTrue(removing.restoreChat(chat.getId()));
+        Path other = java.nio.file.Files.writeString(tempDir.resolve("other-" + pending.getId() + ".png"), "png");
+        GeneratedImage notSaved = new GeneratedImage.Builder().chatEntryId(entry.getId()).build();
+        notSaved.setLocalFilePath(other.toString());
+        assertFalse(removing.dropLateImage(notSaved));
+        assertTrue(java.nio.file.Files.exists(other));
+    }
+
+    @Test
+    void anImageOfAnEntryThatIsNotStoredFailsAndKeepsItsFile() throws Exception {
+        List<String> removed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ChatTrashRepository removing = new ChatTrashRepository(databaseManager, removing(removed));
+        Path file = java.nio.file.Files.writeString(tempDir.resolve("unstored.png"), "png");
+        GeneratedImage image = new GeneratedImage.Builder().chatEntryId("never-stored")
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        image.setLocalFilePath(file.toString());
+
+        java.sql.SQLException failure = org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                () -> repository.saveGeneratedImage(image));
+        assertTrue(failure.getMessage().contains("never-stored"));
+        assertFalse(removing.dropLateImage(image), "an entry not stored is not in the trash");
+        assertTrue(removed.isEmpty());
+        assertTrue(java.nio.file.Files.exists(file), "the paid image keeps its file");
+    }
+
+    /*  ChatFiles that remove the files of dropped images and record them  */
+    private static ChatFiles removing(List<String> removed) {
+        return new ChatFiles() {
+            @Override
+            public void moveToTrash(String chatId, List<GeneratedImage> images) {
+            }
+
+            @Override
+            public void restoreFromTrash(String chatId, List<GeneratedImage> images) {
+            }
+
+            @Override
+            public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
+                return true;
+            }
+
+            @Override
+            public void removeDropped(List<GeneratedImage> images) {
+                for (GeneratedImage image : images) {
+                    removed.add(image.getId());
+                    try {
+                        java.nio.file.Files.deleteIfExists(Path.of(image.getLocalFilePath()));
+                    }
+                    catch (java.io.IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
     }
 
     private Chat chat() throws Exception {

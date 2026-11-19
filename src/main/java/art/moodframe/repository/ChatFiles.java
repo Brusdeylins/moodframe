@@ -5,7 +5,8 @@ import art.moodframe.model.GeneratedImage;
 import java.util.List;
 
 /**
- * What happens to the files of a chat, an entry or an image when it is deleted, restored or removed for good.
+ * What happens to the files of a chat, an entry or an image when it is deleted, restored or removed for good, and to
+ * those of an image a generation delivered after its entry or chat went to the trash.
  * {@link ChatTrashRepository} decides when (after the commit, with the rows it changed), an implementation (see
  * {@code ChatFileService}) knows where the files are.
  *
@@ -26,6 +27,10 @@ public interface ChatFiles {
         @Override
         public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
             return true;
+        }
+
+        @Override
+        public void removeDropped(List<GeneratedImage> images) {
         }
     };
 
@@ -54,4 +59,12 @@ public interface ChatFiles {
      * @return true if all files are gone
      */
     boolean deletePermanently(String chatId, List<GeneratedImage> images);
+
+    /**
+     * Removes the files and thumbnails of images a generation wrote into the folder of the images in use after their
+     * entry or chat went to the trash: they were written after the deletion, so no deletion moved them.
+     *
+     * @param images the dropped images
+     */
+    void removeDropped(List<GeneratedImage> images);
 }

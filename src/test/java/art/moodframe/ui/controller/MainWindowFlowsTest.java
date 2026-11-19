@@ -280,7 +280,7 @@ class MainWindowFlowsTest {
     private static ChatRepository slowImageWrites(DatabaseManager database) {
         return new ChatRepository(database) {
             @Override
-            public void saveGeneratedImage(GeneratedImage image) throws SQLException {
+            public boolean saveGeneratedImage(GeneratedImage image) throws SQLException {
                 if (Thread.currentThread().getName().startsWith("generation-store")
                         && image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED) {
                     try {
@@ -290,7 +290,7 @@ class MainWindowFlowsTest {
                         Thread.currentThread().interrupt();
                     }
                 }
-                super.saveGeneratedImage(image);
+                return super.saveGeneratedImage(image);
             }
         };
     }

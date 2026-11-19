@@ -83,7 +83,7 @@ class FailedSubmissionTest {
         /*  the future fails with the reason, as the entry does  */
         ExecutionException failure = assertThrows(ExecutionException.class, () -> submitted.get(10, TimeUnit.SECONDS));
         assertInstanceOf(ProviderException.class, ProviderException.unwrap(failure));
-        verify(repository, timeout(10_000)).saveChatEntry(entry);
+        verify(repository, timeout(10_000)).updateChatEntry(entry);
         assertEquals(ChatEntry.Status.FAILED, told.get(10, TimeUnit.SECONDS));
         assertEquals(ChatEntry.Status.FAILED, entry.getStatus());
         return entry;

@@ -167,11 +167,12 @@ public class RequestResponseManager implements RequestResponseService {
     @Override
     public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
         return FxModel.changeAndGet(() -> {
-            boolean running = tracker.cancel(chatEntry);
-            if (running)
+            CompletableFuture<Void> stored = tracker.cancel(chatEntry);
+            if (stored != null)
                 pollingFlow.cancelEntry(chatEntry.getId());
-            return running;
-        });
+            return stored;
+        }).thenCompose((CompletableFuture<Void> stored) -> stored != null ? stored.thenApply((Void done) -> true)
+                : CompletableFuture.completedFuture(false));
     }
 
     @Override

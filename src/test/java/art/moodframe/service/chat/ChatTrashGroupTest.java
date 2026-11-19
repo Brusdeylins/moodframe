@@ -15,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -91,6 +92,28 @@ class ChatTrashGroupTest {
         assertTrue(repository.findChatById(chat.getId()).isEmpty());
         assertTrue(repository.findChatEntriesByChatId(chat.getId()).isEmpty());
         assertFalse(group.deletePermanently(chat.getId()));
+    }
+
+    @Test
+    void tellsTheContextInEnglishWithAPointForTheMcpClients() throws Exception {
+        Chat chat = chat("Dämmerung");
+        entry(chat, 1.25, 2);
+        trash.softDeleteChat(chat.getId());
+        Locale language = I18nManager.getCurrentLocale();
+        Locale numbers = Locale.getDefault();
+        try {
+            I18nManager.setLocale(Locale.GERMAN);
+            Locale.setDefault(Locale.GERMANY);
+            TrashEntry english = group.list(Locale.ENGLISH).stream()
+                    .filter((TrashEntry entry) -> entry.id().equals(chat.getId())).findFirst().orElseThrow();
+
+            assertEquals("2 images · $1.25", english.context());
+            assertEquals("2 Bilder · $1,25", trashed(chat).orElseThrow().context(), "the window keeps its language");
+        }
+        finally {
+            Locale.setDefault(numbers);
+            I18nManager.setLocale(language);
+        }
     }
 
     @Test

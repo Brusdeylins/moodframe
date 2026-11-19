@@ -5,6 +5,7 @@ import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.service.trash.TrashGroup;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The moods in the central trash, each with the names of its blocks.
@@ -30,7 +31,7 @@ public class MoodTrashGroup implements TrashGroup {
     }
 
     @Override
-    public List<TrashEntry> list() {
+    public List<TrashEntry> list(Locale locale) {
         return moodService.getDeleted().stream().map((Mood mood) -> new TrashEntry(mood.getId(), mood.getName(),
                 mood.getDeletedAt(), moodService.describe(mood))).toList();
     }

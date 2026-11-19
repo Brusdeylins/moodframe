@@ -1,6 +1,7 @@
 package art.moodframe.service.trash;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -72,8 +73,19 @@ public class TrashCenter {
      * @return the items in the trash, the latest deletion first; empty as long as no group of this kind is docked
      */
     public List<TrashEntry> list(TrashGroup.Kind kind) {
+        return list(kind, null);
+    }
+
+    /**
+     * Lists the deleted items of a kind with their context in a language, see {@link TrashGroup#list(Locale)}.
+     *
+     * @param kind   the group
+     * @param locale the language of the context, null for that of the user interface
+     * @return the items in the trash, the latest deletion first; empty as long as no group of this kind is docked
+     */
+    public List<TrashEntry> list(TrashGroup.Kind kind, Locale locale) {
         TrashGroup group = groups.get(kind);
-        return group != null ? group.list() : List.of();
+        return group != null ? group.list(locale) : List.of();
     }
 
     /**

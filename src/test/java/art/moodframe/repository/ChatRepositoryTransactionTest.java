@@ -187,6 +187,10 @@ class ChatRepositoryTransactionTest {
             public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
                 return true;
             }
+
+            @Override
+            public void removeDropped(List<GeneratedImage> images) {
+            }
         }));
 
         try {
@@ -224,6 +228,10 @@ class ChatRepositoryTransactionTest {
                     rowGoneBeforeFiles.set(false);
                 }
                 return false;
+            }
+
+            @Override
+            public void removeDropped(List<GeneratedImage> images) {
             }
         });
         Chat chat = chat("Dateien");

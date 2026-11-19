@@ -193,7 +193,14 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   `GenerationService.submit` may run on the JavaFX thread: it checks the order in memory (a refused order throws at
   once; only the copy of the mood looks up a palette without id by its name, a short read), adds the new entry to
   its chat and the database on the store thread and dispatches the request only then; the window shows the entry at
-  once, the MCP tool `generate` waits until it is stored.
+  once, the MCP tool `generate` waits until it is stored. A cancellation completes once the cancelled entry is
+  stored. Deleting an entry or moving a chat to the trash (`ChatLibrary.deleteEntry`, `moveToTrash`) first cancels
+  the generations of its entries still running and waits until the writes of their generation are done
+  (`ChatLibrary.Generations`, implemented by `GenerationService.settle` and handed in by the composition root), so the
+  trash books the cost the cancellation settled, for the window and the MCP server alike; the MCP tool
+  `delete_entry` still refuses a running entry. The generation stores the changes of its entry with
+  `ChatRepository.updateChatEntry`, which leaves an entry in the trash (on its own or with its chat) as the trash
+  booked it and never inserts one removed for good; an image it still delivers is dropped (see "Persistence").
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
@@ -203,9 +210,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **Settings**: values that change with every pixel of a drag (divider, window bounds, tile size) are written by a
   writer thread after 500 ms of quiet and at the latest on shutdown; every other setting is written at once.
 - **MCP server**: each request runs on a virtual thread of its own (`mcp-server-N`), never on the JavaFX thread, and
-  reads and changes the chats without waiting for it (only `cancel_generation` waits for the change of the
-  generation). `generate` blocks its thread up to `wait` seconds for the result; as every request has its own
-  thread, no number of waiting generations keeps another call (`list_chats`, `cancel_generation`) from its answer.
+  reads and changes the chats without waiting for it (only `cancel_generation`, and `delete_chat` for a chat with a
+  running entry, which it cancels first, wait for the change of the generation). `generate` blocks its thread up to
+  `wait` seconds for the result; as every request has its own thread, no number of waiting generations keeps another
+  call (`list_chats`, `cancel_generation`) from its answer.
 - **Images**: `ui.support.ImageCache` holds the decoded thumbnails by path, bounded by pixels; the main window
   creates one and hands it to the cards and the images view with `ImageSources`, the memory display of the status bar
   counts its images. A file is decoded on the calling worker, once even when several ask for it at the same time;
@@ -388,11 +396,17 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   settings, which removes the style blocks of the user for good, in use and in the trash
   (`PromptBlockRepository.deleteAll`), as its confirmation says; the moods lose their references to them in the
   same transaction.
-- **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
-  chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
-  commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
-  file. Its writes run one after the other, each with the moves of its files, so a deletion and an immediate
-  restore from another thread move the files in the order of their commits. The services never move these files themselves.
+- **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed chat,
+  entry or image: after the commit it hands `repository.ChatFiles` the images whose files follow its change (those its
+  transaction deleted, restored or removed; of a chat the images in use, as those deleted on their own lie in the
+  trash already, and all of them when it is removed for good), so an image another caller deleted before is not moved
+  twice and a row that was not deleted keeps its file. Its writes run one after the other, each with the moves of its
+  files, so a deletion and an immediate restore from another thread move the files in the order of their commits. An
+  image a generation delivers after its entry or chat went to the trash is not saved
+  (`ChatRepository.saveGeneratedImage` answers false); its file, written into the folder of the images in use, is
+  removed by `ChatTrashRepository.dropLateImage` the same way, after the writes before. An image whose entry is not
+  stored at all (its insert failed) keeps its file and fails. The services and the other repositories never move or
+  remove these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
   brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
   `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
@@ -489,10 +503,11 @@ are one table, `model.ModelParameters`, which the MCP schema, the MCP validation
 
 Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
 OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
-`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). `GenerationModel.constantOf` tells a constant from
-such an id, `ProviderRegistry.isOrderable` and `ProviderRegistry.apiModelId` decide for the generation, so no class
-of `service` but the OpenAI client names the placeholder (`ArchitectureTest`). A second provider with listed models
-would need an item prefix of its own.
+`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). The dropdown and the MCP tools offer them from the
+registry (`GenerationService.availableItems`), the same source `ProviderRegistry.isOrderable` accepts them from.
+`GenerationModel.constantOf` tells a constant from such an id, `ProviderRegistry.isOrderable` and
+`ProviderRegistry.apiModelId` decide for the generation, so no class of `service` but the OpenAI client names the
+placeholder (`ArchitectureTest`). A second provider with listed models would need an item prefix of its own.
 
 Errors follow one rule: every failure of a provider or a generation the user reads is a `ProviderException` with an
 i18n key and its arguments (`ApiHttpException` with the HTTP status), or carries one: a job a provider answers as
@@ -507,7 +522,8 @@ the generation renders a message with `I18nManager.getText` itself (`Architectur
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `GenerationService`, `ApiProviderValidator`); every constant of `GenerationModel` names
 its `ApiProvider`. What needs no change for a new provider: the dispatch and the flows of the generation, the
-dropdown (`ModelLabels.availableItems` lists the selectable constants of every usable provider), the startup check
+dropdown and the models of the MCP tools (`ModelLabels.availableItems` lists the selectable constants and the listed
+models of every registered provider the user can use), the startup check
 of the accounts (`ApiProviderValidator` tests the connection of every registered provider; only Gemini and OpenAI add
 the checks of their brainstorm language model) and the MCP tools, as long as its models take only the request options
 there are. A new provider is, in this order:
@@ -518,10 +534,17 @@ there are. A new provider is, in this order:
 2. its client in `service.provider`: an interface extending `ImageProvider` with its implementation (prompt limit,
    `prepare`, the flow it answers with, seeds, costs, download headers), created in
    `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
-3. its models as constants of `model.GenerationModel` (with the branch of the constructor for their resolution and
-   attachment limits, `getFamilyName` and `getResolutionLabel` for variants), their parameters in
-   `model.ModelParameters`, their prices in `model.GenerationCost`, their aspect ratios in `AspectRatios.forModel` and
-   the multiple of their sizes in `ImageDimensions.multipleFor`;
+3. its models as constants of `model.GenerationModel`, which decides several things by provider: the branch of the
+   constructor for their resolution (`maxMegapixels`, `maxResolution`; `supportsImageAttachment` is true for every
+   provider but BFL), `supportsMultiImage` and `getMaxInputImages` for their reference images (false and 0 for a new
+   provider: the dropdown then drops its models as soon as an image is attached,
+   `GenerationService.availableItems(config, imageCount)`, `get_capabilities` reports no reference image and
+   `mcp.GenerateTools.references` refuses any), `supportsGroundingSearch` and `supportsGoogleSearch` (Gemini, read by
+   `ModelParameters` and `GenerationCost.search`), `supportsSafetyTolerance` (BFL), and `getFamilyName` and
+   `getResolutionLabel` for variants; their parameters in `model.ModelParameters`, their prices in
+   `model.GenerationCost` (`GenerationCost.isKnown` answers false only for OpenAI, whose prices are unknown, so a
+   provider without known prices needs its branch there), their aspect ratios in `AspectRatios.forModel` (a branch per
+   provider, BFL's otherwise) and the multiple of their sizes in `ImageDimensions.multipleFor`;
 4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
    `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), its field in
    `ui.controller.ProviderParameters`, and its value in `mcp.GenerateTools.parameters`, which builds the
