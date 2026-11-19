@@ -92,6 +92,22 @@ public class ProviderRegistry {
     }
 
     /**
+     * Gets the prompt limit of a model in characters, as its provider tells it.
+     *
+     * @param modelId the fixed id of the model, see {@link GenerationModel#idOf(String)} (may be null)
+     * @return the limit, that of the provider of an unknown model id (see {@link #providerOf(String)}) without model
+     */
+    public int promptLimit(String modelId) {
+        GenerationModel model = GenerationModel.fromId(modelId);
+        if (model == null)
+            return forModel(null).maxPromptLength(null);
+
+        /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
+        return get(model.getProvider()).maxPromptLength(model == GenerationModel.OPENAI_IMAGE ? modelId
+                : model.getApiModelId());
+    }
+
+    /**
      * Gets the provider of an API model id, see {@link #providerOf(String)}.
      *
      * @param modelId the API model id of a request (may be null)

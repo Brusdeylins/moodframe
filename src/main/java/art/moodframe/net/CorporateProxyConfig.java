@@ -258,11 +258,4 @@ public class CorporateProxyConfig {
     public boolean hasProxyAuthentication() {
         return applicationConfig.proxy().hasProxyCredentials();
     }
-    
-    /**
-     * Gets the source of the current proxy configuration.
-     */
-    public String getConfigurationSource() {
-        return applicationConfig.proxy().getProxyConfigurationSource();
-    }
 }

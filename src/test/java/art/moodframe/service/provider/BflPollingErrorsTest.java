@@ -97,4 +97,34 @@ class BflPollingErrorsTest {
         assertEquals("BFL: Kein API-Schlüssel konfiguriert. Bitte in den Einstellungen eintragen.",
                 cause.getMessage(Locale.GERMAN));
     }
+
+    @Test
+    void aFailedSslTestIsATypedFailureThatNamesSslInEveryLanguage() throws Exception {
+        /*  a server that answers the handshake with plain text  */
+        java.net.ServerSocket plain = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress());
+        Thread.ofVirtual().start(() -> {
+            try (plain; java.net.Socket socket = plain.accept()) {
+                socket.getOutputStream().write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                socket.getOutputStream().flush();
+            } catch (java.io.IOException ignored) {
+            }
+        });
+        String plainServer = "https://127.0.0.1:" + plain.getLocalPort();
+        BflApiServiceImpl service = new BflApiServiceImpl(config) {
+            @Override
+            public String getApiBaseUrl() {
+                return plainServer;
+            }
+        };
+
+        ExecutionException failure = assertThrows(ExecutionException.class,
+                () -> service.testSslConnection().get(20, TimeUnit.SECONDS));
+        ProviderException cause = assertInstanceOf(ProviderException.class, ProviderException.unwrap(failure));
+        assertInstanceOf(javax.net.ssl.SSLException.class, cause.getCause());
+
+        /*  the settings dialog tells an SSL failure by its text  */
+        assertTrue(cause.getMessage(Locale.ENGLISH).contains("SSL"), cause.getMessage(Locale.ENGLISH));
+        assertTrue(cause.getMessage(Locale.GERMAN).contains("SSL"), cause.getMessage(Locale.GERMAN));
+        assertTrue(failure.getMessage().contains("SSL"), failure.getMessage());
+    }
 }

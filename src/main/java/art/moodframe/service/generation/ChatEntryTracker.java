@@ -2,7 +2,6 @@ package art.moodframe.service.generation;
 
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.ProviderException;
 import org.slf4j.Logger;
@@ -27,9 +26,6 @@ import java.util.function.Consumer;
 public class ChatEntryTracker {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatEntryTracker.class);
-
-    /*  BFL reports its prices in credits of one cent  */
-    private static final double USD_PER_BFL_CREDIT = 0.01;
 
     private final ChatRepository chatRepository;
     private final Executor executor;
@@ -266,22 +262,19 @@ public class ChatEntryTracker {
     }
 
     /**
-     * Takes the price BFL reports for a finished job as the base cost of its image, which keeps its estimate
+     * Takes the price the provider reports for a finished job as the base cost of its image, which keeps its estimate
      * otherwise; the entry gets the sum of its images once all are finished. Call on the FX thread.
      *
-     * @param image     the image of the job
-     * @param jobResult the result of the job, its cost in BFL credits
+     * @param image        the image of the job
+     * @param reportedCost the price in US dollars, null if the provider reports none
      */
-    public void updateCostFromApi(GeneratedImage image, GenerationJobResult jobResult) {
-        if (jobResult == null || image == null)
+    public void updateCost(GeneratedImage image, Double reportedCost) {
+        if (reportedCost == null || image == null)
             return;
-        Double credits = jobResult.getCost();
-        if (credits == null || credits <= 0)
-            return;
-        double apiCost = credits * USD_PER_BFL_CREDIT;
         if (logger.isDebugEnabled())
-            logger.debug("BFL cost of image {}: ${} (estimated ${})", image.getId(), String.format("%.4f", apiCost),
+            logger.debug("Reported cost of image {}: ${} (estimated ${})", image.getId(),
+                    String.format("%.4f", reportedCost),
                     String.format("%.4f", image.getBaseCost() != null ? image.getBaseCost() : 0.0));
-        image.setBaseCost(apiCost);
+        image.setBaseCost(reportedCost);
     }
 }

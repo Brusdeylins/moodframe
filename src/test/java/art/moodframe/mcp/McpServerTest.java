@@ -185,7 +185,7 @@ class McpServerTest {
             port = free.getLocalPort();
         }
         server = new McpServer(port, TOKEN, McpTools.reading(config, chats, moods, blocks, colors, frames, favorites,
-                trash, events));
+                trash, events, art.moodframe.service.provider.MockProviders.preparing()::promptLimit));
         server.start();
     }
 

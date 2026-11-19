@@ -1,6 +1,5 @@
 package art.moodframe.service.trash;
 
-import art.moodframe.model.Chat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,12 +13,12 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Service for managing trash retention and automatic cleanup.
- * 
+ *
  * <p>This service handles the automatic deletion of the items of all groups
  * of the {@link TrashCenter} that have been in the trash for more than the
  * retention period (60 days by default).
  * Images are only deleted when chats are permanently removed from trash.</p>
- * 
+ *
  * <p><strong>Deletion Lifecycle:</strong></p>
  * <ol>
  * <li>User deletes chat → Soft delete (moves to trash, files retained)</li>
@@ -27,66 +26,59 @@ import java.util.concurrent.TimeUnit;
  * <li>Either: User manually deletes from trash OR auto-cleanup after 60 days</li>
  * <li>Only then: Database records AND image files are permanently deleted</li>
  * </ol>
- * 
+ *
  * <p><strong>Background Cleanup:</strong></p>
  * <ul>
- * <li>Automatic cleanup runs every 6 hours during application runtime</li>
+ * <li>Automatic cleanup runs every 6 hours during application runtime, from {@link #start()} on</li>
  * <li>UI is automatically refreshed when expired items are deleted</li>
  * <li>The listeners of the {@link TrashCenter} learn which items are gone</li>
  * </ul>
- * 
+ *
  * @since 1.0.0
  */
 public class TrashCleanupService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(TrashCleanupService.class);
-    
+
     /**
      * Default retention period in days before automatic deletion.
      */
     public static final int DEFAULT_RETENTION_DAYS = 60;
-    
+
     /**
      * Default cleanup interval in hours.
      */
     public static final int DEFAULT_CLEANUP_INTERVAL_HOURS = 6;
-    
+
     private final TrashCenter trashCenter;
     private final int retentionDays;
-    private final ScheduledExecutorService scheduler;
-    private boolean backgroundCleanupEnabled = true;
-    
+    private ScheduledExecutorService scheduler;  // from start() on, guarded by this
+
     /**
      * Creates a new trash cleanup service with default retention period.
-     * 
+     *
      * @param trashCenter the central trash with its groups
      */
     public TrashCleanupService(TrashCenter trashCenter) {
         this(trashCenter, DEFAULT_RETENTION_DAYS);
     }
-    
+
     /**
-     * Creates a new trash cleanup service with custom retention period.
-     * 
+     * Creates a new trash cleanup service with custom retention period. It cleans up nothing until it is
+     * {@link #start() started} or asked to.
+     *
      * @param trashCenter the central trash with its groups
      * @param retentionDays the number of days to retain deleted items
      */
     public TrashCleanupService(TrashCenter trashCenter, int retentionDays) {
         this.trashCenter = trashCenter;
         this.retentionDays = retentionDays;
-        this.scheduler = Executors.newScheduledThreadPool(1, r -> {
-            Thread t = new Thread(r, "TrashCleanupService");
-            t.setDaemon(true); // Don't prevent JVM shutdown
-            return t;
-        });
-        
-        startBackgroundCleanup();
     }
-    
+
     /**
      * Performs automatic cleanup of old deleted items.
      * This should be called on application startup.
-     * 
+     *
      * @return the number of items permanently deleted
      */
     public int performAutoCleanup() {
@@ -135,10 +127,10 @@ public class TrashCleanupService {
         }
         return successCount;
     }
-    
+
     /**
      * Gets the number of days remaining before a deleted item is auto-deleted.
-     * 
+     *
      * @param deletedAt when the item was moved to the trash
      * @return days remaining, or -1 if the item is not deleted
      */
@@ -146,71 +138,28 @@ public class TrashCleanupService {
         if (deletedAt == null) {
             return -1; // Not in trash
         }
-        
+
         long daysSinceDeletion = ChronoUnit.DAYS.between(deletedAt, LocalDateTime.now());
         int daysRemaining = retentionDays - (int) daysSinceDeletion;
-        
+
         return Math.max(0, daysRemaining);
     }
-    
+
     /**
-     * Gets a user-friendly message about when a chat will be auto-deleted.
-     * 
-     * @param chat the deleted chat
-     * @return a message describing the auto-deletion timeline
+     * Starts the background cleanup timer, once per program start: the cleanup runs every 6 hours, the first time
+     * 6 hours from now. A second call changes nothing.
      */
-    public String getRetentionMessage(Chat chat) {
-        int daysRemaining = getDaysUntilAutoDeletion(chat.getDeletedAt());
-        
-        if (daysRemaining < 0) {
-            return "Not in trash";
-        } else if (daysRemaining == 0) {
-            return "Will be permanently deleted today";
-        } else if (daysRemaining == 1) {
-            return "Will be permanently deleted tomorrow";
-        } else if (daysRemaining <= 7) {
-            return String.format("Will be permanently deleted in %d days", daysRemaining);
-        } else {
-            return String.format("Will be permanently deleted in %d days", daysRemaining);
-        }
-    }
-    
-    /**
-     * Checks if a deleted chat has exceeded the retention period.
-     * 
-     * @param chat the chat to check
-     * @return true if the chat should be auto-deleted
-     */
-    public boolean isExpired(Chat chat) {
-        if (chat.getDeletedAt() == null) {
-            return false;
-        }
-        
-        LocalDateTime cutoffDate = LocalDateTime.now().minus(retentionDays, ChronoUnit.DAYS);
-        return chat.getDeletedAt().isBefore(cutoffDate);
-    }
-    
-    /**
-     * Gets the configured retention period in days.
-     * 
-     * @return the retention period
-     */
-    public int getRetentionDays() {
-        return retentionDays;
-    }
-    
-    /**
-     * Starts the background cleanup timer.
-     * Cleanup runs every 6 hours automatically.
-     */
-    private void startBackgroundCleanup() {
-        if (!backgroundCleanupEnabled) {
-            logger.debug("Background cleanup is disabled");
+    public synchronized void start() {
+        if (scheduler != null)
             return;
-        }
-        
+        scheduler = Executors.newScheduledThreadPool(1, r -> {
+            Thread t = new Thread(r, "TrashCleanupService");
+            t.setDaemon(true); // Don't prevent JVM shutdown
+            return t;
+        });
+
         logger.debug("Starting background trash cleanup - will run every {} hours", DEFAULT_CLEANUP_INTERVAL_HOURS);
-        
+
         // Schedule cleanup to run every 6 hours
         scheduler.scheduleAtFixedRate(() -> {
             try {
@@ -220,22 +169,16 @@ public class TrashCleanupService {
             }
         }, DEFAULT_CLEANUP_INTERVAL_HOURS, DEFAULT_CLEANUP_INTERVAL_HOURS, TimeUnit.HOURS);
     }
-    
-    /**
-     * Enables or disables background cleanup.
-     * 
-     * @param enabled true to enable background cleanup, false to disable
-     */
-    public void setBackgroundCleanupEnabled(boolean enabled) {
-        this.backgroundCleanupEnabled = enabled;
-        logger.debug("Background cleanup {}", enabled ? "enabled" : "disabled");
-    }
-    
+
     /**
      * Shuts down the background cleanup service.
      * Should be called when the application is closing.
      */
     public void shutdown() {
+        ScheduledExecutorService scheduler;
+        synchronized (this) {
+            scheduler = this.scheduler;
+        }
         if (scheduler != null && !scheduler.isShutdown()) {
             logger.debug("Shutting down TrashCleanupService background tasks...");
             scheduler.shutdown();
@@ -251,10 +194,10 @@ public class TrashCleanupService {
             }
         }
     }
-    
+
     /**
      * Forces an immediate cleanup run outside of the scheduled interval.
-     * 
+     *
      * @return the number of items permanently deleted
      */
     public int forceCleanup() {

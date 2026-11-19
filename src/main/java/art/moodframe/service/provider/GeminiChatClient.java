@@ -76,7 +76,7 @@ final class GeminiChatClient {
 
         return transport.async(() -> {
             if (!transport.hasKey()) {
-                throw new IllegalStateException(I18nManager.getText("brainstorm.video.error.no.api.key"));
+                throw ProviderException.localized("brainstorm.video.error.no.api.key");
             }
 
             if (youtubeUrl == null || youtubeUrl.trim().isEmpty()) {
@@ -448,7 +448,7 @@ final class GeminiChatClient {
 
     private void requireApiKey() {
         if (!transport.hasKey()) {
-            throw new IllegalStateException(I18nManager.getText("brainstorm.error.no.api.key"));
+            throw ProviderException.noKey("Gemini");
         }
     }
 

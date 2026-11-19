@@ -77,7 +77,7 @@ The subpackages of `service`, each using only those above it in the table (no cy
 | `service.library`    | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
 | `service.chat`       | the chats with their entries, files, thumbnail files, attachments, their trash       |
 |                      | groups; no JavaFX                                                                    |
-| `service.generation` | carries out a generation order: entry, request, BFL job polling, image files         |
+| `service.generation` | carries out a generation order: entry, request, job polling, image files             |
 | `service.brainstorm` | the brainstorm chat and the analysis of an image into a mood                         |
 | `service`            | `ConfigurationExporter` (settings and library backup), `UpdateCheckService`          |
 
@@ -180,7 +180,10 @@ No class of `service` or `mcp` uses the locator (`ArchitectureTest`).
 Creating a service reads and writes nothing. What a service does once per program start is its `start()`, which
 the startup calls after the registration: `PromptBlockService`, `ColorStyleService` and `MoodService` give a block,
 palette or mood of the user that is named like a standard one the next free name, as a new version may bring new
-standard names (so this is no one-time migration); the moods last, as they refer to blocks and palettes.
+standard names (so this is no one-time migration); the moods last, as they refer to blocks and palettes. The
+`TrashCleanupService` starts its cleanup every 6 hours in `start()`, which the startup calls when it creates it. The
+folders of the thumbnails and the trash are created by the first file written there, not by `ThumbnailManager` or
+`TrashManager`.
 
 The locator is left to the coordinators of the user interface: `MainWindowController` and `SettingsController` look
 up the services once and hand them to their parts, which hand them on to the dialogs and components they open
@@ -351,10 +354,18 @@ them were removed; a new interface is introduced when a second implementation or
 
 The three provider clients extend the provider SPI `service.provider.ImageProvider` (key, connection test,
 a copy with other credentials for the test of an unsaved key, submission of images and videos, seeds, attached
-images, prompt limit, the parameters a model takes, download headers) and keep their own extras, such as the BFL job
-polling or the brainstorm chat. The generation knows no provider by name: what differs per provider lives in its
-client; a video model is submitted like an image model, and images and videos are downloaded on one path
-(`ImageFileStore`). The parameters of the models (name, kind, limits, default, slider step) are one table,
+images, prompt limit, the parameters a model takes, download headers, the jobs of a polled generation) and keep their
+own extras, such as the brainstorm chat. The generation knows no provider by name: what differs per provider lives in
+its client; a video model is submitted like an image model, and images and videos are downloaded on one path
+(`ImageFileStore`). A provider that does not answer with the image (`answersWithImage()` false, today BFL) goes
+through `service.generation.JobPollingFlow`: one job per image, whose request the provider limits (`prepareJob`, e.g.
+the range of the seed), one retry with the safety tolerance the account is approved for
+(`approvedSafetyTolerance`), polled with `pollJob` one answer at a time and priced with `reportedCost`. A provider
+with seeds (`usesSeeds()`) gets random ones from `service.generation.Seeds`. Remaining assumptions of the flow: the
+statuses `pollJob` answers are those of BFL (named in its Javadoc), a 404 means "not visible yet", and an approved
+safety tolerance is stored as the FLUX.2 setting. A model id that is neither a constant nor served by a provider
+goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX models are no constants any more. The prompt limit of a
+model comes from its provider (`ProviderRegistry.promptLimit`), for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step) are one table,
 `model.ModelParameters`, which the MCP schema, the MCP validation and the providers read. Errors are
 `ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the MCP
 clients get in English.
