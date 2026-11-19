@@ -1,7 +1,7 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.repository.ColorStyleRepository;
 import art.moodframe.repository.FavoriteRepository;
 import art.moodframe.repository.FrameRepository;
@@ -20,7 +20,7 @@ public final class TestLibraryServices {
 
     /** @return the database of the test */
     public static DatabaseManager database() {
-        return DatabaseConfig.getDatabase();
+        return TestDatabase.get();
     }
 
     /** @return the building blocks */

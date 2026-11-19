@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
@@ -241,7 +242,7 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAnAtmosphereOfTheUserThatIsNamedLikeAStandardAtmosphere() throws Exception {
-        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
+        PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Fog", "my own fog", null, true);
         repository.save(clash);
 
@@ -292,7 +293,7 @@ class PromptBlockServiceTest {
 
     @Test
     void renamesAStyleOfTheUserThatIsNamedLikeAStandardStyleAndKeepsItsText() throws Exception {
-        PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
+        PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
         PromptBlock clash = new PromptBlock(null, PromptBlock.Type.STYLE, "Infographic Flat", "my own flat look", null,
                 true);
         repository.save(clash);
@@ -338,7 +339,7 @@ class PromptBlockServiceTest {
         ColorStyle own = new ColorStyle("Silver Screen", List.of("#112233", "#445566"), false);
         own.setId("own-silver-screen");
         own.setSortOrder(150);
-        assertTrue(new art.moodframe.repository.ColorStyleRepository(DatabaseConfig.getDatabase()).save(own));
+        assertTrue(new art.moodframe.repository.ColorStyleRepository(TestDatabase.get()).save(own));
 
         ColorStyleService service = TestLibraryServices.palettes();
         service.start();

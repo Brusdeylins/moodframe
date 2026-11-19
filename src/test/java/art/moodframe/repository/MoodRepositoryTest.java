@@ -1,6 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Mood;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ class MoodRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final MoodRepository repository = new MoodRepository(DatabaseConfig.getDatabase());
+    private final MoodRepository repository = new MoodRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {

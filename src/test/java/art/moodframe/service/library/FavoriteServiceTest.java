@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
@@ -91,10 +92,10 @@ class FavoriteServiceTest {
         frame.setAspectRatio("1:1");
         PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Favorite Light", "soft light", null, true);
         ColorStyle palette = new ColorStyle("Favorite Palette", List.of("#000000"));
-        MoodRepository moods = new MoodRepository(DatabaseConfig.getDatabase());
-        FrameRepository frames = new FrameRepository(DatabaseConfig.getDatabase());
-        PromptBlockRepository blocks = new PromptBlockRepository(DatabaseConfig.getDatabase());
-        ColorStyleRepository palettes = new ColorStyleRepository(DatabaseConfig.getDatabase());
+        MoodRepository moods = new MoodRepository(TestDatabase.get());
+        FrameRepository frames = new FrameRepository(TestDatabase.get());
+        PromptBlockRepository blocks = new PromptBlockRepository(TestDatabase.get());
+        ColorStyleRepository palettes = new ColorStyleRepository(TestDatabase.get());
         assertTrue(moods.save(mood));
         assertTrue(frames.save(frame));
         assertTrue(blocks.save(light));

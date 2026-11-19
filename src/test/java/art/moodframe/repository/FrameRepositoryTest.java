@@ -2,6 +2,7 @@ package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class FrameRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final FrameRepository repository = new FrameRepository(DatabaseConfig.getDatabase());
+    private final FrameRepository repository = new FrameRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
@@ -113,7 +114,7 @@ class FrameRepositoryTest {
 
     @Test
     void aFreshDatabaseHasNoModelColumnsButATargetResolution() throws Exception {
-        try (Connection conn = DatabaseConfig.getDatabase().getConnection()) {
+        try (Connection conn = TestDatabase.get().getConnection()) {
             assertEquals(COLUMNS, columns(conn));
         }
     }

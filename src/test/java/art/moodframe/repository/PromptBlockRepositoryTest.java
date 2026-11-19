@@ -2,6 +2,7 @@ package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
@@ -25,7 +26,7 @@ class PromptBlockRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final PromptBlockRepository repository = new PromptBlockRepository(DatabaseConfig.getDatabase());
+    private final PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
@@ -125,7 +126,7 @@ class PromptBlockRepositoryTest {
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getDatabase().getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }

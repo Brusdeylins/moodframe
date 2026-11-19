@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Mood;
@@ -82,7 +83,7 @@ class ParallelWritesTest {
 
     @Test
     void theConnectionsWaitForLocksAndTheDatabaseRunsInWalMode() throws Exception {
-        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+        try (Connection connection = TestDatabase.get().getConnection();
              Statement stmt = connection.createStatement()) {
             try (ResultSet rs = stmt.executeQuery("PRAGMA busy_timeout")) {
                 assertEquals(5000, rs.getInt(1));

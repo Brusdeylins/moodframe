@@ -89,7 +89,8 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
 - **Start**: `MoodframeApplication.start` shows the splash and starts the thread `MoodFrame-startup`, which prepares
   everything that needs no JavaFX thread: the configuration, the database with its migrations (the Java data
-  migrations included), the registration of the services, the trash cleanup, then the loading of the chats
+  migrations included), the registration of the services, their start (see "Dependency injection"), the trash
+  cleanup, then the loading of the chats
   (`ChatLibrary.load`, which checks every image file and repairs what a restart left behind), the thumbnails of older
   images and the check of the accounts, and it creates the services the main window looks up. The cleanup runs before
   the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
@@ -130,19 +131,23 @@ carry such properties, only through `service.generation.FxModel`. `service.chat`
 composition root: it registers the instances and lazy providers at startup and hands every service its
 dependencies in the constructor, which is also how tests pass mocks: the provider clients take
 `ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,
-`FrameService`, `FavoriteService`) take the `DatabaseManager` and the one `LibraryEvents`; `ConfigurationExporter`
+`FrameService`, `FavoriteService`) take their repository, which `MoodframeApplication` creates on the one
+`DatabaseManager`, and the one `LibraryEvents` (tests use `TestLibraryServices`); `ChatHistoryService` takes
+`ChatRepository`, `ChatTrashRepository` and `ChatGroupQueries`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
 No class of `service` or `mcp` uses the locator (`ArchitectureTest`).
 
+Creating a service reads and writes nothing. What a service does once per program start is its `start()`, which
+the startup calls after the registration: `PromptBlockService`, `ColorStyleService` and `MoodService` give a block,
+palette or mood of the user that is named like a standard one the next free name, as a new version may bring new
+standard names (so this is no one-time migration); the moods last, as they refer to blocks and palettes.
+
 The locator is left to the user interface: the coordinators `MainWindowController` and `SettingsController` look up
 the services once and hand them to their parts; some dialogs and components (the managers of moods, frames and
 blocks, the trash window, the entry cards and the images view, the full view, the brainstorm dialog, `ThemeManager`)
-still look up what they need themselves.
-
-The main window already works this way: its coordinator looks up the services once and hands them to its parts (see
-"The main window").
+still look up what they need themselves (see "The main window").
 
 ## The main window
 
@@ -204,8 +209,11 @@ live client nor the saved key changes until "Save". `SettingsPrompts` wraps the 
   `config.properties`, `secret.key`, `db/`, `images/`, `thumbnails/`, `trash/`, `logs/`, `certificates/`, and the
   user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to
   `ApplicationConfig`; `ApplicationConfig.paths()` returns it with the images folder of the setting `path.images`
-  (whose default is `~/.moodframe/images`), and that instance is registered for the services. Tests use the paths of
-  a temporary home. Only `logback.xml` still reads `user.home` itself, because logging starts before any code.
+  (whose default is `~/.moodframe/images`), and that instance is registered for the services. The database, the
+  logs and the images of a generation come from these paths. The only folder setting is `path.images`: former
+  versions also wrote `path.database` and `path.logs`, which no dialog ever offered; they are ignored and no longer
+  written. Tests use the paths of a temporary home. Only `logback.xml` still reads `user.home` itself, because
+  logging starts before any code.
 - **Settings**: `ApplicationConfig` sits on one `ConfigStore` (the properties file, the immediate and the delayed
   writing, the secrets) and groups the settings in sections: `ui()` (`UiState`: theme, language, window, dividers,
   selections), `generation()` (`GenerationDefaults`: model, frame, building blocks, model parameters),
@@ -213,7 +221,10 @@ live client nor the saved key changes until "Save". `SettingsPrompts` wraps the 
   OpenAI extras, the brainstorm engine), `proxy()` (`ProxySettings`) and `mcp()` (`McpSettings`). The property keys
   are those of all former versions, so an existing file loads unchanged. `ApplicationConfig` itself keeps the
   folders, detailed logging, the update hint, raw properties, the reset and a few shortcuts for the provider
-  clients and the generation.
+  clients and the generation. A file that cannot be read is logged and copied to
+  `config.properties.unreadable-<time>` before the defaults are written over it (if the copy fails, nothing is
+  written in that session); the main window tells the user once where the copy is. The reset holds the lock of the
+  writing, so the delayed writer never writes the file without the secrets.
 - **Secrets**: the API keys, the MCP token and the proxy password are the constants of `config.Secret`; each comes
   from an environment variable, a system property or, encrypted, from the file. A reset of the settings keeps all
   of them.
@@ -221,18 +232,33 @@ live client nor the saved key changes until "Save". `SettingsPrompts` wraps the 
 ## Persistence
 
 - **SQLite** in `~/.moodframe/db`, accessed with **plain JDBC** (`java.sql`), no ORM. The repositories get their
-  connections from `database.DatabaseManager`, with foreign keys on and a busy timeout.
+  connections from `database.DatabaseManager`, with foreign keys on and a busy timeout. The chats have three:
+  `ChatRepository` (chats, entries, images and their mapping), `ChatTrashRepository` (their trash with the booking
+  of the deleted costs) and `ChatGroupQueries` (the entries grouped by mood and by frame, read only).
 - **Transactions** begin IMMEDIATE (`DatabaseManager.inTransaction`): a write that depends on a read reads inside
-  the transaction, guards its update (`AND deleted_at IS NULL`) and moves files only after the commit.
-- **Time columns** (`created_at`, `deleted_at`, `chats.updated_at`) hold epoch milliseconds of the local time
-  (`setTimestamp`), never `CURRENT_TIMESTAMP`; `ChatRepository` still reads the older text values of `deleted_at`.
+  the transaction, guards its update (`AND deleted_at IS NULL`, checked row counts) and moves files only after the
+  commit. Every move to the trash and back is guarded this way, for chats, entries, images, moods, frames, blocks
+  and palettes.
+- **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
+  chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
+  commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
+  file. The services never move these files themselves.
+- **Time columns** of the chats, entries, images and brainstorm sessions (`created_at`, `deleted_at`,
+  `chats.updated_at`) and the `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local
+  time (`setTimestamp`); `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read
+  counts as deleted now (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames,
+  blocks and palettes are still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates);
+  nothing reads them.
+- **Finders** of one row answer with an `Optional` in every repository.
 - **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
   apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,
   empty) through `service.library.RepositoryAccess`.
 - **Migrations** are SQL files `V###__description.sql` in `src/main/resources/db/migration`, applied in order at
-  startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`, `DeletedCostCorrection`) runs in
-  the same sequence. A migration runs only when it is listed in `MigrationRunner.MIGRATIONS`; it is applied and
-  recorded in one transaction.
+  startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`,
+  `DeletedCostCorrection`) runs in the same sequence and carries the prices and formulas it books with (frozen at
+  2.1.3), so a later version books the same. A migration runs only when it is listed in `MigrationRunner.MIGRATIONS`;
+  it is applied and recorded in one transaction. A real failure always surfaces: on the legacy path and in the
+  repair of a V011 that was recorded without its columns, which adds only what is missing, in one transaction.
 - **Triggers**: only the favorites cleanup of V027. V031 dropped V001's triggers on `chats.updated_at`, which never
   ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash

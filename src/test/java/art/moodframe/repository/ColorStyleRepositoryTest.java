@@ -1,6 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ColorStyle;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ class ColorStyleRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final ColorStyleRepository repository = new ColorStyleRepository(DatabaseConfig.getDatabase());
+    private final ColorStyleRepository repository = new ColorStyleRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {

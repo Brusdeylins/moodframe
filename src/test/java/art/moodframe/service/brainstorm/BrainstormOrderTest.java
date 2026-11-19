@@ -1,6 +1,7 @@
 package art.moodframe.service.brainstorm;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.repository.BrainstormRepository;
@@ -36,7 +37,7 @@ class BrainstormOrderTest {
     void createSessions() throws Exception {
         databasePath = tempDir.resolve("db").resolve("test.db");
         DatabaseConfig.initialize(databasePath.toString());
-        repository = new BrainstormRepository(DatabaseConfig.getDatabase());
+        repository = new BrainstormRepository(TestDatabase.get());
         service = new BrainstormService(repository, null);
         for (String title : List.of("D", "C", "B", "A"))
             repository.createSession(title);
@@ -83,20 +84,20 @@ class BrainstormOrderTest {
         service.moveSession(sessions, session("D"), session("B"));
         DatabaseConfig.initialize(databasePath.toString());
 
-        assertEquals("ADBC", titles(new BrainstormRepository(DatabaseConfig.getDatabase()).findAllSessions()));
+        assertEquals("ADBC", titles(new BrainstormRepository(TestDatabase.get()).findAllSessions()));
     }
 
     @Test
     void keepsTheOrderOfAnExistingLibraryOnItsFirstStart() throws Exception {
         /*  The library as 2.0.0 left it: no sort order, the migration not applied yet  */
-        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+        try (Connection connection = TestDatabase.get().getConnection();
                 Statement stmt = connection.createStatement()) {
             stmt.executeUpdate("ALTER TABLE brainstorm_sessions DROP COLUMN sort_order");
             stmt.executeUpdate("DELETE FROM schema_migrations WHERE version = '026'");
         }
         LocalDateTime now = LocalDateTime.now();
         int age = 0;
-        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+        try (Connection connection = TestDatabase.get().getConnection();
                 PreparedStatement stmt = connection.prepareStatement(
                         "UPDATE brainstorm_sessions SET updated_at = ? WHERE id = ?")) {
             for (String title : List.of("C", "A", "D", "B")) {
@@ -118,7 +119,7 @@ class BrainstormOrderTest {
     private void assertOrder(String expected) throws Exception {
         assertEquals(expected, titles(repository.findAllSessions()));
         List<Integer> numbers = new ArrayList<>();
-        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+        try (Connection connection = TestDatabase.get().getConnection();
                 Statement stmt = connection.createStatement();
                 ResultSet rs = stmt.executeQuery("SELECT sort_order FROM brainstorm_sessions ORDER BY sort_order")) {
             while (rs.next())

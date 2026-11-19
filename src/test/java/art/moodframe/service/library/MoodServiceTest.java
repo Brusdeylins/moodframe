@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.EntryMood;
@@ -111,7 +112,7 @@ class MoodServiceTest {
 
     @Test
     void renamesAMoodOfTheUserThatIsNamedLikeAStandardMoodAndKeepsItsBlocks() throws Exception {
-        MoodRepository repository = new MoodRepository(DatabaseConfig.getDatabase());
+        MoodRepository repository = new MoodRepository(TestDatabase.get());
         Mood clash = new Mood(null, "Lifestyle Product");
         clash.setReference(Mood.Field.CAMERA, "std:camera:classic-portrait");
         assertTrue(repository.save(clash));
@@ -427,7 +428,7 @@ class MoodServiceTest {
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getDatabase().getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }
