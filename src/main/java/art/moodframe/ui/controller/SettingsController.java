@@ -120,10 +120,11 @@ public class SettingsController implements Initializable, I18nChangeListener {
      */
     private static SettingsServices lookUpServices() {
         ServiceFactory factory = ServiceFactory.getInstance();
+        ApiProviderValidator validator = factory.findService(ApiProviderValidator.class).orElse(null);
         return new SettingsServices(factory.getService(ApplicationConfig.class),
-                factory.getService(ProviderRegistry.class), factory.findService(ApiProviderValidator.class).orElse(null),
-                factory.getService(McpService.class), factory.getService(ConfigurationExporter.class),
-                factory.getService(PromptBlockService.class), SettingsPrompts.standard());
+                factory.getService(ProviderRegistry.class), validator, factory.getService(McpService.class),
+                factory.getService(ConfigurationExporter.class), factory.getService(PromptBlockService.class),
+                SettingsPrompts.standard());
     }
 
     @Override
