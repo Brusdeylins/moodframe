@@ -17,7 +17,9 @@
  * ({@code AND deleted_at IS NOT NULL}), so an item restored meanwhile survives; the one exception is
  * {@link PromptBlockRepository#deleteAll} of the reset of the settings, which removes the blocks of a type in use
  * and in the trash and the references of the moods to them in one transaction. Files are moved or removed after the
- * commit, by {@link ChatTrashRepository} alone, with the rows its transaction changed.</p>
+ * commit, by {@link ChatTrashRepository} alone, with the rows its transaction changed; it also removes the file of an
+ * image a generation delivered after its entry or chat went to the trash, which {@link ChatRepository} did not save
+ * ({@link ChatTrashRepository#dropLateImage}).</p>
  *
  * <p>Time columns: {@code created_at}, {@code deleted_at} and {@code updated_at} of the chats, entries and images,
  * {@code created_at} and {@code updated_at} of the brainstorm sessions (which have no trash and are deleted for good)

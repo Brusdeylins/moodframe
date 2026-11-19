@@ -224,7 +224,7 @@ public class ChatLibrary implements TrashCenter.Listener {
      * Moves a chat and its files to the trash. A chat without entries leaves the list, so it does not come back later;
      * a new chat that was never stored is just removed. A generation still running is not stopped: an image it
      * delivers afterwards is dropped with its file (see
-     * {@link art.moodframe.repository.ChatRepository#saveGeneratedImage}).
+     * {@link art.moodframe.repository.ChatTrashRepository#dropLateImage}).
      *
      * @param chat the chat
      * @return true if it is gone from the shown chats
@@ -266,7 +266,9 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /**
-     * Adds an entry to a chat and stores both; if storing fails, the entry is kept in memory only.
+     * Adds an entry to a chat and stores both; if storing fails, the entry is kept in memory only, and the images a
+     * generation makes for it keep their files but are not stored (see
+     * {@link art.moodframe.repository.ChatRepository#saveGeneratedImage}).
      *
      * @param chat  the chat
      * @param entry the new entry

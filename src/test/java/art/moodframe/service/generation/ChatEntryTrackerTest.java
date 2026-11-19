@@ -3,6 +3,7 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /** Tells several listeners about an entry on the JavaFX thread, as the main window and later callers listen at once. */
 class ChatEntryTrackerTest {
@@ -198,5 +202,22 @@ class ChatEntryTrackerTest {
         } finally {
             worker.shutdownNow();
         }
+    }
+
+    @Test
+    void anImageNotSavedAsItsEntryIsInTheTrashIsDroppedByTheTrash() throws Exception {
+        ChatRepository repository = mock(ChatRepository.class);
+        ChatTrashRepository trash = mock(ChatTrashRepository.class);
+        ChatEntryTracker tracker = new ChatEntryTracker(repository, trash, Runnable::run);
+        GeneratedImage late = new GeneratedImage.Builder().chatEntryId("in-the-trash").build();
+        GeneratedImage saved = new GeneratedImage.Builder().chatEntryId("in-use").build();
+        when(repository.saveGeneratedImage(late)).thenReturn(false);
+        when(repository.saveGeneratedImage(saved)).thenReturn(true);
+
+        tracker.saveImage(late).get(10, TimeUnit.SECONDS);
+        tracker.saveImage(saved).get(10, TimeUnit.SECONDS);
+
+        verify(trash).dropLateImage(late);
+        verify(trash, never()).dropLateImage(saved);
     }
 }

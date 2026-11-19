@@ -61,6 +61,10 @@ class ChatHistoryDeletionTest {
             public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
                 return true;
             }
+
+            @Override
+            public void removeDropped(List<GeneratedImage> images) {
+            }
         });
         history = new ChatHistoryService(repository, trash, new ChatGroupQueries(database), null);
     }

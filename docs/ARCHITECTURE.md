@@ -388,7 +388,11 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
   file. Its writes run one after the other, each with the moves of its files, so a deletion and an immediate
-  restore from another thread move the files in the order of their commits. The services never move these files themselves.
+  restore from another thread move the files in the order of their commits. An image a generation delivers after its
+  entry or chat went to the trash is not saved (`ChatRepository.saveGeneratedImage` answers false); its file, written
+  into the folder of the images in use, is removed by `ChatTrashRepository.dropLateImage` the same way, after the
+  writes before. An image whose entry is not stored at all (its insert failed) keeps its file and fails. The
+  services and the other repositories never move or remove these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
   brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
   `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);

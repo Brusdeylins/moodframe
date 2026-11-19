@@ -489,7 +489,8 @@ public class MoodframeApplication extends Application {
                         .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
                                 .followRedirects(HttpClient.Redirect.NORMAL).build()));
                 return new RequestResponseManager(config, services.getService(ProviderRegistry.class),
-                        new ChatEntryTracker(services.getService(ChatRepository.class), workers.store()), files,
+                        new ChatEntryTracker(services.getService(ChatRepository.class),
+                                services.getService(ChatTrashRepository.class), workers.store()), files,
                         workers, io);
             } catch (Exception e) {
                 logger.error("Failed to create RequestResponseManager with database integration", e);

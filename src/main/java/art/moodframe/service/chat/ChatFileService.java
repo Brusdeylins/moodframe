@@ -114,4 +114,13 @@ public class ChatFileService implements ChatFiles {
             fileManagerService.deleteChatImages(chatId);
         return allDeleted;
     }
+
+    @Override
+    public void removeDropped(List<GeneratedImage> images) {
+        if (fileManagerService == null) {
+            logger.warn("FileManagerService not available - the files of {} dropped images stay", images.size());
+            return;
+        }
+        fileManagerService.deleteImageFiles(images);
+    }
 }
