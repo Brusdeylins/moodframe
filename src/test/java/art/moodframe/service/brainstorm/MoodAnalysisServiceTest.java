@@ -161,16 +161,31 @@ class MoodAnalysisServiceTest {
     @Test
     void thePromptCarriesTheRulesAndTheLists() throws Exception {
         String prompt = MoodAnalysisService.prompt(
-                "{{UI_LANGUAGE}}|{{ATMOSPHERES}}|{{STYLES}}|{{LIGHTS}}|{{CAMERAS}}|{{CAMERA_SETTINGS}}", context);
+                "{{UI_LANGUAGE}}|{{ATMOSPHERES}}|{{STYLES}}|{{LIGHTS}}|{{CAMERAS}}|{{CAMERA_SETTINGS}}", context, false);
         String template = new String(getClass().getResourceAsStream("/brainstorm/mood-from-image.txt").readAllBytes());
 
         assertFalse(prompt.contains("{{"));
-        assertFalse(MoodAnalysisService.prompt(template, context).contains("{{"), "the shipped template is filled");
+        assertFalse(MoodAnalysisService.prompt(template, context, false).contains("{{"),
+                "the shipped template is filled");
         assertTrue(prompt.contains("- Classic Portrait: {"), prompt);
         assertTrue(prompt.contains("- perspective: EYE_LEVEL, LOW_ANGLE, HIGH_ANGLE, TOP_DOWN, DUTCH_ANGLE"), prompt);
         assertTrue(prompt.contains("- Harbor Mist: mist over the harbor"));
         assertTrue(prompt.contains("- Watercolor: watercolor painting"));
         assertTrue(prompt.contains("- Golden Hour: low warm sun"));
+    }
+
+    @Test
+    void thePromptForTheMcpClientsAsksForEnglishNames() {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            assertEquals("English|", MoodAnalysisService.prompt("{{UI_LANGUAGE}}|", context, true));
+            assertEquals("German|", MoodAnalysisService.prompt("{{UI_LANGUAGE}}|", context, false),
+                    "the window asks in the language of the user interface");
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 
     @Test
