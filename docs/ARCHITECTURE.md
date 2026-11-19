@@ -117,7 +117,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   images and the check of the accounts, and it creates the services the main window looks up. The cleanup runs before
   the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
   second; then the JavaFX thread loads the FXML of the main window, which finds the chats loaded, applies the theme,
-  shows the stage and starts the MCP server if enabled. A failed preparation ends the application as before.
+  shows the stage and starts the MCP server if enabled. A failed start shows its error in a message box and ends
+  the application.
 - **Chat models**: `ChatLibrary` keeps the chats in a plain list. The lists of the models (the chats, the entries of
   a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
   `service.chat.ModelLock`:

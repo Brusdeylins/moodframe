@@ -14,6 +14,7 @@ import javafx.collections.ListChangeListener;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.slf4j.Logger;
@@ -75,6 +76,7 @@ import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashManager;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Secrets;
@@ -130,7 +132,7 @@ public class MoodframeApplication extends Application {
         }
         catch (RuntimeException e) {
             logger.error("Failed to read the configuration", e);
-            showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
+            showErrorAndExit("Application Startup Failed", e.getMessage());
             return;
         }
 
@@ -267,7 +269,7 @@ public class MoodframeApplication extends Application {
         } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
-            showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
+            showErrorAndExit("Application Startup Failed", e.getMessage());
         }
     }
 
@@ -804,18 +806,26 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Shows an error dialog and exits the application.
+     * Logs the error, shows it in a message box (on the JavaFX thread, where the start fails) and exits the
+     * application.
      *
-     * @param stage   the primary stage
      * @param title   error title
      * @param message error message
      */
-    private void showErrorAndExit(Stage stage, String title, String message) {
+    private static void showErrorAndExit(String title, String message) {
         logger.error("Showing error and exiting: {} - {}", title, message);
-
-        // For now, just log and exit
-        // In future, could show a proper error dialog
         System.err.println("ERROR: " + title + ": " + message);
+        if (Platform.isFxApplicationThread()) {
+            try {
+                Alert alert = new Alert(Alert.AlertType.ERROR, message != null ? message : title, DialogButtons.ok());
+                alert.setTitle(title);
+                alert.setHeaderText(title);
+                alert.showAndWait();
+            }
+            catch (RuntimeException e) {
+                logger.error("Failed to show the error", e);
+            }
+        }
         System.exit(1);
     }
 
