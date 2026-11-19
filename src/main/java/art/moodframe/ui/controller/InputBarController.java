@@ -14,6 +14,8 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 
+import java.util.Arrays;
+
 /**
  * The input area below the chat ({@code InputBar.fxml}): the prompt with the count of the characters of the final
  * prompt, the send button with the price of the order and the brainstorm button. Shift+Enter sends, Enter breaks the
@@ -195,11 +197,10 @@ public class InputBarController {
      * @return the i18n key of the hint, {@code brainstorm.tooltip} if the button is enabled
      */
     static String brainstormHint(ApplicationConfig config, boolean hasChatSelected) {
-        if (config == null || !config.accounts().hasApiKey(ApiProvider.GOOGLE_GEMINI)
-                && !config.accounts().hasApiKey(ApiProvider.OPENAI))
+        if (config == null || Arrays.stream(ApiProvider.values()).noneMatch((ApiProvider provider) ->
+                provider.hasLanguageModel() && config.accounts().hasApiKey(provider)))
             return "brainstorm.tooltip.no.key";
-        if (!config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)
-                && !config.accounts().isBrainstormAvailable(ApiProvider.OPENAI))
+        if (Arrays.stream(ApiProvider.values()).noneMatch(config.accounts()::isBrainstormAvailable))
             return "brainstorm.tooltip.no.search";
         return hasChatSelected ? "brainstorm.tooltip" : "brainstorm.tooltip.no.chat";
     }

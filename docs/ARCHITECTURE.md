@@ -547,8 +547,8 @@ the checks of their brainstorm language model) and the MCP tools, as long as its
 there are. A new provider is, in this order:
 
 1. its constant in `model.ApiProvider` (display name, prefix of its account settings in `ProviderAccounts`, largest
-   attachment) and its key in `config.Secret`, mapped in `ProviderAccounts.secret` (and `isBrainstormAvailable`,
-   false without a language model);
+   attachment, whether it has a language model for the brainstorm) and its key in `config.Secret`, mapped in
+   `ProviderAccounts.secret` (and `isBrainstormAvailable`, false without a language model);
 2. its client in a subpackage of its own, `service.provider.<name>` like `bfl`, `gemini` and `openai`, which uses
    `service.provider` and no other client (add it to `SERVICES` and `VENDORS` of `ArchitectureTest`): an interface
    extending `ImageProvider` with its implementation (prompt limit, `prepare`, the flow it answers with, seeds, costs,
@@ -577,11 +577,13 @@ there are. A new provider is, in this order:
    `StatusBarController.accountChecks`, the fields of its models in `ui.controller.ProviderParameters` (`show`, if
    they take parameters of their own, see step 4), optionally a hint of the empty prompt of its own
    (`InputBarController.placeholder`, today Gemini) and its texts in the i18n resources
-   (`status.request.submitted.<last part of the prefix>`, falling back to a generic one). The rest of the user
-   interface follows a new provider without a change: the key status of the status bar (every enabled provider has
-   a key), the hint of a missing key (with the display name of the provider), the seed field and "Copy seed"
-   (`ImageProvider.usesSeeds()`), the safety level of an entry (`supportsSafetyTolerance`) and the removal of the
-   attached images on a switch to a model that takes none or only smaller files (`supportsImageAttachment`,
+   (`status.request.submitted.<last part of the prefix>`, falling back to a generic one; a provider with a language
+   model also in the hint of the brainstorm button without key, `brainstorm.tooltip.no.key`, which names Gemini and
+   OpenAI). The rest of the user interface follows a new provider without a change: the key status of the status
+   bar (every enabled provider has a key), the hint of a missing key (with the display name of the provider), the
+   brainstorm button (`ApiProvider.hasLanguageModel`, `ProviderAccounts.isBrainstormAvailable`), the seed field and
+   "Copy seed" (`ImageProvider.usesSeeds()`), the safety level of an entry (`supportsSafetyTolerance`) and the removal
+   of the attached images on a switch to a model that takes none or only smaller files (`supportsImageAttachment`,
    `ApiProvider.getMaxFileSize`).
 
 ### D5: Detailed logging as a log level

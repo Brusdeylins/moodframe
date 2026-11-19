@@ -12,6 +12,8 @@ import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +43,15 @@ class BrainstormAvailabilityTest {
         when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
         assertEquals("brainstorm.tooltip.no.chat", InputBarController.brainstormHint(config, false));
         assertEquals("brainstorm.tooltip", InputBarController.brainstormHint(config, true));
+    }
+
+    @Test
+    void aKeyCountsOnlyForAProviderWithALanguageModel() {
+        assertEquals(List.of(ApiProvider.GOOGLE_GEMINI, ApiProvider.OPENAI), Arrays.stream(ApiProvider.values())
+                .filter(ApiProvider::hasLanguageModel).toList());
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        assertEquals("brainstorm.tooltip.no.key", InputBarController.brainstormHint(config, true));
     }
 
     @Test
