@@ -231,6 +231,17 @@ class MoodFramePanelWritesTest {
         assertTrue(queries <= 2 * moodCount, queries + " queries for two loads of " + moodCount + " moods");
     }
 
+    @Test
+    void thePromptBlocksFollowTheReferenceTheCallerPasses() throws Exception {
+        assertTrue(onFx(() -> {
+            ComboBox<StylePresetItem> atmosphere = node("atmosphereComboBox");
+            atmosphere.setValue(atmosphere.getItems().stream().filter((item) -> item.getBlock() != null)
+                    .findFirst().orElseThrow());
+            panel.setReference(false);
+            return panel.promptBlocks(true).atmosphere() == null && panel.promptBlocks(false).atmosphere() != null;
+        }), "with a reference image the blocks apply only with \"Apply mood\", whatever the panel was told before");
+    }
+
     /*  the node of an id in the panel  */
     @SuppressWarnings("unchecked")
     private <T extends javafx.scene.Node> T node(String id) {

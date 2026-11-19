@@ -55,7 +55,7 @@ import java.util.concurrent.Executor;
  *
  * <p>The host loads the FXML, follows the chosen model ({@link #followModel}), which the hints below aspect ratio and
  * resolution name, and then hands over the services ({@link #init}). It reads the choice with {@link #selection()} and
- * the prompt blocks with {@link #promptBlocks()}, sets it with {@link #chooseMood(Mood)}, {@link #chooseFrame(Frame)},
+ * the prompt blocks with {@link #promptBlocks(boolean)}, sets it with {@link #chooseMood(Mood)}, {@link #chooseFrame(Frame)},
  * {@link #setAspectRatio}, {@link #setResolution} or from a chat entry, and learns of every change of the fields by
  * {@link Listener#changed()}. It passes the changes of the library ({@link #onLibraryChanged}) and of the language
  * ({@link #updateTexts()}) on.</p>
@@ -333,8 +333,7 @@ public class MoodFramePanelController {
     }
 
     /**
-     * Tells whether the image gets a reference image: then the building blocks go into the prompt only with
-     * "Apply mood", which shows only then.
+     * Tells whether the image gets a reference image: then the mood fields are greyed and "Apply mood" shows.
      *
      * @param reference whether an image is attached
      */
@@ -342,9 +341,14 @@ public class MoodFramePanelController {
         this.reference = reference;
     }
 
-    /** The building blocks that go into the prompt; none with a reference image unless "Apply mood" is on. */
-    public art.moodframe.service.prompt.PromptComposer.Selection promptBlocks() {
-        return selectedBlocks();
+    /**
+     * The building blocks that go into the prompt.
+     *
+     * @param reference whether the image gets a reference image: then none unless "Apply mood" is on
+     * @return the building blocks
+     */
+    public art.moodframe.service.prompt.PromptComposer.Selection promptBlocks(boolean reference) {
+        return selectedBlocks(reference);
     }
 
     /** The target aspect ratio. */
@@ -1250,7 +1254,7 @@ public class MoodFramePanelController {
     }
 
     /** The building blocks selected in the main window; none with a reference image unless "Apply mood" is on. */
-    private art.moodframe.service.prompt.PromptComposer.Selection selectedBlocks() {
+    private art.moodframe.service.prompt.PromptComposer.Selection selectedBlocks(boolean reference) {
         if (reference && !moodApplyCheckBox.isSelected())
             return new art.moodframe.service.prompt.PromptComposer.Selection(null, null, null, null, null);
 
@@ -1276,7 +1280,7 @@ public class MoodFramePanelController {
         StylePresetItem styleItem = stylePresetsComboBox.getValue();
         boolean framingOnly = styleItem != null && styleItem.getBlock() != null
                 && !styleItem.getBlock().isPhotographic();
-        art.moodframe.model.PromptBlock camera = reference ? selectedBlocks().camera() : null;
+        art.moodframe.model.PromptBlock camera = reference ? selectedBlocks(true).camera() : null;
         List<Enum<?>> weak = camera != null ? art.moodframe.service.prompt.CameraPromptBuilder.weakInEdits(
                 art.moodframe.model.CameraSettings.fromJson(camera.getParams()), !framingOnly) : List.of();
         List<String> hints = new java.util.ArrayList<>();

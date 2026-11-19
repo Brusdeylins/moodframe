@@ -574,9 +574,9 @@ public class MainWindowController implements I18nChangeListener {
      * reference, see {@link PromptComposer}.
      */
     private String buildFinalPrompt() {
-        moodFramePanelController.setReference(generationPanelController.hasAttachment());
+        boolean reference = generationPanelController.hasAttachment();
         return new PromptComposer(generationPanelController.promptLimit()).compose(inputBar.prompt(),
-                moodFramePanelController.promptBlocks(), generationPanelController.hasAttachment());
+                moodFramePanelController.promptBlocks(reference), reference);
     }
 
     /**
@@ -605,6 +605,7 @@ public class MainWindowController implements I18nChangeListener {
         boolean enableInput = hasApiKey && hasChat && generationPanelController.hasModels();
         librarySidebarController.setNewChatEnabled(config != null && config.accounts().hasAnyApiKey());
         generationPanelController.setInputEnabled(enableInput);
+        moodFramePanelController.setReference(generationPanelController.hasAttachment());
         moodFramePanelController.setInputEnabled(enableInput);
         inputBar.setInputEnabled(enableInput, placeholder(hasApiKey, hasChat));
         inputBar.updateBrainstorm(config, hasChat);
@@ -637,12 +638,12 @@ public class MainWindowController implements I18nChangeListener {
         /*  Without selection the default model  */
         String modelId = Objects.requireNonNullElse(generationPanelController.selectedModelId(),
                 GenerationModel.getDefault().name());
-        moodFramePanelController.setReference(generationPanelController.hasAttachment());
         MoodFramePanelController.Selection selection = moodFramePanelController.selection();
         GenerationService.Submission submission;
         try {
             submission = generationService.submit(new GenerationOrder(librarySidebarController.currentChat(),
-                    userPrompt, moodFramePanelController.promptBlocks(), selection.mood(), selection.moodChanged(),
+                    userPrompt, moodFramePanelController.promptBlocks(generationPanelController.hasAttachment()),
+                    selection.mood(), selection.moodChanged(),
                     new GenerationOrder.Target(selection.frame(), selection.frameChanged(), selection.aspectRatio(),
                             selection.resolution()),
                     modelId, generationPanelController.imageCount(), generationPanelController.parameters(),
