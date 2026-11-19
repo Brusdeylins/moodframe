@@ -333,13 +333,17 @@ public class ApiProviderValidator {
         return openAi.checkChatModel(model).handle(Outcome::of)
                 .thenCombine(openAi.checkWebSearch(model).handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
+                    boolean chosen;
                     synchronized (this) {
                         lastOpenAiChecks.put(model, check);
-                        if (model.equals(config.getOpenAiChatModel())) {
+                        chosen = model.equals(config.getOpenAiChatModel());
+                        if (chosen)
                             storeModelCheck(ApiProvider.OPENAI, check);
-                            completionListeners.forEach(Runnable::run);
-                        }
                     }
+
+                    /*  told outside the monitor, so a listener that asks the validator waits for nothing  */
+                    if (chosen)
+                        completionListeners.forEach(Runnable::run);
                     return check;
                 });
     }
@@ -352,11 +356,13 @@ public class ApiProviderValidator {
      * @param model the saved model id, empty for none
      * @since 2.1.2
      */
-    public synchronized void storeOpenAiModelCheck(String model) {
-        clearModelChecks(ApiProvider.OPENAI);
-        ModelCheck check = lastOpenAiChecks.get(model);
-        if (!model.isBlank() && check != null)
-            storeModelCheck(ApiProvider.OPENAI, check);
+    public void storeOpenAiModelCheck(String model) {
+        synchronized (this) {
+            clearModelChecks(ApiProvider.OPENAI);
+            ModelCheck check = lastOpenAiChecks.get(model);
+            if (!model.isBlank() && check != null)
+                storeModelCheck(ApiProvider.OPENAI, check);
+        }
         completionListeners.forEach(Runnable::run);
     }
 
