@@ -26,6 +26,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p>If no configuration file exists, one is created with the defaults.</p>
  *
+ * <p>Thread safety: the configuration may be read and written from any thread; each value is read and written
+ * atomically and a reset replaces all values at once (see {@link ConfigStore}), but a group of values is not
+ * changed together.</p>
+ *
  * @since 1.0.0
  */
 public class ApplicationConfig {

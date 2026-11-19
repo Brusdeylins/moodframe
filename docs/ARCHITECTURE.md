@@ -293,7 +293,9 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   generation; there is no access by raw key, every caller reads and writes the typed methods of the sections. A file that cannot be read is logged and copied to
   `config.properties.unreadable-<time>` before the defaults are written over it (if the copy fails, nothing is
   written in that session); the main window tells the user once where the copy is. The reset holds the lock of the
-  writing, so the delayed writer never writes the file without the secrets.
+  writing, so the delayed writer never writes the file without the secrets, and replaces all values at once, so a
+  reader on another thread sees the settings before or after it, never half reset (`ConfigStore` documents the
+  thread safety).
 - **Secrets**: the API keys, the MCP token and the proxy password are the constants of `config.Secret`; each comes
   from an environment variable, a system property or, encrypted, from the file. A reset of the settings keeps all
   of them.

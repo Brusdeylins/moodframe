@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -50,5 +52,27 @@ class ApplicationConfigResetTest {
         assertNull(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
         assertNull(store.get("gemini.api.key"));
         assertNull(config.mcp().getMcpToken());
+    }
+
+    @Test
+    void aReaderNeverSeesTheSettingsEmptyDuringAReset() throws Exception {
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicInteger missing = new AtomicInteger();
+        Thread reader = new Thread(() -> {
+            while (!done.get())
+                if (store.get("ui.theme") == null || store.get("api.base_url") == null)
+                    missing.incrementAndGet();
+        });
+        reader.start();
+        try {
+            for (int i = 0; i < 100; i++)
+                store.resetToDefaults();
+        }
+        finally {
+            done.set(true);
+            reader.join();
+        }
+        assertEquals(0, missing.get(), "a reader saw the settings in the middle of a reset");
     }
 }
