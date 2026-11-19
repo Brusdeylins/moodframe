@@ -14,9 +14,6 @@ import art.moodframe.model.ModelFamilies;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.prompt.PromptComposer;
-import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
-import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.RequestOptions;
 import org.slf4j.Logger;
@@ -157,34 +154,14 @@ public class GenerationService {
     }
 
     /**
-     * Gets the prompt limit of a model in characters, as its provider tells it.
+     * Gets the prompt limit of a model in characters, as its provider tells it, see
+     * {@link ProviderRegistry#promptLimit(String)}.
      *
      * @param modelId the fixed id of the model (may be null)
-     * @return the limit, that of BFL without model
+     * @return the limit
      */
     public int promptLimit(String modelId) {
-        GenerationModel model = GenerationModel.fromId(modelId);
-        if (model == null)
-            return providers.get(ApiProvider.BFL).maxPromptLength(null);
-        return providers.get(model.getProvider()).maxPromptLength(apiModelId(model, modelId));
-    }
-
-    /**
-     * Gets the prompt limit of a model without the providers at hand: the same limits as {@link #promptLimit(String)}
-     * gets from the providers. Only the main window without a generation service and the reading MCP tools without
-     * one still use it.
-     *
-     * @param modelId the fixed id of the model (may be null)
-     * @return the limit, that of BFL without model
-     * @deprecated names the providers; use {@link #promptLimit(String)}, which asks the provider of the model
-     */
-    @Deprecated(forRemoval = true)
-    public static int maxPromptLength(String modelId) {
-        GenerationModel model = GenerationModel.fromId(modelId);
-        if (model == GenerationModel.OPENAI_IMAGE)
-            return OpenAiApiService.promptLimitOf(modelId);
-        return model != null && model.getProvider() == ApiProvider.GOOGLE_GEMINI ? GeminiApiService.MAX_PROMPT_LENGTH
-                : BflApiService.MAX_PROMPT_LENGTH;
+        return providers.promptLimit(modelId);
     }
 
     /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
@@ -363,11 +340,9 @@ public class GenerationService {
                         return;
                     }
                     logger.error("Failed to submit API request", throwable);
-                    FxModel.change(() -> {
-                        entry.setStatus(ChatEntry.Status.FAILED);
-                        entry.setErrorMessage(throwable.getMessage());
-                        finished.complete(ChatEntry.Status.FAILED);
-                    });
+
+                    /*  stored as failed with the reason, then told to the listeners, which finish the entry  */
+                    requests.markFailed(entry, throwable);
                 });
         return new Submission(entry, submitted, finished);
     }

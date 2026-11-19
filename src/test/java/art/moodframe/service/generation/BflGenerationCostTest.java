@@ -27,7 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,14 +65,15 @@ class BflGenerationCostTest {
         result.setStatus(status);
         result.setResult(sample);
         result.setCost(credits);
-        BflApiService api = mock(BflApiService.class);
-        when(api.submitGenerationRequest(any())).thenAnswer((invocation) ->
-                CompletableFuture.completedFuture(new GenerationJobInfo("job-" + jobs.incrementAndGet(), "Pending")));
-        when(api.getJobStatus(anyString())).thenReturn(CompletableFuture.completedFuture(result));
+        BflApiService api = mock(BflApiService.class, CALLS_REAL_METHODS);
+        doAnswer((invocation) -> CompletableFuture.completedFuture(
+                new GenerationJobInfo("job-" + jobs.incrementAndGet(), "Pending")))
+                .when(api).submitGenerationRequest(any());
+        doReturn(CompletableFuture.completedFuture(result)).when(api).pollJob(any());
 
         /*  the status is polled once at once, the database writes on the scheduler are left out  */
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
-        when(scheduler.scheduleAtFixedRate(any(), anyLong(), anyLong(), any())).thenAnswer((invocation) -> {
+        when(scheduler.schedule(any(Runnable.class), anyLong(), any())).thenAnswer((invocation) -> {
             invocation.<Runnable>getArgument(0).run();
             return mock(ScheduledFuture.class);
         });
@@ -81,8 +84,7 @@ class BflGenerationCostTest {
         when(config.getApiTimeoutSeconds()).thenReturn(600);
 
         ChatEntryTracker tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
-        BflGenerationFlow flow = new BflGenerationFlow(config, api, tracker, files,
-                scheduler, Runnable::run);
+        JobPollingFlow flow = new JobPollingFlow(config, tracker, files, scheduler, Runnable::run);
 
         /*  as the request manager sends it: placeholders first, the price per image set by the generation service  */
         ChatEntry entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
@@ -99,8 +101,8 @@ class BflGenerationCostTest {
         request.setHeight(height);
         request.setSeed(42L);
         request.setBaseCostPerImage(GenerationCost.perImage(model, width, height, null));
-        flow.submit(request, entry, 0);
-        flow.submit(request, entry, 1);
+        flow.submit(api, request, entry, 0);
+        flow.submit(api, request, entry, 1);
 
         finished.get(10, TimeUnit.SECONDS);
         drainFxThread();

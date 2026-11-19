@@ -10,6 +10,7 @@ import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.service.trash.TrashCenter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -106,27 +108,20 @@ public class McpTools {
     /**
      * Creates the reading tools of the chats, the library and the models.
      *
-     * @param config    the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
-     * @param chats     the chats of the main window
-     * @param moods     the moods
-     * @param blocks    the text building blocks
-     * @param colors    the palettes
-     * @param frames    the frames
-     * @param favorites the favorites
-     * @param trash     the trash
-     * @param events    where a download is reported for the status bar
+     * @param config      the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param chats       the chats of the main window
+     * @param moods       the moods
+     * @param blocks      the text building blocks
+     * @param colors      the palettes
+     * @param frames      the frames
+     * @param favorites   the favorites
+     * @param trash       the trash
+     * @param events      where a download is reported for the status bar
+     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it, e.g.
+     *                    {@code ProviderRegistry::promptLimit}
      * @return the tools
      */
-    @SuppressWarnings("removal")
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
-            PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, LibraryEvents events) {
-        /*  Without a generation service, the prompt limits known without the providers  */
-        return reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
-                GenerationService::maxPromptLength);
-    }
-
-    private static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events, ToIntFunction<String> promptLimit) {
         McpTools tools = new McpTools();
@@ -224,8 +219,30 @@ public class McpTools {
         }
         catch (Exception e) {
             logger.error("MCP tool {} failed", name, e);
-            return error("The tool failed: " + e.getMessage());
+            return error(failureText(e));
         }
+    }
+
+    /**
+     * Gets the text of a failure for the client, always in English and never with the name of a class: the message of
+     * a provider failure however deeply it is wrapped, else a general text by the kind of failure; the log has the
+     * details.
+     *
+     * @param failure the failure
+     * @return the text
+     */
+    static String failureText(Throwable failure) {
+        Throwable link = failure;
+        for (int depth = 0; link != null && depth < 32; depth++, link = link.getCause()) {
+            if (link instanceof ProviderException)
+                return "The tool failed: " + ProviderException.messageOf(failure, true);
+        }
+        Throwable cause = ProviderException.unwrap(failure);
+        if (cause instanceof IOException || cause instanceof UncheckedIOException)
+            return "The tool failed: a file could not be read or written.";
+        if (cause instanceof SQLException)
+            return "The tool failed: the library could not be read or written.";
+        return "The tool failed unexpectedly; the log of MoodFrame tells why.";
     }
 
     private static ObjectNode error(String message) {

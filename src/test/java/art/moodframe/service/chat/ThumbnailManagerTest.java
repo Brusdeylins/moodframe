@@ -33,6 +33,7 @@ class ThumbnailManagerTest {
     static void createManager() throws Exception {
         thumbnails = new ThumbnailManager(LibraryPaths.under(tempDir));
         images = thumbnails.getOriginalImagesDirectory();
+        java.nio.file.Files.createDirectories(images);
     }
 
     @AfterAll

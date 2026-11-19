@@ -18,14 +18,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Collections;
 
 /**
  * Service for generating and managing image thumbnails.
- * 
+ *
  * <p>
  * This service provides high-performance thumbnail generation with the
  * following features:
@@ -38,7 +37,7 @@ import java.util.Collections;
  * <li>Retroactive thumbnail creation for existing images</li>
  * <li>Thread-safe operations with concurrent processing</li>
  * </ul>
- * 
+ *
  * <p>
  * <strong>Performance Benefits:</strong>
  * </p>
@@ -47,7 +46,7 @@ import java.util.Collections;
  * <li>Memory Savings: 20 images: 80MB → 3MB (25x improvement)</li>
  * <li>UI Responsiveness: Eliminates blocking image loads in ChatEntryCard</li>
  * </ul>
- * 
+ *
  * @since 1.0.0
  */
 public class ThumbnailManager {
@@ -90,13 +89,6 @@ public class ThumbnailManager {
     /*  The thumbnails checked for their full size in this run, by original image path  */
     private final Map<String, CompletableFuture<Boolean>> enlargements = new ConcurrentHashMap<>();
 
-    private final AtomicLong totalThumbnailsGenerated;
-    private final AtomicLong totalOriginalSize;
-    private final AtomicLong totalThumbnailSize;
-
-    // Active task counter for monitoring
-    private final AtomicLong activeTasks = new AtomicLong(0);
-
     // Directory paths
     private final Path thumbnailDirectory;
     private final Path originalImagesDirectory;
@@ -105,9 +97,8 @@ public class ThumbnailManager {
      * Creates a new ThumbnailManager.
      *
      * @param paths the folders of the library: the images and the thumbnails
-     * @throws IOException if thumbnail directory cannot be created
      */
-    public ThumbnailManager(LibraryPaths paths) throws IOException {
+    public ThumbnailManager(LibraryPaths paths) {
         this.thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREAD_POOL_SIZE,
                 r -> {
                     Thread t = new Thread(r, "ThumbnailGenerator-" + THREADS.incrementAndGet());
@@ -124,32 +115,9 @@ public class ThumbnailManager {
             }
         });
 
-        this.totalThumbnailsGenerated = new AtomicLong(0);
-        this.totalOriginalSize = new AtomicLong(0);
-        this.totalThumbnailSize = new AtomicLong(0);
-
-        // Initialize directory structure
+        /*  No folder is created here: the first thumbnail written creates its folder  */
         this.originalImagesDirectory = paths.images();
         this.thumbnailDirectory = paths.thumbnails();
-
-        // Create directories if they don't exist
-        createDirectoryStructure();
-
-    }
-
-    /**
-     * Creates the required directory structure for thumbnails.
-     * 
-     * @throws IOException if directories cannot be created
-     */
-    private void createDirectoryStructure() throws IOException {
-        if (!Files.exists(thumbnailDirectory)) {
-            Files.createDirectories(thumbnailDirectory);
-        }
-
-        if (!Files.exists(originalImagesDirectory)) {
-            Files.createDirectories(originalImagesDirectory);
-        }
     }
 
     /**
@@ -165,13 +133,13 @@ public class ThumbnailManager {
 
     /**
      * Gets or generates a thumbnail for the given image path.
-     * 
+     *
      * <p>
      * This method is thread-safe and uses caching to avoid regenerating
      * existing thumbnails. If the thumbnail doesn't exist, it will be
      * generated asynchronously.
      * </p>
-     * 
+     *
      * @param originalImagePath the path to the original image file
      * @return CompletableFuture that resolves to the thumbnail file
      * @throws IllegalArgumentException if the path is null or empty
@@ -207,14 +175,11 @@ public class ThumbnailManager {
 
         // Generate thumbnail asynchronously
         CompletableFuture<File> thumbnailFuture = CompletableFuture.supplyAsync(() -> {
-            activeTasks.incrementAndGet(); // Track active task
             try {
                 return generateThumbnail(originalFile, thumbnailFile);
             } catch (IOException e) {
                 logger.error("Failed to generate thumbnail for: {}", originalImagePath, e);
                 throw new RuntimeException(e);
-            } finally {
-                activeTasks.decrementAndGet(); // Task completed
             }
         }, thumbnailExecutor);
 
@@ -249,7 +214,6 @@ public class ThumbnailManager {
             Dimension full = calculateThumbnailDimensions(original.width(), original.height());
             if (Math.max(thumbnail.width(), thumbnail.height()) >= Math.max(full.width, full.height))
                 return false;
-            activeTasks.incrementAndGet();
             try {
                 generateThumbnail(originalFile, thumbnailFile);
                 return true;
@@ -258,15 +222,12 @@ public class ThumbnailManager {
                 logger.warn("Failed to enlarge thumbnail for: {}", path, e);
                 return false;
             }
-            finally {
-                activeTasks.decrementAndGet();
-            }
         }, thumbnailExecutor));
     }
 
     /**
      * Generates a thumbnail file path based on the original image path.
-     * 
+     *
      * @param originalImagePath the original image path
      * @return the thumbnail file path
      */
@@ -284,7 +245,7 @@ public class ThumbnailManager {
 
     /**
      * Generates a thumbnail from the original image file.
-     * 
+     *
      * @param originalFile  the original image file
      * @param thumbnailFile the target thumbnail file
      * @return the generated thumbnail file
@@ -329,12 +290,8 @@ public class ThumbnailManager {
         // Write thumbnail as JPEG with specified quality
         writeThumbnailToFile(thumbnailImage, thumbnailFile);
 
-        // Update statistics
         long originalSize = originalFile.length();
         long thumbnailSize = thumbnailFile.length();
-        totalThumbnailsGenerated.incrementAndGet();
-        totalOriginalSize.addAndGet(originalSize);
-        totalThumbnailSize.addAndGet(thumbnailSize);
 
         long duration = System.currentTimeMillis() - startTime;
         double compressionRatio = thumbnailSize / (double) originalSize;
@@ -346,7 +303,7 @@ public class ThumbnailManager {
 
     /**
      * Calculates optimal thumbnail dimensions maintaining aspect ratio.
-     * 
+     *
      * @param originalWidth  the original image width
      * @param originalHeight the original image height
      * @return the calculated thumbnail dimensions
@@ -375,7 +332,7 @@ public class ThumbnailManager {
 
     /**
      * Writes the thumbnail image to file with optimal JPEG quality.
-     * 
+     *
      * @param thumbnailImage the thumbnail image to write
      * @param thumbnailFile  the target file
      * @throws IOException if writing fails
@@ -402,7 +359,7 @@ public class ThumbnailManager {
 
     /**
      * Checks if a thumbnail exists for the given original image.
-     * 
+     *
      * @param originalImagePath the original image path
      * @return true if thumbnail exists and is up-to-date
      */
@@ -425,7 +382,7 @@ public class ThumbnailManager {
 
     /**
      * Gets the thumbnail file path for a given original image.
-     * 
+     *
      * @param originalImagePath the original image path
      * @return the thumbnail file path, or null if invalid input
      */
@@ -434,28 +391,6 @@ public class ThumbnailManager {
             return null;
         }
         return generateThumbnailPath(originalImagePath);
-    }
-
-    /**
-     * Gets performance statistics for thumbnail generation.
-     * 
-     * @return formatted statistics string
-     */
-    public String getStatistics() {
-        long totalGenerated = totalThumbnailsGenerated.get();
-        long totalOriginal = totalOriginalSize.get();
-        long totalThumbnail = totalThumbnailSize.get();
-
-        if (totalGenerated == 0) {
-            return "No thumbnails generated yet";
-        }
-
-        double avgCompressionRatio = (double) totalThumbnail / totalOriginal;
-        double totalSavingsMB = (totalOriginal - totalThumbnail) / (1024.0 * 1024.0);
-
-        return String.format(
-                "Thumbnails: %d generated, %.1f%% average compression, %.1f MB saved",
-                totalGenerated, avgCompressionRatio * 100, totalSavingsMB);
     }
 
     /**
@@ -522,17 +457,8 @@ public class ThumbnailManager {
     }
 
     /**
-     * Gets the thumbnail directory path.
-     * 
-     * @return the thumbnail directory path
-     */
-    public Path getThumbnailDirectory() {
-        return thumbnailDirectory;
-    }
-
-    /**
      * Gets the original images directory path.
-     * 
+     *
      * @return the original images directory path
      */
     public Path getOriginalImagesDirectory() {
@@ -544,7 +470,7 @@ public class ThumbnailManager {
      * images.
      * This method scans the thumbnail directory and removes thumbnails whose
      * original images have been deleted.
-     * 
+     *
      * @return CompletableFuture that resolves to the number of orphaned thumbnails
      *         deleted
      */
@@ -611,29 +537,17 @@ public class ThumbnailManager {
 
     /**
      * Shuts down the thumbnail manager and releases resources.
-     * 
+     *
      * <p>
      * This method should be called when the application is shutting down
      * to ensure all pending thumbnail operations are completed and resources
      * are properly released.
      * </p>
-     * 
+     *
      * <p>
      * <strong>Thread-safety:</strong> This method is thread-safe but should
      * only be called once during application shutdown.
      * </p>
-     */
-    /**
-     * Gets the number of currently active thumbnail generation tasks.
-     *
-     * @return number of active tasks
-     */
-    public long getActiveTasks() {
-        return activeTasks.get();
-    }
-
-    /**
-     * Shuts down the thumbnail generation service.
      */
     public void shutdown() {
         thumbnailExecutor.shutdown();

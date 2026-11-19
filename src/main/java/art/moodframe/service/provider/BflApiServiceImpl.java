@@ -196,13 +196,22 @@ public class BflApiServiceImpl implements BflApiService {
             }
             catch (javax.net.ssl.SSLException e) {
                 logger.warn("SSL connection test failed (SSL error): {}", e.getMessage());
-                throw new RuntimeException(e);
+
+                /*  The text names SSL/TLS in every language, which the settings dialog tells apart  */
+                throw ProviderException.localized(e, "bfl.error.ssl", reasonOf(e));
             }
             catch (Exception e) {
                 logger.warn("SSL connection test failed: {}", e.getMessage());
-                throw new RuntimeException(e);
+                if (e instanceof InterruptedException)
+                    Thread.currentThread().interrupt();
+                throw ProviderException.localized(e, "bfl.error.connection", reasonOf(e));
             }
         }, io);
+    }
+
+    /*  the message of a failure, its kind if it has none  */
+    private static String reasonOf(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     @Override
@@ -296,6 +305,17 @@ public class BflApiServiceImpl implements BflApiService {
         }
     }
     
+    @Override
+    public CompletableFuture<GenerationJobResult> pollJob(GenerationJobInfo job) {
+        String pollingUrl = job.getPollingUrl();
+        if (pollingUrl != null && !pollingUrl.isEmpty())
+            return getJobResultWithPollingUrl(pollingUrl);
+
+        /*  The job id alone may answer HTTP 404 if another region runs the job  */
+        logger.warn("No polling URL available for job {}, using fallback method", job.getJobId());
+        return getJobStatus(job.getJobId());
+    }
+
     @Override
     public CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
         if (!isConfigured()) {
@@ -444,7 +464,7 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
 
-        // All error responses (including 404) are failures - no synthetic "not_found" status; BflGenerationFlow
+        // All error responses (including 404) are failures - no synthetic "not_found" status; the polling flow
         // logs them: a 404 is normal until the job is registered
         String errorMessage = extractErrorMessage(body, statusCode);
         logger.debug("BFL polling error [{}]: {}", statusCode, errorMessage);

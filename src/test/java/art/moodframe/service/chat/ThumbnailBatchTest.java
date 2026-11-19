@@ -31,6 +31,7 @@ class ThumbnailBatchTest {
         try {
             int images = ThumbnailManager.THUMBNAIL_THREAD_POOL_SIZE + 2;
             List<String> originals = new ArrayList<>();
+            java.nio.file.Files.createDirectories(thumbnails.getOriginalImagesDirectory());
             for (int index = 0; index < images; index++) {
                 File file = thumbnails.getOriginalImagesDirectory().resolve("image-" + index + ".png").toFile();
                 ImageIO.write(new BufferedImage(1200, 900, BufferedImage.TYPE_INT_RGB), "png", file);
