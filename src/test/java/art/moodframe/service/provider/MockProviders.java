@@ -1,7 +1,10 @@
 package art.moodframe.service.provider;
 
+import art.moodframe.config.ApplicationConfig;
+
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,5 +41,19 @@ public final class MockProviders {
     public static ProviderRegistry preparing() {
         return new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS),
                 mock(GeminiApiService.class, CALLS_REAL_METHODS), mock(OpenAiApiService.class, CALLS_REAL_METHODS));
+    }
+
+    /**
+     * Creates the registry of {@link #preparing()} whose OpenAI client lists the gateway models of the configuration,
+     * as the real client does.
+     *
+     * @param config the configuration with the chosen models of the gateway
+     * @return the registry
+     */
+    public static ProviderRegistry preparing(ApplicationConfig config) {
+        OpenAiApiService openAi = mock(OpenAiApiService.class, CALLS_REAL_METHODS);
+        doAnswer((invocation) -> config.getOpenAiModels()).when(openAi).getImageModels();
+        return new ProviderRegistry(mock(BflApiService.class, CALLS_REAL_METHODS),
+                mock(GeminiApiService.class, CALLS_REAL_METHODS), openAi);
     }
 }

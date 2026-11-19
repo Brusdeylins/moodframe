@@ -115,4 +115,21 @@ class ProviderRegistryTest {
         assertThrows(IllegalArgumentException.class, () -> realBfl.checkImageInput("flux-pro-1.1"));
         assertThrows(IllegalArgumentException.class, () -> realBfl.checkImageInput(null));
     }
+
+    @Test
+    void ordersTheConstantsAndTheModelsAProviderListsWithTheirApiIds() {
+        doCallRealMethod().when(openAi).listedModels();
+        assertTrue(registry.isOrderable("FLUX2_PRO"));
+        assertTrue(registry.isOrderable("GEMINI_FLASH_1K"), "a deprecated model is still a constant");
+        assertTrue(registry.isOrderable("qwen-image-2.1"), "listed by the gateway");
+        assertFalse(registry.isOrderable("dall-e-9"), "served, but not listed");
+        assertFalse(registry.isOrderable("OPENAI_IMAGE"), "the placeholder is no model");
+        assertFalse(registry.isOrderable(null));
+        assertEquals(List.of(ApiProvider.BFL, ApiProvider.GOOGLE_GEMINI, ApiProvider.OPENAI),
+                List.copyOf(registry.ids()));
+
+        assertEquals(GenerationModel.FLUX2_PRO.getApiModelId(), ProviderRegistry.apiModelId("FLUX2_PRO"));
+        assertEquals("qwen-image-2.1", ProviderRegistry.apiModelId("qwen-image-2.1"));
+        assertEquals("gpt-image-1", ProviderRegistry.apiModelId("gpt-image-1"));
+    }
 }

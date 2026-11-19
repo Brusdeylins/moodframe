@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -135,7 +136,7 @@ class ImageFileStoreTest {
                 .createdAt(LocalDateTime.of(2026, 10, 26, 14, 30, 5)).imageUrl("https://delivery.example/result.png")
                 .width(1024).height(1024).build();
 
-        new ImageFileStore(config(dir), () -> client).download(image).applyTo(image);
+        new ImageFileStore(config(dir), () -> client).download(image, Map.of()).applyTo(image);
 
         assertEquals(160, image.getWidth());
         assertEquals(90, image.getHeight());
@@ -149,7 +150,8 @@ class ImageFileStoreTest {
         GeneratedImage image = image();
         image.setImageUrl("https://delivery.example/result image.png?sp=r&sig=SECRETSIG");
 
-        Exception error = assertThrows(java.io.IOException.class, () -> new ImageFileStore(config, null).download(image));
+        Exception error = assertThrows(java.io.IOException.class, () -> new ImageFileStore(config, null)
+                .download(image, Map.of()));
 
         assertTrue(error.getMessage().contains("sig=***"), error.getMessage());
         assertFalse(error.getMessage().contains("SECRETSIG"), error.getMessage());

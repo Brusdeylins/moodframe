@@ -1,9 +1,7 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
-import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -13,6 +11,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -70,15 +69,15 @@ final class GeminiOmniClient {
                     if (!response.isSuccessful()) {
                         logger.error("Omni generation failed: HTTP {} - {}", response.code(), responseBody);
                         return failedOmniJob(GeminiErrors.http(response.code(), responseBody,
-                                GeminiErrors.Call.OMNI).getMessage());
+                                GeminiErrors.Call.OMNI));
                     }
 
                     JSONObject json = new JSONObject(responseBody);
                     String videoUri = extractOmniVideoUri(json);
                     if (videoUri == null) {
-                        String errorMsg = extractOmniError(json);
-                        logger.error("Omni generation returned no video: {}", errorMsg);
-                        return failedOmniJob(errorMsg);
+                        ProviderException error = extractOmniError(json);
+                        logger.error("Omni generation returned no video: {}", error.getMessage(Locale.ENGLISH));
+                        return failedOmniJob(error);
                     }
 
                     waitForOmniFile(videoUri);
@@ -95,15 +94,14 @@ final class GeminiOmniClient {
                 }
             } catch (Exception e) {
                 logger.error("Failed to generate Omni video", e);
-                return failedOmniJob(I18nManager.getText("gemini.omni.error.request", e.getMessage()));
+                return failedOmniJob(ProviderException.localized(e, "gemini.omni.error.request", e.getMessage()));
             }
         });
     }
 
-    private static GenerationJobInfo failedOmniJob(String errorMessage) {
+    private static GenerationJobInfo failedOmniJob(ProviderException failure) {
         return new GenerationJobInfo.Builder()
-                .status("failed")
-                .errorMessage(errorMessage)
+                .failure(failure)
                 .isSynchronous(false)
                 .isVideoGeneration(true)
                 .provider(ApiProvider.GOOGLE_GEMINI)
@@ -194,14 +192,15 @@ final class GeminiOmniClient {
 
     /**
      * Describes why an interaction has no video: the {@code errors} of a failed interaction, else the text the
-     * model answered with (for example a refusal), else the status.
+     * model answered with (for example a refusal), both as Google wrote them, else the status in a localizable
+     * message.
      */
-    static String extractOmniError(JSONObject interaction) {
+    static ProviderException extractOmniError(JSONObject interaction) {
         JSONArray errors = interaction.optJSONArray("errors");
         if (errors != null && !errors.isEmpty()) {
             JSONObject first = errors.optJSONObject(0);
             String message = first != null ? first.optString("message", "") : "";
-            if (!message.isEmpty()) return message;
+            if (!message.isEmpty()) return new ProviderException(message, null);
         }
 
         JSONArray steps = interaction.optJSONArray("steps");
@@ -212,10 +211,11 @@ final class GeminiOmniClient {
             for (int j = 0; content != null && j < content.length(); j++) {
                 JSONObject part = content.optJSONObject(j);
                 String text = part != null ? part.optString("text", "") : "";
-                if (!text.isEmpty()) return text.length() > 300 ? text.substring(0, 300) + "..." : text;
+                if (!text.isEmpty())
+                    return new ProviderException(text.length() > 300 ? text.substring(0, 300) + "..." : text, null);
             }
         }
-        return I18nManager.getText("gemini.omni.error.no.video", interaction.optString("status", "unknown"));
+        return ProviderException.localized("gemini.omni.error.no.video", interaction.optString("status", "unknown"));
     }
 
     /**

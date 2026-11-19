@@ -129,7 +129,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
   `service.chat.ModelLock`:
   - they are changed only under the `ModelLock` (`change`, `changeAndGet`): by `ChatLibrary` on the calling thread
-    (an MCP thread, the worker of the window), by a generation on the JavaFX thread through `FxModel`;
+    (an MCP thread, the worker of the window, the store thread of the generation), by a generation on the JavaFX
+    thread through `FxModel`;
   - every other access reads them under the lock, the JavaFX thread included: `ChatLibrary.read` for the chats,
     `ModelLock.read` for a value computed from them (e.g. the cost of a chat), and the snapshots
     `ChatLibrary.entriesOf(chat)` and `ChatLibrary.imagesOf(entry)`, unmodifiable copies to iterate. Nobody iterates
@@ -159,7 +160,12 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
   for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
   of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
-  analysis of an image into a mood composes the answer of the language model instead of waiting for it.
+  analysis of an image into a mood composes the answer of the language model instead of waiting for it. The
+  composition root hands the pool to the provider clients and the generation in their constructors; the one-argument
+  constructors of the clients (for tests and tools) take `IoExecutor.get()` themselves, and a few services still look
+  it up: `UpdateCheckService` and `YouTubeInfoService` for their requests, and, as known deviations that put disk and
+  CPU work on the network pool, `ImageAttachmentService` (reading and encoding an attachment) and
+  `MoodAnalysisService` (preparing the image).
 - **Disk work of the views**: the views read and decode pictures, write and compare attached files and run ffmpeg
   and the other programs of the desktop on `ui.support.DiskWorker`, a pool of at most four named daemon threads
   (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
@@ -170,11 +176,14 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
   with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
-  and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
-  keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O
-  executor, the BFL polling on named daemon threads. The listeners learn of an entry that ended (completed, failed,
-  cancelled) once its write is done, which the worker runs after those of its images, so the image counts the window
-  queries then include it.
+  and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry` on the store
+  thread of `GenerationWorkers`), so the writes keep the order of the changes and never run on the JavaFX thread;
+  requests, downloads and files run on the I/O executor, the BFL polling on the named daemon threads of
+  `GenerationWorkers`. The listeners learn of an entry that ended (completed, failed, cancelled) once its write is
+  done, which the worker runs after those of its images, so the image counts the window queries then include it.
+  `GenerationService.submit` may run on the JavaFX thread: it checks the order in memory (a refused order throws at
+  once), adds the new entry to its chat and the database on the store thread and dispatches the request only then;
+  the window shows the entry at once, the MCP tool `generate` waits until it is stored.
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the
   executor it was added with, never in the middle of the write that caused it. The views add theirs with
   `ui.support.FxLibraryEvents`, so they run on the JavaFX thread, later in its queue. This is how the
@@ -219,6 +228,9 @@ takes the registered library services, so an import reaches the main window; `Th
 `MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
 the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the language model of a session) and
 `BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
+`RequestResponseManager` takes its infrastructure: the `ChatEntryTracker` on the store thread of the one
+`GenerationWorkers`, the `ImageFileStore` with a download client of the one registered `net.HttpClients`, and the
+I/O executor; it builds its flows (`JobPollingFlow`, `SynchronousImageFlow`, `VideoFlow`) on them.
 No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
@@ -232,6 +244,8 @@ standard names (so this is no one-time migration); the moods last, as they refer
 folders of the thumbnails and the trash are created by the first file written there, not by `ThumbnailManager` or
 `TrashManager`; so are the database (`DatabaseManager`), the logs (logback) and the configured images folder
 (`ImageFileStore`), while the configuration creates only `~/.moodframe` for its file.
+`net.HttpClients` and its `CorporateProxyConfig` read the proxy settings and the certificate folder
+on their first use; the start creates that folder (`CertificateStore.createDirectory`), so the user finds it.
 
 The locator is left to the coordinators of the user interface: `MainWindowController` and `SettingsController` look
 up the services once and hand them to their parts, which hand them on to the dialogs and components they open
@@ -371,6 +385,11 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
   `ChatRepository` still reads the older text values of `deleted_at`, and one it cannot read counts as deleted now
   (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames, blocks and palettes are
   still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates); nothing reads them.
+- **Model of an entry**: `chat_entries.model` holds the fixed id of the model since 2.1.3
+  (`GenerationModel.entryModelOf`: the constant name, `OpenAI · <id>` for a model of the gateway); older rows keep
+  the English display name with price and tagline, which `GenerationModel.fromEntryModel` still reads. They are not
+  migrated, as the display names of former versions are not all known. The views show `ModelLabels.entryName`, the
+  MCP server `GenerationModel.entryDisplayName` with the id of `GenerationModel.idOf`.
 - **Finders** of one row answer with an `Optional` in every repository. The finders of lists skip the rows in the
   trash unless named for it (`findDeleted`, `findDeletedChats`), and so do the finders of one mood, frame, block or
   palette (`findInTrash` and `exists` look into the trash); the finders of one chat, entry or image by id
@@ -444,18 +463,56 @@ its client; a video model is submitted like an image model, and images and video
 through `service.generation.JobPollingFlow`: one job per image, whose request the provider limits (`prepareJob`, e.g.
 the range of the seed), one retry with the safety tolerance the account is approved for
 (`approvedSafetyTolerance`), polled with `pollJob` one answer at a time and priced with `reportedCost`. A provider
-with seeds (`usesSeeds()`) gets random ones from `service.generation.Seeds`. Remaining assumptions of the flow: the
-statuses `pollJob` answers are those of BFL (named in its Javadoc), a 404 means "not visible yet", and an approved
-safety tolerance is stored as the FLUX.2 setting. A model id that is neither a constant nor served by a provider
-goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX models are no constants any more. The prompt limit of a
-model comes from its provider (`ProviderRegistry.promptLimit`), for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step) are one table,
-`model.ModelParameters`, which the MCP schema, the MCP validation and the providers read. Errors are
-`ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the MCP
-clients get in English.
+that answers with the image goes through `SynchronousImageFlow`, which adds the costs the provider names beyond the
+price per image (`extraCosts`, Gemini: Google Search and thinking tokens); a video model through `VideoFlow`. A
+provider with seeds (`usesSeeds()`) gets random ones from `service.generation.Seeds`, the images of one without seeds
+store none. Remaining assumptions of the polled flow: the statuses `pollJob` answers are those of BFL (named in its
+Javadoc), a 404 means "not visible yet", and an approved safety tolerance is stored as the FLUX.2 setting. A model id
+that is neither a constant nor served by a provider goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX
+models are no constants any more. The prompt limit of a model comes from its provider (`ProviderRegistry.promptLimit`),
+for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step)
+are one table, `model.ModelParameters`, which the MCP schema, the MCP validation and the providers read.
+
+Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
+OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
+`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). `GenerationModel.constantOf` tells a constant from
+such an id, `ProviderRegistry.isOrderable` and `ProviderRegistry.apiModelId` decide for the generation, so no class
+of `service` but the OpenAI client names the placeholder (`ArchitectureTest`). A second provider with listed models
+would need an item prefix of its own.
+
+Errors follow one rule: every failure of a provider or a generation the user reads is a `ProviderException` with an
+i18n key and its arguments (`ApiHttpException` with the HTTP status), or carries one: a job a provider answers as
+failed (a blocked image, a video without file) holds it as `GenerationJobInfo.getFailure()`, and the generation
+wraps its own failures (timeout, moderated or failed job, download, file, attachment, cancel) the same way. A text of
+the provider (e.g. the refusal of Omni) is a `ProviderException` with that fixed text. The entry and its images
+store the message once, rendered by `ChatEntryTracker.errorText` in the language of whoever placed the order: the
+language of the user interface for the window, English for the MCP server. No image or video client and no class of
+the generation renders a message with `I18nManager.getText` itself (`ArchitectureTest`, besides the dropdown items of
+`ModelLabels`).
+
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
-(`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
-provider is a client, its entry in the registry, its models, its constant in `ApiProvider` (whose prefix names its
-account settings in `ProviderAccounts`) and its key in `config.Secret`.
+(`RequestResponseManager`, `GenerationService`, `ApiProviderValidator`); every constant of `GenerationModel` names
+its `ApiProvider`. What needs no change for a new provider: the dispatch and the flows of the generation, the
+dropdown (`ModelLabels.availableItems` lists the selectable constants of every usable provider), the startup check
+of the accounts (`ApiProviderValidator` tests the connection of every registered provider; only Gemini and OpenAI add
+the checks of their brainstorm language model) and the MCP tools. A new provider is, in this order:
+
+1. its constant in `model.ApiProvider` (display name, prefix of its account settings in `ProviderAccounts`, largest
+   attachment) and its key in `config.Secret`, mapped in `ProviderAccounts.secret` (and `isBrainstormAvailable`,
+   false without a language model);
+2. its client in `service.provider`: an interface extending `ImageProvider` with its implementation (prompt limit,
+   `prepare`, the flow it answers with, seeds, costs, download headers), created in
+   `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
+3. its models as constants of `model.GenerationModel` (with the branch of the constructor for their resolution and
+   attachment limits, `getFamilyName` and `getResolutionLabel` for variants), their parameters in
+   `model.ModelParameters`, their prices in `model.GenerationCost`, their aspect ratios in `AspectRatios.forModel` and
+   the multiple of their sizes in `ImageDimensions.multipleFor`;
+4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
+   `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), and its field in
+   `ui.controller.ProviderParameters`;
+5. the user interface of the account: a settings tab (FXML in `fxml/settings`, a `SettingsSection` in
+   `ui.controller.settings`, its client in `SettingsServices`), its line in `StatusBarController` and its texts in
+   the i18n resources (`status.request.submitted.<last part of the prefix>`, falling back to a generic one).
 
 ### D5: Detailed logging as a log level
 

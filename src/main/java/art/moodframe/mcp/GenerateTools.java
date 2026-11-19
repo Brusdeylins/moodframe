@@ -192,9 +192,11 @@ class GenerateTools {
             throw new McpTools.ToolException(e.getMessage());
         }
 
-        /*  The entry ends once the provider reports it; a longer job is followed by get_entry  */
+        /*  The entry is in its chat once stored, so get_entry finds it; it ends once the provider reports it, a
+            longer job is followed by get_entry  */
         boolean finished = false;
         try {
+            submission.stored().get();
             if (wait > 0) {
                 submission.finished().get(wait, TimeUnit.SECONDS);
                 finished = true;

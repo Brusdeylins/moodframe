@@ -7,11 +7,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The image providers of the application by their {@link ApiProvider}, built once at the start and passed to the
  * services that dispatch by provider. A new provider is one more {@link ImageProvider} here and its models in
- * {@link GenerationModel}.
+ * {@link GenerationModel}, besides the other places of the checklist of decision D4 in docs/ARCHITECTURE.md.
  *
  * @since 2.1.3
  */
@@ -73,6 +74,15 @@ public class ProviderRegistry {
     }
 
     /**
+     * Gets the ids of all providers.
+     *
+     * @return the ids in their order
+     */
+    public Set<ApiProvider> ids() {
+        return Collections.unmodifiableSet(providers.keySet());
+    }
+
+    /**
      * Finds the provider of an API model id: the provider of its {@link GenerationModel} constant, else the provider
      * that {@link ImageProvider#servesModel(String) serves} it (an OpenAI-compatible gateway), else BFL, whose former
      * FLUX models are no constants any more.
@@ -101,10 +111,35 @@ public class ProviderRegistry {
         GenerationModel model = GenerationModel.fromId(modelId);
         if (model == null)
             return forModel(null).maxPromptLength(null);
+        return get(model.getProvider()).maxPromptLength(apiModelId(modelId));
+    }
 
-        /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
-        return get(model.getProvider()).maxPromptLength(model == GenerationModel.OPENAI_IMAGE ? modelId
-                : model.getApiModelId());
+    /**
+     * Gets the API model id of a fixed id (see {@link GenerationModel#idOf(String)}).
+     *
+     * @param modelId the fixed id (may be null)
+     * @return the API id of its constant, the id itself for a model a provider lists beyond the constants
+     */
+    public static String apiModelId(String modelId) {
+        GenerationModel model = GenerationModel.constantOf(modelId);
+        return model != null ? model.getApiModelId() : modelId;
+    }
+
+    /**
+     * Checks if a fixed id names a model that can be ordered: a constant, or a model a provider
+     * {@link ImageProvider#listedModels() lists}.
+     *
+     * @param modelId the fixed id (may be null)
+     * @return true if it can be ordered
+     */
+    public boolean isOrderable(String modelId) {
+        if (GenerationModel.constantOf(modelId) != null)
+            return true;
+        for (ImageProvider provider : providers.values()) {
+            if (modelId != null && provider.listedModels().contains(modelId))
+                return true;
+        }
+        return false;
     }
 
     /**

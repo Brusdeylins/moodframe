@@ -20,8 +20,10 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The full backup of the moods and frames of the user in a fresh SQLite database. */
@@ -117,6 +119,32 @@ class ConfigurationExporterTest {
         assertEquals("Older Backup", imported.getName());
         assertEquals("21:9", imported.getAspectRatio());
         assertEquals("4K", imported.getResolution(), "the resolution of an older backup becomes the target");
+    }
+
+    @Test
+    void aFileThatCannotBeReadToTheEndChangesNothing() throws Exception {
+        File file = tempDir.resolve("broken-backup.json").toFile();
+        Files.writeString(file.toPath(), """
+                {
+                  "metadata": { "exportVersion": "1.0", "applicationVersion": "2.0.0" },
+                  "configuration": {
+                    "apiSettings": { "apiRegion": "EU" },
+                    "uiPreferences": { "uiTheme": "dark" },
+                    "frames": [ { "id": "broken-backup", "name": "Broken Backup", "aspectRatio": "1:1" } ],
+                    "customPalettes": "no list"
+                  }
+                }
+                """);
+
+        art.moodframe.config.ApplicationConfig config = ConfigMocks.config();
+        org.mockito.Mockito.clearInvocations(config.accounts(), config.ui());
+        ConfigurationExporter.ImportResult result = exporter().importConfiguration(file, config);
+        assertFalse(result.isSuccess());
+        org.mockito.Mockito.verify(config.accounts(), org.mockito.Mockito.never()).setApiRegion(
+                org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(config.ui(), org.mockito.Mockito.never()).setUiTheme(
+                org.mockito.ArgumentMatchers.any());
+        assertNull(TestLibraryServices.frames().find("broken-backup"), "no frame of a broken file");
     }
 
     @Test

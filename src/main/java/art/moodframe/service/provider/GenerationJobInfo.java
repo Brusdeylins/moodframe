@@ -1,5 +1,7 @@
-package art.moodframe.model;
+package art.moodframe.service.provider;
 
+import art.moodframe.model.ApiProvider;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -52,6 +54,10 @@ public class GenerationJobInfo {
 
     // Error message for failed generations (e.g., content blocked)
     private String errorMessage;
+
+    /*  the reason of a failed generation, localizable, so an entry of the MCP server gets it in English  */
+    @JsonIgnore
+    private ProviderException failure;
 
     /**
      * Default constructor for JSON deserialization.
@@ -360,6 +366,16 @@ public class GenerationJobInfo {
         this.errorMessage = errorMessage;
     }
 
+    /**
+     * Gets the reason of a failed generation, for a message in the language of whoever reads it.
+     *
+     * @return the reason, null if the job did not fail or tells only its {@link #getErrorMessage() message}
+     */
+    @JsonIgnore
+    public ProviderException getFailure() {
+        return failure;
+    }
+
     @Override
     public String toString() {
         return String.format("GenerationJobInfo{jobId='%s', status='%s', queuePosition=%d}",
@@ -383,6 +399,7 @@ public class GenerationJobInfo {
         private Integer thinkingTokens;
         private String thoughtSummary;
         private String errorMessage;
+        private ProviderException failure;
         private String operationName;
         private boolean isVideoGeneration = false;
         private String videoDownloadUrl;
@@ -452,6 +469,19 @@ public class GenerationJobInfo {
             return this;
         }
 
+        /**
+         * Sets the reason of a failed generation: the job is failed, its error message that of the reason.
+         *
+         * @param failure the reason
+         * @return this builder
+         */
+        public Builder failure(ProviderException failure) {
+            this.failure = failure;
+            this.status = "failed";
+            this.errorMessage = failure.getMessage();
+            return this;
+        }
+
         public Builder operationName(String operationName) {
             this.operationName = operationName;
             return this;
@@ -482,6 +512,7 @@ public class GenerationJobInfo {
             info.thinkingTokens = this.thinkingTokens;
             info.thoughtSummary = this.thoughtSummary;
             info.errorMessage = this.errorMessage;
+            info.failure = this.failure;
             info.operationName = this.operationName;
             info.isVideoGeneration = this.isVideoGeneration;
             info.videoDownloadUrl = this.videoDownloadUrl;

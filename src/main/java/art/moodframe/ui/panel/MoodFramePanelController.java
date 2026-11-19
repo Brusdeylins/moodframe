@@ -898,7 +898,7 @@ public class MoodFramePanelController {
         if (frameService == null)
             return;
         EntryFrame copy = entry.getFrame();
-        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromDisplayName(entry.getModel());
+        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromEntryModel(entry.getModel());
         String aspectRatio = copy != null ? copy.aspectRatio() : entry.getSize();
         String resolution = copy != null ? copy.resolution() : model != null ? model.getResolutionLabel() : null;
         Frame frame = copy != null ? frameService.find(copy.frameId() != null ? copy.frameId() : copy.baseId()) : null;

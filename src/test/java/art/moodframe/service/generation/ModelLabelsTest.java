@@ -67,7 +67,8 @@ class ModelLabelsTest {
 
     @Test
     void listsTheModelsOfTheUsableProvidersThenTheGateway() {
-        List<String> items = ModelLabels.availableItems(true, false, List.of("qwen-image"));
+        List<String> items = ModelLabels.availableItems((ApiProvider provider) -> provider == ApiProvider.BFL,
+                List.of("qwen-image"));
 
         assertTrue(items.contains(ModelLabels.displayName(GenerationModel.FLUX2_PRO)));
         assertFalse(items.contains(ModelLabels.displayName(GenerationModel.NANO_BANANA2_1K)));

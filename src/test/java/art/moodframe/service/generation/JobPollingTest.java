@@ -4,13 +4,14 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.ApiHttpException;
 import art.moodframe.service.provider.BflApiService;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobResult;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,7 +92,7 @@ class JobPollingTest {
             return mock(ScheduledFuture.class);
         });
         files = mock(ImageFileStore.class);
-        when(files.download(any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
+        when(files.download(any(), any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
                 "png", "image/png", 1024, 1024, 1000));
         config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
@@ -146,10 +147,24 @@ class JobPollingTest {
         drainFxThread();
         drainFxThread();
 
-        verify(files, times(1)).download(any());
+        verify(files, times(1)).download(any(), any());
         assertEquals(0, scheduled.size(), "a finished job is not polled again");
         assertEquals(GeneratedImage.DownloadStatus.CACHED, image().getDownloadStatus());
         assertEquals(ChatEntry.Status.COMPLETED, entry.getStatus());
+    }
+
+    @Test
+    void theImageOfAJobIsDownloadedWithTheHeadersOfItsProvider() throws Exception {
+        java.util.Map<String, String> headers = java.util.Map.of("x-key", "secret");
+        doReturn(headers).when(api).downloadHeaders("https://bfl.example/sample.png");
+        submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-7", "Pending")));
+        runPoll();
+        polls.poll().complete(answer("Ready"));
+        drainFxThread();
+        drainFxThread();
+
+        verify(files).download(any(), org.mockito.ArgumentMatchers.eq(headers));
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, image().getDownloadStatus());
     }
 
     @Test
@@ -162,7 +177,7 @@ class JobPollingTest {
         polls.poll().complete(answer("Ready"));
         drainFxThread();
 
-        verify(files, never()).download(any());
+        verify(files, never()).download(any(), any());
         assertEquals(GeneratedImage.DownloadStatus.FAILED, image().getDownloadStatus());
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
         assertEquals(0, scheduled.size());
@@ -180,7 +195,7 @@ class JobPollingTest {
         assertEquals(0, polls.size(), "the second attempt is past the timeout and asks nothing");
         assertEquals(0, scheduled.size());
         assertEquals(GeneratedImage.DownloadStatus.FAILED, image().getDownloadStatus());
-        verify(files, never()).download(any());
+        verify(files, never()).download(any(), any());
     }
 
     @Test
@@ -196,5 +211,33 @@ class JobPollingTest {
         assertEquals(0, scheduled.size());
         assertEquals(1, entry.getImages().size(), "no image is added to a cancelled entry");
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+    }
+
+    @Test
+    void aModeratedJobTellsItsReasonInTheLanguageOfTheUserInterfaceAndInEnglishForTheMcpServer() throws Exception {
+        java.util.Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(java.util.Locale.GERMAN);
+        try {
+            submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-5", "Pending")));
+            runPoll();
+            polls.poll().complete(answer("Content Moderated"));
+            drainFxThread();
+            assertEquals(I18nManager.getText("generation.error.moderated"), image().getErrorMessage());
+            assertTrue(image().getErrorMessage().contains("Sicherheitsfiltern"), image().getErrorMessage());
+            assertEquals("Content Moderated", image().getApiStatus());
+
+            entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).source(ChatEntry.Source.MCP).build();
+            entry.getImages().add(new GeneratedImage.Builder().chatEntryId(entry.getId())
+                    .downloadStatus(GeneratedImage.DownloadStatus.PENDING).sortOrder(0).build());
+            submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-6", "Pending")));
+            runPoll();
+            polls.poll().complete(answer("Content Moderated"));
+            drainFxThread();
+            assertEquals(I18nManager.getTextIn(java.util.Locale.ENGLISH, "generation.error.moderated"),
+                    image().getErrorMessage());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 }

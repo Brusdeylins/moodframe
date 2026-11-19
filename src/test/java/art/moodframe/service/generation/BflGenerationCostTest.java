@@ -5,12 +5,12 @@ import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.provider.BflApiService;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobResult;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -78,7 +78,7 @@ class BflGenerationCostTest {
             return mock(ScheduledFuture.class);
         });
         ImageFileStore files = mock(ImageFileStore.class);
-        when(files.download(any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
+        when(files.download(any(), any())).thenReturn(new ImageFileStore.StoredImage(Path.of("sample.png"), "sample.png",
                 "png", "image/png", width, height, 1000));
         ApplicationConfig config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);

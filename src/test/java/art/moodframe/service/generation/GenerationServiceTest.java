@@ -66,7 +66,7 @@ class GenerationServiceTest {
     private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
     private final GenerationService service = new GenerationService(config, chats, null, requests,
-            MockProviders.preparing());
+            MockProviders.preparing(config), Runnable::run);
     private final Chat chat = new Chat.Builder().id("chat-1").name("Test").build();
 
     @BeforeAll
@@ -294,7 +294,7 @@ class GenerationServiceTest {
             assertEquals("gpt-image-1", GenerationModel.idOf(ModelLabels.itemOf("gpt-image-1")));
 
             ChatEntry entry = service.submit(order("FLUX2_PRO", WIDE_2K)).entry();
-            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), entry.getModel(), "stored in English");
+            assertEquals("FLUX2_PRO", entry.getModel(), "stored by its fixed id");
             assertEquals("flux.2-pro", sent().get(0).getModel());
         } finally {
             I18nManager.setLocale(before);
@@ -308,7 +308,7 @@ class GenerationServiceTest {
         EntryMood copy = new EntryMood("mood-1", "Calm", Map.of());
         when(moods.snapshot(eq(mood), eq(true), any())).thenReturn(copy);
         GenerationService withMoods = new GenerationService(config, chats, moods, requests,
-                MockProviders.preparing());
+                MockProviders.preparing(config), Runnable::run);
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,
@@ -338,5 +338,53 @@ class GenerationServiceTest {
         listener.getValue().accept(entry);
         assertEquals(ChatEntry.Status.COMPLETED, submission.finished().getNow(null));
         verify(requests).removeEntryListener(listener.getValue());
+    }
+
+    @Test
+    void aFailedSubmissionFailsItsFutureAndIsMarkedFailedOnceByTheRequests() throws Exception {
+        IllegalArgumentException refused = new IllegalArgumentException("refused");
+        when(requests.submitImageGeneration(any(), any(), any())).thenReturn(CompletableFuture.failedFuture(refused));
+
+        GenerationService.Submission submission = service.submit(order("FLUX2_PRO", WIDE_2K));
+        java.util.concurrent.ExecutionException failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                () -> submission.submitted().get(10, TimeUnit.SECONDS));
+        assertSame(refused, failure.getCause());
+        verify(requests, never()).markFailed(any(), any());
+    }
+
+    @Test
+    void storesTheEntryOffTheCallingThreadAndDispatchesItOnlyOnceItIsStored() throws Exception {
+        List<Runnable> storing = new java.util.ArrayList<>();
+        GenerationService queued = new GenerationService(config, chats, null, requests,
+                MockProviders.preparing(config), storing::add);
+
+        GenerationService.Submission submission = queued.submit(order("FLUX2_PRO", WIDE_2K));
+        assertEquals(ChatEntry.Status.PENDING, submission.entry().getStatus(), "the entry to show at once");
+        verifyNoInteractions(chatHistory);
+        verify(requests, never()).submitImageGeneration(any(), any(), any());
+        assertFalse(chat.getEntries().contains(submission.entry()));
+
+        storing.forEach(Runnable::run);
+        verify(chatHistory).saveChatEntry(submission.entry());
+        assertTrue(chat.getEntries().contains(submission.entry()));
+        assertTrue(submission.stored().isDone());
+        verify(requests).submitImageGeneration(any(), eq(submission.entry()), any());
+        assertTrue(submission.submitted().isDone());
+    }
+
+    @Test
+    void anEntryThatCannotBeAddedFailsWithoutDispatch() {
+        GenerationService rejecting = new GenerationService(config, chats, null, requests,
+                MockProviders.preparing(config),
+                (Runnable task) -> {
+                    throw new java.util.concurrent.RejectedExecutionException("closed");
+                });
+
+        GenerationService.Submission submission = assertDoesNotThrow(() -> rejecting.submit(order("FLUX2_PRO",
+                WIDE_2K)));
+        assertTrue(submission.stored().isCompletedExceptionally());
+        assertTrue(submission.submitted().isCompletedExceptionally());
+        verify(requests).markFailed(eq(submission.entry()), any());
+        verify(requests, never()).submitImageGeneration(any(), any(), any());
     }
 }

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
@@ -32,7 +33,8 @@ import java.util.function.Consumer;
  * {@link GenerationModel#idOf(String)}).
  *
  * <p>{@link #submit(GenerationOrder)} adds the entry to its chat through the {@link ChatLibrary}, so it shows in the
- * main window, whoever placed the order.</p>
+ * main window, whoever placed the order. It may be called on the JavaFX thread: it checks the order in memory and
+ * leaves the database to the store executor.</p>
  *
  * @since 2.1.0
  */
@@ -97,11 +99,14 @@ public class GenerationService {
     /**
      * An accepted order.
      *
-     * @param entry the stored chat entry
-     * @param submitted completes once the request is handed to the provider, exceptionally if that failed
+     * @param entry the chat entry, to be shown at once; it is in its chat and stored once {@code stored} completes
+     * @param stored completes once the entry is in its chat and stored (kept in memory only if the database fails),
+     *               exceptionally if that could not run (the entry is marked failed then)
+     * @param submitted completes once the request is handed to the provider, after {@code stored}, exceptionally if
+     *                  that failed (the entry is marked failed then)
      * @param finished completes with the state the entry ends in: COMPLETED, FAILED or CANCELLED
      */
-    public record Submission(ChatEntry entry, CompletableFuture<Void> submitted,
+    public record Submission(ChatEntry entry, CompletableFuture<Void> stored, CompletableFuture<Void> submitted,
             CompletableFuture<ChatEntry.Status> finished) {
     }
 
@@ -134,6 +139,7 @@ public class GenerationService {
     private final MoodService moodService;
     private final RequestResponseService requests;
     private final ProviderRegistry providers;
+    private final Executor store;
 
     /**
      * Creates the service.
@@ -143,14 +149,17 @@ public class GenerationService {
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
      * @param providers   the providers, which know the prompt limits and the parameters of their models
+     * @param store       stores the new entries, off the thread that places the order: the store thread of the
+     *                    generation ({@link GenerationWorkers#store()}), so the writes of an entry keep their order
      */
     public GenerationService(ApplicationConfig config, ChatLibrary chats, MoodService moodService,
-            RequestResponseService requests, ProviderRegistry providers) {
+            RequestResponseService requests, ProviderRegistry providers, Executor store) {
         this.config = config;
         this.chats = chats;
         this.moodService = moodService;
         this.requests = requests;
         this.providers = providers;
+        this.store = store;
     }
 
     /**
@@ -164,20 +173,15 @@ public class GenerationService {
         return providers.promptLimit(modelId);
     }
 
-    /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
-    private static String apiModelId(GenerationModel model, String modelId) {
-        return model == GenerationModel.OPENAI_IMAGE ? modelId : model.getApiModelId();
-    }
-
     /**
-     * Gets the dropdown items of the models to choose from: those of the enabled providers with a key.
+     * Gets the dropdown items of the models to choose from: those of the enabled providers with a key, the chosen
+     * models of the OpenAI-compatible gateway (kept in its settings) among them.
      *
      * @param config the application configuration
-     * @return the items, see {@link ModelLabels#availableItems(boolean, boolean, List)}
+     * @return the items, see {@link ModelLabels#availableItems(java.util.function.Predicate, List)}
      */
     public static List<String> availableItems(ApplicationConfig config) {
-        return ModelLabels.availableItems(config.accounts().isUsable(ApiProvider.BFL),
-                config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI),
+        return ModelLabels.availableItems(config.accounts()::isUsable,
                 config.accounts().isUsable(ApiProvider.OPENAI) ? config.getOpenAiModels() : List.of());
     }
 
@@ -191,13 +195,10 @@ public class GenerationService {
     public static List<String> availableItems(ApplicationConfig config, int imageCount) {
         if (imageCount <= 0)
             return availableItems(config);
-        Set<String> taking = GenerationModel.selectable().stream()
-                .filter((GenerationModel model) -> model.getMaxInputImages() >= imageCount)
-                .map(ModelLabels::displayName).collect(java.util.stream.Collectors.toSet());
-        boolean openAi = GenerationModel.OPENAI_IMAGE.getMaxInputImages() >= imageCount;
-        return availableItems(config).stream()
-                .filter((String item) -> GenerationModel.openAiModelId(item) != null ? openAi : taking.contains(item))
-                .toList();
+        return availableItems(config).stream().filter((String item) -> {
+            GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
+            return model != null && model.getMaxInputImages() >= imageCount;
+        }).toList();
     }
 
     /**
@@ -254,8 +255,14 @@ public class GenerationService {
     /**
      * Carries out an order: stores the chat entry and submits the request.
      *
+     * <p><strong>Threading:</strong> the checks that refuse an order (empty prompt, prompt too long, no chat, unknown
+     * model, missing key) and the building of the entry and the request run on the calling thread, in memory only. The
+     * entry goes into its chat and the database on the store executor, and only then is the request dispatched, so its
+     * images find the row of their entry. The caller, e.g. the JavaFX thread, never waits for the database: it shows
+     * the entry at once; a caller that needs the entry in the library waits for {@link Submission#stored()}.</p>
+     *
      * @param order the order
-     * @return the entry with the progress of its request
+     * @return the entry with the progress of its storing and its request
      * @throws GenerationException if the order is refused; nothing is stored or sent then
      */
     public Submission submit(GenerationOrder order) throws GenerationException {
@@ -278,10 +285,10 @@ public class GenerationService {
             throw new GenerationException(Failure.NO_CHAT, "No chat selected for sending message");
         }
 
-        /*  A constant of the enum, else a model of the gateway  */
+        /*  A constant of the enum, else a model its provider lists  */
         String modelId = order.modelId();
         GenerationModel model = GenerationModel.fromId(modelId);
-        if (model == null || (model == GenerationModel.OPENAI_IMAGE && !config.getOpenAiModels().contains(modelId)))
+        if (model == null || !providers.isOrderable(modelId))
             throw new GenerationException(Failure.UNKNOWN_MODEL, "Unknown model: " + modelId);
         String item = ModelLabels.itemOf(modelId);
 
@@ -298,8 +305,8 @@ public class GenerationService {
                 ? AspectRatios.nearestForItem(target.aspectRatio(), item) : null;
         double totalCost = quote(model, order).total();
 
-        /*  The entry keeps the prompt of the user (for the copy button), the English display name of the model and
-            the item of an OpenAI model; the request gets the prompt with the building blocks  */
+        /*  The entry keeps the prompt of the user (for the copy button) and the fixed id of the model, which depends on
+            no language or price; the request gets the prompt with the building blocks  */
         ChatEntry entry = new ChatEntry.Builder()
                 .chatId(chat.getId())
                 .userPrompt(userPrompt)
@@ -307,7 +314,7 @@ public class GenerationService {
                         ? "Enhanced: " + prompt + ", professional quality, highly detailed"
                         : prompt)
                 .status(ChatEntry.Status.PENDING)
-                .model(model == GenerationModel.OPENAI_IMAGE ? item : model.getDisplayName())
+                .model(GenerationModel.entryModelOf(modelId))
                 .size(Objects.requireNonNullElse(aspectRatio, "16:9"))
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .mood(moodService != null ? moodService.snapshot(order.mood(), order.moodChanged(), blocks) : null)
@@ -317,9 +324,6 @@ public class GenerationService {
                 .seed(parameters.seed() != null ? parameters.seed() : 0)
                 .cost(totalCost)
                 .build();
-
-        /*  Stored with its chat; without database, or if storing fails, kept in memory only  */
-        chats.addEntry(chat, entry);
 
         ImageGenerationRequest request = createRequest(prompt, model, item, aspectRatio, order);
 
@@ -332,19 +336,26 @@ public class GenerationService {
         requests.addEntryListener(watch);
         finished.whenComplete((ChatEntry.Status status, Throwable throwable) -> requests.removeEntryListener(watch));
 
-        CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, order.attachment())
-                .whenComplete((Void done, Throwable throwable) -> {
-                    if (throwable == null) {
-                        logger.debug("Real API request submitted to {} for prompt: {}",
-                                provider.getDisplayName(), prompt);
-                        return;
-                    }
-                    logger.error("Failed to submit API request", throwable);
+        /*  Stored with its chat off the calling thread (without database, or if storing fails, kept in memory only),
+            then dispatched; a closed store fails the future instead of throwing  */
+        CompletableFuture<Void> stored = CompletableFuture.completedFuture((Void) null)
+                .thenRunAsync(() -> chats.addEntry(chat, entry), store);
+        stored.exceptionally((Throwable failure) -> {
+            logger.error("Failed to add the entry {} to its chat", entry.getId(), failure);
+            requests.markFailed(entry, failure);
+            return null;
+        });
 
-                    /*  stored as failed with the reason, then told to the listeners, which finish the entry  */
-                    requests.markFailed(entry, throwable);
+        /*  A failed submission is stored as failed with the reason by the requests, whose listeners finish the entry  */
+        CompletableFuture<Void> submitted = stored
+                .thenCompose((Void done) -> requests.submitImageGeneration(request, entry, order.attachment()))
+                .whenComplete((Void done, Throwable throwable) -> {
+                    if (throwable == null)
+                        logger.debug("Request submitted to {} for prompt: {}", provider.getDisplayName(), prompt);
+                    else
+                        logger.error("Failed to submit API request", throwable);
                 });
-        return new Submission(entry, submitted, finished);
+        return new Submission(entry, stored, submitted, finished);
     }
 
     /**
@@ -356,7 +367,7 @@ public class GenerationService {
             String aspectRatio, GenerationOrder order) {
         GenerationOrder.Parameters parameters = order.parameters();
         List<String> referenceImages = order.referenceImages() != null ? order.referenceImages() : List.of();
-        String apiModelId = apiModelId(model, order.modelId());
+        String apiModelId = ProviderRegistry.apiModelId(order.modelId());
         logger.debug("Creating request with model id: '{}' -> API ID: '{}'", order.modelId(), apiModelId);
 
         ImageGenerationRequest request = new ImageGenerationRequest(prompt, apiModelId);

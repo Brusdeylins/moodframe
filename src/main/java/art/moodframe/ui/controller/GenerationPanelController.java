@@ -1068,8 +1068,7 @@ public class GenerationPanelController {
 
     /** Chooses the model of a chat entry, as long as it is offered. */
     private void reuseModel(ChatEntry entry) {
-        art.moodframe.model.GenerationModel model = art.moodframe.model.GenerationModel.fromDisplayName(entry.getModel());
-        String name = model != null ? ModelLabels.displayName(model) : entry.getModel();
+        String name = ModelLabels.entryName(entry.getModel());
         if (name != null && modelComboBox.getItems().contains(name))
             modelComboBox.setValue(name);
     }

@@ -5,6 +5,7 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.util.I18nManager;
 
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -35,29 +36,40 @@ public final class ModelLabels {
      * language.
      *
      * @param id the id (may be null)
-     * @return the localized display name, {@link GenerationModel#OPENAI_PREFIX} + id for an OpenAI model, null
-     *         without id
+     * @return the localized display name of a constant, {@link GenerationModel#OPENAI_PREFIX} + id for a model of the
+     *         gateway, null without id
      */
     public static String itemOf(String id) {
-        GenerationModel model = GenerationModel.fromId(id);
-        return model == null ? null
-                : model == GenerationModel.OPENAI_IMAGE ? GenerationModel.OPENAI_PREFIX + id : displayName(model);
+        if (id == null)
+            return null;
+        GenerationModel model = GenerationModel.constantOf(id);
+        return model != null ? displayName(model) : GenerationModel.OPENAI_PREFIX + id;
+    }
+
+    /**
+     * Gets the name of the model of a chat entry in the current language, see {@link GenerationModel#fromEntryModel}.
+     *
+     * @param stored the model the entry stores (may be null)
+     * @return the localized display name of its model, else the stored text (the item of a gateway model, the name of
+     *         an older entry whose model is gone), null without model
+     */
+    public static String entryName(String stored) {
+        GenerationModel model = GenerationModel.fromEntryModel(stored);
+        return model != null ? displayName(model) : stored;
     }
 
     /**
      * Gets the dropdown items of the models to choose from: the selectable models of the usable providers, then the
      * models of the OpenAI-compatible gateway.
      *
-     * @param bfl whether BFL is enabled and has a key
-     * @param gemini whether Gemini is enabled and has a key
-     * @param openAiIds the model ids of the gateway, empty while it is disabled or has no key
+     * @param usable     whether a provider is enabled and has a key
+     * @param gatewayIds the model ids of the gateway, empty while it is disabled or has no key
      * @return the items, in the order of the dropdown
      */
-    public static List<String> availableItems(boolean bfl, boolean gemini, List<String> openAiIds) {
+    public static List<String> availableItems(Predicate<ApiProvider> usable, List<String> gatewayIds) {
         return Stream.concat(GenerationModel.selectable().stream()
-                .filter((GenerationModel model) -> model.getProvider() == ApiProvider.BFL ? bfl
-                        : model.getProvider() == ApiProvider.GOOGLE_GEMINI && gemini)
+                .filter((GenerationModel model) -> usable.test(model.getProvider()))
                 .map(ModelLabels::displayName),
-                openAiIds.stream().map((String id) -> GenerationModel.OPENAI_PREFIX + id)).toList();
+                gatewayIds.stream().map((String id) -> GenerationModel.OPENAI_PREFIX + id)).toList();
     }
 }

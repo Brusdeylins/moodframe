@@ -5,9 +5,13 @@
  * <p>Main classes:</p>
  * <ul>
  * <li>{@link GenerationService}: carries out a {@link GenerationOrder} without any user interface</li>
- * <li>{@link RequestResponseService}: the lifecycle of a request, implemented by {@link RequestResponseManager}</li>
+ * <li>{@link RequestResponseService}: the lifecycle of a request, implemented by {@link RequestResponseManager},
+ * which dispatches it to the flow of its provider</li>
  * <li>{@link JobPollingFlow}: for a provider that answers with a job (BFL), submits a job per image, polls it and
  * downloads the image</li>
+ * <li>{@link SynchronousImageFlow}: for a provider that answers with the image (Gemini, OpenAI)</li>
+ * <li>{@link VideoFlow}: for a video model, generates and downloads the video</li>
+ * <li>{@link GenerationWorkers}: the threads of the polling and of the database writes</li>
  * <li>{@link ChatEntryTracker}: keeps a chat entry in step with its images while a request runs</li>
  * <li>{@link ImageFileStore}: writes the generated images to the images directory</li>
  * <li>{@link ModelLabels}: the model dropdown items in the current language</li>

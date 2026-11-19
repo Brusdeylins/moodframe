@@ -3,6 +3,7 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.ProviderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,6 +132,22 @@ public class ChatEntryTracker {
     }
 
     /**
+     * Finds the placeholder of an image by its sort order, not its list position, as the answers arrive in any order.
+     * Call on the FX thread.
+     *
+     * @param chatEntry  the entry
+     * @param imageIndex the index of the image in the entry
+     * @return the image, null if the entry has none of that index
+     */
+    static GeneratedImage placeholder(ChatEntry chatEntry, int imageIndex) {
+        for (GeneratedImage image : chatEntry.getImages()) {
+            if (image.getSortOrder() == imageIndex)
+                return image;
+        }
+        return null;
+    }
+
+    /**
      * Gets the message of a failure for an entry: in English for an entry of the MCP server, whose client reads it,
      * else in the language of the user interface.
      *
@@ -141,6 +158,30 @@ public class ChatEntryTracker {
     public static String errorText(Throwable failure, ChatEntry chatEntry) {
         return ProviderException.messageOf(failure,
                 chatEntry != null && chatEntry.getSource() == ChatEntry.Source.MCP);
+    }
+
+    /**
+     * Gets the message of a failed job for an entry, like {@link #errorText(Throwable, ChatEntry)}.
+     *
+     * @param job       the failed job
+     * @param chatEntry the entry
+     * @return the message of its reason, else its error message as the provider gave it
+     */
+    static String errorText(GenerationJobInfo job, ChatEntry chatEntry) {
+        return job.getFailure() != null ? errorText(job.getFailure(), chatEntry) : job.getErrorMessage();
+    }
+
+    /**
+     * Gets a message of the i18n resources for an entry, like {@link #errorText(Throwable, ChatEntry)}.
+     *
+     * @param chatEntry the entry
+     * @param cause     the cause (may be null)
+     * @param key       the key of the message
+     * @param arguments the arguments of the message
+     * @return the message
+     */
+    static String errorText(ChatEntry chatEntry, Throwable cause, String key, Object... arguments) {
+        return errorText(ProviderException.localized(cause, key, arguments), chatEntry);
     }
 
     /**
@@ -175,9 +216,10 @@ public class ChatEntryTracker {
         List<GeneratedImage> stopped = chatEntry.getImages().stream()
                 .filter((GeneratedImage image) -> image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED
                         && image.getDownloadStatus() != GeneratedImage.DownloadStatus.FAILED).toList();
+        String cancelled = errorText(chatEntry, null, "generation.error.cancelled");
         stopped.forEach((GeneratedImage image) -> {
             image.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-            image.setErrorMessage("Cancelled");
+            image.setErrorMessage(cancelled);
         });
         chatEntry.setStatus(ChatEntry.Status.CANCELLED);
         chatEntry.setCompletedAt(LocalDateTime.now());

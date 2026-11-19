@@ -1,11 +1,10 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -87,13 +86,13 @@ public interface ImageProvider {
      * Checks that the prompt of a request is within the {@link #maxPromptLength(String) limit} of its model.
      *
      * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
-     * @throws IllegalArgumentException if the prompt is longer
+     * @throws ProviderException if the prompt is longer
      */
     default void checkPromptLength(ImageGenerationRequest request) {
         int limit = maxPromptLength(request.getModel());
         if (request.getPrompt() != null && request.getPrompt().length() > limit)
-            throw new IllegalArgumentException(String.format("Prompt cannot exceed %d characters (%s limit)", limit,
-                    getProvider().getDisplayName()));
+            throw ProviderException.localized("generation.error.prompt.too.long", String.valueOf(limit),
+                    getProvider().getDisplayName());
     }
 
     /**
@@ -186,6 +185,30 @@ public interface ImageProvider {
     }
 
     /**
+     * The costs of an image a provider answered with, beyond the price per image of its request.
+     *
+     * @param search    the price of the grounding in a web search, in US dollars
+     * @param reasoning the price of the thinking tokens, in US dollars
+     */
+    record ExtraCosts(double search, double reasoning) {
+
+        /** No costs beyond the price per image. */
+        public static final ExtraCosts NONE = new ExtraCosts(0.0, 0.0);
+    }
+
+    /**
+     * Gets the costs of an image this provider {@link #answersWithImage() answered with} beyond the price per image of
+     * the request, e.g. the Google Search and the thinking tokens of Gemini.
+     *
+     * @param request the request of the image
+     * @param job     the answer with the image
+     * @return the costs, {@link ExtraCosts#NONE} if there are none
+     */
+    default ExtraCosts extraCosts(ImageGenerationRequest request, GenerationJobInfo job) {
+        return ExtraCosts.NONE;
+    }
+
+    /**
      * Checks if the images of this provider have a seed that repeats the image.
      *
      * @return true if the provider takes and reports seeds
@@ -203,6 +226,16 @@ public interface ImageProvider {
      */
     default boolean servesModel(String modelId) {
         return false;
+    }
+
+    /**
+     * Gets the models of this provider that are no constant of {@link art.moodframe.model.GenerationModel} and can be
+     * ordered, e.g. those the user chose of an OpenAI-compatible gateway; each is also {@link #servesModel served}.
+     *
+     * @return the API model ids, empty for a provider with constants only
+     */
+    default List<String> listedModels() {
+        return List.of();
     }
 
     /**

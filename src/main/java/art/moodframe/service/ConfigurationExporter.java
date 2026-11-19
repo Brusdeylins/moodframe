@@ -4,6 +4,7 @@ import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.provider.BflApiService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -284,7 +285,11 @@ public class ConfigurationExporter {
             
             // Track changes for confirmation dialog
             Map<String, Object> changes = new HashMap<>();
-            
+
+            /*  Every value is read and checked first, the settings are changed only once all of them could be read,
+                so a broken file changes nothing  */
+            List<Runnable> settings = new ArrayList<>();
+
             // Import API settings
             @SuppressWarnings("unchecked")
             Map<String, Object> apiSettings = (Map<String, Object>) configData.get("apiSettings");
@@ -293,56 +298,57 @@ public class ConfigurationExporter {
                     Integer newValue = (Integer) apiSettings.get("apiTimeoutSeconds");
                     if (!Objects.equals(newValue, targetConfig.accounts().getApiTimeoutSeconds())) {
                         changes.put("API Timeout", newValue + " seconds");
-                        targetConfig.accounts().setApiTimeoutSeconds(newValue);
+                        settings.add(() -> targetConfig.accounts().setApiTimeoutSeconds(newValue));
                     }
                 }
                 if (apiSettings.containsKey("apiRegion")) {
                     String newValue = (String) apiSettings.get("apiRegion");
                     if (!Objects.equals(newValue, targetConfig.accounts().getApiRegion())) {
-                        changes.put("API Region", newValue + " (endpoint will be: " + getEndpointForRegion(newValue) + ")");
-                        targetConfig.accounts().setApiRegion(newValue);
+                        changes.put("API Region", newValue + " (endpoint will be: "
+                                + BflApiService.endpointOf(newValue) + ")");
+                        settings.add(() -> targetConfig.accounts().setApiRegion(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultSafetyTolerance")) {
                     Integer newValue = (Integer) apiSettings.get("defaultSafetyTolerance");
                     if (!newValue.equals(targetConfig.generation().getDefaultSafetyTolerance())) {
                         changes.put("Default Safety Tolerance", newValue);
-                        targetConfig.generation().setDefaultSafetyTolerance(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultSafetyTolerance(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultModel")) {
                     String newValue = (String) apiSettings.get("defaultModel");
                     if (!Objects.equals(newValue, targetConfig.generation().getDefaultModel())) {
                         changes.put("Default Model", newValue);
-                        targetConfig.generation().setDefaultModel(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultModel(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultAspectRatio")) {
                     String newValue = (String) apiSettings.get("defaultAspectRatio");
                     if (!Objects.equals(newValue, targetConfig.generation().getDefaultAspectRatio())) {
                         changes.put("Default Aspect Ratio", newValue);
-                        targetConfig.generation().setDefaultAspectRatio(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultAspectRatio(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultImageCount")) {
                     Integer newValue = (Integer) apiSettings.get("defaultImageCount");
                     if (!newValue.equals(targetConfig.generation().getDefaultImageCount())) {
                         changes.put("Default Image Count", newValue);
-                        targetConfig.generation().setDefaultImageCount(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultImageCount(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultStyle")) {
                     String newValue = (String) apiSettings.get("defaultStyle");
                     if (!Objects.equals(newValue, targetConfig.generation().getDefaultStyle())) {
                         changes.put("Default Style", newValue);
-                        targetConfig.generation().setDefaultStyle(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultStyle(newValue));
                     }
                 }
                 if (apiSettings.containsKey("defaultPromptUpsampling")) {
                     Boolean newValue = (Boolean) apiSettings.get("defaultPromptUpsampling");
                     if (!newValue.equals(targetConfig.generation().getDefaultBflPromptUpsampling())) {
                         changes.put("Default Prompt Upsampling", newValue ? "Yes" : "No");
-                        targetConfig.generation().setDefaultBflPromptUpsampling(newValue);
+                        settings.add(() -> targetConfig.generation().setDefaultBflPromptUpsampling(newValue));
                     }
                 }
             }
@@ -355,21 +361,21 @@ public class ConfigurationExporter {
                     String newValue = (String) uiPreferences.get("uiTheme");
                     if (!Objects.equals(newValue, targetConfig.ui().getUiTheme())) {
                         changes.put("UI Theme", newValue);
-                        targetConfig.ui().setUiTheme(newValue);
+                        settings.add(() -> targetConfig.ui().setUiTheme(newValue));
                     }
                 }
                 if (uiPreferences.containsKey("uiLanguage")) {
                     String newValue = (String) uiPreferences.get("uiLanguage");
                     if (!Objects.equals(newValue, targetConfig.ui().getUiLanguage())) {
                         changes.put("UI Language", newValue);
-                        targetConfig.ui().setUiLanguage(newValue);
+                        settings.add(() -> targetConfig.ui().setUiLanguage(newValue));
                     }
                 }
                 if (uiPreferences.containsKey("splitterPosition")) {
                     Double newValue = (Double) uiPreferences.get("splitterPosition");
                     if (!newValue.equals(targetConfig.ui().getSplitterPosition())) {
                         changes.put("Splitter Position", String.format("%.1f%%", newValue * 100));
-                        targetConfig.ui().setSplitterPosition(newValue);
+                        settings.add(() -> targetConfig.ui().setSplitterPosition(newValue));
                     }
                 }
             }
@@ -382,28 +388,28 @@ public class ConfigurationExporter {
                     Boolean newValue = (Boolean) proxySettings.get("proxyEnabled");
                     if (!newValue.equals(targetConfig.proxy().isProxyEnabled())) {
                         changes.put("Proxy Enabled", newValue ? "Yes" : "No");
-                        targetConfig.proxy().setProxyEnabled(newValue);
+                        settings.add(() -> targetConfig.proxy().setProxyEnabled(newValue));
                     }
                 }
                 if (proxySettings.containsKey("proxyHost")) {
                     String newValue = (String) proxySettings.get("proxyHost");
                     if (!Objects.equals(newValue, targetConfig.proxy().getProxyHost())) {
                         changes.put("Proxy Host", newValue);
-                        targetConfig.proxy().setProxyHost(newValue);
+                        settings.add(() -> targetConfig.proxy().setProxyHost(newValue));
                     }
                 }
                 if (proxySettings.containsKey("proxyPort")) {
                     Integer newValue = (Integer) proxySettings.get("proxyPort");
                     if (!newValue.equals(targetConfig.proxy().getProxyPort())) {
                         changes.put("Proxy Port", newValue);
-                        targetConfig.proxy().setProxyPort(newValue);
+                        settings.add(() -> targetConfig.proxy().setProxyPort(newValue));
                     }
                 }
                 if (proxySettings.containsKey("proxyUsername")) {
                     String newValue = (String) proxySettings.get("proxyUsername");
                     if (!Objects.equals(newValue, targetConfig.proxy().getProxyUsername())) {
                         changes.put("Proxy Username", newValue);
-                        targetConfig.proxy().setProxyUsername(newValue);
+                        settings.add(() -> targetConfig.proxy().setProxyUsername(newValue));
                     }
                 }
             }
@@ -416,41 +422,43 @@ public class ConfigurationExporter {
                     Boolean newValue = (Boolean) advancedSettings.get("loggingEnabled");
                     if (!newValue.equals(targetConfig.getLoggingEnabled())) {
                         changes.put("Logging Enabled", newValue ? "Yes" : "No");
-                        targetConfig.setLoggingEnabled(newValue);
+                        settings.add(() -> targetConfig.setLoggingEnabled(newValue));
                     }
                 }
                 // Note: certificatePath is auto-detected and not imported
                 // Removed certificate path import logic as it's now auto-determined
             }
             
+            /*  The items of the library, read before anything is changed  */
+            List<Map<String, Object>> customBlocks = items(configData.get("customBlocks"));
+            List<Map<String, Object>> customStyles = items(configData.get("customStyles"));
+            Object customPalettes = configData.get("customPalettes");
+            List<ColorStyle> palettes = customPalettes != null ? objectMapper.convertValue(customPalettes,
+                    new TypeReference<List<ColorStyle>>() { }) : null;
+            List<Map<String, Object>> moods = items(configData.get("moods"));
+            List<Map<String, Object>> frames = items(configData.get("frames"));
+            settings.forEach(Runnable::run);
+
             // Import the building blocks and palettes of the user next to the existing ones
             int importedBlocks = 0;
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> customBlocks = (List<Map<String, Object>>) configData.get("customBlocks");
             if (customBlocks != null) {
                 for (PromptBlock.Type type : PromptBlock.Type.values())
                     importedBlocks += promptBlockService.importCustom(type, customBlocks);
             }
 
             /*  Older exports carry the styles of the user only, without type and ID  */
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> customStyles = (List<Map<String, Object>>) configData.get("customStyles");
             if (customStyles != null)
                 importedBlocks += promptBlockService.importCustom(PromptBlock.Type.STYLE, customStyles);
             if (importedBlocks > 0)
                 changes.put("Building Blocks", String.format("%d building blocks imported", importedBlocks));
 
-            Object customPalettes = configData.get("customPalettes");
-            if (customPalettes != null) {
-                int importedPalettes = colorStyleService.importStyles(objectMapper.convertValue(customPalettes,
-                        new TypeReference<List<ColorStyle>>() { }));
+            if (palettes != null) {
+                int importedPalettes = colorStyleService.importStyles(palettes);
                 if (importedPalettes > 0)
                     changes.put("Palettes", String.format("%d palettes imported", importedPalettes));
             }
-            
+
             /*  The moods of the user next to the existing ones; an ID or name that is taken gets a new one  */
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> moods = (List<Map<String, Object>>) configData.get("moods");
             if (moods != null) {
                 int importedMoods = moodService.importCustom(moods);
                 if (importedMoods > 0)
@@ -458,8 +466,6 @@ public class ConfigurationExporter {
             }
 
             /*  The frames of the user next to the existing ones; an ID or name that is taken gets a new one  */
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> frames = (List<Map<String, Object>>) configData.get("frames");
             if (frames != null) {
                 int importedFrames = frameService.importCustom(frames);
                 if (importedFrames > 0)
@@ -491,18 +497,9 @@ public class ConfigurationExporter {
         return String.format("moodframe_config_%s.json", timestamp);
     }
     
-    /**
-     * Helper method to get the endpoint URL for a given region.
-     */
-    private String getEndpointForRegion(String region) {
-        switch (region) {
-            case "EU":
-                return "https://api.eu.bfl.ai";
-            case "US":
-                return "https://api.us.bfl.ai";
-            case "Global":
-            default:
-                return "https://api.bfl.ai";
-        }
+    /*  a list of items of the library in the file, checked to be objects; null if the file has none  */
+    private List<Map<String, Object>> items(Object list) {
+        return list != null ? objectMapper.convertValue(list, new TypeReference<List<Map<String, Object>>>() { })
+                : null;
     }
 }

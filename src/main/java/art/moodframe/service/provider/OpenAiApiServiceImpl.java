@@ -1,7 +1,6 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.net.IoExecutor;

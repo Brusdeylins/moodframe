@@ -3,8 +3,6 @@ package art.moodframe.service.provider;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelParameters;
@@ -187,35 +185,17 @@ public interface BflApiService extends ImageProvider {
     CompletableFuture<Boolean> testSslConnection();
 
     /**
-     * Polls the status of a generation job and retrieves results if completed.
-     * 
-     * <p>
-     * This method checks the current status of a previously submitted
-     * generation job. If the job is completed, it returns the generated
-     * image URLs and metadata.
-     * </p>
-     * 
-     * @param jobId the unique identifier of the generation job
-     * @return a CompletableFuture containing the current job status and results
-     * @throws IllegalArgumentException if the job ID is null or empty
-     * @throws IllegalStateException    if no API key is configured
-     */
-    CompletableFuture<GenerationJobResult> getJobStatus(String jobId);
-
-    /**
-     * Gets the status of a job from the polling URL BFL answered the submission with; the URL leads to the region
-     * that runs the job, the job id alone may answer HTTP 404.
+     * Gets the base URL of the API in a region.
      *
-     * @param pollingUrl the polling URL of the submission
-     * @return a CompletableFuture containing the current job status and results
+     * @param region {@code EU}, {@code US} or {@code Global} (may be null)
+     * @return the base URL, that of the global endpoint for any other region
      * @since 2.1.3
      */
-    CompletableFuture<GenerationJobResult> getJobResultWithPollingUrl(String pollingUrl);
-
-    /**
-     * Gets the current API endpoint base URL being used.
-     * 
-     * @return the base URL for BFL API requests
-     */
-    String getApiBaseUrl();
+    static String endpointOf(String region) {
+        return switch (region != null ? region : "Global") {
+            case "EU" -> "https://api.eu.bfl.ai";
+            case "US" -> "https://api.us.bfl.ai";
+            default -> "https://api.bfl.ai";
+        };
+    }
 }

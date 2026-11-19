@@ -18,6 +18,8 @@
  * <li>{@link ProviderException}: a failure of a provider with a localized message, also to be had in English</li>
  * <li>{@link ApiHttpException}: an error answer of a provider with its HTTP status; {@link BflApiException} with
  * the details of BFL</li>
+ * <li>{@link GenerationJobInfo}, {@link GenerationJobResult}: the answer of a submission and the state of a polled
+ * job, read from the JSON of BFL; the other providers fill them from their answers</li>
  * </ul>
  */
 package art.moodframe.service.provider;

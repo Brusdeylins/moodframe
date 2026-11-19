@@ -3,10 +3,10 @@ package art.moodframe.service.generation;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.GenerationJobInfo;
-import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.service.provider.ApiHttpException;
+import art.moodframe.service.provider.GenerationJobInfo;
+import art.moodframe.service.provider.GenerationJobResult;
 import art.moodframe.service.provider.ImageProvider;
 import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.Secrets;
@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,6 +50,9 @@ public class JobPollingFlow {
     /*  The first poll of a job and the pause after each answer  */
     private static final long FIRST_POLL_SECONDS = 5;
     private static final long POLL_INTERVAL_SECONDS = 3;
+
+    /*  How long the provider may take to accept a job  */
+    private static final long SUBMIT_TIMEOUT_SECONDS = 30;
 
     private volatile IntConsumer onSafetyToleranceLowered = (value) -> { };
 
@@ -165,7 +169,7 @@ public class JobPollingFlow {
                     onSafetyToleranceLowered.accept(approved);
                     return provider.submitGenerationRequest(imageRequest);
                 })
-                .orTimeout(30, TimeUnit.SECONDS) // 30 second timeout
+                .orTimeout(SUBMIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .thenAccept(jobInfo -> {
                     // Handle successful submission
                     handleSubmissionSuccess(provider, jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
@@ -173,7 +177,8 @@ public class JobPollingFlow {
                 .exceptionally(throwable -> {
                     if (ProviderException.unwrap(throwable) instanceof java.util.concurrent.TimeoutException) {
                         logger.error("Timeout submitting generation request for image {}", imageIndex);
-                        tracker.markFailed(chatEntry, "Request timeout after 30 seconds");
+                        tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, throwable,
+                                "generation.error.submit.timeout", String.valueOf(SUBMIT_TIMEOUT_SECONDS)));
                     } else {
                         logger.error("Failed to submit generation request for image {}", imageIndex, throwable);
                         tracker.markFailed(chatEntry, ChatEntryTracker.errorText(throwable, chatEntry));
@@ -183,7 +188,8 @@ public class JobPollingFlow {
 
         } catch (Exception e) {
             logger.error("Failed to create generation request for image {}", imageIndex, e);
-            tracker.markFailed(chatEntry, e.getMessage());
+            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, e, "generation.error.submit",
+                    e.getMessage()));
         }
     }
 
@@ -216,10 +222,13 @@ public class JobPollingFlow {
                         .build();
 
                 /*  The image replaces its placeholder on the FX thread, unless the entry was cancelled meanwhile:
-                    then the job is left alone, so no image arrives in a cancelled entry  */
+                    then the job is left alone, so no image arrives in a cancelled entry. The job is registered in
+                    the same change, as a cancellation runs on the FX thread too: it finds the job or no job runs  */
+                PendingRequest pendingRequest = new PendingRequest(provider, jobInfo, chatEntry, generatedImage);
                 FxModel.changeAndGet(() -> {
                     if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
                         return false;
+                    activeRequests.put(jobId, pendingRequest);
 
                     // Find and replace the placeholder with sortOrder matching imageIndex
                     boolean replacedPlaceholder = false;
@@ -252,14 +261,13 @@ public class JobPollingFlow {
                         logger.info("Job {} of a cancelled entry is not polled", jobId);
                         return;
                     }
-                    PendingRequest pendingRequest = new PendingRequest(provider, jobInfo, chatEntry, generatedImage);
-                    activeRequests.put(jobId, pendingRequest);
                     startPolling(jobId, pendingRequest);
                 });
 
         } catch (Exception e) {
             logger.error("Failed to handle submission success", e);
-            tracker.markFailed(chatEntry, "Failed to process submission: " + e.getMessage());
+            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, e, "generation.error.submit",
+                    e.getMessage()));
         }
     }
 
@@ -315,7 +323,8 @@ public class JobPollingFlow {
                 pendingRequest.pollingAttempts,
                 pendingRequest.pollingAttempts * POLL_INTERVAL_SECONDS);
             if (claim(jobId, pendingRequest))
-                FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout"));
+                FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Polling timeout",
+                        ProviderException.localized("generation.error.polling.timeout")));
             return;
         }
 
@@ -385,7 +394,7 @@ public class JobPollingFlow {
             case "failed", "error", "content moderated", "request moderated", "task not found" -> {
                 // Job failed
                 if (claim(jobId, pendingRequest))
-                    FxModel.change(() -> handleJobFailed(jobId, pendingRequest, status));
+                    FxModel.change(() -> handleJobFailed(jobId, pendingRequest, status, failureOf(status)));
             }
             default -> {
                 // Unknown status - log and continue polling for a while
@@ -397,7 +406,8 @@ public class JobPollingFlow {
                     logger.error("Stopping polling for job {} after {} unknown status responses",
                         jobId.substring(0, Math.min(8, jobId.length())), pendingRequest.pollingAttempts);
                     if (claim(jobId, pendingRequest))
-                        FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Unknown status: " + status));
+                        FxModel.change(() -> handleJobFailed(jobId, pendingRequest, "Unknown status: " + status,
+                                ProviderException.localized("generation.error.status", status)));
                 } else {
                     schedulePoll(jobId, pendingRequest, POLL_INTERVAL_SECONDS);
                 }
@@ -442,12 +452,13 @@ public class JobPollingFlow {
                     tracker.updateCost(pendingRequest.generatedImage, pendingRequest.provider.reportedCost(jobResult));
 
                     // Start actual image download
-                    downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
+                    downloadImage(pendingRequest.provider, pendingRequest.generatedImage, pendingRequest.chatEntry);
 
                     logger.debug("Job {} completed successfully with image URL: {}", jobId, Secrets.redact(imageUrl));
             } else {
                 logger.error("No image URL found in result for job: {}", jobId);
-                handleJobFailed(jobId, pendingRequest, "No image URL in response");
+                handleJobFailed(jobId, pendingRequest, "No image URL in response",
+                        ProviderException.localized("generation.error.no.image"));
             }
 
             // Check if all images for this chat entry are done
@@ -455,24 +466,25 @@ public class JobPollingFlow {
 
         } catch (Exception e) {
             logger.error("Failed to handle job completion for: {}", jobId, e);
-            handleJobFailed(jobId, pendingRequest, "Processing error: " + e.getMessage());
+            handleJobFailed(jobId, pendingRequest, "Processing error",
+                    ProviderException.localized(e, "generation.error.processing", e.getMessage()));
         }
     }
 
     /**
      * Handles failed image generation jobs, claimed before (see {@link #claim}). Call on the FX thread.
+     *
+     * @param apiStatus the status as the provider answered it, or what ended the polling
+     * @param reason    the reason for the user, in the language of the entry (see {@link ChatEntryTracker#errorText})
      */
-    private void handleJobFailed(String jobId, PendingRequest pendingRequest, String reason) {
-        logger.warn("Job {} failed: {}", jobId, reason);
-
-        // Set detailed error information
+    private void handleJobFailed(String jobId, PendingRequest pendingRequest, String apiStatus,
+            ProviderException reason) {
+        logger.warn("Job {} failed: {}", jobId, apiStatus);
         pendingRequest.generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-        pendingRequest.generatedImage.setApiStatus(reason);
-
-        // Set user-friendly error message based on the failure reason
-        String userFriendlyMessage = getUserFriendlyErrorMessage(reason);
-        pendingRequest.generatedImage.setFailureReason(userFriendlyMessage);
-        pendingRequest.generatedImage.setErrorMessage(userFriendlyMessage);
+        pendingRequest.generatedImage.setApiStatus(apiStatus);
+        String message = ChatEntryTracker.errorText(reason, pendingRequest.chatEntry);
+        pendingRequest.generatedImage.setFailureReason(message);
+        pendingRequest.generatedImage.setErrorMessage(message);
 
         /*  A job is billed once finished only, a failed or moderated one costs nothing  */
         pendingRequest.generatedImage.setBaseCost(0.0);
@@ -487,13 +499,15 @@ public class JobPollingFlow {
     }
 
     /**
-     * Downloads the generated image from the URL.
+     * Downloads the generated image from the URL, with the {@link ImageProvider#downloadHeaders headers} of its
+     * provider.
      */
-    private void downloadImage(GeneratedImage generatedImage, ChatEntry chatEntry) {
+    private void downloadImage(ImageProvider provider, GeneratedImage generatedImage, ChatEntry chatEntry) {
+        Map<String, String> headers = provider.downloadHeaders(generatedImage.getImageUrl());
         CompletableFuture.runAsync(() -> {
             ImageFileStore.StoredImage stored = null;
             try {
-                stored = imageFiles.download(generatedImage);
+                stored = imageFiles.download(generatedImage, headers);
             } catch (Exception e) {
                 logger.error("Failed to download image: {}", generatedImage.getId(), e);
             }
@@ -514,51 +528,14 @@ public class JobPollingFlow {
     }
 
 
-    /**
-     * Converts technical API error messages to user-friendly messages.
-     *
-     * @param apiReason the raw API error reason
-     * @return user-friendly error message
-     */
-    private String getUserFriendlyErrorMessage(String apiReason) {
-        if (apiReason == null) {
-            return "Unknown error occurred";
-        }
-
-        String reason = apiReason.toLowerCase().trim();
-
-        return switch (reason) {
-            case "request moderated", "content moderated" ->
-                "Content blocked by safety filters. Please modify your prompt and try again.";
-            case "error", "failed" ->
-                "Generation failed. Please try again with different parameters.";
-            case "timeout" ->
-                "Generation timed out. Please try again later.";
-            case "polling timeout" ->
-                "Generation is taking too long. The server may be overloaded. Please try again later.";
-            case "rate limited", "rate_limited" ->
-                "Too many requests. Please wait a moment before trying again.";
-            case "insufficient credits", "quota exceeded" ->
-                "Insufficient credits or quota exceeded. Please check your account.";
-            case "invalid parameters", "invalid_parameters" ->
-                "Invalid generation parameters. Please check your settings.";
-            case "no image url in response" ->
-                "Server error: No image was generated. Please try again.";
-            case "no result in response" ->
-                "Server error: Invalid response received. Please try again.";
-            default -> {
-                // Capitalize first letter and add period if not present
-                String message = apiReason.substring(0, 1).toUpperCase() + apiReason.substring(1);
-                if (!message.endsWith(".") && !message.endsWith("!")) {
-                    message += ".";
-                }
-                yield "Generation failed: " + message;
-            }
+    /*  the reason of a job that ended without image, by the status pollJob answered  */
+    private static ProviderException failureOf(String status) {
+        return switch (status.toLowerCase(Locale.ROOT).trim()) {
+            case "request moderated", "content moderated" -> ProviderException.localized("generation.error.moderated");
+            case "error", "failed" -> ProviderException.localized("generation.error.failed");
+            default -> ProviderException.localized("generation.error.status", status);
         };
     }
-
-
-
 
     /**
      * Internal class to track pending requests.

@@ -363,6 +363,13 @@ public class ChatEntry {
         this.sortOrder = sortOrder;
     }
     
+    /**
+     * Gets the model of the entry as stored: its fixed id since 2.1.3 ({@link GenerationModel#entryModelOf(String)}),
+     * the English display name with price and tagline in older entries; read it with
+     * {@link GenerationModel#fromEntryModel(String)}, show it with {@code ModelLabels.entryName}.
+     *
+     * @return the stored model
+     */
     public String getModel() {
         return model;
     }

@@ -141,7 +141,7 @@ class McpServerTest {
         chat = chats.createChat("Lighthouses");
         ChatEntry entry = new ChatEntry.Builder().id("entry-1").chatId(chat.getId()).userPrompt("a lighthouse")
                 .enhancedPrompt("Image style: Film.\na lighthouse").status(ChatEntry.Status.COMPLETED)
-                .model(GenerationModel.FLUX2_PRO.getDisplayName()).cost(0.03)
+                .model(GenerationModel.entryModelOf("FLUX2_PRO")).cost(0.03)
                 .mood(new EntryMood("std:mood:film-noir", "Film Noir", Map.of()))
                 .frame(new EntryFrame("std:frame:social-post", "Social Post", "4:5", "2K")).build();
         entry.getImages().add(new GeneratedImage.Builder().id("image-1").chatEntryId("entry-1")
@@ -383,6 +383,7 @@ class McpServerTest {
         assertEquals("entry-1", entry.path("id").asText());
         assertEquals("a lighthouse", entry.path("prompt").asText());
         assertEquals("FLUX2_PRO", entry.path("modelId").asText());
+        assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), entry.path("model").asText(), "a human name");
         assertEquals("COMPLETED", entry.path("status").asText());
         assertEquals("Film Noir", entry.path("mood").path("name").asText());
         assertEquals("4:5", entry.path("frame").path("aspectRatio").asText());

@@ -129,4 +129,17 @@ class HttpClientsTest {
         assertNotSame(first, second);
         assertTrue(second.proxy().isEmpty());
     }
+
+    @Test
+    void creatingTheClientsReadsAndWritesNothingAndTheFirstUseCreatesNoFolder(@TempDir Path home) {
+        Path missing = home.resolve("certificates");
+        when(config.proxy().getCertificatePath()).thenReturn(missing.toString());
+        org.mockito.Mockito.clearInvocations(config.proxy());
+
+        HttpClients clients = new HttpClients(config);
+        org.mockito.Mockito.verifyNoInteractions(config.proxy());
+
+        assertTrue(viaProxy(clients.okHttp().build().proxySelector(), API.toString()), "read on the first use");
+        assertFalse(java.nio.file.Files.exists(missing), "the start creates the folder, not a client");
+    }
 }
