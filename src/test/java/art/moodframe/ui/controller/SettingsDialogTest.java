@@ -28,6 +28,7 @@ import art.moodframe.service.provider.OpenAiApiServiceImpl;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.ui.controller.settings.SettingsPrompts;
 import art.moodframe.ui.controller.settings.SettingsServices;
+import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import atlantafx.base.theme.NordLight;
 import javafx.application.Application;
@@ -130,6 +131,9 @@ class SettingsDialogTest {
         userAgentStylesheet = onFx(Application::getUserAgentStylesheet);
         config = ConfigMocks.fresh();
         config.ui().setUiLanguage("en");
+
+        /*  the titles of the message boxes are compared in English  */
+        onFx(() -> I18nManager.setLocale(Locale.ENGLISH));
 
         /*  The live clients read their keys from the configuration; only the tests of a typed key are answered  */
         bfl = spy(new BflApiServiceImpl(config));
@@ -396,6 +400,22 @@ class SettingsDialogTest {
     }
 
     @Test
+    void theThemeOfTheSystemIsDetectedOffTheJavaFxThread() throws Exception {
+        open();
+        select(2);
+        assertTrue(onFx(() -> {
+            Button reset = node("resetThemeButton");
+            reset.fire();
+            return reset.isDisabled();
+        }), "the detection runs off the JavaFX thread, its button disabled meanwhile");
+        waitFor(() -> !this.<Button>node("resetThemeButton").isDisabled(), "the theme of the system is detected");
+        String theme = onFx(() -> (String) this.<VBox>node("themeSelectionContainer").getChildren().stream()
+                .map((Node radio) -> (RadioButton) radio).filter(RadioButton::isSelected).findFirst().orElseThrow()
+                .getUserData());
+        assertEquals(ThemeManager.getSystemPreferredTheme(), theme);
+    }
+
+    @Test
     void anExportedBackupComesBackAndTheDialogAndTheLibraryShowIt() throws Exception {
         DatabaseManager database = DatabaseConfig.initialize(folder.resolve("db").resolve("test.db").toString());
         LibraryEvents events = new LibraryEvents();
@@ -414,6 +434,7 @@ class SettingsDialogTest {
         File backup = folder.resolve("backup.json").toFile();
         prompts.saveTo = backup;
         fire("exportSettingsButton");
+        waitFor(() -> !prompts.infos.isEmpty(), "the export is done");
         assertTrue(backup.length() > 0);
         assertEquals(List.of("Export Successful"), prompts.infos);
 
@@ -427,8 +448,14 @@ class SettingsDialogTest {
         events.addListener((kind, id) -> changed.add(kind), Platform::runLater);
 
         prompts.openFrom = backup;
-        fire("importSettingsButton");
+        assertTrue(onFx(() -> {
+            Button importButton = node("importSettingsButton");
+            importButton.fire();
+            return importButton.isDisabled();
+        }), "the import runs off the JavaFX thread, its button disabled meanwhile");
+        waitFor(() -> prompts.infos.size() == 2, "the import is done");
         assertEquals(List.of("Export Successful", "Import Successful"), prompts.infos);
+        assertFalse(onFx(() -> this.<Button>node("importSettingsButton").isDisabled()));
         assertEquals("US", config.accounts().getApiRegion());
         assertEquals("US", onFx(region::getValue));
         assertNotNull(moods.find(mood.getId()));
@@ -447,7 +474,10 @@ class SettingsDialogTest {
         select(4);
 
         fire("resetSettingsButton");
-        assertEquals(List.of("Settings Reset"), prompts.infos);
+        waitFor(() -> !prompts.infos.isEmpty(), "the reset is done");
+
+        /*  in the language of the reset settings  */
+        assertEquals(List.of(I18nManager.getText("settings.data.reset.done.title")), prompts.infos);
         assertEquals("bfl-saved", config.accounts().getApiKey(ApiProvider.BFL));
         assertEquals("gemini-saved", config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
         assertEquals("openai-saved", config.accounts().getApiKey(ApiProvider.OPENAI));

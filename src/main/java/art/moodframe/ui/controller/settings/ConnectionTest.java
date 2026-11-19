@@ -1,7 +1,6 @@
 package art.moodframe.ui.controller.settings;
 
 import art.moodframe.util.I18nManager;
-import javafx.concurrent.Task;
 import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -9,6 +8,7 @@ import javafx.scene.control.TextInputControl;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
@@ -33,29 +33,14 @@ final class ConnectionTest {
      */
     static void run(Button button, String buttonText, Callable<Boolean> test, Consumer<Boolean> onResult,
             Consumer<Throwable> onError) {
-        button.setDisable(true);
         button.setText(I18nManager.getText("settings.test.testing"));
-
-        Task<Boolean> task = new Task<>() {
-            @Override
-            protected Boolean call() throws Exception {
-                return test.call();
-            }
-        };
-        task.setOnSucceeded((event) -> {
-            button.setDisable(false);
+        SectionTask.run(List.of(button), test, (passed) -> {
             button.setText(buttonText);
-            onResult.accept(Boolean.TRUE.equals(task.getValue()));
-        });
-        task.setOnFailed((event) -> {
-            button.setDisable(false);
+            onResult.accept(Boolean.TRUE.equals(passed));
+        }, (failure) -> {
             button.setText(buttonText);
-            onError.accept(task.getException());
+            onError.accept(failure);
         });
-
-        Thread thread = new Thread(task);
-        thread.setDaemon(true);
-        thread.start();
     }
 
     /**

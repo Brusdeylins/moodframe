@@ -8,7 +8,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, panel, brainstorm, dialog,       mcp
+ ui (controller, brainstorm, panel, dialog,        mcp
      cell, entry, component, dnd, support)
             \                                      /
              +--------------> service <-----------+
@@ -109,15 +109,20 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 
 - **JavaFX application thread**: all scene graph work, the controllers, dialogs and cells. Nothing blocking runs
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
-- **Start**: `MoodframeApplication.start` shows the splash and starts the thread `MoodFrame-startup`, which prepares
-  everything that needs no JavaFX thread: the configuration, the database with its migrations (the Java data
+- **Start**: `MoodframeApplication.start` reads the one `ApplicationConfig` (a properties file), hands it to the
+  splash, which places itself by the saved bounds of the main window, shows the splash and starts the thread
+  `MoodFrame-startup`, which prepares everything else that needs no JavaFX thread: the registration of the
+  configuration with logging, certificates and language, the theme the system prefers while the user chose none
+  (`ThemeManager.getSystemPreferredTheme` runs `defaults`, `reg` or `gdbus` for up to 2 s; "Use System Theme" in
+  the settings asks on a thread of its own as well), the database with its migrations (the Java data
   migrations included), the registration of the services, their start (see "Dependency injection"), the trash
   cleanup, then the loading of the chats
   (`ChatLibrary.load`, which checks every image file and repairs what a restart left behind), the thumbnails of older
   images and the check of the accounts, and it creates the services the main window looks up. The cleanup runs before
   the chats load, so they hold nothing it removed. The splash stays until the preparation is done, at least one
   second; then the JavaFX thread loads the FXML of the main window, which finds the chats loaded, applies the theme,
-  shows the stage and starts the MCP server if enabled. A failed preparation ends the application as before.
+  shows the stage and starts the MCP server if enabled. A failed start shows its error in a message box and ends
+  the application.
 - **Chat models**: `ChatLibrary` keeps the chats in a plain list. The lists of the models (the chats, the entries of
   a chat, the images of an entry) are shared by several threads, so one rule holds, documented in
   `service.chat.ModelLock`:
@@ -134,8 +139,18 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   listeners the views put on the models hand their work to the JavaFX thread. Nothing of the scene graph follows a
   model directly: the entry card sizes its tiles from a count of the images it keeps on the JavaFX thread, not from
   the live list, which the worker of the window and the MCP threads change.
-- **Background work**: provider calls, polling of BFL jobs, downloads, thumbnails and database writes run on
-  executors and return `CompletableFuture`s. Results go back to the UI with `Platform.runLater`.
+- **Background work**: provider calls, polling of BFL jobs, downloads and thumbnails run on executors and return
+  `CompletableFuture`s; results go back to the UI with `Platform.runLater`.
+- **Database writes** run off the JavaFX thread, as a write may wait up to the busy timeout of 5 s for one of the MCP
+  server: a generation on its own worker (see below); the chats, the trash and the groups Mood and Frame on the worker
+  of the main window (`ui.panel.PanelWorker`: moods, frames, building blocks, palettes and favorites of the lists, and
+  the "Manage…" dialog of the building blocks, which waits meanwhile); the backup, its import and the reset of the
+  settings on a thread of their own (`ui.controller.settings.SectionTask`), their buttons disabled meanwhile. The
+  panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the writes of the
+  "Manage…" windows of moods and frames and the renaming and deleting of brainstorm sessions. Reads that feed what is
+  shown at once (the lists of the panel, the fields of a chosen mood) stay on the JavaFX thread: they are short, and
+  SQLite in WAL mode lets them read beside a running write. Which moods have a block in the trash (up to five queries
+  per mood) the worker finds once per load of the list; the rows and the warning of the chosen mood follow.
 - **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
   never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
   `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
@@ -233,7 +248,8 @@ each part has an FXML file and a controller of its own in `ui.controller`, the g
 `MainWindowController` is the coordinator. It looks up the services in `ServiceFactory` once and hands them to the
 parts with an `init` method (the `FXMLLoader` creates the controllers, their `initialize()` sets up only their own
 nodes); a part never asks the locator. The window has one worker thread for its blocking work (queries of the groups,
-downloads, deletes), which the sidebar and the chat view get as an `Executor`. A part reports back through a listener
+downloads, deletes, the writes of the groups Mood and Frame), which the sidebar, the chat view and the panel get as
+an `Executor`. A part reports back through a listener
 interface of its own (`LibrarySidebarController.Listener`, `ChatViewController.Actions`,
 `GenerationPanelController.Listener`, `MoodFramePanelController.Listener`, `InputBarController.Listener`) and shows
 messages through `ui.support.StatusSink`, where an error is told by the caller, not read from its text. The
@@ -251,7 +267,7 @@ stays reachable from nowhere.
 
 `ui.panel.MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog, which
 `ui.panel` lies below) can show the same fields: it takes its services as `MoodFramePanelController.Services` (with
-the trash), follows the chosen model with
+the trash) and the worker that writes the library, follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
 `Listener.changed()`; its host passes the changes of the library (`onLibraryChanged`) and of the language on. It
@@ -285,9 +301,10 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
 
 - **Folders**: `config.LibraryPaths` is the one place that knows where the library lives: `~/.moodframe` with
   `config.properties`, `secret.key`, `db/`, `images/`, `thumbnails/`, `trash/`, `logs/`, `certificates/`, and the
-  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to
-  `ApplicationConfig`; `ApplicationConfig.paths()` returns it with the images folder of the setting `path.images`
-  (whose default is `~/.moodframe/images`), and that instance is registered for the services. The database, the
+  user's `Downloads` and `Documents`. `MoodframeApplication` creates it once from `user.home` and hands it to the
+  one `ApplicationConfig`, which the splash and the services share; `ApplicationConfig.paths()` returns it with the
+  images folder of the setting `path.images` (whose default is `~/.moodframe/images`), and that instance is
+  registered for the services. The database, the
   logs and the images of a generation come from these paths. The only folder setting is `path.images`: former
   versions also wrote `path.database` and `path.logs`, which no dialog ever offered; they are ignored and no longer
   written. Tests use the paths of a temporary home. Only `logback.xml` still reads `user.home` itself, because

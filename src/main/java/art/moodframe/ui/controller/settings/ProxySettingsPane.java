@@ -146,8 +146,8 @@ public class ProxySettingsPane implements SettingsSection {
             enableProxyCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> updateProxyFieldsEnabledState());
         } catch (Exception e) {
             logger.error("Failed to initialize Corporate Proxy tab", e);
-            services.prompts().error("Initialization Error",
-                    "Failed to initialize Corporate Proxy settings: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.proxy.error.init.title"),
+                    I18nManager.getText("settings.proxy.error.init", e.getMessage()));
         }
     }
 
@@ -175,7 +175,8 @@ public class ProxySettingsPane implements SettingsSection {
             loadInstalledCertificates();
         } catch (Exception e) {
             logger.error("Failed to load proxy settings", e);
-            services.prompts().error("Proxy Settings Load Error", "Failed to load proxy settings: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.proxy.error.load.title"),
+                    I18nManager.getText("settings.proxy.error.load", e.getMessage()));
         }
     }
 
@@ -294,9 +295,9 @@ public class ProxySettingsPane implements SettingsSection {
         String source = config.proxy().getProxyConfigurationSource();
         if (!"none".equals(source) && !"configuration".equals(source)) {
             String sourceText = switch (source) {
-                case "environment" -> "Proxy configuration loaded from environment variables (read-only)";
-                case "system_property" -> "Proxy configuration loaded from system properties (read-only)";
-                default -> "Proxy configuration source: " + source;
+                case "environment" -> I18nManager.getText("settings.proxy.source.environment");
+                case "system_property" -> I18nManager.getText("settings.proxy.source.system");
+                default -> I18nManager.getText("settings.proxy.source.other", source);
             };
 
             proxyConfigSourceContainer.setVisible(true);
@@ -335,12 +336,12 @@ public class ProxySettingsPane implements SettingsSection {
                 }
             } else {
                 /*  The folder is created by the first import  */
-                certificateUploadStatus.setText("Certificate directory will be created when uploading");
+                certificateUploadStatus.setText(I18nManager.getText("settings.certificates.directory.created"));
                 removeCertificateButton.setDisable(true);
             }
         } catch (Exception e) {
             logger.error("Failed to load installed certificates", e);
-            certificateUploadStatus.setText("Error loading certificates");
+            certificateUploadStatus.setText(I18nManager.getText("settings.certificates.error"));
             removeCertificateButton.setDisable(true);
         }
     }
@@ -358,18 +359,23 @@ public class ProxySettingsPane implements SettingsSection {
             certificates.createDirectory();
         } catch (IOException e) {
             logger.error("Failed to create certificate directory: {}", certificates.directory(), e);
-            services.prompts().error("Directory Error", "Failed to create certificate directory: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.certificates.error.directory.title"),
+                    I18nManager.getText("settings.certificates.error.directory", e.getMessage()));
             return;
         }
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select Certificate Files");
+        fileChooser.setTitle(I18nManager.getText("settings.certificates.chooser.title"));
         fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Certificate Files", "*.crt", "*.cer", "*.pem"),
-                new FileChooser.ExtensionFilter("CRT Files", "*.crt"),
-                new FileChooser.ExtensionFilter("CER Files", "*.cer"),
-                new FileChooser.ExtensionFilter("PEM Files", "*.pem"),
-                new FileChooser.ExtensionFilter("All Files", "*.*"));
+                new FileChooser.ExtensionFilter(I18nManager.getText("settings.certificates.chooser.certificates"),
+                        "*.crt", "*.cer", "*.pem"),
+                new FileChooser.ExtensionFilter(I18nManager.getText("settings.certificates.chooser.type", "CRT"),
+                        "*.crt"),
+                new FileChooser.ExtensionFilter(I18nManager.getText("settings.certificates.chooser.type", "CER"),
+                        "*.cer"),
+                new FileChooser.ExtensionFilter(I18nManager.getText("settings.certificates.chooser.type", "PEM"),
+                        "*.pem"),
+                new FileChooser.ExtensionFilter(I18nManager.getText("settings.certificates.chooser.all"), "*.*"));
         List<File> selectedFiles = services.prompts().openFiles(fileChooser,
                 uploadCertificateButton.getScene().getWindow());
         if (selectedFiles == null || selectedFiles.isEmpty())
@@ -380,11 +386,13 @@ public class ProxySettingsPane implements SettingsSection {
         StringBuilder failedFiles = new StringBuilder();
         for (File sourceFile : selectedFiles) {
             try {
-                if (certificates.contains(sourceFile.getName()) && !services.prompts().confirm("File Exists",
-                        "Overwrite existing certificate?",
-                        "The file '" + sourceFile.getName() + "' already exists. Replace it?", false)) {
+                if (certificates.contains(sourceFile.getName()) && !services.prompts().confirm(
+                        I18nManager.getText("settings.certificates.exists.title"),
+                        I18nManager.getText("settings.certificates.exists.header"),
+                        I18nManager.getText("settings.certificates.exists", sourceFile.getName()), false)) {
                     failedCount++;
-                    failedFiles.append("\n- ").append(sourceFile.getName()).append(" (skipped)");
+                    failedFiles.append("\n- ").append(sourceFile.getName()).append(" (")
+                            .append(I18nManager.getText("settings.certificates.upload.skipped")).append(")");
                     continue;
                 }
                 certificates.importFile(sourceFile.toPath());
@@ -392,21 +400,24 @@ public class ProxySettingsPane implements SettingsSection {
             } catch (IOException e) {
                 logger.error("Failed to upload certificate: {}", sourceFile.getName(), e);
                 failedCount++;
-                failedFiles.append("\n- ").append(sourceFile.getName()).append(" (error: ").append(e.getMessage())
-                        .append(")");
+                failedFiles.append("\n- ").append(sourceFile.getName()).append(" (")
+                        .append(I18nManager.getText("settings.certificates.upload.error", e.getMessage())).append(")");
             }
         }
 
         loadInstalledCertificates();
         if (successCount > 0 && failedCount == 0) {
-            certificateUploadStatus.setText(successCount + " certificate(s) uploaded successfully");
+            certificateUploadStatus.setText(I18nManager.getText("settings.certificates.uploaded", successCount));
         } else if (successCount > 0) {
-            services.prompts().error("Partial Upload Success",
-                    successCount + " certificate(s) uploaded, " + failedCount + " failed:" + failedFiles);
-            certificateUploadStatus.setText(successCount + " uploaded, " + failedCount + " failed");
+            services.prompts().error(I18nManager.getText("settings.certificates.upload.partial.title"),
+                    I18nManager.getText("settings.certificates.upload.partial", successCount, failedCount,
+                            failedFiles.toString()));
+            certificateUploadStatus.setText(I18nManager.getText("settings.certificates.upload.partial.status",
+                    successCount, failedCount));
         } else {
-            services.prompts().error("Upload Failed", "All certificate uploads failed:" + failedFiles);
-            certificateUploadStatus.setText("Upload failed");
+            services.prompts().error(I18nManager.getText("settings.certificates.upload.failed.title"),
+                    I18nManager.getText("settings.certificates.upload.failed", failedFiles.toString()));
+            certificateUploadStatus.setText(I18nManager.getText("settings.certificates.upload.failed.status"));
         }
     }
 
@@ -416,20 +427,24 @@ public class ProxySettingsPane implements SettingsSection {
         String selectedCertificate = installedCertificatesListView.getSelectionModel().getSelectedItem();
         if (selectedCertificate == null)
             return;
-        if (!services.prompts().confirm("Remove Certificate", "Remove Certificate",
-                "Are you sure you want to remove the certificate '" + selectedCertificate + "'?", false))
+        String removeTitle = I18nManager.getText("settings.certificates.remove.title");
+        if (!services.prompts().confirm(removeTitle, removeTitle,
+                I18nManager.getText("settings.certificates.remove.confirm", selectedCertificate), false))
             return;
 
         try {
             if (certificates().delete(selectedCertificate)) {
                 loadInstalledCertificates();
-                certificateUploadStatus.setText("Certificate removed: " + selectedCertificate);
+                certificateUploadStatus.setText(I18nManager.getText("settings.certificates.removed",
+                        selectedCertificate));
             } else {
-                services.prompts().error("File Not Found", "Certificate file not found: " + selectedCertificate);
+                services.prompts().error(I18nManager.getText("settings.certificates.error.notfound.title"),
+                        I18nManager.getText("settings.certificates.error.notfound", selectedCertificate));
             }
         } catch (IOException e) {
             logger.error("Failed to remove certificate: {}", selectedCertificate, e);
-            services.prompts().error("Remove Failed", "Failed to remove certificate: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.certificates.error.remove.title"),
+                    I18nManager.getText("settings.certificates.error.remove", e.getMessage()));
         }
     }
 
@@ -449,19 +464,19 @@ public class ProxySettingsPane implements SettingsSection {
             else
                 proxyStatus.show("error", I18nManager.getText("settings.test.proxy.failed"));
         }, (exception) -> {
-            String errorMessage = "Proxy connection test failed";
+            String errorMessage = I18nManager.getText("settings.test.proxy.error");
             String exceptionMessage = exception != null ? exception.getMessage() : null;
             if (exceptionMessage != null) {
                 if (exceptionMessage.contains("timeout")) {
-                    errorMessage = "Connection timeout - Check proxy host and port";
+                    errorMessage = I18nManager.getText("settings.test.proxy.error.timeout");
                 } else if (exceptionMessage.contains("refused") || exceptionMessage.contains("ConnectException")) {
-                    errorMessage = "Connection refused - Check proxy host and port";
+                    errorMessage = I18nManager.getText("settings.test.proxy.error.refused");
                 } else if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")) {
-                    errorMessage = "SSL/Certificate error - Check ZScaler certificates";
+                    errorMessage = I18nManager.getText("settings.test.proxy.error.ssl");
                 } else if (exceptionMessage.contains("Unauthorized") || exceptionMessage.contains("407")) {
-                    errorMessage = "Proxy authentication failed - Check username and password";
+                    errorMessage = I18nManager.getText("settings.test.proxy.error.auth");
                 } else {
-                    errorMessage = "Proxy test failed: " + exceptionMessage;
+                    errorMessage = I18nManager.getText("settings.test.proxy.error.other", exceptionMessage);
                 }
             }
             proxyStatus.show("error", errorMessage);
@@ -472,8 +487,9 @@ public class ProxySettingsPane implements SettingsSection {
     /** Clears the proxy after a confirmation; the certificates stay. */
     @FXML
     private void onResetProxyConfig() {
-        if (!services.prompts().confirm("Reset Proxy Configuration", "Reset Proxy Settings",
-                "This will clear all proxy settings and certificates. Continue?", false))
+        if (!services.prompts().confirm(I18nManager.getText("settings.proxy.reset.title"),
+                I18nManager.getText("settings.proxy.reset.header"), I18nManager.getText("settings.proxy.reset.confirm"),
+                false))
             return;
 
         try {
@@ -487,10 +503,12 @@ public class ProxySettingsPane implements SettingsSection {
             proxyConfigSourceContainer.setVisible(false);
             proxyStatus.hide();
             certificateUploadStatus.setText("");
-            services.prompts().info("Configuration Reset", "Proxy configuration has been reset to defaults.");
+            services.prompts().info(I18nManager.getText("settings.proxy.reset.done.title"),
+                    I18nManager.getText("settings.proxy.reset.done"));
         } catch (Exception e) {
             logger.error("Failed to reset proxy configuration", e);
-            services.prompts().error("Reset Failed", "Failed to reset proxy configuration: " + e.getMessage());
+            services.prompts().error(I18nManager.getText("settings.proxy.reset.error.title"),
+                    I18nManager.getText("settings.proxy.reset.error", e.getMessage()));
         }
     }
 
@@ -513,22 +531,22 @@ public class ProxySettingsPane implements SettingsSection {
             if (success)
                 certificateStatus.show("success", I18nManager.getText("settings.test.certificate.success"));
             else
-                certificateStatus.show("error", "Certificate connection failed - Check certificate validity and format");
+                certificateStatus.show("error", I18nManager.getText("settings.test.certificate.failed"));
         }, (exception) -> {
-            String errorMessage = "Certificate connection test failed";
+            String errorMessage = I18nManager.getText("settings.test.certificate.error");
             String exceptionMessage = exception != null ? exception.getMessage() : null;
             if (exceptionMessage != null) {
                 if (exceptionMessage.contains("certificate") || exceptionMessage.contains("SSL")
                         || exceptionMessage.contains("TLS")) {
-                    errorMessage = "SSL/Certificate error - Check certificate format and validity";
+                    errorMessage = I18nManager.getText("settings.test.certificate.error.ssl");
                 } else if (exceptionMessage.contains("trust") || exceptionMessage.contains("PKIX")) {
-                    errorMessage = "Certificate trust error - Certificate may not be properly installed";
+                    errorMessage = I18nManager.getText("settings.test.certificate.error.trust");
                 } else if (exceptionMessage.contains("expired") || exceptionMessage.contains("validity")) {
-                    errorMessage = "Certificate expired or not yet valid";
+                    errorMessage = I18nManager.getText("settings.test.certificate.error.expired");
                 } else if (exceptionMessage.contains("format") || exceptionMessage.contains("parsing")) {
-                    errorMessage = "Certificate format error - Check file format (.crt, .cer, .pem)";
+                    errorMessage = I18nManager.getText("settings.test.certificate.error.format");
                 } else {
-                    errorMessage = "Certificate test failed: " + exceptionMessage;
+                    errorMessage = I18nManager.getText("settings.test.certificate.error.other", exceptionMessage);
                 }
             }
             certificateStatus.show("error", errorMessage);

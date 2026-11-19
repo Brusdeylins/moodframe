@@ -224,7 +224,7 @@ public class MainWindowController implements I18nChangeListener {
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
                 moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
-                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash),
+                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash), worker,
                 statusBarController, this::updateUIState);
         inputBar.init(generationPanelController.costTextProperty(), inputListener());
         statusBarController.ready();
@@ -943,9 +943,9 @@ public class MainWindowController implements I18nChangeListener {
             // Show error alert
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.getButtonTypes().setAll(DialogButtons.ok());
-            alert.setTitle("Settings Error");
-            alert.setHeaderText("Could not open settings dialog");
-            alert.setContentText("Error: " + e.getMessage());
+            alert.setTitle(I18nManager.getText("settings.error.open.title"));
+            alert.setHeaderText(I18nManager.getText("settings.error.open.header"));
+            alert.setContentText(I18nManager.getText("settings.error.open", e.getMessage()));
             alert.initOwner(settingsButton.getScene().getWindow());
             alert.showAndWait();
 

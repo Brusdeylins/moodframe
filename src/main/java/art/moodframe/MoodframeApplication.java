@@ -14,6 +14,7 @@ import javafx.collections.ListChangeListener;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.slf4j.Logger;
@@ -75,6 +76,7 @@ import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashManager;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.Secrets;
@@ -107,6 +109,9 @@ public class MoodframeApplication extends Application {
     /*  The folders of the library, the only reading of user.home; the configuration may move the images folder  */
     private final LibraryPaths homePaths = LibraryPaths.fromUserHome();
 
+    /*  the theme the system prefers, detected by the startup while no theme is chosen (null: one is chosen)  */
+    private volatile String systemTheme;
+
     @Override
     public void start(Stage primaryStage) {
 
@@ -120,16 +125,27 @@ public class MoodframeApplication extends Application {
                         window.getScene().getStylesheets().add(iconButtonCss);
         });
 
-        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: configuration,
-            database and migrations, services, the trash cleanup and the chats. The splash stays until it is done,
-            at least one second; the splash reads the saved window bounds before the work begins  */
+        /*  The one configuration, read before the splash, which places itself by the saved bounds of the main window  */
+        ApplicationConfig config;
+        try {
+            config = new ApplicationConfig(homePaths);
+        }
+        catch (RuntimeException e) {
+            logger.error("Failed to read the configuration", e);
+            showErrorAndExit("Application Startup Failed", e.getMessage());
+            return;
+        }
+
+        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: the rest of the
+            configuration, database and migrations, services, the trash cleanup and the chats. The splash stays until
+            it is done, at least one second  */
         CompletableFuture<Void> prepared = new CompletableFuture<>();
         SplashScreen splash = new SplashScreen(prepared, () -> prepared.whenComplete((Void done, Throwable failure) ->
-                Platform.runLater(() -> showMainWindow(primaryStage, failure))), homePaths);
+                Platform.runLater(() -> showMainWindow(primaryStage, failure))), config);
         splash.show();
         Thread startup = new Thread(() -> {
             try {
-                prepare();
+                prepare(config);
                 prepared.complete(null);
             }
             catch (Throwable e) {
@@ -141,17 +157,31 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Prepares the application off the JavaFX thread, while the splash shows: configuration, database, services,
-     * the trash cleanup, then the chats, the thumbnails of older images and the check of the accounts.
+     * Prepares the application off the JavaFX thread, while the splash shows: configuration, the theme the system
+     * prefers, database, services, the trash cleanup, then the chats, the thumbnails of older images and the check of
+     * the accounts.
      */
-    private void prepare() {
-        initializeApplication();
+    private void prepare(ApplicationConfig config) {
+        initializeApplication(config);
         ServiceFactory services = ServiceFactory.getInstance();
+        detectSystemTheme(services.getService(ApplicationConfig.class));
         startLibrary(services);
         cleanUpAndLoad(createTrashCleanup(), services.getService(ChatLibrary.class));
         performRetroactiveThumbnailGeneration();
         validateApiProviders();
         createWindowServices();
+    }
+
+    /**
+     * Asks the system for its preferred theme while no theme is chosen, which runs programs ({@code defaults},
+     * {@code reg}, {@code gdbus}) for up to 2 s, so not on the JavaFX thread; the theme is applied with the window.
+     *
+     * @param config the configuration, which remembers the chosen theme
+     */
+    private void detectSystemTheme(ApplicationConfig config) {
+        ThemeManager.useConfig(config);
+        if (!config.ui().hasUserSetTheme())
+            systemTheme = ThemeManager.getSystemPreferredTheme();
     }
 
     /**
@@ -239,7 +269,7 @@ public class MoodframeApplication extends Application {
         } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
-            showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
+            showErrorAndExit("Application Startup Failed", e.getMessage());
         }
     }
 
@@ -247,10 +277,10 @@ public class MoodframeApplication extends Application {
      * Initializes application systems (configuration, database, services): registers the services in the locator,
      * most of them as providers created on their first use.
      */
-    private void initializeApplication() {
+    private void initializeApplication(ApplicationConfig config) {
 
         try {
-            ApplicationConfig config = setUpConfiguration();
+            setUpConfiguration(config);
             LibraryPaths paths = config.paths();
 
             /*  The one database of the library, every repository gets its connections here  */
@@ -279,9 +309,9 @@ public class MoodframeApplication extends Application {
         }
     }
 
-    /*  The configuration with the folders of the library, the logging, the certificates and the language  */
-    private ApplicationConfig setUpConfiguration() {
-        ApplicationConfig config = new ApplicationConfig(homePaths);
+    /*  Registers the configuration with the folders of the library and sets up the logging, the certificates and
+        the language  */
+    private void setUpConfiguration(ApplicationConfig config) {
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
         LibraryPaths paths = config.paths();
         ServiceFactory.getInstance().registerService(LibraryPaths.class, paths);
@@ -296,7 +326,6 @@ public class MoodframeApplication extends Application {
         // Initialize I18n with user's preferred language
         String userLanguage = config.ui().getUiLanguage();
         I18nManager.setLocale("de".equals(userLanguage) ? Locale.GERMAN : Locale.ENGLISH);
-        return config;
     }
 
     /*  The moods, frames, building blocks, palettes and favorites with the backup of the settings and the library  */
@@ -647,23 +676,19 @@ public class MoodframeApplication extends Application {
      * Applies AtlantaFX theme to the application.
      *
      * This method sets the application theme based on the user's configuration.
-     * If the user hasn't explicitly set a theme preference, it will attempt
-     * to detect and use the system theme preference.
+     * If the user hasn't explicitly set a theme preference, it uses the theme the system prefers, which the startup
+     * detected.
      * AtlantaFX provides modern, consistent styling across all JavaFX controls.
      */
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        ThemeManager.useConfig(config);
         String configuredTheme = config.ui().getUiTheme();
 
-        // Check if user has explicitly set a theme preference
-        boolean hasUserPreference = config.ui().hasUserSetTheme();
-
         String themeToApply;
-        if (!hasUserPreference) {
-            // No user preference set, try to apply system-preferred theme
-            themeToApply = ThemeManager.getSystemPreferredTheme();
+        if (systemTheme != null) {
+            // No user preference set, apply the system-preferred theme
+            themeToApply = systemTheme;
 
             // If system theme differs from config, update the config
             if (!themeToApply.equals(configuredTheme)) {
@@ -774,18 +799,26 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Shows an error dialog and exits the application.
+     * Logs the error, shows it in a message box (on the JavaFX thread, where the start fails) and exits the
+     * application.
      *
-     * @param stage   the primary stage
      * @param title   error title
      * @param message error message
      */
-    private void showErrorAndExit(Stage stage, String title, String message) {
+    private static void showErrorAndExit(String title, String message) {
         logger.error("Showing error and exiting: {} - {}", title, message);
-
-        // For now, just log and exit
-        // In future, could show a proper error dialog
         System.err.println("ERROR: " + title + ": " + message);
+        if (Platform.isFxApplicationThread()) {
+            try {
+                Alert alert = new Alert(Alert.AlertType.ERROR, message != null ? message : title, DialogButtons.ok());
+                alert.setTitle(title);
+                alert.setHeaderText(title);
+                alert.showAndWait();
+            }
+            catch (RuntimeException e) {
+                logger.error("Failed to show the error", e);
+            }
+        }
         System.exit(1);
     }
 

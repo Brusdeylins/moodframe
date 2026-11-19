@@ -190,9 +190,11 @@ class MainWindowModelResolutionTest {
         assertTrue(later.await(10, TimeUnit.SECONDS));
     }
 
-    /*  the fields of the window, which a lookup does not reach in the panel before it is shown  */
+    /*  the fields of the window; a lookup from the window does not reach the panel before it is shown, one from the
+        group Frame does  */
+    @SuppressWarnings("unchecked")
     private static ChoiceBox<String> resolution() {
-        return controller.moodFramePanel().resolutionChoice();
+        return (ChoiceBox<String>) controller.moodFramePanel().frameGroup().lookup("#resolutionChoiceBox");
     }
 
     private static ChoiceBox<String> family() {
@@ -204,7 +206,7 @@ class MainWindowModelResolutionTest {
     }
 
     private static Label hint() {
-        return controller.moodFramePanel().resolutionHint();
+        return (Label) controller.moodFramePanel().frameGroup().lookup("#resolutionHintLabel");
     }
 
     private static void reuse(ChatEntry entry) throws Exception {

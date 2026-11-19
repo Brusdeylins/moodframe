@@ -1,7 +1,6 @@
 package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.LibraryPaths;
 import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
@@ -61,24 +60,24 @@ public class SplashScreen {
     /*  opened from the Info button: stays until Esc or a click, belongs to the main window  */
     private final boolean info;
 
-    /*  the folders of the library, for the saved window bounds; null for the info window  */
-    private final LibraryPaths paths;
+    /*  the configuration with the saved window bounds; null for the info window  */
+    private final ApplicationConfig config;
 
     /**
      * Creates a new splash screen.
      *
      * @param ready      completes once the application is prepared; the splash stays until then, also when it fails
      * @param onComplete callback to execute when splash screen closes
-     * @param paths      the folders of the library, whose configuration holds the saved main window bounds
+     * @param config     the one configuration of the application, which holds the saved main window bounds
      */
-    public SplashScreen(CompletionStage<?> ready, Runnable onComplete, LibraryPaths paths) {
-        this(ready, onComplete, null, paths);
+    public SplashScreen(CompletionStage<?> ready, Runnable onComplete, ApplicationConfig config) {
+        this(ready, onComplete, null, config);
     }
 
-    private SplashScreen(CompletionStage<?> ready, Runnable onComplete, Window owner, LibraryPaths paths) {
+    private SplashScreen(CompletionStage<?> ready, Runnable onComplete, Window owner, ApplicationConfig config) {
         this.ready = ready;
         this.onComplete = onComplete;
-        this.paths = paths;
+        this.config = config;
         this.info = owner != null;
         this.splashStage = new Stage();
         if (info) {
@@ -245,11 +244,11 @@ public class SplashScreen {
                 Math.max(screen.getMinY(), Math.min(y, screen.getMaxY() - height)));
     }
 
-    /*  the main window bounds saved at the last exit, or null where the main window does not restore them either;
-        the configuration is registered only after the splash, so it is read here  */
+    /*  the main window bounds saved at the last exit, or null where the main window does not restore them either  */
     private Rectangle2D savedWindowBounds() {
+        if (config == null)
+            return null;
         try {
-            ApplicationConfig config = new ApplicationConfig(paths);
             return config.ui().getWindowX() >= 0 && config.ui().getWindowY() >= 0
                     ? new Rectangle2D(config.ui().getWindowX(), config.ui().getWindowY(),
                             config.ui().getWindowWidth(), config.ui().getWindowHeight())

@@ -12,12 +12,18 @@ import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * The appearance section of the settings ({@code AppearanceSettingsPane.fxml}). A chosen theme is shown at once and
  * saved with "Save"; the background image and the turning preview frame are saved at once.
  */
 public class AppearanceSettingsPane implements SettingsSection {
+
+    private static final Logger logger = LoggerFactory.getLogger(AppearanceSettingsPane.class);
 
     @FXML
     private VBox themeSelectionContainer;
@@ -122,12 +128,16 @@ public class AppearanceSettingsPane implements SettingsSection {
                 });
     }
 
-    /** Applies and selects the theme the system prefers. */
+    /**
+     * Applies and selects the theme the system prefers; asking the system runs programs for up to 2 s, so it runs off
+     * the JavaFX thread, the button disabled meanwhile.
+     */
     @FXML
     private void onResetToSystemTheme() {
-        String systemTheme = ThemeManager.getSystemPreferredTheme();
-        ThemeManager.applyTheme(systemTheme);
-        selectTheme(systemTheme);
+        SectionTask.run(List.of(resetThemeButton), ThemeManager::getSystemPreferredTheme, (systemTheme) -> {
+            ThemeManager.applyTheme(systemTheme);
+            selectTheme(systemTheme);
+        }, (failure) -> logger.warn("Failed to detect the theme of the system", failure));
     }
 
     /*  selects the radio button of a theme, which applies it  */
