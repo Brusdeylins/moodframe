@@ -4,7 +4,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.Chat;
@@ -315,7 +314,8 @@ class MainWindowFlowsTest {
         register(LibraryPaths.class, paths);
         if (!realServices.containsKey(DatabaseManager.class))
             realServices.put(DatabaseManager.class, services().get(DatabaseManager.class));
-        DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
+        DatabaseManager database = new DatabaseManager(paths.database());
+        database.initialize();
 
         LibraryEvents events = new LibraryEvents();
         PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);

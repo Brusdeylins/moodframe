@@ -3,7 +3,6 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.LibraryPaths;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
@@ -441,7 +440,8 @@ class SettingsDialogTest {
 
     @Test
     void anExportedBackupComesBackAndTheDialogAndTheLibraryShowIt() throws Exception {
-        DatabaseManager database = DatabaseConfig.initialize(folder.resolve("db").resolve("test.db").toString());
+        DatabaseManager database = new DatabaseManager(folder.resolve("db").resolve("test.db"));
+        database.initialize();
         LibraryEvents events = new LibraryEvents();
         PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);
         ColorStyleService colors = new ColorStyleService(new ColorStyleRepository(database), events);

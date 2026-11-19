@@ -28,7 +28,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.DetailedLogging;
 import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
@@ -295,8 +294,10 @@ public class MoodframeApplication extends Application {
             setUpConfiguration(config);
             LibraryPaths paths = config.paths();
 
-            /*  The one database of the library, every repository gets its connections here  */
-            DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
+            /*  The one database of the library with its schema up to date, every repository gets its connections
+                here  */
+            DatabaseManager database = new DatabaseManager(paths.database());
+            database.initialize();
 
             /*  The services report every change of the library here, the main window shows what others changed  */
             LibraryEvents events = new LibraryEvents();
