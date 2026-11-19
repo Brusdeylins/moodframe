@@ -409,13 +409,7 @@ final class EntryTilePictures {
             gc.setFill(javafx.scene.paint.Color.rgb(200, 200, 200));
             gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
             gc.setFont(javafx.scene.text.Font.font("System", 13));
-
-            String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
-            int duration = generatedImage.getVideoDurationSeconds();
-            boolean audio = generatedImage.hasAudio();
-
-            String info = String.format("MP4 • %s • %ds%s", resolution, duration, audio ? " • Audio" : "");
-            gc.fillText(info, 200, 280);
+            gc.fillText(ImageDetails.videoLine(generatedImage), 200, 280);
 
             javafx.scene.image.WritableImage placeholder = new javafx.scene.image.WritableImage(400, 400);
             canvas.snapshot(null, placeholder);
@@ -465,9 +459,7 @@ final class EntryTilePictures {
         gc.setFill(javafx.scene.paint.Color.rgb(230, 230, 230));
         gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
         gc.setFont(javafx.scene.text.Font.font("System", 13));
-        String resolution = video.getVideoResolution() != null ? video.getVideoResolution() : "";
-        gc.fillText(String.format("MP4 • %s • %ds%s", resolution, video.getVideoDurationSeconds(),
-                video.hasAudio() ? " • Audio" : ""), cx, height - 12);
+        gc.fillText(ImageDetails.videoLine(video), cx, height - 12);
 
         javafx.scene.image.WritableImage result = new javafx.scene.image.WritableImage((int) width, (int) height);
         javafx.scene.SnapshotParameters parameters = new javafx.scene.SnapshotParameters();

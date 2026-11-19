@@ -53,11 +53,8 @@ final class ImageDetails {
      */
     static String text(GeneratedImage generatedImage, boolean withSize) {
         List<String> details = new ArrayList<>();
-        if (generatedImage.isVideo()) {
-            String resolution = generatedImage.getVideoResolution() != null ? generatedImage.getVideoResolution() : "";
-            details.add(String.format("MP4 • %s • %ds%s", resolution, generatedImage.getVideoDurationSeconds(),
-                    generatedImage.hasAudio() ? " • Audio" : ""));
-        }
+        if (generatedImage.isVideo())
+            details.add(videoLine(generatedImage));
         else {
             String size = ImageSizeLabel.text(generatedImage);
             if (withSize && size != null)
@@ -66,7 +63,7 @@ final class ImageDetails {
             /*  A Gemini image has no seed (0), one of FLUX may be negative  */
             long seed = generatedImage.getSeed();
             if (seed != 0)
-                details.add(String.format("Seed: %d", seed));
+                details.add(I18nManager.getText("image.detail.seed", String.valueOf(seed)));
         }
 
         /*  Gemini: the cost of web search and reasoning beside the base cost, if any  */
@@ -102,5 +99,17 @@ final class ImageDetails {
         if (message == null || message.isBlank())
             message = generatedImage.getFailureReason();
         return message != null && !message.isBlank() ? message : I18nManager.getText("entry.status.failed");
+    }
+
+    /**
+     * The line of a video: its format, resolution, duration and whether it has sound.
+     *
+     * @param video the video
+     * @return the line, like {@code MP4 • 1080p • 8s • Audio}
+     */
+    static String videoLine(GeneratedImage video) {
+        String resolution = video.getVideoResolution() != null ? video.getVideoResolution() : "";
+        String line = String.format("MP4 • %s • %ds", resolution, video.getVideoDurationSeconds());
+        return video.hasAudio() ? line + " • " + I18nManager.getText("video.detail.audio") : line;
     }
 }
