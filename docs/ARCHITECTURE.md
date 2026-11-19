@@ -8,8 +8,8 @@ the persistence and the main decisions. The `package-info.java` of each package 
 ## Layers
 
 ```
- ui (controller, dialog, brainstorm, cell,         mcp
-     component, dnd, support)
+ ui (controller, brainstorm, panel, dialog,        mcp
+     cell, component, dnd, support)
             \                                      /
              +--------------> service <-----------+
                                  |          \
