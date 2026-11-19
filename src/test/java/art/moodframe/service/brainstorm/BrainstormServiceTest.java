@@ -77,7 +77,7 @@ class BrainstormServiceTest {
         when(repository.findLatestDraft("s1")).thenReturn(Optional.empty());
         org.mockito.Mockito.doAnswer(invocation -> stored.add(invocation.getArgument(1)))
                 .when(repository).addMessage(eq("s1"), any(BrainstormMessage.class));
-        service = new BrainstormService(repository, gemini);
+        service = TestBrainstorm.service(repository, gemini);
     }
 
     private static ChatTurn.Model text(String reply) {
@@ -306,7 +306,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         openAiService.sendUserMessage(session, "Hallo", context).join();
 
@@ -323,7 +323,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         /*  The start check found no web search at OpenAI while the window was open; Gemini is not usable either  */
         openAiService.sendUserMessage(session, "Hallo", context).join();
@@ -345,7 +345,7 @@ class BrainstormServiceTest {
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
         when(openAi.research("m", "nautilus")).thenReturn(CompletableFuture.completedFuture(
                 new ResearchNote("nautilus", "The nautilus has chambers.", List.of(SOURCE))));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         BrainstormReply reply = openAiService.sendUserMessage(session, "Ein Nautilus", context).join();
 
@@ -364,7 +364,7 @@ class BrainstormServiceTest {
         when(config.accounts().getOpenAiChatModel()).thenReturn("m");
         when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
         OpenAiApiService openAi = mock(OpenAiApiService.class);
-        BrainstormService service = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService service = TestBrainstorm.service(repository, gemini, openAi, config);
         answers(text(VALID_REPLY));
 
         /*  The window says OpenAI, but this session was started with Gemini  */
@@ -509,7 +509,7 @@ class BrainstormServiceTest {
         OpenAiApiService openAi = mock(OpenAiApiService.class);
         when(openAi.chatTurn(eq("m"), anyString(), anyList(), researchOnly(), eq(false)))
                 .thenReturn(CompletableFuture.completedFuture(text(VALID_REPLY)));
-        BrainstormService openAiService = new BrainstormService(repository, gemini, openAi, config);
+        BrainstormService openAiService = TestBrainstorm.service(repository, gemini, openAi, config);
 
         openAiService.sendUserMessage(session, "https://youtu.be/dQw4w9WgXcQ", context).join();
 
@@ -834,7 +834,7 @@ class BrainstormServiceTest {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         database.initialize();
         BrainstormRepository broken = new BrainstormRepository(database);
-        BrainstormService service = new BrainstormService(broken, gemini);
+        BrainstormService service = TestBrainstorm.service(broken, gemini);
         BrainstormSession own = service.startSession().orElseThrow();
         service.noteAdopted(own).join();
 

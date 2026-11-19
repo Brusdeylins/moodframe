@@ -37,7 +37,7 @@ class BrainstormOrderTest {
         databasePath = tempDir.resolve("db").resolve("test.db");
         TestDatabase.open(databasePath.toString());
         repository = new BrainstormRepository(TestDatabase.get());
-        service = new BrainstormService(repository, null);
+        service = TestBrainstorm.service(repository, null);
         for (String title : List.of("D", "C", "B", "A"))
             repository.createSession(title);
         sessions = repository.findAllSessions();

@@ -11,6 +11,7 @@ import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.TestBrainstorm;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.prompt.CameraPromptBuilder;
 import art.moodframe.service.provider.gemini.GeminiApiService;
@@ -67,7 +68,7 @@ class BrainstormDialogTest {
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Serverausfall",
                 LocalDateTime.now(), LocalDateTime.now())));
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(
                 List.of(new PromptBlock("std:style:pixel-art", PromptBlock.Type.STYLE, "Pixel Art", "retro pixel art",
                         PromptBlock.GROUP_ART, false)),
@@ -100,7 +101,7 @@ class BrainstormDialogTest {
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Leuchtturm",
                 LocalDateTime.now(), LocalDateTime.now())));
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
 
@@ -142,7 +143,7 @@ class BrainstormDialogTest {
     void paintsTheBackgroundOfTheThemeBehindTheDividersInEveryTheme() throws Exception {
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of());
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
 
@@ -210,7 +211,7 @@ class BrainstormDialogTest {
             """));
         CameraSettings tele = new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_135,
                 null, null, null, null, null);
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<List<CheckBox>> checks = new AtomicReference<>();
@@ -272,7 +273,7 @@ class BrainstormDialogTest {
             onFxThread.add(Platform.isFxApplicationThread());
             return Optional.of("{\"prompt\": \"A lighthouse at dusk\"}");
         });
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
 
@@ -312,7 +313,7 @@ class BrainstormDialogTest {
         when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
         when(config.accounts().getOpenAiChatModel()).thenReturn("gpt-x");
         BrainstormRepository repository = mock(BrainstormRepository.class);
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
 
@@ -351,7 +352,7 @@ class BrainstormDialogTest {
         when(config.accounts().getOpenAiChatModel()).thenReturn("gpt-x");
         when(config.accounts().getBrainstormEngine()).thenReturn("openai");
         BrainstormRepository repository = mock(BrainstormRepository.class);
-        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormService service = TestBrainstorm.service(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
                 "Target model: x");
         java.util.Locale locale = I18nManager.getCurrentLocale();

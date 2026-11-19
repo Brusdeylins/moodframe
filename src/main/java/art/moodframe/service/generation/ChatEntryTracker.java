@@ -37,12 +37,13 @@ public class ChatEntryTracker {
     private final List<Consumer<GeneratedImage>> imageListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates the tracker without the trash: the file of an image delivered after its entry went to the trash stays.
+     * Creates the tracker without the trash, for the tests of the generation: the file of an image delivered after
+     * its entry went to the trash stays. The application wires the trash in.
      *
      * @param chatRepository where entries and images are stored
      * @param executor       runs the database writes; a single thread keeps them in their order
      */
-    public ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
+    ChatEntryTracker(ChatRepository chatRepository, Executor executor) {
         this(chatRepository, null, executor);
     }
 

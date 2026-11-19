@@ -1,13 +1,9 @@
 package art.moodframe.service.brainstorm;
 
-import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.ResearchNote;
-import art.moodframe.repository.BrainstormRepository;
-import art.moodframe.service.provider.gemini.GeminiApiService;
-import art.moodframe.service.provider.openai.OpenAiApiService;
 import art.moodframe.util.I18nManager;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -90,31 +86,6 @@ public class BrainstormService {
         this.models = models;
         this.tools = tools;
         this.conversation = new BrainstormConversation(models, tools, TURNS);
-    }
-
-    /**
-     * Creates the service with Gemini only and without the lookup of YouTube videos.
-     *
-     * @param repository the session storage
-     * @param geminiService the Gemini API service
-     */
-    public BrainstormService(BrainstormRepository repository, GeminiApiService geminiService) {
-        this(repository, geminiService, null, null);
-    }
-
-    /**
-     * Creates the service that can also talk to OpenAI, without the lookup of YouTube videos. The engine is read from
-     * the configuration for every request, so a change in the dialog applies to the next message.
-     *
-     * @param repository the session storage
-     * @param geminiService the Gemini API service, also does the research
-     * @param openAiService the OpenAI API service, null if there is none
-     * @param config the configuration with the chosen engine and OpenAI language model, null for Gemini only
-     */
-    public BrainstormService(BrainstormRepository repository, GeminiApiService geminiService,
-            OpenAiApiService openAiService, ApplicationConfig config) {
-        this(new BrainstormSessions(repository), new BrainstormModels(geminiService, openAiService, config),
-                new BrainstormTools(geminiService, null));
     }
 
     /**

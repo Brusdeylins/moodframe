@@ -25,6 +25,7 @@ import art.moodframe.repository.MoodRepository;
 import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.brainstorm.TestBrainstorm;
 import art.moodframe.service.chat.ChatFileService;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
@@ -386,7 +387,7 @@ class MainWindowFlowsTest {
 
         /*  the brainstorm and the analysis of an image, on the mocked language models  */
         ApplicationConfig brainstormConfig = config;
-        register(BrainstormService.Factory.class, () -> new BrainstormService(new BrainstormRepository(database),
+        register(BrainstormService.Factory.class, () -> TestBrainstorm.service(new BrainstormRepository(database),
                 gemini, openAi, brainstormConfig));
         register(MoodAnalysisService.class, new MoodAnalysisService(gemini, openAi, config));
 
