@@ -768,8 +768,9 @@ public enum GenerationModel {
     }
 
     /**
-     * Finds a GenerationModel by a dropdown item or chat entry name in any language: the display name, a localized
-     * display name (see {@link #displayNameKey()}) or a family name.
+     * Finds a GenerationModel by a dropdown item or chat entry name in any language: the fixed id a chat entry stores
+     * since 2.1.3 (see {@link #entryModelOf(String)}), the display name, a localized display name (see
+     * {@link #displayNameKey()}) or a family name.
      *
      * <p>A localized display name differs from the display name only after the family name, e.g. "FLUX.2 [pro] -
      * Produktionsqualität ($0.03+)", so it is found by its family without the texts of the languages.</p>
@@ -781,6 +782,9 @@ public enum GenerationModel {
         if (openAiModelId(localizedDisplayName) != null) {
             return OPENAI_IMAGE;
         }
+        GenerationModel constant = constantOf(localizedDisplayName);
+        if (constant != null)
+            return constant;
         GenerationModel exact = fromDisplayName(localizedDisplayName);
         if (exact != null) {
             return exact;
@@ -842,6 +846,46 @@ public enum GenerationModel {
                 return model;
         }
         return OPENAI_IMAGE;
+    }
+
+    /**
+     * Gets the name of the model a chat entry stores: a fixed id that does not depend on the language, price or
+     * tagline of the model.
+     *
+     * @param id the fixed id of the order (see {@link #idOf(String)})
+     * @return the constant name, {@link #OPENAI_PREFIX} + id for a model of the gateway (so it is told from the
+     *         display names of older entries), null without id
+     * @since 2.1.3
+     */
+    public static String entryModelOf(String id) {
+        if (id == null)
+            return null;
+        return constantOf(id) != null ? id : OPENAI_PREFIX + id;
+    }
+
+    /**
+     * Finds the model a chat entry names: the {@link #entryModelOf(String) fixed id} of an entry since 2.1.3, else the
+     * English display name an older entry was stored with.
+     *
+     * @param stored the model of the entry (may be null)
+     * @return the model, null for a model of the gateway and an unknown or outdated display name
+     * @since 2.1.3
+     */
+    public static GenerationModel fromEntryModel(String stored) {
+        GenerationModel constant = constantOf(stored);
+        return constant != null ? constant : fromDisplayName(stored);
+    }
+
+    /**
+     * Gets the English name of the model of a chat entry, as the MCP server tells it.
+     *
+     * @param stored the model of the entry (may be null)
+     * @return the display name of its model, else the stored text (the item of a gateway model, an outdated name)
+     * @since 2.1.3
+     */
+    public static String entryDisplayName(String stored) {
+        GenerationModel model = fromEntryModel(stored);
+        return model != null ? model.getDisplayName() : stored;
     }
 
     /**

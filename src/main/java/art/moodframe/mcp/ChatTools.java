@@ -354,7 +354,8 @@ class ChatTools {
                 .put("prompt", entry.getUserPrompt());
         node.set("mood", moodSummary(entry.getMood()));
         node.set("frame", frameSummary(entry.getFrame()));
-        node.put("model", entry.getModel()).put("modelId", GenerationModel.idOf(entry.getModel()))
+        node.put("model", GenerationModel.entryDisplayName(entry.getModel()))
+                .put("modelId", GenerationModel.idOf(entry.getModel()))
                 .put("status", entry.getStatus().name());
         ArrayNode images = node.putArray("imageIds");
         entry.getImages().stream().filter(ChatTools::shown)
@@ -367,7 +368,8 @@ class ChatTools {
         ObjectNode node = McpTools.JSON.createObjectNode().put("id", entry.getId()).put("chatId", entry.getChatId())
                 .put("status", entry.getStatus().name()).put("error", entry.getErrorMessage())
                 .put("prompt", entry.getUserPrompt()).put("finalPrompt", entry.getEnhancedPrompt())
-                .put("model", entry.getModel()).put("modelId", GenerationModel.idOf(entry.getModel()));
+                .put("model", GenerationModel.entryDisplayName(entry.getModel()))
+                .put("modelId", GenerationModel.idOf(entry.getModel()));
         node.set("mood", entry.getMood() != null ? McpTools.parse(entry.getMood().toJson()) : null);
         node.set("frame", entry.getFrame() != null ? McpTools.parse(entry.getFrame().toJson()) : null);
         node.put("cost", McpTools.usd(entry.getCost())).put("createdAt", McpTools.time(entry.getCreatedAt()))

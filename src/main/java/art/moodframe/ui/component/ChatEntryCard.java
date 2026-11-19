@@ -632,8 +632,8 @@ public class ChatEntryCard extends ManagedComponent {
 
     /** The model under its full name with its price per image, a BFL model with its safety level. */
     private String modelDetails() {
-        GenerationModel known = GenerationModel.fromDisplayName(chatEntry.getModel());
-        String name = known != null ? ModelLabels.displayName(known) : chatEntry.getModel();
+        GenerationModel known = GenerationModel.fromEntryModel(chatEntry.getModel());
+        String name = ModelLabels.entryName(chatEntry.getModel());
         if (chatEntry.getSafetyTolerance() >= 0 && known != null && known.getProvider() == ApiProvider.BFL)
             return name + "\n" + SafetyTolerance.label(chatEntry.getSafetyTolerance());
         return name;

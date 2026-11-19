@@ -305,8 +305,8 @@ public class GenerationService {
                 ? AspectRatios.nearestForItem(target.aspectRatio(), item) : null;
         double totalCost = quote(model, order).total();
 
-        /*  The entry keeps the prompt of the user (for the copy button), the English display name of the model and
-            the item of an OpenAI model; the request gets the prompt with the building blocks  */
+        /*  The entry keeps the prompt of the user (for the copy button) and the fixed id of the model, which depends on
+            no language or price; the request gets the prompt with the building blocks  */
         ChatEntry entry = new ChatEntry.Builder()
                 .chatId(chat.getId())
                 .userPrompt(userPrompt)
@@ -314,7 +314,7 @@ public class GenerationService {
                         ? "Enhanced: " + prompt + ", professional quality, highly detailed"
                         : prompt)
                 .status(ChatEntry.Status.PENDING)
-                .model(GenerationModel.constantOf(modelId) != null ? model.getDisplayName() : item)
+                .model(GenerationModel.entryModelOf(modelId))
                 .size(Objects.requireNonNullElse(aspectRatio, "16:9"))
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .mood(moodService != null ? moodService.snapshot(order.mood(), order.moodChanged(), blocks) : null)

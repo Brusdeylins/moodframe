@@ -321,6 +321,11 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   counts as deleted now (logged), so the row stays in the trash. The `created_at` and `updated_at` of moods, frames,
   blocks and palettes are still SQLite's `CURRENT_TIMESTAMP` (UTC text, from the column default and the updates);
   nothing reads them.
+- **Model of an entry**: `chat_entries.model` holds the fixed id of the model since 2.1.3
+  (`GenerationModel.entryModelOf`: the constant name, `OpenAI · <id>` for a model of the gateway); older rows keep
+  the English display name with price and tagline, which `GenerationModel.fromEntryModel` still reads. They are not
+  migrated, as the display names of former versions are not all known. The views show `ModelLabels.entryName`, the
+  MCP server `GenerationModel.entryDisplayName` with the id of `GenerationModel.idOf`.
 - **Finders** of one row answer with an `Optional` in every repository.
 - **Error contract**: repositories throw `SQLException` and never swallow a database error, so "not found" stays
   apart from "the database failed". The services decide: most log the error and answer with a fallback (false, null,

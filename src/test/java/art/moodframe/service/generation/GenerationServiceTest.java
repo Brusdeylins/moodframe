@@ -294,7 +294,7 @@ class GenerationServiceTest {
             assertEquals("gpt-image-1", GenerationModel.idOf(ModelLabels.itemOf("gpt-image-1")));
 
             ChatEntry entry = service.submit(order("FLUX2_PRO", WIDE_2K)).entry();
-            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), entry.getModel(), "stored in English");
+            assertEquals("FLUX2_PRO", entry.getModel(), "stored by its fixed id");
             assertEquals("flux.2-pro", sent().get(0).getModel());
         } finally {
             I18nManager.setLocale(before);

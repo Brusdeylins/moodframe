@@ -47,6 +47,18 @@ public final class ModelLabels {
     }
 
     /**
+     * Gets the name of the model of a chat entry in the current language, see {@link GenerationModel#fromEntryModel}.
+     *
+     * @param stored the model the entry stores (may be null)
+     * @return the localized display name of its model, else the stored text (the item of a gateway model, the name of
+     *         an older entry whose model is gone), null without model
+     */
+    public static String entryName(String stored) {
+        GenerationModel model = GenerationModel.fromEntryModel(stored);
+        return model != null ? displayName(model) : stored;
+    }
+
+    /**
      * Gets the dropdown items of the models to choose from: the selectable models of the usable providers, then the
      * models of the OpenAI-compatible gateway.
      *
