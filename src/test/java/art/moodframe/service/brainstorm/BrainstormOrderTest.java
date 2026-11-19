@@ -1,6 +1,5 @@
 package art.moodframe.service.brainstorm;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
@@ -36,7 +35,7 @@ class BrainstormOrderTest {
     @BeforeEach
     void createSessions() throws Exception {
         databasePath = tempDir.resolve("db").resolve("test.db");
-        DatabaseConfig.initialize(databasePath.toString());
+        TestDatabase.open(databasePath.toString());
         repository = new BrainstormRepository(TestDatabase.get());
         service = new BrainstormService(repository, null);
         for (String title : List.of("D", "C", "B", "A"))
@@ -82,7 +81,7 @@ class BrainstormOrderTest {
     @Test
     void loadsTheSessionsInTheStoredOrderAfterARestart() throws Exception {
         service.moveSession(sessions, session("D"), session("B"));
-        DatabaseConfig.initialize(databasePath.toString());
+        TestDatabase.open(databasePath.toString());
 
         assertEquals("ADBC", titles(new BrainstormRepository(TestDatabase.get()).findAllSessions()));
     }
@@ -106,7 +105,7 @@ class BrainstormOrderTest {
                 stmt.executeUpdate();
             }
         }
-        DatabaseConfig.initialize(databasePath.toString());
+        TestDatabase.open(databasePath.toString());
 
         assertOrder("CADB");
     }

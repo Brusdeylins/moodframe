@@ -3,7 +3,7 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.chat.ChatLibrary;
@@ -142,7 +142,7 @@ class MainWindowPanelLayoutTest {
         locale = I18nManager.getCurrentLocale();
 
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
-        DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
+        TestDatabase.open(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
         blocks = TestLibraryServices.blocks(events);
         ColorStyleService colors = TestLibraryServices.palettes(events);

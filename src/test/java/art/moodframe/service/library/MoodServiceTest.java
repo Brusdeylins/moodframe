@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
@@ -50,7 +49,7 @@ class MoodServiceTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
         blocks = TestLibraryServices.blocks();
         colors = TestLibraryServices.palettes();
         moods = TestLibraryServices.moods(blocks, colors);

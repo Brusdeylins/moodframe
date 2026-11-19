@@ -1,7 +1,7 @@
 package art.moodframe.tools;
 
 import art.moodframe.service.library.TestLibraryServices;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Body;
@@ -257,7 +257,7 @@ public final class CameraCheck {
     public static void main(String[] args) throws Exception {
         Path dir = Path.of(args[0]).toAbsolutePath();
         Set<String> only = args.length > 3 && !args[3].isBlank() ? Set.of(args[3].split(",")) : Set.of();
-        DatabaseConfig.initialize(Files.createTempDirectory("camera-check").resolve("check.db").toString());
+        TestDatabase.open(Files.createTempDirectory("camera-check").resolve("check.db").toString());
         CameraCheck check = new CameraCheck(dir, Double.parseDouble(args[1]));
         List<Group> groups = check.groups();
         List<Job> jobs = check.jobs(groups);

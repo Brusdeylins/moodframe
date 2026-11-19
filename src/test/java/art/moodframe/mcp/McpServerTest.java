@@ -5,8 +5,8 @@ import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
@@ -111,7 +111,7 @@ class McpServerTest {
         Platform.setImplicitExit(false);
 
         Path database = tempDir.resolve("db").resolve("test.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
         LibraryEvents events = new LibraryEvents();
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
         ChatLibrary chats = new ChatLibrary(TestChatServices.history(new DatabaseManager(database)), events);

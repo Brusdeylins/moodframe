@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
@@ -57,7 +56,7 @@ class ParallelWritesTest {
         Platform.setImplicitExit(false);
 
         database = tempDir.resolve("db").resolve("test.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
     }
 
     /*  runs the same work on several threads at once and returns the results of all of them  */

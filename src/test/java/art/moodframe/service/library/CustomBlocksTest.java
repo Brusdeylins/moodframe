@@ -2,7 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.ConfigurationExporter;
@@ -38,7 +38,7 @@ class CustomBlocksTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @BeforeEach

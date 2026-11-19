@@ -1,14 +1,27 @@
 package art.moodframe.database;
 
-import art.moodframe.config.ServiceFactory;
-
 /**
- * The database a test opened with {@link DatabaseConfig#initialize(String)}, for the repositories and services the
- * test creates itself; the application hands its database to every service instead.
+ * The database a test opened with {@link #open(String)}, for the repositories and services the test creates itself;
+ * the application hands its database to every service instead.
  */
 public final class TestDatabase {
 
+    /*  the database the test opened last  */
+    private static volatile DatabaseManager database;
+
     private TestDatabase() {
+    }
+
+    /**
+     * Opens a database as the application does ({@link DatabaseConfig#initialize(String)}) and keeps it as the
+     * database of the test.
+     *
+     * @param databasePath the path of the database file
+     * @return the database
+     */
+    public static DatabaseManager open(String databasePath) {
+        database = DatabaseConfig.initialize(databasePath);
+        return database;
     }
 
     /**
@@ -18,9 +31,9 @@ public final class TestDatabase {
      * @throws IllegalStateException if no test opened one
      */
     public static DatabaseManager get() {
-        DatabaseManager database = ServiceFactory.getInstance().getService(DatabaseManager.class);
-        if (database == null)
-            throw new IllegalStateException("Database not initialized. Call DatabaseConfig.initialize() first.");
-        return database;
+        DatabaseManager opened = database;
+        if (opened == null)
+            throw new IllegalStateException("Database not initialized. Call TestDatabase.open() first.");
+        return opened;
     }
 }
