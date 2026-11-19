@@ -54,9 +54,6 @@ public class StatusBarController implements StatusSink {
 
     private KeyStatus keyStatus = KeyStatus.NONE;
 
-    /*  whether the status message is "Ready", which a change of the language translates  */
-    private boolean ready;
-
     /*  until when an error is protected against the next status messages  */
     private long errorShownUntil;
 
@@ -114,18 +111,16 @@ public class StatusBarController implements StatusSink {
 
     /** Shows "Ready", which follows a change of the language. */
     public void ready() {
-        ready = show(I18nManager.getText("status.ready"), false);
+        show(I18nManager.getText("status.ready"), false);
     }
 
-    /*  shows a message unless it is no error and an error is protected; tells whether it is shown  */
-    private boolean show(String message, boolean error) {
+    /*  shows a message unless it is no error and an error is protected  */
+    private void show(String message, boolean error) {
         if (!error && System.currentTimeMillis() < errorShownUntil)
-            return false;
+            return;
         if (error)
             errorShownUntil = System.currentTimeMillis() + ERROR_SHOWN_MILLIS;
         statusLabel.setText(message);
-        ready = false;
-        return true;
     }
 
     /**
@@ -169,11 +164,14 @@ public class StatusBarController implements StatusSink {
         apiKeyStatusTooltip.setText(apiKeyHint(valid ? "status.api.key.valid.tooltip" : "status.api.key.none.tooltip"));
     }
 
-    /** Shows the texts of the bar in the current language. */
+    /**
+     * Shows the texts of the bar in the current language. The bar keeps a message only as text, so a message of the
+     * former language gives way to "Ready", an error as well.
+     */
     public void updateTexts() {
         showKeyStatus();
-        if (ready)
-            ready();
+        errorShownUntil = 0;
+        ready();
     }
 
     /**

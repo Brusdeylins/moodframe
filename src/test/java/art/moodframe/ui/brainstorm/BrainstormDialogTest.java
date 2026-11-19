@@ -57,6 +57,9 @@ class BrainstormDialogTest {
             started.countDown();
         }
         started.await(10, TimeUnit.SECONDS);
+
+        /*  The toolkit stays when a shown dialog, the last window, closes  */
+        Platform.setImplicitExit(false);
     }
 
     @Test
@@ -341,6 +344,66 @@ class BrainstormDialogTest {
     }
 
     @Test
+    void followsTheLanguageWhileOpenAndKeepsTheChoices() throws Exception {
+        art.moodframe.config.ApplicationConfig config = art.moodframe.config.ConfigMocks.config();
+        when(config.accounts().isBrainstormAvailable(ApiProvider.GOOGLE_GEMINI)).thenReturn(true);
+        when(config.accounts().isBrainstormAvailable(ApiProvider.OPENAI)).thenReturn(true);
+        when(config.accounts().getOpenAiChatModel()).thenReturn("gpt-x");
+        when(config.accounts().getBrainstormEngine()).thenReturn("openai");
+        BrainstormRepository repository = mock(BrainstormRepository.class);
+        BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
+        BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),
+                "Target model: x");
+        java.util.Locale locale = I18nManager.getCurrentLocale();
+        AtomicReference<BrainstormDialog> dialog = new AtomicReference<>();
+        try {
+            int listeners = onFx(() -> {
+                I18nManager.setLocale(java.util.Locale.ENGLISH);
+                int before = I18nManager.getChangeListenerCount();
+                dialog.set(new BrainstormDialog(null, config, service, context,
+                        ModelLabels.displayName(GenerationModel.FLUX2_PRO), result -> { },
+                        new BrainstormWorker(Runnable::run, Runnable::run)));
+                dialog.get().show();
+                return before;
+            });
+            assertTrue(texts(dialog).contains(I18nManager.getText("brainstorm.result.title")));
+
+            onFx(() -> {
+                I18nManager.setLocale(java.util.Locale.GERMAN);
+                return null;
+            });
+            List<String> texts = texts(dialog);
+            for (String key : List.of("brainstorm.history.title", "brainstorm.result.title", "brainstorm.result.model",
+                    "block.type.style", "brainstorm.session.new"))
+                assertTrue(texts.contains(I18nManager.getText(key)), key + " in German: " + texts);
+            assertEquals(I18nManager.getText("brainstorm.title"), onFx(() -> dialog.get().getTitle()));
+            javafx.scene.Parent root = onFx(() -> dialog.get().getScene().getRoot());
+            assertTrue(onFx(() -> root.lookupAll(".button").stream().map((node) -> ((Button) node).getText())
+                    .toList()).containsAll(List.of(I18nManager.getText("brainstorm.send"),
+                    I18nManager.getText("brainstorm.adopt"), I18nManager.getText("brainstorm.quick.image"))));
+            ComboBox<?> engines = onFx(() -> (ComboBox<?>) root.lookup(".combo-box"));
+            assertEquals(I18nManager.getText("brainstorm.engine.openai", "gpt-x"), onFx(() -> engines.getValue()),
+                    "the chosen language model stays chosen");
+            List<String> moods = onFx(() -> root.lookupAll(".choice-box").stream()
+                    .map((node) -> String.valueOf(((javafx.scene.control.ChoiceBox<?>) node).getValue())).toList());
+            assertTrue(moods.contains(I18nManager.getText("brainstorm.none")), "None in German: " + moods);
+            assertFalse(moods.contains(I18nManager.getTextIn(java.util.Locale.ENGLISH, "brainstorm.none")));
+
+            onFx(() -> {
+                dialog.get().close();
+                return null;
+            });
+            assertEquals(listeners, onFx(I18nManager::getChangeListenerCount), "a closed window no longer listens");
+        }
+        finally {
+            onFx(() -> {
+                I18nManager.setLocale(locale);
+                return null;
+            });
+        }
+    }
+
+    @Test
     void aReopenedWindowWaitsForTheTurnOfTheClosedOneAndShowsItsAnswer() throws Exception {
         BrainstormSession stored = new BrainstormSession("s1", "Leuchtturm", LocalDateTime.now(), LocalDateTime.now());
         BrainstormRepository repository = mock(BrainstormRepository.class);
@@ -429,5 +492,27 @@ class BrainstormDialogTest {
         }
         if (node instanceof javafx.scene.control.ScrollPane pane && pane.getContent() != null)
             collect(pane.getContent(), texts);
+    }
+
+    /*  runs a step on the JavaFX thread and returns its result  */
+    private static <T> T onFx(java.util.concurrent.Callable<T> step) throws Exception {
+        AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                result.set(step.call());
+            }
+            catch (Throwable t) {
+                failure.set(t);
+            }
+            finally {
+                done.countDown();
+            }
+        });
+        assertTrue(done.await(20, TimeUnit.SECONDS), "the step ran in time");
+        if (failure.get() != null)
+            throw new AssertionError(failure.get());
+        return result.get();
     }
 }

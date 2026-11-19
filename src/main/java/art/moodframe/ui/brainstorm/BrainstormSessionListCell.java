@@ -48,6 +48,7 @@ class BrainstormSessionListCell extends ListCell<BrainstormSession> {
     private final TextField renameField = new TextField();
     private final StackPane titleBox = new StackPane(titleLabel, renameField);
     private final ContextMenu contextMenu = new ContextMenu();
+    private final MenuItem renameItem = new MenuItem();
     private final Button trashButton = new Button();
     private final HBox row = new HBox(6.0);
     private final ProgressIndicator spinner = new ProgressIndicator();
@@ -95,7 +96,6 @@ class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         titleBox.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        MenuItem renameItem = new MenuItem(I18nManager.getText("brainstorm.history.rename"));
         renameItem.setOnAction(event -> startRename());
         contextMenu.getItems().add(renameItem);
 
@@ -204,6 +204,7 @@ class BrainstormSessionListCell extends ListCell<BrainstormSession> {
         boundMarker = markerOf.apply(session);
         boundMarker.addListener(markerListener);
         showMarker(boundMarker.get());
+        renameItem.setText(I18nManager.getText("brainstorm.history.rename"));
         setContextMenu(contextMenu);
         renameField.setVisible(false);
         titleLabel.setVisible(true);

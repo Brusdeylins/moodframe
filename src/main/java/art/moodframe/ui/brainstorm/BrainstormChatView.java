@@ -96,6 +96,8 @@ final class BrainstormChatView extends VBox {
     /** The note under the input that only Gemini can watch a linked video, while OpenAI answers. */
     private final HBox videoHint = new HBox(10.0);
     private final Hyperlink switchToGeminiLink = new Hyperlink();
+    private final Label videoHintText = new Label();
+    private final Hyperlink sendWithoutVideoLink = new Hyperlink();
 
     /**
      * Creates the column.
@@ -131,7 +133,6 @@ final class BrainstormChatView extends VBox {
         statusLabel.setVisible(false);
         statusLabel.managedProperty().bind(statusLabel.visibleProperty());
 
-        inputArea.setPromptText(I18nManager.getText("brainstorm.input.prompt"));
         inputArea.setWrapText(true);
         inputArea.setPrefRowCount(4);
         inputArea.setMinWidth(0);
@@ -145,7 +146,6 @@ final class BrainstormChatView extends VBox {
                 sendInput();
             }
         });
-        sendButton.setText(I18nManager.getText("brainstorm.send"));
         sendButton.getStyleClass().add("accent");
         sendButton.setMinWidth(Region.USE_PREF_SIZE);
         sendButton.setOnAction((event) -> sendInput());
@@ -155,9 +155,6 @@ final class BrainstormChatView extends VBox {
         progress.setMaxSize(16, 16);
         statusLabel.setGraphic(progress);
         statusLabel.setGraphicTextGap(8.0);
-
-        // The AI researches on its own: the tooltip tells where the search terms go
-        inputArea.setTooltip(new Tooltip(I18nManager.getText("brainstorm.research.hint")));
 
         /*  The language model belongs to the chat, so it is chosen where the chat is written  */
         engineBox = createEngineBox();
@@ -198,6 +195,38 @@ final class BrainstormChatView extends VBox {
         getChildren().addAll(BrainstormHeading.row(titleLabel, BoxInset.LEFT - 1.0, 15.0), stepper, chatSplit);
         getStyleClass().add("bg-default");
         VBox.setVgrow(chatSplit, Priority.ALWAYS);
+        relabel();
+    }
+
+    /**
+     * Sets the texts of the column in the current language: the steps, the input with its button, the note on the
+     * videos and the language models, which keep the choice. The messages stay as they were written.
+     */
+    void relabel() {
+        updateStepper();
+        inputArea.setPromptText(I18nManager.getText("brainstorm.input.prompt"));
+
+        /*  The AI researches on its own: the tooltip tells where the search terms go  */
+        inputArea.setTooltip(new Tooltip(I18nManager.getText("brainstorm.research.hint")));
+        sendButton.setText(I18nManager.getText("brainstorm.send"));
+        videoHintText.setText(I18nManager.getText("brainstorm.video.openai.hint"));
+        switchToGeminiLink.setText(I18nManager.getText("brainstorm.video.openai.switch"));
+        sendWithoutVideoLink.setText(I18nManager.getText("brainstorm.video.openai.send"));
+        if (engineBox == null || config == null)
+            return;
+
+        String engine = chosenEngine();
+        String oldGemini = geminiItem;
+        String oldOpenAi = openAiItem;
+        geminiItem = I18nManager.getText("brainstorm.engine.gemini");
+        openAiItem = I18nManager.getText("brainstorm.engine.openai", config.accounts().getOpenAiChatModel());
+        updating = true;
+        engineBox.getItems().replaceAll((String item) -> item.equals(oldGemini) ? geminiItem
+                : item.equals(oldOpenAi) ? openAiItem : item);
+        if (engine != null)
+            engineBox.setValue("openai".equals(engine) ? openAiItem : geminiItem);
+        updating = false;
+        engineTooltip(engineBox);
     }
 
     /**
@@ -225,12 +254,7 @@ final class BrainstormChatView extends VBox {
             box.getItems().add(openAiItem);
         box.setDisable(box.getItems().size() < 2);
         box.setMaxWidth(Double.MAX_VALUE);
-
-        /*  The tooltip names the chosen entry in full, in case it is too long for the box  */
-        String hint = I18nManager.getText("brainstorm.engine.tooltip");
-        Tooltip tooltip = new Tooltip(hint);
-        tooltip.textProperty().bind(box.valueProperty().map((String item) -> item + "\n" + hint).orElse(hint));
-        box.setTooltip(tooltip);
+        engineTooltip(box);
         box.valueProperty().addListener((obs, old, selected) -> {
             if (updating || selected == null)
                 return;
@@ -238,6 +262,14 @@ final class BrainstormChatView extends VBox {
             listener.engineChosen(openAiItem.equals(selected) ? "openai" : "gemini");
         });
         return box;
+    }
+
+    /*  The tooltip names the chosen entry in full, in case it is too long for the box  */
+    private static void engineTooltip(ComboBox<String> box) {
+        String hint = I18nManager.getText("brainstorm.engine.tooltip");
+        Tooltip tooltip = new Tooltip(hint);
+        tooltip.textProperty().bind(box.valueProperty().map((String item) -> item + "\n" + hint).orElse(hint));
+        box.setTooltip(tooltip);
     }
 
     /** Shows the language model of a chat: its own, else the default; one that cannot answer any more is replaced. */
@@ -281,15 +313,12 @@ final class BrainstormChatView extends VBox {
         FontIcon icon = new FontIcon("mdi2y-youtube");
         icon.setIconSize(16);
         icon.getStyleClass().add("warning");
-        Label text = new Label(I18nManager.getText("brainstorm.video.openai.hint"));
-        text.setWrapText(true);
-        text.getStyleClass().add("text-small");
-        switchToGeminiLink.setText(I18nManager.getText("brainstorm.video.openai.switch"));
+        videoHintText.setWrapText(true);
+        videoHintText.getStyleClass().add("text-small");
         switchToGeminiLink.setOnAction((event) -> engineBox.setValue(geminiItem));
         switchToGeminiLink.managedProperty().bind(switchToGeminiLink.visibleProperty());
-        Hyperlink sendLink = new Hyperlink(I18nManager.getText("brainstorm.video.openai.send"));
-        sendLink.setOnAction((event) -> sendWithoutVideo());
-        videoHint.getChildren().addAll(icon, text, switchToGeminiLink, sendLink);
+        sendWithoutVideoLink.setOnAction((event) -> sendWithoutVideo());
+        videoHint.getChildren().addAll(icon, videoHintText, switchToGeminiLink, sendWithoutVideoLink);
         videoHint.setAlignment(Pos.CENTER_LEFT);
         videoHint.managedProperty().bind(videoHint.visibleProperty());
         videoHint.setVisible(false);

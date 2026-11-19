@@ -1020,9 +1020,9 @@ public class ChatViewController {
             return "";
         double deleted = cost[1];
         return deleted > 0
-                ? I18nManager.getText("chat.total.cost.with.deleted", String.format("%.2f", total),
-                        String.format("%.2f", deleted))
-                : I18nManager.getText("chat.total.cost", String.format("%.2f", total));
+                ? I18nManager.getText("chat.total.cost.with.deleted", I18nManager.formatCost(total),
+                        I18nManager.formatCost(deleted))
+                : I18nManager.getText("chat.total.cost", I18nManager.formatCost(total));
     }
 
     /**

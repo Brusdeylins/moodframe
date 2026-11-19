@@ -575,7 +575,7 @@ public class ChatEntryCard extends ManagedComponent {
         if (imageCount > 0)
             parts.add(I18nManager.getText("params.image.count", imageCount));
         if (chatEntry.getCost() > 0)
-            parts.add(String.format("%s $%.2f", I18nManager.getText("params.cost"), chatEntry.getCost()));
+            parts.add(I18nManager.getText("params.cost") + " $" + I18nManager.formatCost(chatEntry.getCost()));
         infoLabel.setText(String.join(" · ", parts));
     }
 

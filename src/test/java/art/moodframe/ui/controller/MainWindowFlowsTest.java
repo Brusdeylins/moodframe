@@ -679,7 +679,7 @@ class MainWindowFlowsTest {
     }
 
     private static String dollars(double cost) {
-        return String.format("%.2f", cost);
+        return I18nManager.formatCost(cost);
     }
 
     // ===== 1. Sending =====

@@ -11,6 +11,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextInputControl;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.slf4j.Logger;
@@ -25,6 +26,10 @@ public class GeminiSettingsPane implements SettingsSection {
 
     private static final Logger logger = LoggerFactory.getLogger(GeminiSettingsPane.class);
 
+    @FXML
+    private Label geminiTitleLabel;
+    @FXML
+    private Label geminiDescriptionLabel;
     @FXML
     private PasswordField geminiApiKeyField;
     @FXML
@@ -135,6 +140,17 @@ public class GeminiSettingsPane implements SettingsSection {
             validatedGeminiApiKey = null;
             logger.debug("Gemini API key removed from configuration");
         }
+    }
+
+    @Override
+    public void relabel() {
+        geminiTitleLabel.setText(I18nManager.getText("settings.gemini.title"));
+        geminiDescriptionLabel.setText(I18nManager.getText("settings.gemini.description"));
+        geminiApiKeyInputControl.setPromptText(I18nManager.getText("settings.gemini.key.placeholder"));
+        showGeminiApiKeyButton.setTooltip(new Tooltip(I18nManager.getText("settings.gemini.key.toggle.tooltip")));
+        testGeminiConnectionButton.setText(I18nManager.getText("settings.gemini.test"));
+        geminiProviderEnabledCheckBox.setText(I18nManager.getText("settings.gemini.enable"));
+        geminiProviderEnabledCheckBox.setTooltip(new Tooltip(I18nManager.getText("settings.gemini.enable.tooltip")));
     }
 
     /** Shows the key as text or hidden, switching between a text field and a password field. */

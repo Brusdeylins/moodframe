@@ -63,7 +63,7 @@ public interface TrashGroup {
      * @return the cost with two decimals
      */
     static String cost(Locale locale, double cost) {
-        return locale != null ? String.format(Locale.ROOT, "%.2f", cost) : String.format("%.2f", cost);
+        return locale != null ? String.format(Locale.ROOT, "%.2f", cost) : I18nManager.formatCost(cost);
     }
 
     /**

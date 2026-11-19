@@ -16,8 +16,10 @@ import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.library.TestLibraryServices;
+import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.ui.support.StatusSink;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXMLLoader;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -240,6 +243,39 @@ class MoodFramePanelWritesTest {
             panel.setReference(false);
             return panel.promptBlocks(true).atmosphere() == null && panel.promptBlocks(false).atmosphere() != null;
         }), "with a reference image the blocks apply only with \"Apply mood\", whatever the panel was told before");
+    }
+
+    @Test
+    void theNoneEntriesFollowTheLanguage() throws Exception {
+        Locale locale = I18nManager.getCurrentLocale();
+        try {
+            onFx(() -> {
+                I18nManager.setLocale(Locale.ENGLISH);
+                panel.updateTexts();
+                return null;
+            });
+            ComboBox<StylePresetItem> style = node("stylePresetsComboBox");
+            ComboBox<ColorStyleItem> palette = node("colorStyleComboBox");
+            assertEquals("None", onFx(() -> style.getItems().get(0).getDisplayName()));
+            onFx(() -> {
+                style.setValue(style.getItems().get(0));
+                palette.setValue(palette.getItems().get(0));
+                I18nManager.setLocale(Locale.GERMAN);
+                panel.updateTexts();
+                return null;
+            });
+            assertEquals("Keine", onFx(() -> style.getValue().getDisplayName()));
+            assertEquals("Keine", onFx(() -> palette.getValue().getDisplayName()));
+            assertEquals(StylePresetItem.NONE, onFx(() -> style.getValue().getName()), "the stored name stays");
+            assertTrue(onFx(() -> style.getItems().stream().skip(1).noneMatch(
+                    (item) -> item.getBlock() == null && "Keine".equals(item.getDisplayName()))), "only one None");
+        }
+        finally {
+            onFx(() -> {
+                I18nManager.setLocale(locale);
+                return null;
+            });
+        }
     }
 
     /*  the node of an id in the panel  */

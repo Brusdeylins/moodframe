@@ -9,6 +9,7 @@ import art.moodframe.service.brainstorm.BrainstormContext;
 import art.moodframe.service.brainstorm.BrainstormReply;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Scene;
@@ -162,6 +163,33 @@ public class BrainstormDialog extends Stage {
 
         // The chat that was worked on last opens, wherever the user put it in the history
         history.refreshAndSelectLast();
+
+        /*  The window follows the language until it closes  */
+        FxI18n.addChangeListener(this::relabel, root);
+    }
+
+    /**
+     * Sets the texts of the window in the current language. The messages stay as they were written, only a new chat
+     * that was not sent yet greets anew.
+     */
+    private void relabel() {
+        setTitle(I18nManager.getText("brainstorm.title"));
+        history.relabel();
+        chatView.relabel();
+        resultForm.relabel();
+        showChatTitle();
+        if (chat.session == null && !chat.busy) {
+            chat.messageBox.getChildren().clear();
+            greet(chat);
+            chatView.setQuickReplies(chat.quickReplies);
+        }
+    }
+
+    /*  the greeting of a new chat and its quick replies  */
+    private void greet(BrainstormChat fresh) {
+        chatView.addBubble(fresh, I18nManager.getText("brainstorm.greeting"), false);
+        fresh.quickReplies = List.of(I18nManager.getText("brainstorm.quick.image"),
+                I18nManager.getText("brainstorm.quick.video"));
     }
 
     /** What the history does in the window. */
@@ -280,9 +308,7 @@ public class BrainstormDialog extends Stage {
     /** Shows an empty new session. The session is stored with the first message. */
     private void showNewSession() {
         BrainstormChat fresh = new BrainstormChat(null);
-        chatView.addBubble(fresh, I18nManager.getText("brainstorm.greeting"), false);
-        fresh.quickReplies = List.of(I18nManager.getText("brainstorm.quick.image"),
-                I18nManager.getText("brainstorm.quick.video"));
+        greet(fresh);
         fresh.loaded = true;
         opening = null;
         activate(fresh);

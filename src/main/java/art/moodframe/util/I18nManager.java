@@ -118,6 +118,18 @@ public class I18nManager {
     public static Locale getCurrentLocale() {
         return currentLocale;
     }
+
+    /**
+     * Formats an amount of money with two decimals in the number format of the language of the user interface, e.g.
+     * "0.07" in English and "0,07" in German, whatever the language of the system; the currency is up to the caller.
+     *
+     * @param amount the amount
+     * @return the amount with two decimals
+     * @since 2.1.3
+     */
+    public static String formatCost(double amount) {
+        return String.format(currentLocale, "%.2f", amount);
+    }
     
     /**
      * Retrieves a localized text string for the given key.
@@ -168,7 +180,8 @@ public class I18nManager {
         }
         
         try {
-            return MessageFormat.format(rawText, parameters);
+            /*  numbers in the parameters follow the language of the user interface, not that of the system  */
+            return new MessageFormat(rawText, currentLocale).format(parameters);
         } catch (IllegalArgumentException e) {
             logger.warn("Failed to format message for key '{}' with parameters: {}. Raw text: '{}'", 
                        key, java.util.Arrays.toString(parameters), rawText, e);

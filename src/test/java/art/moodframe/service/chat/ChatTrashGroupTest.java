@@ -55,7 +55,22 @@ class ChatTrashGroupTest {
         TrashEntry entry = trashed(deleted).orElseThrow();
         assertEquals("Regen", entry.name());
         assertNotNull(entry.deletedAt());
-        assertEquals(I18nManager.getText("trash.context.chat.plural", 3, String.format("%.2f", 0.12)), entry.context());
+        assertEquals(I18nManager.getText("trash.context.chat.plural", 3, I18nManager.formatCost(0.12)),
+                entry.context());
+    }
+
+    @Test
+    void countsOnlyTheImagesThatCameNotTheRowsOfAFailedRequest() throws Exception {
+        Chat chat = chat("Gewitter");
+        entry(chat, 0.04, 1);
+        ChatEntry failed = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").build();
+        repository.saveChatEntry(failed);
+        repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(failed.getId()).model("flux-pro")
+                .downloadStatus(GeneratedImage.DownloadStatus.FAILED).build());
+        trash.softDeleteChat(chat.getId());
+
+        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, I18nManager.formatCost(0.04)),
+                trashed(chat).orElseThrow().context());
     }
 
     @Test
@@ -69,7 +84,7 @@ class ChatTrashGroupTest {
         assertEquals(0.70, headerCost, 0.0001);
 
         trash.softDeleteChat(chat.getId());
-        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, String.format("%.2f", headerCost)),
+        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, I18nManager.formatCost(headerCost)),
                 trashed(chat).orElseThrow().context());
 
         assertTrue(group.restore(chat.getId()));
@@ -130,13 +145,16 @@ class ChatTrashGroupTest {
         return chat;
     }
 
-    /** Stores an entry with images without a stored cost: they share the cost of the entry evenly when deleted. */
+    /**
+     * Stores an entry with downloaded images without a stored cost: they share the cost of the entry evenly when
+     * deleted.
+     */
     private ChatEntry entry(Chat chat, double cost, int images) throws Exception {
         ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").cost(cost).build();
         repository.saveChatEntry(entry);
         for (int i = 0; i < images; i++) {
             repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(entry.getId())
-                    .model("flux-pro").build());
+                    .model("flux-pro").downloadStatus(GeneratedImage.DownloadStatus.CACHED).build());
         }
         return entry;
     }

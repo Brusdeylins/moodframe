@@ -21,7 +21,7 @@
      - Advanced (additional settings)
      - MCP (MCP server for Claude Code) -->
 
-<DialogPane fx:id="settingsDialogPane" minWidth="730.0" prefHeight="700.0" prefWidth="900.0" styleClass="settings-dialog" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.SettingsController">
+<DialogPane fx:id="settingsDialogPane" minWidth="730.0" prefHeight="700.0" prefWidth="900.0" styleClass="settings-dialog" xmlns="http://javafx.com/javafx/23" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.SettingsController">
 
     <headerText>%settings.title</headerText>
 

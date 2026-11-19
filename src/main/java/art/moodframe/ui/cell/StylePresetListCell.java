@@ -98,7 +98,7 @@ public class StylePresetListCell extends ListCell<StylePresetItem> {
         } else {
             /*  Only the blocks of the user carry the icon, the others keep its space; "None" is no block  */
             icon.setVisible(item.getBlock() != null && !item.getBlock().isDefault());
-            nameLabel.setText(item.getName());
+            nameLabel.setText(item.getDisplayName());
             if (star != null)
                 star.show(item.getBlock() != null ? item : null);
 
