@@ -83,6 +83,19 @@ public interface ImageProvider {
     int maxPromptLength(String apiModelId);
 
     /**
+     * Checks that the prompt of a request is within the {@link #maxPromptLength(String) limit} of its model.
+     *
+     * @param request the request, {@link ImageGenerationRequest#getModel()} is the API model id
+     * @throws IllegalArgumentException if the prompt is longer
+     */
+    default void checkPromptLength(ImageGenerationRequest request) {
+        int limit = maxPromptLength(request.getModel());
+        if (request.getPrompt() != null && request.getPrompt().length() > limit)
+            throw new IllegalArgumentException(String.format("Prompt cannot exceed %d characters (%s limit)", limit,
+                    getProvider().getDisplayName()));
+    }
+
+    /**
      * Sets what the model of this provider takes on a request whose prompt, size and general parameters are set:
      * resolution tier, reference images, Google Search, thinking level, FLUX settings, video parameters.
      *

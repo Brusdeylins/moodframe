@@ -394,7 +394,8 @@ class McpEditToolsTest {
         /*  As the main window composes and maps it: the blocks of the mood without the emptied atmosphere  */
         Mood filmNoir = moods.find("std:mood:film-noir");
         PromptComposer.Selection selection = moods.selection(filmNoir);
-        String expected = new PromptComposer(GenerationService.maxPromptLength(MODEL)).compose("a harbor at dawn",
+        String expected = new PromptComposer(MockProviders.preparing().get(GenerationModel.fromId(MODEL).getProvider())
+                .maxPromptLength(GenerationModel.fromId(MODEL).getApiModelId())).compose("a harbor at dawn",
                 new PromptComposer.Selection(selection.style(), null, selection.light(), selection.camera(),
                         selection.palette()));
         String item = ModelLabels.itemOf(MODEL);

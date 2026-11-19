@@ -151,11 +151,12 @@ public class RequestResponseManager implements RequestResponseService {
                     processAttachedImage(request, attachedImageFile);
                 }
 
-                // Validate request
+                // Validate request, the prompt against the limit of the provider
                 request.validate();
 
                 // The provider of the model decides about seeds and the flow
                 ImageProvider provider = providers.forModel(request.getModel());
+                provider.checkPromptLength(request);
 
                 // Update chat entry status and create placeholder images (ensure on FX thread)
                 FxModel.change(() -> {

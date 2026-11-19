@@ -345,7 +345,11 @@ public enum GenerationModel {
             0.0,
             "Image models of the OpenAI Images API, listed from the connected API");
 
-    /** Prefix of the dropdown items and chat entry names of OpenAI models. */
+    /**
+     * Prefix of the dropdown items and chat entry names of OpenAI models. It stays in the model, as it is the naming
+     * convention of the items every layer shares: the stored default model and chat entry names, the dropdowns, the
+     * aspect ratios and families of an item and the provider policy all tell an OpenAI item by it.
+     */
     public static final String OPENAI_PREFIX = "OpenAI \u00b7 ";
 
     private final String displayName;
@@ -830,19 +834,6 @@ public enum GenerationModel {
             return false;
         String lower = modelId.toLowerCase(java.util.Locale.ROOT);
         return lower.startsWith("dall-e") || lower.contains("gpt-image") || lower.contains("chatgpt-image");
-    }
-
-    /**
-     * Gets the prompt limit in characters of an OpenAI image model.
-     *
-     * @param modelId the OpenAI model id
-     * @return 32,000 for gpt-image models, 4,000 for dall-e-3 and 1,000 for dall-e-2
-     */
-    public static int openAiMaxPromptLength(String modelId) {
-        String lower = modelId == null ? "" : modelId.toLowerCase(java.util.Locale.ROOT);
-        if (lower.equals("dall-e-2"))
-            return 1000;
-        return lower.startsWith("dall-e") ? 4000 : 32000;
     }
 
     /**

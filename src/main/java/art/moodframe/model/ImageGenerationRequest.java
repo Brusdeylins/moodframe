@@ -619,22 +619,7 @@ public class ImageGenerationRequest {
             throw new IllegalArgumentException("Prompt cannot be empty");
         }
 
-        // Determine provider from model name to apply correct prompt limit
-        // Must match the limits of GenerationService#promptLimit, which the main window shows
-        boolean isGeminiModel = model != null && model.toLowerCase().contains("gemini");
-        boolean isOpenAiModel = isOpenAiModel(model);
-        int maxPromptLength = isGeminiModel ? 250000 // Gemini: 250k
-                : isOpenAiModel ? GenerationModel.openAiMaxPromptLength(model) // OpenAI: 1k-32k per model
-                : 2000; // BFL: 2k
-
-        if (prompt.length() > maxPromptLength) {
-            throw new IllegalArgumentException(String.format(
-                "Prompt cannot exceed %d characters (%s limit)",
-                maxPromptLength,
-                isGeminiModel ? "Gemini" : isOpenAiModel ? "OpenAI" : "BFL"
-            ));
-        }
-
+        // The prompt limit is the one of the provider (ImageProvider#checkPromptLength), which the main window shows
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException("Model must be specified");
         }
@@ -642,6 +627,7 @@ public class ImageGenerationRequest {
             throw new IllegalArgumentException("Image count must be between 1 and 4");
         }
         // Width/Height validation only for FLUX.2 (Gemini uses imageSize and videoResolution, FLUX 3 a resolution tier)
+        boolean isOpenAiModel = isOpenAiModel(model);
         boolean isGemini = model != null && (model.toLowerCase().contains("gemini") || isOpenAiModel);
         if (!isGemini && !model.toLowerCase().startsWith("flux.3-")) {
             // FLUX.2: min 64 and multiple of 16 (the schema has no other limit), else min 256 and multiple of 32

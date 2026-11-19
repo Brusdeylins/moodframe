@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToIntFunction;
 
 /**
  * The tools of the MCP server, each with name, description, JSON schema of its input and handler. A handler answers
@@ -116,12 +117,21 @@ public class McpTools {
      * @param events    where a download is reported for the status bar
      * @return the tools
      */
+    @SuppressWarnings("removal")
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events) {
+        /*  Without a generation service, the prompt limits known without the providers  */
+        return reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
+                GenerationService::maxPromptLength);
+    }
+
+    private static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
+            PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
+            TrashCenter trash, LibraryEvents events, ToIntFunction<String> promptLimit) {
         McpTools tools = new McpTools();
         new ChatTools(chats, events, config.paths().downloads()).addTo(tools);
-        new LibraryTools(config, moods, blocks, colors, frames, favorites, trash).addTo(tools);
+        new LibraryTools(config, moods, blocks, colors, frames, favorites, trash, promptLimit).addTo(tools);
         return tools;
     }
 
@@ -144,7 +154,8 @@ public class McpTools {
     public static McpTools all(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events, GenerationService generation, MoodAnalysisService analysis) {
-        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash, events);
+        McpTools tools = reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
+                generation::promptLimit);
         new ChatEditTools(chats, generation).addTo(tools);
         new LibraryEditTools(chats, moods, blocks, colors, frames, favorites, trash, analysis).addTo(tools);
         new GenerateTools(config, chats, moods, blocks, colors, frames, generation).addTo(tools);

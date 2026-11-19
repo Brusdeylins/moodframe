@@ -107,9 +107,12 @@ class OpenAiApiServiceTest {
         assertDoesNotThrow(request::validate);
 
         ImageGenerationRequest dalle = new ImageGenerationRequest("x".repeat(5000), "dall-e-3");
-        assertThrows(IllegalArgumentException.class, dalle::validate);
-        assertEquals(32000, GenerationModel.openAiMaxPromptLength("gpt-image-1"));
-        assertEquals(4000, GenerationModel.openAiMaxPromptLength("dall-e-3"));
+        OpenAiApiService openAi = MockProviders.preparing().get(ApiProvider.OPENAI, OpenAiApiService.class);
+        assertThrows(IllegalArgumentException.class, () -> openAi.checkPromptLength(dalle));
+        assertDoesNotThrow(() -> openAi.checkPromptLength(request));
+        assertEquals(32000, OpenAiApiService.promptLimitOf("gpt-image-1"));
+        assertEquals(4000, OpenAiApiService.promptLimitOf("dall-e-3"));
+        assertEquals(1000, OpenAiApiService.promptLimitOf("dall-e-2"));
     }
 
     @Test

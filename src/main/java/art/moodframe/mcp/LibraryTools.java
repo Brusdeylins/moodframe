@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.ToIntFunction;
 
 /**
  * The tools that read the library and the models: {@code get_capabilities}, {@code list_moods}, {@code get_mood},
@@ -51,6 +52,7 @@ class LibraryTools {
     private final FrameService frames;
     private final FavoriteService favorites;
     private final TrashCenter trash;
+    private final ToIntFunction<String> promptLimit;
 
     /**
      * Creates the tools.
@@ -62,10 +64,12 @@ class LibraryTools {
      * @param frames    the frames
      * @param favorites the favorites
      * @param trash     the trash
+     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it
      */
     LibraryTools(ApplicationConfig config, MoodService moods, PromptBlockService blocks, ColorStyleService colors,
-            FrameService frames, FavoriteService favorites, TrashCenter trash) {
+            FrameService frames, FavoriteService favorites, TrashCenter trash, ToIntFunction<String> promptLimit) {
         this.config = config;
+        this.promptLimit = promptLimit;
         this.moods = moods;
         this.blocks = blocks;
         this.colors = colors;
@@ -136,7 +140,7 @@ class LibraryTools {
                 node.put("cost", McpTools.usd(cost.perImage()));
             else
                 node.putNull("cost");
-            node.put("maxPromptLength", GenerationService.maxPromptLength(id));
+            node.put("maxPromptLength", promptLimit.applyAsInt(id));
             node.set("parameters", parameters(config, model));
         }
         result.set("camera", camera());
