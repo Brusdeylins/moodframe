@@ -492,8 +492,8 @@ public class ChatLibrary implements TrashCenter.Listener {
             events.changed(LibraryEvents.Kind.CHAT, chatId);
     }
 
-    /*  An entry in use keeps its object, as running requests may hold it, and gets its images back; a deleted entry is
-        inserted again at its place  */
+    /*  An entry in use keeps its object, as running requests may hold it, and gets the images back that came from the
+        trash (see merge); a deleted entry is inserted again at its place  */
     private void restoreImages(String id) throws SQLException {
         ChatEntry restored = history != null ? history.findRestoredEntry(id).orElse(null) : null;
         if (restored == null)
@@ -509,7 +509,7 @@ public class ChatLibrary implements TrashCenter.Listener {
             ChatEntry entry = chat.getEntries().stream().filter((ChatEntry other) -> other.getId()
                     .equals(restored.getId())).findFirst().orElse(null);
             if (entry != null) {
-                entry.getImages().setAll(restored.getImages());
+                merge(entry, restored.getImages());
                 entry.setDeletedCost(restored.getDeletedCost());
             }
             else {
@@ -522,5 +522,21 @@ public class ChatLibrary implements TrashCenter.Listener {
         });
         if (shown != null)
             events.changed(LibraryEvents.Kind.ENTRY, shown.getId());
+    }
+
+    /*  Inserts the stored images an entry does not show into its list, at their place in the order. The images shown
+        keep their objects: a running request holds its placeholder, which is not stored yet, or its image, and the
+        generation settles the entry with the images back once all are finished (see ChatEntryTracker#refresh), the
+        deleted cost of the entry lowered by what they cost. Under the lock  */
+    private static void merge(ChatEntry entry, List<GeneratedImage> stored) {
+        List<GeneratedImage> images = entry.getImages();
+        for (GeneratedImage image : stored) {
+            if (images.stream().anyMatch((GeneratedImage shown) -> shown.getId().equals(image.getId())))
+                continue;
+            int index = 0;
+            while (index < images.size() && images.get(index).getSortOrder() <= image.getSortOrder())
+                index++;
+            images.add(index, image);
+        }
     }
 }
