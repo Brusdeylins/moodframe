@@ -128,7 +128,8 @@ public final class VideoPoster {
 
     /*  Takes the frame with the ffmpeg of the PATH in the background, as a process never runs on the FX thread  */
     private static CompletableFuture<Image> extract(Path video, Path poster) {
-        return CompletableFuture.supplyAsync(() -> runFfmpeg(SystemOpen.findProgram("ffmpeg"), video, poster));
+        return CompletableFuture.supplyAsync(() -> runFfmpeg(SystemOpen.findProgram("ffmpeg"), video, poster),
+                DiskWorker.get());
     }
 
     /**

@@ -51,7 +51,7 @@ public final class SystemOpen {
             catch (IOException | RuntimeException e) {
                 logger.warn("Could not open {}: {}", file, e.getMessage());
             }
-        });
+        }, DiskWorker.get());
     }
 
     /**
@@ -74,7 +74,7 @@ public final class SystemOpen {
             catch (IOException | RuntimeException e) {
                 logger.warn("Could not open {}: {}", url, e.getMessage());
             }
-        });
+        }, DiskWorker.get());
     }
 
     /*  Only web pages go to the browser, never a file or a custom scheme from foreign text  */

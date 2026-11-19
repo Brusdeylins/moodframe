@@ -1,6 +1,7 @@
 package art.moodframe.ui.entry;
 
 import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.ui.support.DiskWorker;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.WeakInvalidationListener;
@@ -39,7 +40,8 @@ final class SharpThumbnail {
                 return;
             requested[0] = true;
             thumbnails.enlargeThumbnail(path)
-                    .thenApplyAsync((enlarged) -> enlarged ? reload(sources, thumbnails.getThumbnailPath(path)) : null)
+                    .thenApplyAsync((enlarged) -> enlarged ? reload(sources, thumbnails.getThumbnailPath(path)) : null,
+                            DiskWorker.get())
                     .thenAccept((larger) -> Platform.runLater(() -> {
                         if (larger != null && view.getImage() == image)
                             view.setImage(larger);

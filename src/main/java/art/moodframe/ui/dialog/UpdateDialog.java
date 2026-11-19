@@ -3,6 +3,7 @@ package art.moodframe.ui.dialog;
 import art.moodframe.service.UpdateCheckService;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.util.I18nManager;
+import art.moodframe.ui.support.DiskWorker;
 import art.moodframe.ui.support.SystemOpen;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
@@ -63,7 +64,8 @@ public final class UpdateDialog {
 
         /*  The package is told off the UI thread, as it asks pacman  */
         CompletableFuture<UpdateCheckService.Package> packageKind =
-                CompletableFuture.supplyAsync(() -> updates.isLinux() ? updates.packageKind() : null);
+                CompletableFuture.supplyAsync(() -> updates.isLinux() ? updates.packageKind() : null,
+                        DiskWorker.get());
         check.thenAcceptBoth(packageKind,
                 (UpdateCheckService.Result result, UpdateCheckService.Package kind) -> Platform.runLater(() -> {
             if (result.available() == null) {

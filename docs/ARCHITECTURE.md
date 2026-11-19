@@ -141,6 +141,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   for another task of it (a full pool would wait forever): the brainstorm runs a turn, its tool calls and the naming
   of a session on virtual threads of its own (`brainstorm-N`), which wait for the provider calls on the pool, and the
   analysis of an image into a mood composes the answer of the language model instead of waiting for it.
+- **Disk work of the views**: the views read and decode pictures, write and compare attached files and run ffmpeg
+  and the other programs of the desktop on `ui.support.DiskWorker`, a pool of at most four named daemon threads
+  (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`
   and stores them afterwards on a single worker of its own (`ChatEntryTracker.saveImage`, `saveEntry`), so the writes
   keep the order of the changes and never run on the JavaFX thread; requests, downloads and files run on the I/O

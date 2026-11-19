@@ -7,6 +7,7 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.ui.support.BoxInset;
+import art.moodframe.ui.support.DiskWorker;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.VideoPoster;
 import javafx.application.Platform;
@@ -503,10 +504,11 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         }
 
         /*  A missing thumbnail is created first; the next stage follows the creation, no thread waits for it  */
-        CompletableFuture.supplyAsync(() -> sources.cache().get(thumbnailPath))
+        CompletableFuture.supplyAsync(() -> sources.cache().get(thumbnailPath), DiskWorker.get())
                 .thenCompose((loaded) -> loaded != null ? CompletableFuture.completedFuture(loaded)
                         : thumbnails.getThumbnail(path)
-                                .thenApplyAsync((file) -> sources.cache().get(file.getAbsolutePath())))
+                                .thenApplyAsync((file) -> sources.cache().get(file.getAbsolutePath()),
+                                        DiskWorker.get()))
                 .whenComplete((loaded, error) -> Platform.runLater(() -> {
                     if (loaded != null)
                         view.setImage(loaded);

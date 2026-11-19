@@ -5,6 +5,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.ui.support.DiskWorker;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
 import javafx.scene.control.ProgressIndicator;
@@ -128,7 +129,7 @@ final class EntryTilePictures {
 
         // Load thumbnail async - the cache will handle whether file exists
         CompletableFuture.supplyAsync(() -> thumbnailPath != null
-                        ? sources.cache().get(thumbnailPath) : null)
+                        ? sources.cache().get(thumbnailPath) : null, DiskWorker.get())
                 .whenComplete((image, error) -> {
                     if (image != null)
                         Platform.runLater(() -> setImageWithHandlers(imageView, image, imageIndex));
@@ -146,7 +147,7 @@ final class EntryTilePictures {
             ProgressIndicator progressIndicator, int imageIndex, String localPath, ThumbnailManager thumbnailManager) {
         thumbnailManager.getThumbnail(localPath)
                 .thenApplyAsync((thumbnailFile) -> thumbnailFile != null && thumbnailFile.exists()
-                        ? sources.cache().get(thumbnailFile.getAbsolutePath()) : null)
+                        ? sources.cache().get(thumbnailFile.getAbsolutePath()) : null, DiskWorker.get())
                 .whenComplete((image, error) -> {
                     if (image == null) {
                         showOriginalImage(generatedImage, imageView, loadingOverlay, progressIndicator, imageIndex,
@@ -227,7 +228,7 @@ final class EntryTilePictures {
                         imageView.setCursor(javafx.scene.Cursor.DEFAULT);
                     }
                 });
-            });
+            }, DiskWorker.get());
         } catch (Exception e) {
             logger.error("Failed to load image from: {}", imagePath, e);
             createPlaceholderImage(null, imageView, "Load Error", 0.3);
