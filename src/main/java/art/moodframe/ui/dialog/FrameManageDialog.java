@@ -1,12 +1,8 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Frame;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashCleanupService;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.util.I18nManager;
@@ -31,46 +27,112 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.kordamp.ikonli.javafx.FontIcon;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 /**
  * Window for the frames of the user: order, rename, delete (into the central trash), favorite (by the star or the
  * context menu of a row), import and export as JSON, and a link to the frames in the trash. Every change is stored
- * at once.
+ * at once, off the JavaFX thread; the window waits meanwhile, so no second change starts from a list that is not
+ * loaded again yet.
  *
  * @since 2.0.0
  */
 public class FrameManageDialog extends Stage {
 
+    private static final Logger logger = LoggerFactory.getLogger(FrameManageDialog.class);
     private static final double WINDOW_WIDTH = 460;
     private static final double WINDOW_HEIGHT = 420;
 
-    private final FrameService frameService;
+    /** The frames of the user. A change completes on the JavaFX thread. */
+    public interface Library {
+
+        /**
+         * Lists the frames of the user.
+         *
+         * @return the frames in their order
+         */
+        List<Frame> list();
+
+        /**
+         * Tells if a frame in use has this name.
+         *
+         * @param name the name
+         * @return true if the name is taken
+         */
+        boolean exists(String name);
+
+        /**
+         * Stores the order of the frames.
+         *
+         * @param frames the frames in their new order
+         * @return completes with true if the order is stored
+         */
+        CompletableFuture<Boolean> reorder(List<Frame> frames);
+
+        /**
+         * Gives a frame a new name.
+         *
+         * @param frame the frame
+         * @param name  the new name, which no other frame has
+         * @return completes with true if it is stored
+         */
+        CompletableFuture<Boolean> rename(Frame frame, String name);
+
+        /**
+         * Moves a frame to the trash.
+         *
+         * @param frame the frame
+         * @return completes with true if it is in the trash
+         */
+        CompletableFuture<Boolean> delete(Frame frame);
+
+        /**
+         * Adds the frames of a JSON file behind those of the user.
+         *
+         * @param file the source file
+         * @return completes with the number of added frames, -1 if the file cannot be read
+         */
+        CompletableFuture<Integer> importFrom(File file);
+
+        /**
+         * Writes the frames of the user into a JSON file.
+         *
+         * @param file the target file
+         * @return completes with true if it was written
+         */
+        CompletableFuture<Boolean> exportTo(File file);
+    }
+
+    private final Library library;
+    private final TrashWindow.Opener trash;
     private final ListView<Frame> list = new ListView<>();
 
     /**
      * Creates the window.
      *
      * @param owner the owner window
-     * @param frameService where the frames are kept
+     * @param library the frames of the user
+     * @param starred the favorites, which the star of a row toggles
+     * @param trash opens the trash on the frames
      */
-    public FrameManageDialog(Window owner, FrameService frameService) {
-        this.frameService = frameService;
+    public FrameManageDialog(Window owner, Library library, FavoriteStar.Favorites<Frame> starred,
+            TrashWindow.Opener trash) {
+        this.library = library;
+        this.trash = trash;
 
         initOwner(owner);
         initModality(Modality.WINDOW_MODAL);
         setTitle(I18nManager.getText("frame.manage.title"));
 
         list.setPlaceholder(new Label(I18nManager.getText("frame.manage.placeholder")));
-        FavoriteService favorites = ServiceFactory.getInstance().getService(FavoriteService.class);
-        FavoriteStar.Favorites<Frame> starred = new FavoriteStar.Favorites<>(null, (frame) -> favorites != null
-                && favorites.isFavorite(FavoriteService.Kind.FRAME, frame.getId()), (frame) -> {
-                    if (favorites != null)
-                        favorites.toggle(FavoriteService.Kind.FRAME, frame.getId());
-                });
         list.setCellFactory((view) -> new ListCell<>() {
             private final Label nameLabel = new Label();
             private final Region spacer = new Region();
@@ -140,13 +202,13 @@ public class FrameManageDialog extends Stage {
      * Asks for the name of a frame until it is free or the user cancels.
      *
      * @param owner the owner window
-     * @param frameService where the frames are kept
+     * @param taken tells if a frame in use has a name
      * @param header the question above the field
      * @param suggestion the name the field starts with
      * @param ownName the name the frame has now, which counts as free; null for a new frame
      * @return the trimmed name, null if the user cancelled
      */
-    public static String askName(Window owner, FrameService frameService, String header, String suggestion,
+    public static String askName(Window owner, Predicate<String> taken, String header, String suggestion,
             String ownName) {
         String name = suggestion;
         while (true) {
@@ -160,7 +222,7 @@ public class FrameManageDialog extends Stage {
             if (answer == null)
                 return null;
             name = answer.trim();
-            if (!name.isEmpty() && (name.equals(ownName) || !frameService.exists(name)))
+            if (!name.isEmpty() && (name.equals(ownName) || !taken.test(name)))
                 return name;
             if (!name.isEmpty()) {
                 Alert alert = new Alert(Alert.AlertType.WARNING, I18nManager.getText("frame.name.taken", name),
@@ -179,14 +241,14 @@ public class FrameManageDialog extends Stage {
         return button;
     }
 
-    /** Loads the frames of the user again and marks the one with this id. */
+    /*  loads the frames of the user again and marks the one with this id  */
     private void refresh(String selectId) {
-        list.getItems().setAll(frameService.getCustom());
+        list.getItems().setAll(library.list());
         list.getItems().stream().filter((Frame frame) -> frame.getId().equals(selectId)).findFirst()
                 .ifPresent(list.getSelectionModel()::select);
     }
 
-    /** Moves the marked frame one place up (-1) or down (1). */
+    /*  moves the marked frame one place up (-1) or down (1)  */
     private void move(int delta) {
         int index = list.getSelectionModel().getSelectedIndex();
         int target = index + delta;
@@ -194,47 +256,72 @@ public class FrameManageDialog extends Stage {
             return;
         List<Frame> frames = new ArrayList<>(list.getItems());
         frames.add(target, frames.remove(index));
-        frameService.reorder(frames.stream().map(Frame::getId).toList());
-        refresh(frames.get(target).getId());
+        String id = frames.get(target).getId();
+        change(library.reorder(frames), (stored, failure) -> {
+            if (!Boolean.TRUE.equals(stored))
+                showMessage(Alert.AlertType.ERROR, I18nManager.getText("error.frame.save"));
+            refresh(id);
+        });
     }
 
     private void rename() {
         Frame frame = list.getSelectionModel().getSelectedItem();
-        String name = askName(this, frameService, I18nManager.getText("frame.name.rename"), frame.getName(),
+        String name = askName(this, library::exists, I18nManager.getText("frame.name.rename"), frame.getName(),
                 frame.getName());
         if (name == null || name.equals(frame.getName()))
             return;
-        frame.setName(name);
-        if (!frameService.update(frame))
-            showMessage(Alert.AlertType.ERROR, I18nManager.getText("error.frame.save"));
-        refresh(frame.getId());
+        change(library.rename(frame, name), (stored, failure) -> {
+            if (!Boolean.TRUE.equals(stored))
+                showMessage(Alert.AlertType.ERROR, I18nManager.getText("error.frame.save"));
+            refresh(frame.getId());
+        });
     }
 
-    /** Moves the marked frame to the central trash, where it can be restored. */
+    /*  moves the marked frame to the central trash, where it can be restored  */
     private void delete() {
         Frame frame = list.getSelectionModel().getSelectedItem();
-        if (!frameService.moveToTrash(frame.getId()))
-            showMessage(Alert.AlertType.ERROR, I18nManager.getText("frame.manage.delete.failed", frame.getName()));
-        refresh(null);
+        change(library.delete(frame), (deleted, failure) -> {
+            if (!Boolean.TRUE.equals(deleted))
+                showMessage(Alert.AlertType.ERROR, I18nManager.getText("frame.manage.delete.failed",
+                        frame.getName()));
+            refresh(null);
+        });
     }
 
     private void importFrames() {
         File file = fileChooser().showOpenDialog(this);
         if (file == null)
             return;
-        int imported = frameService.importFrames(file);
-        showMessage(imported < 0 ? Alert.AlertType.ERROR : Alert.AlertType.INFORMATION, imported < 0
-                ? I18nManager.getText("frame.manage.import.failed")
-                : I18nManager.getText("frame.manage.import.done", imported));
-        refresh(null);
+        change(library.importFrom(file), (imported, failure) -> {
+            boolean read = imported != null && imported >= 0;
+            refresh(null);
+            showMessage(read ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR, read
+                    ? I18nManager.getText("frame.manage.import.done", imported)
+                    : I18nManager.getText("frame.manage.import.failed"));
+        });
     }
 
     private void exportFrames() {
         FileChooser chooser = fileChooser();
         chooser.setInitialFileName("frames.json");
         File file = chooser.showSaveDialog(this);
-        if (file != null && !frameService.exportFrames(file))
-            showMessage(Alert.AlertType.ERROR, I18nManager.getText("frame.manage.export.failed"));
+        if (file == null)
+            return;
+        change(library.exportTo(file), (written, failure) -> {
+            if (!Boolean.TRUE.equals(written))
+                showMessage(Alert.AlertType.ERROR, I18nManager.getText("frame.manage.export.failed"));
+        });
+    }
+
+    /*  waits for a change of the library, which completes on the JavaFX thread, and then shows its outcome  */
+    private <R> void change(CompletableFuture<R> change, BiConsumer<R, Throwable> then) {
+        getScene().getRoot().setDisable(true);
+        change.whenComplete((result, failure) -> {
+            getScene().getRoot().setDisable(false);
+            if (failure != null)
+                logger.error("A change of the frames failed", failure);
+            then.accept(result, failure);
+        });
     }
 
     private static FileChooser fileChooser() {
@@ -243,11 +330,9 @@ public class FrameManageDialog extends Stage {
         return chooser;
     }
 
-    /** Opens the frames in the trash; a restored frame shows up here once the trash is closed. */
+    /*  opens the frames in the trash; a restored frame shows up here once the trash is closed  */
     private void openTrash() {
-        TrashWindow window = new TrashWindow(this, ServiceFactory.getInstance().getService(TrashCenter.class),
-                ServiceFactory.getInstance().getService(TrashCleanupService.class));
-        window.select(TrashGroup.Kind.FRAMES, null);
+        TrashWindow window = trash.window(this, TrashGroup.Kind.FRAMES, null);
         window.setOnHidden((event) -> refresh(null));
         window.show();
     }

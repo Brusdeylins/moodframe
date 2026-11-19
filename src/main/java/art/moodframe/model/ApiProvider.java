@@ -11,26 +11,28 @@ public enum ApiProvider {
     /**
      * BFL (Blackforest Labs) - Provider for FLUX models.
      */
-    BFL("BFL (Blackforest Labs)", "bfl.api.key", "provider.bfl"),
+    BFL("BFL (Blackforest Labs)", "provider.bfl", 10, false),
 
     /**
      * Google Gemini - Provider for Gemini image generation models.
      */
-    GOOGLE_GEMINI("Google Gemini", "gemini.api.key", "provider.gemini"),
+    GOOGLE_GEMINI("Google Gemini", "provider.gemini", 20, true),
 
     /**
      * OpenAI (or an OpenAI-compatible gateway) - Provider for the image models of the OpenAI Images API.
      */
-    OPENAI("OpenAI", "openai.api.key", "provider.openai");
+    OPENAI("OpenAI", "provider.openai", 50, true);
 
     private final String displayName;
-    private final String apiKeyConfigKey;
     private final String providerConfigPrefix;
+    private final int maxFileSizeMegabytes;
+    private final boolean languageModel;
 
-    ApiProvider(String displayName, String apiKeyConfigKey, String providerConfigPrefix) {
+    ApiProvider(String displayName, String providerConfigPrefix, int maxFileSizeMegabytes, boolean languageModel) {
         this.displayName = displayName;
-        this.apiKeyConfigKey = apiKeyConfigKey;
         this.providerConfigPrefix = providerConfigPrefix;
+        this.maxFileSizeMegabytes = maxFileSizeMegabytes;
+        this.languageModel = languageModel;
     }
 
     /**
@@ -43,20 +45,30 @@ public enum ApiProvider {
     }
 
     /**
-     * Gets the configuration key for the API key of this provider.
-     *
-     * @return the API key configuration key
-     */
-    public String getApiKeyConfigKey() {
-        return apiKeyConfigKey;
-    }
-
-    /**
      * Gets the configuration key prefix for provider settings.
      *
      * @return the provider configuration prefix
      */
     public String getProviderConfigPrefix() {
         return providerConfigPrefix;
+    }
+
+    /**
+     * Gets the largest image file the provider takes as an attachment: BFL 10 MB, Google Gemini 20 MB, OpenAI 50 MB.
+     *
+     * @return the size in bytes
+     */
+    public long getMaxFileSize() {
+        return maxFileSizeMegabytes * 1024L * 1024;
+    }
+
+    /**
+     * Tells whether the provider has a language model, which the brainstorm and the analysis of an image talk to:
+     * Google Gemini and OpenAI, not BFL.
+     *
+     * @return true with a language model
+     */
+    public boolean hasLanguageModel() {
+        return languageModel;
     }
 }

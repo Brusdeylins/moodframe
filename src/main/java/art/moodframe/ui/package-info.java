@@ -1,4 +1,10 @@
 /**
- * UI components and utilities for MoodFrame application.
+ * The JavaFX user interface. The subpackages hold the FXML controllers, the dialogs and windows, the brainstorm
+ * window, the list cells, the reusable components, the drag and drop and the helpers that need JavaFX.
+ *
+ * <p>Main classes:</p>
+ * <ul>
+ * <li>{@link SplashScreen}: the splash screen at startup and the info window, shown before the main window</li>
+ * </ul>
  */
 package art.moodframe.ui;

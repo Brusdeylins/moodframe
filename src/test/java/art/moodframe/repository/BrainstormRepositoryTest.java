@@ -1,7 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
-import art.moodframe.model.BrainstormDraft;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import org.json.JSONObject;
@@ -10,10 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs against a fresh SQLite database, so migration V014 is applied together with all earlier ones. */
@@ -22,16 +25,16 @@ class BrainstormRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final BrainstormRepository repository = new BrainstormRepository();
+    private final BrainstormRepository repository = new BrainstormRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test
-    void storesSessionsMessagesAndDraftVersions() {
-        BrainstormSession session = repository.createSession("Neue Sitzung").orElseThrow();
+    void storesSessionsMessagesAndDraftVersions() throws Exception {
+        BrainstormSession session = repository.createSession("Neue Sitzung");
 
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "Hallo"));
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, "{}"));
@@ -42,19 +45,27 @@ class BrainstormRepositoryTest {
         assertEquals("Hallo", repository.findAllSessions().stream()
                 .filter(s -> s.getId().equals(session.getId())).findFirst().orElseThrow().getTitle());
 
-        BrainstormDraft first = BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"v1\"}"));
-        BrainstormDraft second = BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"v2\", \"style\": \"Pixel Art\"}"));
-        assertEquals(1, repository.addDraft(session.getId(), first));
-        assertEquals(2, repository.addDraft(session.getId(), second));
-        assertEquals("v2", repository.findLatestDraft(session.getId()).orElseThrow().getPrompt());
-        assertEquals("Pixel Art", repository.findLatestDraft(session.getId()).orElseThrow()
-                .getBlock(art.moodframe.model.Mood.Field.STYLE).name());
+        assertEquals(1, repository.addDraft(session.getId(), "{\"prompt\": \"v1\"}"));
+        assertEquals(2, repository.addDraft(session.getId(), "{\"prompt\": \"v2\", \"style\": \"Pixel Art\"}"));
+        assertEquals("v2", new JSONObject(repository.findLatestDraft(session.getId()).orElseThrow())
+                .getString("prompt"));
     }
 
     @Test
-    void remembersTheLanguageModelOfEachSession() {
-        BrainstormSession openAi = repository.createSession("OpenAI", "openai").orElseThrow();
-        BrainstormSession older = repository.createSession("Ohne Wahl").orElseThrow();
+    void replacesATitleOnlyWhileItIsTheExpectedOne() throws Exception {
+        BrainstormSession session = repository.createSession("Erster Satz");
+
+        assertTrue(repository.replaceTitle(session.getId(), "Erster Satz", "Kurz"));
+        assertFalse(repository.replaceTitle(session.getId(), "Erster Satz", "Anders"), "the title changed");
+        assertEquals("Kurz", repository.findAllSessions().stream()
+                .filter((BrainstormSession s) -> s.getId().equals(session.getId())).findFirst().orElseThrow()
+                .getTitle());
+    }
+
+    @Test
+    void remembersTheLanguageModelOfEachSession() throws Exception {
+        BrainstormSession openAi = repository.createSession("OpenAI", "openai");
+        BrainstormSession older = repository.createSession("Ohne Wahl");
         repository.updateEngine(older.getId(), "gemini");
 
         List<BrainstormSession> stored = repository.findAllSessions();
@@ -66,7 +77,7 @@ class BrainstormRepositoryTest {
 
     @Test
     void migrationV015ShiftsTheStepsOfStoredAssistantRepliesToTheEightStepProcess() throws Exception {
-        BrainstormSession session = repository.createSession("Alt").orElseThrow();
+        BrainstormSession session = repository.createSession("Alt");
         for (int step = 1; step <= 5; step++) {
             repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT,
                     "{\"step\": " + step + ", \"message\": \"m" + step + "\"}"));
@@ -76,7 +87,8 @@ class BrainstormRepositoryTest {
 
         String sql = new String(getClass().getResourceAsStream("/db/migration/V015__Shift_brainstorm_steps.sql")
                 .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        try (java.sql.Connection conn = DatabaseConfig.getConnection(); java.sql.Statement stmt = conn.createStatement()) {
+        try (java.sql.Connection conn = TestDatabase.get().getConnection();
+                java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
 
@@ -89,15 +101,28 @@ class BrainstormRepositoryTest {
     }
 
     @Test
-    void deletesSessionWithMessagesAndDrafts() {
-        BrainstormSession session = repository.createSession("Weg").orElseThrow();
+    void deletesSessionWithMessagesAndDrafts() throws Exception {
+        BrainstormSession session = repository.createSession("Weg");
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "x"));
-        repository.addDraft(session.getId(), new BrainstormDraft());
+        repository.addDraft(session.getId(), "{}");
 
         assertTrue(repository.deleteSession(session.getId()));
 
         assertTrue(repository.findMessages(session.getId()).isEmpty());
         assertTrue(repository.findLatestDraft(session.getId()).isEmpty());
         assertFalse(repository.findAllSessions().stream().anyMatch(s -> s.getId().equals(session.getId())));
+    }
+
+    @Test
+    void storesAMessageOnlyTogetherWithTheTimeOfTheSession() throws Exception {
+        BrainstormSession session = repository.createSession("Kaputt");
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE TRIGGER refuse_touch BEFORE UPDATE OF updated_at ON brainstorm_sessions "
+                    + "WHEN NEW.title = 'Kaputt' BEGIN SELECT RAISE(ABORT, 'refused'); END");
+        }
+
+        assertThrows(SQLException.class, () -> repository.addMessage(session.getId(),
+                new BrainstormMessage(BrainstormMessage.ROLE_USER, "lost")));
+        assertTrue(repository.findMessages(session.getId()).isEmpty(), "the message goes back with the session");
     }
 }

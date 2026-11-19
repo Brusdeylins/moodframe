@@ -38,12 +38,16 @@ class ChatRepositoryFrameTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
+    private static ChatGroupQueries queries;
 
     @BeforeAll
     static void createDatabase() throws Exception {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
+        queries = new ChatGroupQueries(databaseManager);
     }
 
     @Test
@@ -97,13 +101,13 @@ class ChatRepositoryFrameTest {
         entry(trashed, frame("frame-only-trashed", "Hidden", "1:1", "1K"), start.plusMinutes(9), 1);
 
         GeneratedImage deletedImage = image(first);
-        repository.softDeleteImage(deletedImage.getId());
+        trash.softDeleteImage(deletedImage.getId());
         repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(second.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.FAILED).build());
-        repository.softDeleteChatEntry(removed.getId());
-        repository.softDeleteChat(trashed.getId());
+        trash.softDeleteChatEntry(removed.getId());
+        trash.softDeleteChat(trashed.getId());
 
-        List<FrameGroup> groups = repository.findFrameGroups();
+        List<FrameGroup> groups = queries.findFrameGroups();
         assertEquals(List.of("std:frame:social-post", "frame-trashed", "frame-gone", "frame-renamed"),
                 groups.stream().filter((FrameGroup group) -> group.kind() == FrameGroup.Kind.FRAME)
                         .map(FrameGroup::frameId).toList(), "the latest use first, only frames with images");
@@ -138,9 +142,9 @@ class ChatRepositoryFrameTest {
         assertNull(ownSettings.aspectRatio(), "a fixed group has no target of its own");
         assertEquals(1, withoutFrame.imageCount(), "the entries without copy");
 
-        assertEquals(List.of(first.getId(), second.getId()), repository.findChatEntryIdsByFrame(renamed));
-        assertTrue(repository.findChatEntryIdsByFrame(ownSettings).contains(setting.getId()));
-        assertTrue(repository.findChatEntryIdsByFrame(withoutFrame).contains(plain.getId()));
+        assertEquals(List.of(first.getId(), second.getId()), queries.findChatEntryIdsByFrame(renamed));
+        assertTrue(queries.findChatEntryIdsByFrame(ownSettings).contains(setting.getId()));
+        assertTrue(queries.findChatEntryIdsByFrame(withoutFrame).contains(plain.getId()));
         assertTrue(renamed.holds(first));
         assertTrue(ownSettings.holds(setting));
         assertTrue(withoutFrame.holds(plain));
@@ -183,10 +187,11 @@ class ChatRepositoryFrameTest {
         assertNull(old.getFrame(), "an entry from before V024 has no copy");
         assertNotNull(old.getMood(), "the mood stays");
 
-        FrameGroup withoutFrame = chats.findFrameGroups().getLast();
+        ChatGroupQueries migratedQueries = new ChatGroupQueries(migrated);
+        FrameGroup withoutFrame = migratedQueries.findFrameGroups().getLast();
         assertEquals(FrameGroup.Kind.NONE, withoutFrame.kind());
         assertEquals(1, withoutFrame.imageCount());
-        assertEquals(List.of("old-entry"), chats.findChatEntryIdsByFrame(withoutFrame));
+        assertEquals(List.of("old-entry"), migratedQueries.findChatEntryIdsByFrame(withoutFrame));
     }
 
     private Chat chat() throws Exception {

@@ -118,7 +118,7 @@ public class CameraExample extends VBox {
      * @param stage the stage, null for the picture without camera
      * @return the resource name
      */
-    static String resource(Enum<?> stage) {
+    public static String resource(Enum<?> stage) {
         return "/images/camera/" + (stage == null ? "any" : setting(stage) + "-" + stage.name()) + ".jpg";
     }
 

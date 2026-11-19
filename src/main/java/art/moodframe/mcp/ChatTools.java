@@ -1,13 +1,14 @@
 package art.moodframe.mcp;
 
 import art.moodframe.model.Chat;
+import art.moodframe.model.ChatCost;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.LibraryEvents;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.util.DownloadsFolder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -34,8 +35,8 @@ import java.util.Locale;
 /**
  * The tools that read the chats: {@code list_chats}, {@code get_chat}, {@code get_entry} and {@code get_image}, and
  * {@code download_image}, which copies an image like the download button. They see what the main window shows,
- * nothing in the trash, and read the JavaFX models through the {@link ChatLibrary} on the JavaFX thread; files are
- * read on the thread of the call.
+ * nothing in the trash, and read the models through {@link ChatLibrary#read} on the thread of the call, without
+ * waiting for the JavaFX thread; files are read outside of it.
  *
  * @since 2.1.0
  */
@@ -46,7 +47,7 @@ class ChatTools {
 
     private static final List<String> SIZES = List.of("preview", "original");
 
-    /*  an image found in the chats, copied off the JavaFX thread  */
+    /*  an image found in the chats, copied out of the models  */
     record Found(String entryId, String path, boolean video, int width, int height, String chatName,
             LocalDateTime createdAt) {
 
@@ -59,16 +60,19 @@ class ChatTools {
 
     private final ChatLibrary chats;
     private final LibraryEvents events;
+    private final Path downloads;
 
     /**
      * Creates the tools.
      *
-     * @param chats  the chats of the main window
-     * @param events where a download is reported for the status bar
+     * @param chats     the chats of the main window
+     * @param events    where a download is reported for the status bar
+     * @param downloads the Downloads folder of the user, {@code LibraryPaths.downloads()}
      */
-    ChatTools(ChatLibrary chats, LibraryEvents events) {
+    ChatTools(ChatLibrary chats, LibraryEvents events, Path downloads) {
         this.chats = chats;
         this.events = events;
+        this.downloads = downloads;
     }
 
     /**
@@ -218,7 +222,7 @@ class ChatTools {
         String directory = McpTools.optionalText(arguments, "directory");
 
         /*  ~/Downloads is created if missing, as by the download button; a given folder must exist  */
-        Path folder = Path.of(System.getProperty("user.home"), "Downloads");
+        Path folder = downloads;
         if (directory != null) {
             try {
                 folder = Path.of(directory);
@@ -262,7 +266,7 @@ class ChatTools {
     }
 
     /**
-     * Copies an image with what names its download, on the JavaFX thread.
+     * Copies an image with what names its download, inside {@link ChatLibrary#read}.
      *
      * @param chat  the chat of the image
      * @param image the image
@@ -274,8 +278,8 @@ class ChatTools {
     }
 
     /**
-     * Puts the names the download button gives the files into the JSON of the images; reads the files, so off the
-     * JavaFX thread.
+     * Puts the names the download button gives the files into the JSON of the images; reads the files, so outside
+     * {@link ChatLibrary#read}.
      *
      * @param nodes  the JSON of the images
      * @param images the images in the same order
@@ -332,13 +336,13 @@ class ChatTools {
         return "application/octet-stream";
     }
 
-    /*  ===== JSON of the models, built on the JavaFX thread =====  */
+    /*  ===== JSON of the models, built inside ChatLibrary#read =====  */
 
     private static ObjectNode summary(Chat chat) {
         List<ChatEntry> entries = chat.getEntries().stream().filter(ChatTools::shown).toList();
 
-        /*  as the header of the chat: all entry costs plus those of the deleted entries  */
-        double cost = chat.getEntries().stream().mapToDouble(ChatEntry::getCost).sum() + chat.getDeletedCost();
+        /*  as the header of the chat: all it cost, deleted entries and images included  */
+        double cost = ChatCost.total(chat);
         return McpTools.JSON.createObjectNode().put("id", chat.getId()).put("name", chat.getName())
                 .put("entries", entries.size()).put("cost", McpTools.usd(cost))
                 .put("createdAt", McpTools.time(chat.getCreatedAt()))
@@ -350,7 +354,8 @@ class ChatTools {
                 .put("prompt", entry.getUserPrompt());
         node.set("mood", moodSummary(entry.getMood()));
         node.set("frame", frameSummary(entry.getFrame()));
-        node.put("model", entry.getModel()).put("modelId", GenerationModel.idOf(entry.getModel()))
+        node.put("model", GenerationModel.entryDisplayName(entry.getModel()))
+                .put("modelId", GenerationModel.idOf(entry.getModel()))
                 .put("status", entry.getStatus().name());
         ArrayNode images = node.putArray("imageIds");
         entry.getImages().stream().filter(ChatTools::shown)
@@ -363,7 +368,8 @@ class ChatTools {
         ObjectNode node = McpTools.JSON.createObjectNode().put("id", entry.getId()).put("chatId", entry.getChatId())
                 .put("status", entry.getStatus().name()).put("error", entry.getErrorMessage())
                 .put("prompt", entry.getUserPrompt()).put("finalPrompt", entry.getEnhancedPrompt())
-                .put("model", entry.getModel()).put("modelId", GenerationModel.idOf(entry.getModel()));
+                .put("model", GenerationModel.entryDisplayName(entry.getModel()))
+                .put("modelId", GenerationModel.idOf(entry.getModel()));
         node.set("mood", entry.getMood() != null ? McpTools.parse(entry.getMood().toJson()) : null);
         node.set("frame", entry.getFrame() != null ? McpTools.parse(entry.getFrame().toJson()) : null);
         node.put("cost", McpTools.usd(entry.getCost())).put("createdAt", McpTools.time(entry.getCreatedAt()))

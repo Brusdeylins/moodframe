@@ -5,7 +5,9 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -75,8 +77,9 @@ class FluxCostBackfillTest {
                     + moderated + "'");
             stmt.executeUpdate("DELETE FROM schema_migrations WHERE version = '029'");
         }
-        chats.softDeleteImage(inTrash);
-        chats.softDeleteChatEntry(deletedEntry);
+        ChatTrashRepository trash = new ChatTrashRepository(database, ChatFiles.NONE);
+        trash.softDeleteImage(inTrash);
+        trash.softDeleteChatEntry(deletedEntry);
         Map<String, Double> before = costs(database);
 
         new DatabaseManager(file).initialize();

@@ -18,9 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The groups of the right panel in MainWindow.fxml (GitHub issue #1): each a card with its line, the fold arrow in
- * the header, the summary field always shown and the detail fields below; no field is wider than its group, and
- * fixed explanations are tooltips instead of lines below the fields.
+ * The groups of the right panel in MainWindow.fxml with the parts it includes (GitHub issue #1): each a card with its
+ * line, the fold arrow in the header, the summary field always shown and the detail fields below; no field is wider
+ * than its group, and fixed explanations are tooltips instead of lines below the fields.
  */
 class MainWindowPanelTest {
 
@@ -28,10 +28,8 @@ class MainWindowPanelTest {
 
     @BeforeAll
     static void readTheWindow() throws Exception {
-        Document fxml;
-        try (InputStream in = MainWindowPanelTest.class.getResourceAsStream("/fxml/MainWindow.fxml")) {
-            fxml = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
-        }
+        Document fxml = read("MainWindow.fxml");
+        include(fxml, fxml.getDocumentElement());
         elements = new ArrayList<>();
         NodeList all = fxml.getElementsByTagName("*");
         for (int i = 0; i < all.getLength(); i++)
@@ -66,17 +64,17 @@ class MainWindowPanelTest {
         assertTrue(inside(byId("modelLabel"), details.get(0)) && inside(byId("modelFamilyChoiceBox"), details.get(0))
                 && inside(byId("modelComboBox"), details.get(0)), "the model comes first");
         assertEquals(List.of("geminiAdvancedFeaturesContainer", "geminiThinkingLevelContainer", "bflParametersContainer",
-                "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer",
-                "imageAttachmentSection"), ids(details.subList(1, details.size())),
+                "seedContainer", "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer"),
+                ids(details.subList(1, details.size())),
                 "the fields of the model, then count or duration, then the attachment");
 
-        /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps, seed  */
-        List<Element> flux = children(byId("bflParametersContainer"));
+        /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps; then the
+            seed of every provider with seeds  */
         assertEquals(List.of("flux2GroundingSearchContainer", "bflPromptUpsamplingCheckBox", "flux1SafetyContainer",
-                "flux2ParametersContainer"), ids(flux.subList(0, 4)));
+                "flux2ParametersContainer"), ids(children(byId("bflParametersContainer"))));
         assertEquals(List.of("flux2SafetyContainer", "flux2GuidanceContainer", "flux2StepsContainer"),
                 ids(children(byId("flux2ParametersContainer"))), "safety, guidance, steps");
-        assertTrue(flux.size() == 5 && inside(byId("seedTextField"), flux.get(4)), "the seed last");
+        assertTrue(inside(byId("seedTextField"), byId("seedContainer")), "the seed after the fields of BFL");
     }
 
     @Test
@@ -106,6 +104,25 @@ class MainWindowPanelTest {
             assertEquals(2, elements.stream().filter((e) -> ("$" + tooltip).equals(e.getAttribute("tooltip")))
                     .count(), tooltip);
         assertEquals("Tooltip", byId("bflPromptUpsamplingTooltip").getTagName());
+    }
+
+    private static Document read(String name) throws Exception {
+        try (InputStream in = MainWindowPanelTest.class.getResourceAsStream("/fxml/" + name)) {
+            return DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+        }
+    }
+
+    /*  replaces each fx:include below an element by the root of the included file, as the loader composes the window  */
+    private static void include(Document fxml, Element element) throws Exception {
+        for (Element child : children(element)) {
+            if (!"fx:include".equals(child.getTagName())) {
+                include(fxml, child);
+                continue;
+            }
+            Element root = (Element) fxml.importNode(read(child.getAttribute("source")).getDocumentElement(), true);
+            element.replaceChild(root, child);
+            include(fxml, root);
+        }
     }
 
     /*  the element with the id  */

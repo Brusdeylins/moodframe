@@ -36,12 +36,16 @@ class ChatRepositoryTest {
 
     private static DatabaseManager databaseManager;
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
+    private static ChatGroupQueries queries;
 
     @BeforeAll
     static void createDatabase() throws Exception {
         databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
+        queries = new ChatGroupQueries(databaseManager);
     }
 
     @Test
@@ -126,13 +130,13 @@ class ChatRepositoryTest {
         entry(trashed, mood("group-only-trashed", "Hidden", "#777777"), start.plusMinutes(9), 1);
 
         GeneratedImage deletedImage = image(first);
-        repository.softDeleteImage(deletedImage.getId());
+        trash.softDeleteImage(deletedImage.getId());
         repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(second.getId())
                 .downloadStatus(GeneratedImage.DownloadStatus.FAILED).build());
-        repository.softDeleteChatEntry(removed.getId());
-        repository.softDeleteChat(trashed.getId());
+        trash.softDeleteChatEntry(removed.getId());
+        trash.softDeleteChat(trashed.getId());
 
-        List<MoodGroup> groups = repository.findMoodGroups();
+        List<MoodGroup> groups = queries.findMoodGroups();
         assertEquals(List.of("std:mood:film-noir", "group-trashed", "group-gone", "group-renamed"),
                 groups.stream().filter((MoodGroup group) -> group.kind() == MoodGroup.Kind.MOOD)
                         .map(MoodGroup::moodId).toList(), "the latest use first, only moods with images");
@@ -161,9 +165,9 @@ class ChatRepositoryTest {
         assertEquals(2, groups.get(groups.size() - 2).imageCount(), "the combinations of their own");
         assertEquals(1, groups.get(groups.size() - 1).imageCount(), "the entries without blocks");
 
-        assertEquals(List.of(first.getId(), second.getId()), repository.findChatEntryIdsByMood(renamed));
-        assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 2)).contains(combination.getId()));
-        assertTrue(repository.findChatEntryIdsByMood(groups.get(groups.size() - 1)).contains(plain.getId()));
+        assertEquals(List.of(first.getId(), second.getId()), queries.findChatEntryIdsByMood(renamed));
+        assertTrue(queries.findChatEntryIdsByMood(groups.get(groups.size() - 2)).contains(combination.getId()));
+        assertTrue(queries.findChatEntryIdsByMood(groups.get(groups.size() - 1)).contains(plain.getId()));
         assertTrue(renamed.holds(first));
         assertTrue(groups.get(groups.size() - 2).holds(combination));
         assertTrue(groups.get(groups.size() - 1).holds(plain));
@@ -255,6 +259,105 @@ class ChatRepositoryTest {
         GeneratedImage stored = repository.findGeneratedImageById(image.getId()).orElseThrow();
         assertEquals(path, stored.getLocalFilePath());
         assertEquals("flux_20261116_173617_gemini31flashimage_c8db09f7.png", stored.getFileName());
+    }
+
+    @Test
+    void aLateImageOfAChatInTheTrashIsDroppedAndTheTrashRemovesItsFile() throws Exception {
+        List<String> removed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ChatTrashRepository removing = new ChatTrashRepository(databaseManager, removing(removed));
+        Chat chat = chat();
+        ChatEntry entry = save(new ChatEntry.Builder().chatId(chat.getId()).userPrompt("a harbor").build());
+        GeneratedImage pending = new GeneratedImage.Builder().chatEntryId(entry.getId())
+                .downloadStatus(GeneratedImage.DownloadStatus.PENDING).build();
+        assertTrue(repository.saveGeneratedImage(pending));
+        assertTrue(removing.softDeleteChat(chat.getId()));
+
+        /*  the generation finishes afterwards: its file was written into the folder of the images in use  */
+        Path file = java.nio.file.Files.writeString(tempDir.resolve("late-" + pending.getId() + ".png"), "png");
+        GeneratedImage late = new GeneratedImage.Builder().chatEntryId(entry.getId())
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        late.setLocalFilePath(file.toString());
+        assertFalse(repository.saveGeneratedImage(late));
+        pending.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
+        assertFalse(repository.saveGeneratedImage(pending));
+        assertTrue(java.nio.file.Files.exists(file), "the repository of the chats removes no file");
+
+        assertTrue(removing.dropLateImage(late));
+        assertEquals(List.of(late.getId()), removed, "the trash hands the file of the late image to ChatFiles");
+        assertFalse(java.nio.file.Files.exists(file), "no file stays behind in the folder of the images in use");
+
+        /*  the placeholder went to the trash without a file; the file its answer brought later goes as well  */
+        Path answer = java.nio.file.Files.writeString(tempDir.resolve("answer-" + pending.getId() + ".png"), "png");
+        pending.setLocalFilePath(answer.toString());
+        assertTrue(removing.dropLateImage(pending));
+        assertFalse(java.nio.file.Files.exists(answer));
+        pending.setLocalFilePath(null);
+        List<GeneratedImage> stored = repository.findGeneratedImagesByEntry(entry.getId());
+        assertEquals(List.of(pending.getId()), stored.stream().map(GeneratedImage::getId).toList());
+        assertEquals(GeneratedImage.DownloadStatus.PENDING, stored.get(0).getDownloadStatus(),
+                "the row the trash found stays as it went to the trash");
+
+        /*  what the load corrects is still stored for a chat in the trash  */
+        pending.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+        repository.saveRepairedImage(pending);
+        assertEquals(GeneratedImage.DownloadStatus.FAILED,
+                repository.findGeneratedImageById(pending.getId()).orElseThrow().getDownloadStatus());
+
+        /*  restored meanwhile, the entry keeps the file of an image that was not saved  */
+        assertTrue(removing.restoreChat(chat.getId()));
+        Path other = java.nio.file.Files.writeString(tempDir.resolve("other-" + pending.getId() + ".png"), "png");
+        GeneratedImage notSaved = new GeneratedImage.Builder().chatEntryId(entry.getId()).build();
+        notSaved.setLocalFilePath(other.toString());
+        assertFalse(removing.dropLateImage(notSaved));
+        assertTrue(java.nio.file.Files.exists(other));
+    }
+
+    @Test
+    void anImageOfAnEntryThatIsNotStoredFailsAndKeepsItsFile() throws Exception {
+        List<String> removed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        ChatTrashRepository removing = new ChatTrashRepository(databaseManager, removing(removed));
+        Path file = java.nio.file.Files.writeString(tempDir.resolve("unstored.png"), "png");
+        GeneratedImage image = new GeneratedImage.Builder().chatEntryId("never-stored")
+                .downloadStatus(GeneratedImage.DownloadStatus.CACHED).build();
+        image.setLocalFilePath(file.toString());
+
+        java.sql.SQLException failure = org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                () -> repository.saveGeneratedImage(image));
+        assertTrue(failure.getMessage().contains("never-stored"));
+        assertFalse(removing.dropLateImage(image), "an entry not stored is not in the trash");
+        assertTrue(removed.isEmpty());
+        assertTrue(java.nio.file.Files.exists(file), "the paid image keeps its file");
+    }
+
+    /*  ChatFiles that remove the files of dropped images and record them  */
+    private static ChatFiles removing(List<String> removed) {
+        return new ChatFiles() {
+            @Override
+            public void moveToTrash(String chatId, List<GeneratedImage> images) {
+            }
+
+            @Override
+            public void restoreFromTrash(String chatId, List<GeneratedImage> images) {
+            }
+
+            @Override
+            public boolean deletePermanently(String chatId, List<GeneratedImage> images) {
+                return true;
+            }
+
+            @Override
+            public void removeDropped(List<GeneratedImage> images) {
+                for (GeneratedImage image : images) {
+                    removed.add(image.getId());
+                    try {
+                        java.nio.file.Files.deleteIfExists(Path.of(image.getLocalFilePath()));
+                    }
+                    catch (java.io.IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
+            }
+        };
     }
 
     private Chat chat() throws Exception {

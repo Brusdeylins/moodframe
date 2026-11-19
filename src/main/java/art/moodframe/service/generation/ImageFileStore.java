@@ -1,0 +1,328 @@
+package art.moodframe.service.generation;
+
+import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.GeneratedImage;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.util.ImageSize;
+import art.moodframe.util.Secrets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Supplier;
+
+/**
+ * Writes generated images and videos to the images directory: decodes Base64 answers, downloads the result of a
+ * BFL job and generated videos (the one download path of the generation), names and detects the files. The methods touch no JavaFX property, so they may run on a worker thread;
+ * applying the result to the image object the UI is bound to is {@link StoredImage#applyTo} on the FX thread.
+ *
+ * @since 1.9.1
+ */
+public class ImageFileStore {
+
+    private static final Logger logger = LoggerFactory.getLogger(ImageFileStore.class);
+
+    private static final Duration IMAGE_TIMEOUT = Duration.ofSeconds(60);
+    private static final Duration VIDEO_TIMEOUT = Duration.ofSeconds(120);
+
+    private final ApplicationConfig config;
+    private final Supplier<HttpClient> downloadClient;
+
+    /** The written file of a generated image, to be applied to the image object on the FX thread. */
+    public record StoredImage(Path path, String filename, String format, String mimeType, int width, int height,
+                               long size) {
+
+        /** Applies the written file to its image object: file, size, format and dimensions. Call on the FX thread. */
+        public void applyTo(GeneratedImage image) {
+        if (format() != null) {
+            image.setFormat(format());
+            image.setMimeType(mimeType());
+        }
+        if (width() > 0) {
+            image.setImageWidth(width());
+            image.setImageHeight(height());
+            image.setWidth(width());
+            image.setHeight(height());
+        }
+        image.setDownloadStatus(GeneratedImage.DownloadStatus.CACHED);
+        image.setLocalFilePath(path().toString());
+        image.setFileName(filename());
+        image.setFileSizeBytes(size());
+        }
+    }
+
+    /**
+     * Creates the store.
+     *
+     * @param config         the application configuration (images directory)
+     * @param downloadClient the client for the downloads of finished BFL jobs and videos
+     */
+    public ImageFileStore(ApplicationConfig config, Supplier<HttpClient> downloadClient) {
+        this.config = config;
+        this.downloadClient = downloadClient;
+    }
+
+    /**
+     * Downloads the image of a finished BFL job into the images directory. Touches no JavaFX property, so it
+     * runs on a worker.
+     *
+     * @param generatedImage the image with the URL, read for the URL and the file name only
+     * @param headers        the headers the provider needs for its files, e.g. its key
+     * @return the written file; its format is null if the bytes are neither PNG nor JPEG
+     * @throws Exception if there is no URL, the server does not answer 200, or the file cannot be written
+     */
+    public StoredImage download(GeneratedImage generatedImage, Map<String, String> headers) throws Exception {
+        String imageUrl = generatedImage.getImageUrl();
+        if (imageUrl == null || imageUrl.trim().isEmpty())
+            throw new java.io.IOException("No image URL available for download: " + generatedImage.getId());
+
+        Path imagesDir = config.paths().images();
+        Files.createDirectories(imagesDir);
+
+        HttpResponse<byte[]> downloadResponse = fetch(imageUrl, headers, IMAGE_TIMEOUT,
+                HttpResponse.BodyHandlers.ofByteArray(), "Failed to download image");
+        byte[] imageBytes = downloadResponse.body();
+
+        // Detect actual format from bytes so extension, format and UI match reality
+        String detectedFormat = detectFormat(imageBytes);
+        String format = null;
+        String mimeType = null;
+        String filename;
+        if ("UNKNOWN".equals(detectedFormat)) {
+            filename = filename(generatedImage);
+        } else {
+            filename = filenameWithoutExtension(generatedImage) + "." + detectedFormat.toLowerCase();
+            format = detectedFormat;
+            mimeType = "image/" + detectedFormat.toLowerCase();
+        }
+        Path imagePath = imagesDir.resolve(filename);
+        Files.write(imagePath, imageBytes);
+
+        // Extract actual image dimensions from the header of the saved file
+        ImageSize size = ImageSize.read(imagePath);
+        if (size == null)
+            logger.warn("Could not read image dimensions from: {}", imagePath);
+        int width  = size != null ? size.width()  : 0;
+        int height = size != null ? size.height() : 0;
+
+        if (logger.isDebugEnabled())
+            logger.debug("Image download completed: {} ({}x{}, {} bytes)", filename, width, height,
+                    Files.size(imagePath));
+        return new StoredImage(imagePath, filename, format, mimeType, width, height, Files.size(imagePath));
+    }
+
+    /**
+     * Downloads a generated video into the images directory as {@code .mp4}, streamed to the file. Touches no JavaFX
+     * property, so it runs on a worker.
+     *
+     * @param videoUrl       the URL of the video
+     * @param headers        the headers the provider needs for its files, e.g. its key
+     * @param generatedImage the placeholder of the video, read for the file name only
+     * @return the written file, without dimensions
+     * @throws HttpStatusException if the server does not answer 200
+     * @throws Exception           if the video cannot be fetched or the file cannot be written
+     */
+    public StoredImage downloadVideo(String videoUrl, Map<String, String> headers, GeneratedImage generatedImage)
+            throws Exception {
+        Path imagesDir = imagesDirectory();
+        Files.createDirectories(imagesDir);
+        String filename = filenameWithoutExtension(generatedImage) + ".mp4";
+        Path videoPath = imagesDir.resolve(filename);
+        logger.info("Downloading video to: {}", videoPath);
+
+        HttpResponse<InputStream> response = fetch(videoUrl, headers, VIDEO_TIMEOUT,
+                HttpResponse.BodyHandlers.ofInputStream(), "Video download failed");
+        try (InputStream video = response.body()) {
+            Files.copy(video, videoPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return new StoredImage(videoPath, filename, "mp4", "video/mp4", 0, 0, Files.size(videoPath));
+    }
+
+    /*  the directory of the images and videos  */
+    private Path imagesDirectory() {
+        return config.paths().images();
+    }
+
+    /*  the one download of the store: GET with the headers of the provider, a status other than 200 fails with the
+        message and the status; a rejected URL fails without quoting it, as it carries the signature of the file  */
+    private <T> HttpResponse<T> fetch(String url, Map<String, String> headers, Duration timeout,
+            HttpResponse.BodyHandler<T> body, String failure) throws Exception {
+        HttpRequest request;
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url)).timeout(timeout);
+            headers.forEach(builder::header);
+            request = builder.GET().build();
+        }
+        catch (IllegalArgumentException e) {
+            throw new java.io.IOException(Secrets.redact(e.getMessage()));
+        }
+        HttpResponse<T> response = downloadClient.get().send(request, body);
+        if (response.statusCode() != 200) {
+            if (response.body() instanceof java.io.Closeable closeable)
+                closeable.close();
+            throw new HttpStatusException(failure, response.statusCode());
+        }
+        return response;
+    }
+
+    /** A download the server did not answer with 200. */
+    public static final class HttpStatusException extends java.io.IOException {
+
+        private final int statusCode;
+
+        HttpStatusException(String failure, int statusCode) {
+            super(failure + ": HTTP " + statusCode);
+            this.statusCode = statusCode;
+        }
+
+        /**
+         * Gets the HTTP status the server answered with.
+         *
+         * @return the status code
+         */
+        public int getStatusCode() {
+            return statusCode;
+        }
+    }
+
+    /**
+     * Decodes a Base64 image and writes it to the images directory as PNG (the Gemini API offers no output
+     * format parameter, so another format is re-encoded). Touches no JavaFX property, so it may run on a worker.
+     *
+     * @param base64Image    the Base64 encoded image data
+     * @param generatedImage the placeholder, read for the file name only
+     * @return the written file
+     * @throws java.io.IOException if the file cannot be written
+     */
+    public StoredImage writeBase64(String base64Image, GeneratedImage generatedImage)
+            throws java.io.IOException {
+        byte[] imageBytes = java.util.Base64.getDecoder().decode(base64Image);
+        String detectedFormat = detectFormat(imageBytes);
+
+        if (!"PNG".equals(detectedFormat)) {
+            try {
+                java.awt.image.BufferedImage decoded = javax.imageio.ImageIO.read(
+                        new java.io.ByteArrayInputStream(imageBytes));
+                if (decoded != null) {
+                    java.io.ByteArrayOutputStream pngBytes = new java.io.ByteArrayOutputStream();
+                    javax.imageio.ImageIO.write(decoded, "png", pngBytes);
+                    imageBytes = pngBytes.toByteArray();
+                    logger.info("Converted Gemini image from {} to PNG", detectedFormat);
+                    detectedFormat = "PNG";
+                } else {
+                    logger.warn("Could not decode {} image for PNG conversion, keeping original format",
+                            detectedFormat);
+                }
+            } catch (Exception e) {
+                logger.warn("PNG conversion failed, keeping original format {}", detectedFormat, e);
+            }
+        }
+
+        String fileExtension = detectedFormat.toLowerCase();
+        Path imagesDir = config.paths().images();
+        Files.createDirectories(imagesDir);
+        String filename = filenameWithoutExtension(generatedImage) + "." + fileExtension;
+        Path imagePath = imagesDir.resolve(filename);
+        Files.write(imagePath, imageBytes);
+
+        ImageSize size = ImageSize.read(imagePath);
+        if (size != null)
+            logger.info("Extracted Gemini image dimensions: {}x{}", size.width(), size.height());
+        else
+            logger.warn("Could not read image dimensions from: {}", imagePath);
+        int width  = size != null ? size.width()  : 0;
+        int height = size != null ? size.height() : 0;
+
+        return new StoredImage(imagePath, filename, detectedFormat, "image/" + fileExtension, width, height,
+                Files.size(imagePath));
+    }
+
+    /**
+     * Generates image filename with extension using UUID for guaranteed uniqueness.
+     * Format: moodframe_{timestamp}_{model}_{uuid-short}.{format}
+     *
+     * This approach ensures:
+     * - No filename collisions (UUID is globally unique)
+     * - Works for all providers (BFL, Gemini, future APIs)
+     * - No dependency on seeds (which can be 0, repeated, or user-specified)
+     * - No need for counters or state management
+     */
+    public static String filename(GeneratedImage generatedImage) {
+        String format = generatedImage.getFormat() != null ? generatedImage.getFormat() : "png";
+        return filenameWithoutExtension(generatedImage) + "." + format;
+    }
+
+    /**
+     * Generates image filename without extension using UUID for guaranteed uniqueness.
+     * Format: moodframe_{timestamp}_{model}_{uuid-short}, the model by its readable short name (e.g.
+     * {@code nano-banana-2}); files named {@code flux_...} by older versions keep their name.
+     *
+     * This approach ensures:
+     * - No filename collisions (UUID is globally unique)
+     * - Works for all providers (BFL, Gemini, future APIs)
+     * - No dependency on seeds (which can be 0, repeated, or user-specified)
+     * - No need for counters or state management
+     */
+    public static String filenameWithoutExtension(GeneratedImage generatedImage) {
+        String timestamp = generatedImage.getCreatedAt()
+                .toString()
+                .replaceAll("[:\\-\\.]", "")
+                .replaceAll("T", "_")
+                .substring(0, 15); // YYYYMMDD_HHMMSS
+
+        // Use first 8 characters of UUID for uniqueness (extremely low collision probability)
+        String shortUuid = generatedImage.getId().substring(0, 8);
+
+        return String.format("moodframe_%s_%s_%s",
+                timestamp,
+                modelName(generatedImage.getModel()),
+                shortUuid);
+    }
+
+    /**
+     * Gets the short name of a model for a file name: its family name for a known API model id (e.g.
+     * {@code gemini-3.1-flash-image} becomes {@code nano-banana-2}, {@code flux.2-pro} becomes
+     * {@code flux-2-pro}), else the id itself, lower case with dashes between letters and digits.
+     */
+    private static String modelName(String model) {
+        GenerationModel known = GenerationModel.fromApiModelId(model);
+        String name = known != null && GenerationModel.constantOf(known.name()) != null ? known.getFamilyName()
+                : model;
+        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+    }
+
+    /**
+     * Detects image format from byte array by checking magic bytes.
+     *
+     * @param imageBytes the image data
+     * @return "JPEG" or "PNG" or "UNKNOWN"
+     */
+    public static String detectFormat(byte[] imageBytes) {
+        if (imageBytes == null || imageBytes.length < 4) {
+            return "UNKNOWN";
+        }
+
+        // Check PNG magic bytes: 89 50 4E 47 (‰PNG)
+        if (imageBytes[0] == (byte) 0x89 && imageBytes[1] == (byte) 0x50 &&
+            imageBytes[2] == (byte) 0x4E && imageBytes[3] == (byte) 0x47) {
+            return "PNG";
+        }
+
+        // Check JPEG magic bytes: FF D8 FF
+        if (imageBytes[0] == (byte) 0xFF && imageBytes[1] == (byte) 0xD8 && imageBytes[2] == (byte) 0xFF) {
+            return "JPEG";
+        }
+
+        return "UNKNOWN";
+    }
+}

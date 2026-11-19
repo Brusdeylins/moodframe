@@ -1,7 +1,6 @@
 module art.moodframe {
     requires javafx.controls;
     requires javafx.fxml;
-    requires javafx.web;
     requires javafx.media;
     requires java.desktop;
     requires java.sql;
@@ -24,7 +23,6 @@ module art.moodframe {
 
     // Database
     requires org.xerial.sqlitejdbc;
-    // JDBI is not modularized - handled via classpath
     
     // Logging
     requires org.slf4j;
@@ -37,19 +35,19 @@ module art.moodframe {
     requires org.kordamp.ikonli.materialdesign2;
     
     // AtlantaFX Modern Theme Framework
-    requires transitive atlantafx.base;
-    
-    // Export packages for reflection (FXML, etc.)
-    exports art.moodframe;
-    exports art.moodframe.ui.controller;
-    exports art.moodframe.ui.component;
-    exports art.moodframe.ui.dialog;
-    exports art.moodframe.model;
+    requires atlantafx.base;
 
-    // Open for reflection (required for FXML, Jackson)
-    opens art.moodframe to javafx.fxml, com.fasterxml.jackson.databind;
+    /*  Exported: only the root, for the JavaFX launcher, which creates the application class; no other module uses a
+        type of the application, the reflection of FXML and Jackson on its fields needs the opens below  */
+    exports art.moodframe;
+
+    // Open for reflection (required for FXML, Jackson); the root holds no controller and nothing Jackson maps
     opens art.moodframe.ui.controller to javafx.fxml;
+    opens art.moodframe.ui.controller.settings to javafx.fxml;
     opens art.moodframe.ui.component to javafx.fxml;
-    opens art.moodframe.ui.dialog to javafx.fxml;
+    opens art.moodframe.ui.panel to javafx.fxml;
     opens art.moodframe.model to com.fasterxml.jackson.databind;
+
+    // The job answers of BFL (GenerationJobInfo, GenerationJobResult); the clients in its subpackages map no class
+    opens art.moodframe.service.provider to com.fasterxml.jackson.databind;
 }

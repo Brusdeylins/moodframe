@@ -1,10 +1,8 @@
 package art.moodframe.model;
 
-import javafx.beans.property.*;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -32,14 +30,14 @@ import java.util.UUID;
  */
 public class Chat {
 
-    private final StringProperty id = new SimpleStringProperty();
-    private final StringProperty name = new SimpleStringProperty();
-    private final ObjectProperty<LocalDateTime> createdAt = new SimpleObjectProperty<>();
-    private final ObjectProperty<LocalDateTime> updatedAt = new SimpleObjectProperty<>();
-    private final ObjectProperty<LocalDateTime> deletedAt = new SimpleObjectProperty<>();
-    private final IntegerProperty sortOrder = new SimpleIntegerProperty();
-    private final DoubleProperty deletedCost = new SimpleDoubleProperty(0.0);
-    private final ObservableList<ChatEntry> entries = FXCollections.observableArrayList();
+    private String id;
+    private String name;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
+    private int sortOrder;
+    private double deletedCost = 0.0;
+    private final List<ChatEntry> entries = new ArrayList<>();
 
     /**
      * Creates a new chat with auto-generated UUID.
@@ -54,10 +52,10 @@ public class Chat {
      * @param id the chat ID
      */
     public Chat(String id) {
-        this.id.set(id);
-        this.createdAt.set(LocalDateTime.now());
-        this.updatedAt.set(LocalDateTime.now());
-        this.sortOrder.set(0);
+        this.id = id;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+        this.sortOrder = 0;
     }
 
     /**
@@ -119,97 +117,68 @@ public class Chat {
         }
     }
 
-    // Property getters for JavaFX binding
-
-    public StringProperty idProperty() {
-        return id;
-    }
-
-    public StringProperty nameProperty() {
-        return name;
-    }
-
-    public ObjectProperty<LocalDateTime> createdAtProperty() {
-        return createdAt;
-    }
-
-    public ObjectProperty<LocalDateTime> updatedAtProperty() {
-        return updatedAt;
-    }
-
-    public ObjectProperty<LocalDateTime> deletedAtProperty() {
-        return deletedAt;
-    }
-
-    public IntegerProperty sortOrderProperty() {
-        return sortOrder;
-    }
-    
-    public DoubleProperty deletedCostProperty() {
-        return deletedCost;
-    }
-
     // Standard getters and setters
 
     public String getId() {
-        return id.get();
+        return id;
     }
 
     public void setId(String id) {
-        this.id.set(id);
+        this.id = id;
     }
 
     public String getName() {
-        return name.get();
+        return name;
     }
 
     public void setName(String name) {
-        this.name.set(name);
-        this.updatedAt.set(LocalDateTime.now());
+        this.name = name;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public LocalDateTime getCreatedAt() {
-        return createdAt.get();
+        return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt.set(createdAt);
+        this.createdAt = createdAt;
     }
 
     public LocalDateTime getUpdatedAt() {
-        return updatedAt.get();
+        return updatedAt;
     }
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt.set(updatedAt);
+        this.updatedAt = updatedAt;
     }
 
     public LocalDateTime getDeletedAt() {
-        return deletedAt.get();
+        return deletedAt;
     }
 
     public void setDeletedAt(LocalDateTime deletedAt) {
-        this.deletedAt.set(deletedAt);
-        this.updatedAt.set(LocalDateTime.now());
+        this.deletedAt = deletedAt;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public int getSortOrder() {
-        return sortOrder.get();
+        return sortOrder;
     }
 
     public void setSortOrder(int sortOrder) {
-        this.sortOrder.set(sortOrder);
+        this.sortOrder = sortOrder;
     }
     
     public double getDeletedCost() {
-        return deletedCost.get();
+        return deletedCost;
     }
     
     public void setDeletedCost(double deletedCost) {
-        this.deletedCost.set(deletedCost);
+        this.deletedCost = deletedCost;
     }
 
-    public ObservableList<ChatEntry> getEntries() {
+    /** The entries, a plain list: the views show copies of it ({@code ChatLibrary.entriesOf}), none observes it. */
+    public List<ChatEntry> getEntries() {
         return entries;
     }
 
@@ -219,7 +188,7 @@ public class Chat {
      * @return true if the chat is in trash
      */
     public boolean isDeleted() {
-        return deletedAt.get() != null;
+        return deletedAt != null;
     }
 
     /**

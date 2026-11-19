@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.RadioButton?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Language of the application -->
+<VBox fx:id="languagePane" managed="false" spacing="15.0" visible="false" xmlns="http://javafx.com/javafx/23" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.LanguageSettingsPane">
+    <padding>
+        <Insets bottom="0" left="20.0" right="20.0" top="0" />
+    </padding>
+
+    <!-- Language Selection -->
+    <VBox spacing="8.0">
+        <Label fx:id="languageTitleLabel" styleClass="text-bold" text="%settings.language.title" />
+        <Label fx:id="languageDescLabel" text="%settings.language.description" />
+
+        <VBox spacing="5.0">
+            <RadioButton fx:id="germanRadio" text="%settings.language.german" />
+            <RadioButton fx:id="englishRadio" text="%settings.language.english" />
+        </VBox>
+
+        <Label fx:id="languageChangesLabel" text="%settings.language.changes" />
+    </VBox>
+</VBox>

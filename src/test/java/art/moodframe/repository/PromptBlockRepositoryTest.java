@@ -1,10 +1,11 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.CameraSettings;
+import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.service.PromptBlockService;
+import art.moodframe.service.library.PromptBlockService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,11 +27,11 @@ class PromptBlockRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final PromptBlockRepository repository = new PromptBlockRepository();
+    private final PromptBlockRepository repository = new PromptBlockRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test
@@ -40,7 +41,7 @@ class PromptBlockRepositoryTest {
         execute("DELETE FROM schema_migrations WHERE version = '017'");
         new DatabaseManager(tempDir.resolve("db").resolve("test.db")).initialize();
 
-        PromptBlock migrated = repository.findById("legacy-1");
+        PromptBlock migrated = repository.findById("legacy-1").orElseThrow();
         assertNotNull(migrated);
         assertEquals(PromptBlock.Type.STYLE, migrated.getType());
         assertEquals("My Ink Wash", migrated.getName());
@@ -48,11 +49,12 @@ class PromptBlockRepositoryTest {
         assertTrue(migrated.isPhotographic(), "styles of the user count as photographic until deselected");
         assertFalse(migrated.isDefault());
         assertEquals(1000, migrated.getSortOrder());
-        assertNull(repository.findByName(PromptBlock.Type.STYLE, "Anime"), "V002 defaults are not taken over");
+        assertTrue(repository.findByName(PromptBlock.Type.STYLE, "Anime").isEmpty(),
+                "V002 defaults are not taken over");
     }
 
     @Test
-    void storesUpdatesAndDeletesBlocksOfTheUser() {
+    void storesUpdatesAndDeletesBlocksOfTheUser() throws Exception {
         PromptBlock block = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Harbor Fog", "foggy harbor", null, true);
         assertTrue(repository.save(block));
         assertNotNull(block.getId());
@@ -62,14 +64,18 @@ class PromptBlockRepositoryTest {
         block.setParams("{\"strength\": 2}");
         assertTrue(repository.update(block));
 
-        PromptBlock stored = repository.findByName(PromptBlock.Type.ATMOSPHERE, "Harbor Fog");
+        PromptBlock stored = repository.findByName(PromptBlock.Type.ATMOSPHERE, "Harbor Fog").orElseThrow();
         assertEquals("cold foggy harbor at dawn", stored.getText());
         assertFalse(stored.isPhotographic());
         assertEquals("{\"strength\": 2}", stored.getParams());
-        assertNull(repository.findByName(PromptBlock.Type.LIGHT, "Harbor Fog"), "names are looked up per type");
+        assertTrue(repository.findByName(PromptBlock.Type.LIGHT, "Harbor Fog").isEmpty(),
+                "names are looked up per type");
 
+        assertFalse(repository.delete(block.getId()), "a block in use is not removed for good");
+        assertTrue(repository.moveToTrash(block.getId()));
         assertTrue(repository.delete(block.getId()));
-        assertNull(repository.findById(block.getId()));
+        assertTrue(repository.findById(block.getId()).isEmpty());
+        assertFalse(repository.exists(block.getId()));
     }
 
     @Test
@@ -82,19 +88,67 @@ class PromptBlockRepositoryTest {
 
         List<String> names = repository.findAll(PromptBlock.Type.LIGHT).stream().map(PromptBlock::getName).toList();
         assertEquals(List.of("Kept"), names);
-        assertNull(repository.findById(trashed.getId()));
-        assertNull(repository.findByName(PromptBlock.Type.LIGHT, "Trashed"));
+        assertTrue(repository.findById(trashed.getId()).isEmpty());
+        assertTrue(repository.findByName(PromptBlock.Type.LIGHT, "Trashed").isEmpty());
     }
 
     @Test
-    void storesTheSettingsOfACameraAndLoadsThemBack() {
+    void movesABlockToTheTrashAndBackOnlyOnce() throws Exception {
+        PromptBlock block = new PromptBlock(null, PromptBlock.Type.STYLE, "Twice", "twice", null, false);
+        repository.save(block);
+
+        assertFalse(repository.restore(block.getId()), "a block in use is not restored");
+        assertTrue(repository.moveToTrash(block.getId()));
+        java.time.LocalDateTime deletedAt = repository.findInTrash(block.getId()).orElseThrow().getDeletedAt();
+        assertFalse(repository.moveToTrash(block.getId()), "a block in the trash keeps its first deletion");
+        assertEquals(deletedAt, repository.findInTrash(block.getId()).orElseThrow().getDeletedAt());
+        assertTrue(repository.restore(block.getId()));
+        assertFalse(repository.restore(block.getId()));
+        assertTrue(repository.findById(block.getId()).isPresent());
+        assertFalse(repository.delete(block.getId()), "a restored block survives a removal from the trash");
+        assertTrue(repository.findById(block.getId()).isPresent());
+    }
+
+    @Test
+    void theResetRemovesTheBlocksOfATypeAndTheReferencesOfTheMoodsToThem() throws Exception {
+        PromptBlock used = new PromptBlock(null, PromptBlock.Type.STYLE, "Reset Used", "used", null, false);
+        PromptBlock trashed = new PromptBlock(null, PromptBlock.Type.STYLE, "Reset Trashed", "trashed", null, false);
+        PromptBlock camera = new PromptBlock(null, PromptBlock.Type.CAMERA, "Reset Camera", "camera", null, true);
+        repository.save(used);
+        repository.save(trashed);
+        repository.save(camera);
+        repository.moveToTrash(trashed.getId());
+        MoodRepository moods = new MoodRepository(TestDatabase.get());
+        Mood mood = new Mood(null, "Reset Mood");
+        mood.setReference(Mood.Field.STYLE, used.getId());
+        mood.setReference(Mood.Field.CAMERA, camera.getId());
+        moods.save(mood);
+        Mood inTrash = new Mood(null, "Reset Mood In Trash");
+        inTrash.setReference(Mood.Field.STYLE, trashed.getId());
+        moods.save(inTrash);
+        moods.moveToTrash(inTrash.getId());
+
+        repository.deleteAll(PromptBlock.Type.STYLE);
+
+        assertFalse(repository.exists(used.getId()));
+        assertFalse(repository.exists(trashed.getId()), "the reset also removes the blocks in the trash");
+        assertTrue(repository.exists(camera.getId()));
+        Mood stored = moods.findById(mood.getId()).orElseThrow();
+        assertNull(stored.getReference(Mood.Field.STYLE), "no mood keeps the id of a removed block");
+        assertEquals(camera.getId(), stored.getReference(Mood.Field.CAMERA));
+        assertNull(moods.findDeleted().stream().filter((Mood deleted) -> deleted.getId().equals(inTrash.getId()))
+                .findFirst().orElseThrow().getReference(Mood.Field.STYLE), "a mood in the trash loses it, too");
+    }
+
+    @Test
+    void storesTheSettingsOfACameraAndLoadsThemBack() throws Exception {
         CameraSettings settings = new CameraSettings(CameraSettings.Body.MEDIUM_FORMAT, CameraSettings.Lens.MM_85,
                 CameraSettings.Aperture.F_4, CameraSettings.Shutter.NORMAL, CameraSettings.Iso.ISO_3200,
                 CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.MEDIUM);
         PromptBlock camera = PromptBlockService.camera(null, "My Pentax", settings);
         assertTrue(repository.save(camera));
 
-        PromptBlock stored = repository.findByName(PromptBlock.Type.CAMERA, "My Pentax");
+        PromptBlock stored = repository.findByName(PromptBlock.Type.CAMERA, "My Pentax").orElseThrow();
         assertEquals(PromptBlock.Type.CAMERA, stored.getType());
         assertEquals(settings, CameraSettings.fromJson(stored.getParams()));
 
@@ -102,14 +156,14 @@ class PromptBlockRepositoryTest {
                 null, null, null, CameraSettings.Perspective.TOP_DOWN, null));
         assertTrue(repository.update(changed));
         assertEquals(CameraSettings.Perspective.TOP_DOWN,
-                CameraSettings.fromJson(repository.findById(stored.getId()).getParams()).perspective());
+                CameraSettings.fromJson(repository.findById(stored.getId()).orElseThrow().getParams()).perspective());
         assertEquals("a top-down view from high above, looking straight down: the main subject seen from above like "
                 + "everything around it, no larger than people or things beside it, only ground and tops visible, no "
-                + "horizon", repository.findById(stored.getId()).getText());
+                + "horizon", repository.findById(stored.getId()).orElseThrow().getText());
     }
 
     private static void execute(String sql) throws Exception {
-        try (Connection conn = DatabaseConfig.getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = TestDatabase.get().getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }
     }

@@ -1,8 +1,5 @@
 package art.moodframe.util;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
-import javafx.application.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +10,7 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 /**
  * Central internationalization manager for MoodFrame application.
@@ -63,8 +61,12 @@ public class I18nManager {
     // Fallback locale when key is not found
     private static final Locale FALLBACK_LOCALE = Locale.ENGLISH;
     
-    // List of components that need to be notified when language changes
-    private static final List<I18nChangeListener> changeListeners = new CopyOnWriteArrayList<>();
+    // List of components that need to be notified when language changes, each with the thread it is notified on
+    private static final List<Registration> changeListeners = new CopyOnWriteArrayList<>();
+
+    /** A listener with the executor that notifies it, e.g. the JavaFX thread for a view. */
+    private record Registration(I18nChangeListener listener, Executor executor) {
+    }
     
     /**
      * Private constructor to prevent instantiation.
@@ -91,19 +93,13 @@ public class I18nManager {
             throw new IllegalArgumentException("Locale cannot be null");
         }
         
-        // Only log if logging is enabled
-        ApplicationConfig appConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (appConfig != null && appConfig.getLoggingEnabled()) {
-            logger.info("Changing application locale from {} to {}", currentLocale, locale);
-        }
+        logger.debug("Changing application locale from {} to {}", currentLocale, locale);
         currentLocale = locale;
         
         // Pre-load the resource bundle for the new locale to detect any issues early
         try {
             getResourceBundle(locale);
-            if (appConfig != null && appConfig.getLoggingEnabled()) {
-                logger.info("Successfully loaded resource bundle for locale: {}", locale);
-            }
+            logger.debug("Successfully loaded resource bundle for locale: {}", locale);
             
             // Notify all registered listeners about the language change
             notifyLanguageChanged();
@@ -121,6 +117,18 @@ public class I18nManager {
      */
     public static Locale getCurrentLocale() {
         return currentLocale;
+    }
+
+    /**
+     * Formats an amount of money with two decimals in the number format of the language of the user interface, e.g.
+     * "0.07" in English and "0,07" in German, whatever the language of the system; the currency is up to the caller.
+     *
+     * @param amount the amount
+     * @return the amount with two decimals
+     * @since 2.1.3
+     */
+    public static String formatCost(double amount) {
+        return String.format(currentLocale, "%.2f", amount);
     }
     
     /**
@@ -172,7 +180,8 @@ public class I18nManager {
         }
         
         try {
-            return MessageFormat.format(rawText, parameters);
+            /*  numbers in the parameters follow the language of the user interface, not that of the system  */
+            return new MessageFormat(rawText, currentLocale).format(parameters);
         } catch (IllegalArgumentException e) {
             logger.warn("Failed to format message for key '{}' with parameters: {}. Raw text: '{}'", 
                        key, java.util.Arrays.toString(parameters), rawText, e);
@@ -180,6 +189,32 @@ public class I18nManager {
         }
     }
     
+    /**
+     * Retrieves a text in a given language, independent of the language of the user interface, e.g. the English text
+     * of an error for the MCP clients.
+     *
+     * @param locale     the language
+     * @param key        the resource key (must not be null or empty)
+     * @param parameters the parameters to substitute (can be empty)
+     * @return the text in that language, else in English
+     * @since 2.1.3
+     */
+    public static String getTextIn(Locale locale, String key, Object... parameters) {
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("Key cannot be null or empty");
+        }
+        String rawText = getTextInternal(key, locale);
+        if (parameters == null || parameters.length == 0) {
+            return rawText;
+        }
+        try {
+            return new MessageFormat(rawText, locale).format(parameters);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to format message for key '{}' in {}", key, locale, e);
+            return rawText;
+        }
+    }
+
     /**
      * Gets the current ResourceBundle for use with JavaFX FXML loading.
      * 
@@ -219,29 +254,20 @@ public class I18nManager {
     }
     
     /**
-     * Gets all available locales supported by this application.
-     * 
-     * @return array of supported locales
-     */
-    public static Locale[] getAvailableLocales() {
-        return new Locale[] {
-            Locale.ENGLISH,    // English (default)
-            Locale.GERMAN      // German
-        };
-    }
-    
-    /**
-     * Adds a change listener that will be notified when the language changes.
-     * 
+     * Adds a change listener that will be notified when the language changes, through the given executor. A view
+     * registers with {@code ui.support.FxI18n}, which notifies it on the JavaFX thread.
+     *
      * @param listener the listener to add (must not be null)
-     * @throws IllegalArgumentException if listener is null
+     * @param executor runs the notification, e.g. on the JavaFX thread (must not be null)
+     * @throws IllegalArgumentException if listener or executor is null
+     * @since 2.1.3
      */
-    public static void addChangeListener(I18nChangeListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("Listener cannot be null");
+    public static void addChangeListener(I18nChangeListener listener, Executor executor) {
+        if (listener == null || executor == null) {
+            throw new IllegalArgumentException("Listener and executor cannot be null");
         }
-        
-        changeListeners.add(listener);
+
+        changeListeners.add(new Registration(listener, executor));
     }
     
     /**
@@ -251,8 +277,12 @@ public class I18nManager {
      * @return true if the listener was removed, false if it was not found
      */
     public static boolean removeChangeListener(I18nChangeListener listener) {
-        boolean removed = changeListeners.remove(listener);
-        return removed;
+        for (Registration registration : changeListeners) {
+            if (registration.listener().equals(listener)) {
+                return changeListeners.remove(registration);
+            }
+        }
+        return false;
     }
     
     /**
@@ -262,18 +292,6 @@ public class I18nManager {
      */
     public static int getChangeListenerCount() {
         return changeListeners.size();
-    }
-    
-    /**
-     * Clears the resource bundle cache.
-     * 
-     * <p>
-     * This method is primarily for testing purposes or when
-     * resource bundles need to be reloaded at runtime.
-     * </p>
-     */
-    public static synchronized void clearCache() {
-        bundleCache.clear();
     }
     
     /**
@@ -329,57 +347,33 @@ public class I18nManager {
     }
     
     /**
-     * Gets current locale information as a formatted string.
-     * Useful for debugging and status display.
-     * 
-     * @return formatted locale information
-     */
-    public static String getLocaleInfo() {
-        return String.format("Current locale: %s (%s), Available: %s, Cache size: %d",
-                           currentLocale.toString(),
-                           currentLocale.getDisplayName(),
-                           java.util.Arrays.toString(getAvailableLocales()),
-                           bundleCache.size());
-    }
-    
-    /**
-     * Notifies all registered listeners that the language has changed.
-     * 
-     * <p>
-     * This method ensures that notifications are sent on the JavaFX
-     * Application Thread to allow safe UI updates.
-     * </p>
+     * Notifies all registered listeners that the language has changed, each through its executor.
      */
     private static void notifyLanguageChanged() {
         if (changeListeners.isEmpty()) {
             return;
         }
         
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Notifying {} I18n change listeners about language change", changeListeners.size());
-        }
+        logger.debug("Notifying {} I18n change listeners about language change", changeListeners.size());
         
-        // Ensure UI updates happen on the JavaFX Application Thread
-        if (Platform.isFxApplicationThread()) {
-            // Already on JavaFX thread, notify directly
-            notifyListenersDirectly();
-        } else {
-            // Schedule on JavaFX thread
-            Platform.runLater(I18nManager::notifyListenersDirectly);
+        for (Registration registration : changeListeners) {
+            /*  a listener removed before its executor runs the notification is not notified  */
+            registration.executor().execute(() -> {
+                if (changeListeners.contains(registration)) {
+                    notifyListener(registration.listener());
+                }
+            });
         }
     }
     
     /**
-     * Directly notifies all listeners (must be called on JavaFX Application Thread).
+     * Notifies one listener, logging its failure.
      */
-    private static void notifyListenersDirectly() {
-        for (I18nChangeListener listener : changeListeners) {
-            try {
-                listener.onLanguageChanged();
-            } catch (Exception e) {
-                logger.error("Error notifying I18n change listener: {}", listener.getClass().getSimpleName(), e);
-            }
+    private static void notifyListener(I18nChangeListener listener) {
+        try {
+            listener.onLanguageChanged();
+        } catch (Exception e) {
+            logger.error("Error notifying I18n change listener: {}", listener.getClass().getSimpleName(), e);
         }
     }
 }

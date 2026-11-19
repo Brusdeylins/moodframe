@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- Left Sidebar: Chat List, translucent over the cloud like the fields on the right -->
+<VBox fx:id="librarySidebar" xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="art.moodframe.ui.controller.LibrarySidebarController"
+      spacing="0.0" minWidth="300.0" maxWidth="600.0" styleClass="bg-inset, see-through">
+    <padding>
+        <Insets bottom="0.0" left="10.0" right="0.0" top="0.0" />
+    </padding>
+
+    <!-- Chat Controls Row: height and padding like the chat header, so both headings share one line; the
+         heading starts on the inset of the boxes, the line of the names in the list (set by the controller) -->
+    <HBox fx:id="sidebarHeader" spacing="5.0" alignment="CENTER_LEFT" minHeight="45.0" maxHeight="45.0" prefHeight="45.0">
+        <padding>
+            <Insets top="10.0" bottom="15.0" />
+        </padding>
+        <!-- The current view of the list: chats, moods or frames -->
+        <Label fx:id="sidebarTitleLabel" text="Chats" styleClass="title-4" />
+        <Region HBox.hgrow="ALWAYS" />
+
+        <!-- Switch of the list: by chat, by mood or by frame, the active one checked -->
+        <MenuButton fx:id="sidebarModeButton" styleClass="icon-button, no-arrow">
+            <graphic>
+                <FontIcon iconLiteral="mdi2s-sort" iconSize="20" styleClass="ikonli-font-icon" />
+            </graphic>
+            <items>
+                <RadioMenuItem fx:id="byChatMenuItem" text="By chat" selected="true" />
+                <RadioMenuItem fx:id="byMoodMenuItem" text="By mood" />
+                <RadioMenuItem fx:id="byFrameMenuItem" text="By frame" />
+            </items>
+            <tooltip>
+                <Tooltip fx:id="sidebarModeTooltip" text="Group the list" />
+            </tooltip>
+        </MenuButton>
+
+        <!-- New Chat Button -->
+        <Button fx:id="newChatButton" styleClass="icon-button"
+                onAction="#onNewChatClicked" HBox.hgrow="ALWAYS">
+            <graphic>
+                <FontIcon iconLiteral="mdi2p-plus" iconSize="20" styleClass="ikonli-font-icon" />
+            </graphic>
+            <tooltip>
+                <Tooltip fx:id="newChatTooltip" text="Create New Chat" />
+            </tooltip>
+        </Button>
+
+        <!-- Trash Button: opens the central trash -->
+        <Button fx:id="trashButton" styleClass="icon-button"
+                onAction="#onTrashClicked">
+            <graphic>
+                <FontIcon iconLiteral="mdi2t-trash-can-outline" iconSize="20" styleClass="ikonli-font-icon" />
+            </graphic>
+            <tooltip>
+                <Tooltip fx:id="trashTooltip" text="Trash" />
+            </tooltip>
+        </Button>
+    </HBox>
+
+    <!-- Chat List -->
+    <ListView fx:id="chatListView" VBox.vgrow="ALWAYS">
+        <!-- Chat list items will be populated dynamically -->
+    </ListView>
+
+    <!-- Mood List: the moods images were generated with, shown instead of the chats -->
+    <ListView fx:id="moodGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
+
+    <!-- Frame List: the frames images were generated with, shown instead of the chats -->
+    <ListView fx:id="frameGroupListView" VBox.vgrow="ALWAYS" visible="false" managed="false" />
+
+</VBox>

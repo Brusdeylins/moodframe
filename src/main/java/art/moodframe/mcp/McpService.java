@@ -81,12 +81,12 @@ public class McpService {
      * @return the status afterwards
      */
     public synchronized Status apply() {
-        boolean enabled = config.isMcpEnabled();
-        int port = config.getMcpPort();
-        String token = config.getMcpToken();
+        boolean enabled = config.mcp().isMcpEnabled();
+        int port = config.mcp().getMcpPort();
+        String token = config.mcp().getMcpToken();
         if (enabled && token == null) {
             token = newToken();
-            config.setMcpToken(token);
+            config.mcp().setMcpToken(token);
         }
 
         if (server != null && (!enabled || server.getPort() != port || !token.equals(serverToken))) {

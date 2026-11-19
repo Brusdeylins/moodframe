@@ -1,9 +1,10 @@
 package art.moodframe.ui;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
+import art.moodframe.ui.support.SystemOpen;
 import art.moodframe.util.VersionManager;
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.geometry.Pos;
@@ -30,9 +31,11 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.CompletionStage;
+
 /**
  * Professional splash screen displayed during application startup.
- * Shows the application logo with version information for 3 seconds.
+ * Shows the application logo with version information while the application prepares itself, at least one second.
  * 
  * @author Matthias Brusdeylins
  * @since 1.0.0
@@ -51,20 +54,30 @@ public class SplashScreen {
     private final Stage splashStage;
     private final Runnable onComplete;
 
+    /*  completes once the application is prepared, the splash stays until then  */
+    private final CompletionStage<?> ready;
+
     /*  opened from the Info button: stays until Esc or a click, belongs to the main window  */
     private final boolean info;
 
+    /*  the configuration with the saved window bounds; null for the info window  */
+    private final ApplicationConfig config;
+
     /**
      * Creates a new splash screen.
-     * 
+     *
+     * @param ready      completes once the application is prepared; the splash stays until then, also when it fails
      * @param onComplete callback to execute when splash screen closes
+     * @param config     the one configuration of the application, which holds the saved main window bounds
      */
-    public SplashScreen(Runnable onComplete) {
-        this(onComplete, null);
+    public SplashScreen(CompletionStage<?> ready, Runnable onComplete, ApplicationConfig config) {
+        this(ready, onComplete, null, config);
     }
 
-    private SplashScreen(Runnable onComplete, Window owner) {
+    private SplashScreen(CompletionStage<?> ready, Runnable onComplete, Window owner, ApplicationConfig config) {
+        this.ready = ready;
         this.onComplete = onComplete;
+        this.config = config;
         this.info = owner != null;
         this.splashStage = new Stage();
         if (info) {
@@ -81,7 +94,7 @@ public class SplashScreen {
      * @param owner the window the info belongs to
      */
     public static void showInfo(Window owner) {
-        new SplashScreen(null, owner).show();
+        new SplashScreen(null, null, owner, null).show();
     }
 
     /**
@@ -188,24 +201,13 @@ public class SplashScreen {
             Hyperlink link = new Hyperlink(text);
             link.setStyle(style + " -fx-underline: true; -fx-padding: 0; -fx-border-width: 0;");
             link.setFocusTraversable(false);
-            link.setOnAction((event) -> openInBrowser(url));
+            link.setOnAction((event) -> SystemOpen.browse(url));
             return link;
         }
         else {
             Label label = new Label(text);
             label.setStyle(style);
             return label;
-        }
-    }
-
-    private static void openInBrowser(String url) {
-        try {
-            if (java.awt.Desktop.isDesktopSupported()
-                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE))
-                java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
-        }
-        catch (Exception e) {
-            logger.warn("Could not open {}: {}", url, e.getMessage());
         }
     }
 
@@ -242,14 +244,14 @@ public class SplashScreen {
                 Math.max(screen.getMinY(), Math.min(y, screen.getMaxY() - height)));
     }
 
-    /*  the main window bounds saved at the last exit, or null where the main window does not restore them either;
-        the configuration is registered only after the splash, so it is read here  */
-    private static Rectangle2D savedWindowBounds() {
+    /*  the main window bounds saved at the last exit, or null where the main window does not restore them either  */
+    private Rectangle2D savedWindowBounds() {
+        if (config == null)
+            return null;
         try {
-            ApplicationConfig config = new ApplicationConfig();
-            return config.getWindowX() >= 0 && config.getWindowY() >= 0
-                    ? new Rectangle2D(config.getWindowX(), config.getWindowY(),
-                            config.getWindowWidth(), config.getWindowHeight())
+            return config.ui().getWindowX() >= 0 && config.ui().getWindowY() >= 0
+                    ? new Rectangle2D(config.ui().getWindowX(), config.ui().getWindowY(),
+                            config.ui().getWindowWidth(), config.ui().getWindowHeight())
                     : null;
         }
         catch (Exception e) {
@@ -259,8 +261,7 @@ public class SplashScreen {
     }
 
     /**
-     * Shows the splash screen and automatically closes it after the display
-     * duration.
+     * Shows the splash screen and closes it once the display duration is over and the application is prepared.
      */
     public void show() {
         try {
@@ -272,13 +273,11 @@ public class SplashScreen {
 
             // Create pause transition for auto-close
             PauseTransition pause = new PauseTransition(Duration.millis(DISPLAY_DURATION_MS));
-            pause.setOnFinished(event -> close());
+            pause.setOnFinished(event -> ready.whenComplete((Object done, Throwable failure) ->
+                    Platform.runLater(this::close)));
             pause.play();
 
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Splash screen displayed for {} ms", DISPLAY_DURATION_MS);
-            }
+            logger.debug("Splash screen displayed for at least {} ms", DISPLAY_DURATION_MS);
 
         } catch (Exception e) {
             logger.error("Failed to show splash screen", e);
@@ -293,10 +292,7 @@ public class SplashScreen {
     private void close() {
         try {
             splashStage.close();
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            if (config != null && config.getLoggingEnabled()) {
-                logger.info("Splash screen closed");
-            }
+            logger.debug("Splash screen closed");
         } catch (Exception e) {
             logger.error("Error closing splash screen", e);
         } finally {

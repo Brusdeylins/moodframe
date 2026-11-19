@@ -21,7 +21,7 @@ package art.moodframe.model;
  * @since 1.6.7 - Renamed from FluxModel; absorbed Gemini models (removed redundant GeminiModel enum)
  * @since 1.10.0 - Added FLUX 3 Image and FLUX 3 Image Klein, removed the FLUX.1 models
  */
-public enum GenerationModel implements UnifiedModel {
+public enum GenerationModel {
 
     // ===== FLUX 3 IMAGE MODELS =====
     // One request field "resolution" picks an equal-area tier, the price is fixed per tier (bfl.ai/pricing).
@@ -32,6 +32,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_768(
             "FLUX 3 Image 768 - Draft ($0.041)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.041,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -41,6 +42,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_1K(
             "FLUX 3 Image 1K - Standard ($0.048)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.048,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -50,6 +52,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_1_5K(
             "FLUX 3 Image 1.5K - Detailed ($0.07)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.07,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -59,6 +62,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_2K(
             "FLUX 3 Image 2K - High Resolution ($0.10)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.10,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -68,6 +72,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_IMAGE_4K(
             "FLUX 3 Image 4K - Print ($0.607)",
             "flux.3-image",
+            ApiProvider.BFL,
             0.607,
             "Latest and strongest FLUX model for creating and editing, up to 10 reference images"),
 
@@ -77,6 +82,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_768(
             "FLUX 3 Image Klein 768 - Draft ($0.008)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.008,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -86,6 +92,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_1K(
             "FLUX 3 Image Klein 1K - Fast ($0.009)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.009,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -95,6 +102,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_1_5K(
             "FLUX 3 Image Klein 1.5K - Fast ($0.011)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.011,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -104,6 +112,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_2K(
             "FLUX 3 Image Klein 2K - Fast ($0.014)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.014,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -113,6 +122,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX3_KLEIN_4K(
             "FLUX 3 Image Klein 4K - Fast ($0.036)",
             "flux.3-image-klein",
+            ApiProvider.BFL,
             0.036,
             "Fast and cheap FLUX 3 model made for editing, up to 10 reference images"),
 
@@ -126,6 +136,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_PRO(
             "FLUX.2 [pro] - Production Grade ($0.03+)",
             "flux.2-pro",
+            ApiProvider.BFL,
             0.015, // Price per additional megapixel (base price: see costForMegapixels)
             "Production-grade image generation with multi-image support"),
 
@@ -137,6 +148,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_MAX(
             "FLUX.2 [max] - Premium with Search ($0.07+)",
             "flux.2-max",
+            ApiProvider.BFL,
             0.03, // Price per additional megapixel (base price: see costForMegapixels)
             "Highest quality with grounding search and multi-image support"),
 
@@ -147,6 +159,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_FLEX(
             "FLUX.2 [flex] - Text Rendering ($0.05/MP)",
             "flux.2-flex",
+            ApiProvider.BFL,
             0.05, // Price per megapixel
             "Specialized for text rendering with adjustable inference parameters"),
 
@@ -159,6 +172,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_KLEIN_4B(
             "FLUX.2 [klein] 4B - Fast & Cheap ($0.014+)",
             "flux.2-klein-4b",
+            ApiProvider.BFL,
             0.001, // Price per additional megapixel (base price: see costForMegapixels)
             "Fast and cheap generation with up to 4 reference images"),
 
@@ -169,6 +183,7 @@ public enum GenerationModel implements UnifiedModel {
     FLUX2_KLEIN_9B(
             "FLUX.2 [klein] 9B - Fast ($0.015+)",
             "flux.2-klein-9b",
+            ApiProvider.BFL,
             0.002, // Price per additional megapixel (base price: see costForMegapixels)
             "Fast generation with higher quality than 4B and up to 4 reference images"),
 
@@ -182,6 +197,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_FLASH_1K(
             "Nano Banana 1K - Fast & Multimodal ($0.039)",
             "gemini-2.5-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.039, // $0.039 per image (1024x1024)
             "Fast generation with Google's multimodal AI, supports text+image input"),
 
@@ -193,6 +209,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_PRO_2K(
             "Nano Banana Pro 2K - Professional ($0.134)",
             "gemini-3-pro-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.134, // $0.134 per output image (2K resolution)
             "Professional quality with enhanced understanding of complex prompts"),
 
@@ -204,6 +221,7 @@ public enum GenerationModel implements UnifiedModel {
     GEMINI_PRO_4K(
             "Nano Banana Pro 4K - Premium ($0.24)",
             "gemini-3-pro-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.24, // $0.24 per output image (4K resolution)
             "Premium quality images with maximum resolution and detail"),
 
@@ -217,6 +235,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_512(
             "Nano Banana 2 512px - Budget ($0.045)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.045,
             "Fast budget image generation at 512px resolution"),
 
@@ -228,6 +247,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_1K(
             "Nano Banana 2 1K - Fast ($0.067)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.067,
             "Fast image generation at 1K resolution"),
 
@@ -239,6 +259,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_2K(
             "Nano Banana 2 2K - Standard ($0.101)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.101,
             "Standard quality image generation at 2K resolution"),
 
@@ -250,6 +271,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_4K(
             "Nano Banana 2 4K - High Quality ($0.151)",
             "gemini-3.1-flash-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.151,
             "High quality image generation at 4K resolution"),
 
@@ -264,6 +286,7 @@ public enum GenerationModel implements UnifiedModel {
     NANO_BANANA2_LITE(
             "Nano Banana 2 Lite - Fastest ($0.034)",
             "gemini-3.1-flash-lite-image",
+            ApiProvider.GOOGLE_GEMINI,
             0.034,
             "Fastest, most cost-efficient image generation, capped at 1K resolution"),
 
@@ -277,6 +300,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_360P(
             "Gemini Omni 360p - Draft Video (~$0.034/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.034,
             "Gemini Omni video generation at 360p with audio, 3 to 10 seconds"),
 
@@ -286,6 +310,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_720P(
             "Gemini Omni 720p - Standard Video (~$0.10/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.101,
             "Gemini Omni video generation at 720p with audio, 3 to 10 seconds"),
 
@@ -295,6 +320,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_1080P(
             "Gemini Omni 1080p - Full HD Video (~$0.15/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.152,
             "Gemini Omni video generation at 1080p with audio, 3 to 10 seconds"),
 
@@ -304,6 +330,7 @@ public enum GenerationModel implements UnifiedModel {
     OMNI_4K(
             "Gemini Omni 4K - Ultra HD Video (~$0.30/s)",
             "gemini-omni-1.1-flash",
+            ApiProvider.GOOGLE_GEMINI,
             0.304,
             "Gemini Omni video generation at 4K with audio, 3 to 10 seconds"),
 
@@ -314,42 +341,49 @@ public enum GenerationModel implements UnifiedModel {
     OPENAI_IMAGE(
             "OpenAI Image",
             "openai-image",
+            ApiProvider.OPENAI,
             0.0,
             "Image models of the OpenAI Images API, listed from the connected API");
 
-    /** Prefix of the dropdown items and chat entry names of OpenAI models. */
+    /**
+     * Prefix of the dropdown items and chat entry names of OpenAI models. It stays in the model, as it is the naming
+     * convention of the items every layer shares: the stored default model and chat entry names, the dropdowns, the
+     * aspect ratios and families of an item and the provider policy all tell an OpenAI item by it.
+     */
     public static final String OPENAI_PREFIX = "OpenAI \u00b7 ";
 
     private final String displayName;
     private final String apiModelId;
+    private final ApiProvider provider;
     private final double pricePerImage;
     private final String description;
     private final boolean supportsImageAttachment;
     private final int maxMegapixels;
     private final int maxResolution;
 
-    GenerationModel(String displayName, String apiModelId, double pricePerImage, String description) {
+    GenerationModel(String displayName, String apiModelId, ApiProvider provider, double pricePerImage,
+            String description) {
         this.displayName = displayName;
         this.apiModelId = apiModelId;
+        this.provider = provider;
         this.pricePerImage = pricePerImage;
         this.description = description;
 
         // Determine image attachment support based on model capabilities
         // BFL: FLUX 3 (up to 10 images) and FLUX.2 (up to 8 images) support image input
-        // Gemini: ALL models support image input (up to 14 images, Omni: one start image)
+        // Gemini: ALL models support image input (up to 14 images, Omni: one start image), OpenAI as well
         this.supportsImageAttachment = apiModelId.startsWith("flux.3-")
                                       || apiModelId.startsWith("flux.2-")
-                                      || apiModelId.startsWith("gemini")
-                                      || apiModelId.startsWith("openai-");
+                                      || provider != ApiProvider.BFL;
 
         // Determine max resolution based on model type
-        if (apiModelId.startsWith("gemini-omni")) {
+        if (isOmniModel()) {
             // Gemini Omni video models - resolution based on enum name
             this.maxMegapixels = 0; // Video, not image
             String enumName = name();
             this.maxResolution = enumName.contains("4K") ? 3840 : enumName.contains("1080P") ? 1920
                     : enumName.contains("360P") ? 640 : 1280;
-        } else if (apiModelId.startsWith("gemini")) {
+        } else if (provider == ApiProvider.GOOGLE_GEMINI) {
             // Gemini models - distinguish resolution by enum name suffix
             String enumName = name();
             if (enumName.contains("4K")) {
@@ -365,7 +399,7 @@ public enum GenerationModel implements UnifiedModel {
                 this.maxMegapixels = 1;
                 this.maxResolution = 1024; // 1K default
             }
-        } else if (apiModelId.startsWith("openai-")) {
+        } else if (provider == ApiProvider.OPENAI) {
             // OpenAI models - largest size of the Images API is 1792 px (dall-e-3)
             this.maxMegapixels = 4;
             this.maxResolution = 1792;
@@ -432,18 +466,13 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the maximum file size for image attachments based on provider.
-     * BFL models: 10MB, Google Gemini models: 20MB.
+     * Gets the maximum file size for image attachments based on provider, see {@link ApiProvider#getMaxFileSize()}.
      *
      * @param provider the API provider
      * @return max file size in bytes
      */
     public static long getMaxFileSize(ApiProvider provider) {
-        if (provider == ApiProvider.GOOGLE_GEMINI)
-            return 20L * 1024 * 1024;
-        if (provider == ApiProvider.OPENAI)
-            return 50L * 1024 * 1024;
-        return 10L * 1024 * 1024;
+        return provider.getMaxFileSize();
     }
 
     /**
@@ -472,12 +501,31 @@ public enum GenerationModel implements UnifiedModel {
      */
     public boolean supportsGroundingSearch() {
         // Nano Banana 2 Lite tier does NOT support Google Search / Image Search grounding
-        if (apiModelId.equals("gemini-3.1-flash-lite-image") || isOmniModel()) {
+        if (this == NANO_BANANA2_LITE || isOmniModel()) {
             return false;
         }
 
         return this == FLUX2_MAX
-            || apiModelId.startsWith("gemini");
+            || provider == ApiProvider.GOOGLE_GEMINI;
+    }
+
+    /**
+     * Checks if the request can switch on Google Search grounding: the Gemini image models with grounding search.
+     * FLUX.2 [max] grounds on its own by the prompt.
+     *
+     * @return true if the model takes the Google Search parameter
+     */
+    public boolean supportsGoogleSearch() {
+        return provider == ApiProvider.GOOGLE_GEMINI && !isVideoModel() && supportsGroundingSearch();
+    }
+
+    /**
+     * Checks if the model takes a safety tolerance (0 strict to 5 permissive): the BFL models.
+     *
+     * @return true for the FLUX models
+     */
+    public boolean supportsSafetyTolerance() {
+        return provider == ApiProvider.BFL;
     }
 
     /**
@@ -489,8 +537,8 @@ public enum GenerationModel implements UnifiedModel {
     public boolean supportsMultiImage() {
         return apiModelId.startsWith("flux.3-")
             || apiModelId.startsWith("flux.2-")
-            || apiModelId.startsWith("openai-")
-            || (apiModelId.startsWith("gemini") && !isOmniModel());
+            || provider == ApiProvider.OPENAI
+            || (provider == ApiProvider.GOOGLE_GEMINI && !isOmniModel());
     }
 
     /**
@@ -505,11 +553,11 @@ public enum GenerationModel implements UnifiedModel {
             return 4; // FLUX.2 [klein] supports up to 4 reference images
         } else if (apiModelId.startsWith("flux.2-")) {
             return 8;
-        } else if (apiModelId.startsWith("openai-")) {
+        } else if (provider == ApiProvider.OPENAI) {
             return 14; // gpt-image accepts up to 16 images, the request model carries 14
         } else if (isOmniModel()) {
             return 1; // Gemini Omni: one start image (image-to-video), more references are not documented
-        } else if (apiModelId.startsWith("gemini")) {
+        } else if (provider == ApiProvider.GOOGLE_GEMINI) {
             return 14; // 6 objects + 5 humans + some extra
         }
         return 0;
@@ -618,12 +666,25 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Checks if a YouTube video can be passed directly as context for the image (video-to-image).
+     * Gets the parameters this model takes besides prompt, target and reference images, see
+     * {@link ModelParameters#of(GenerationModel)}.
      *
-     * @return true for Nano Banana 2 and Nano Banana 2 Lite
+     * @return the parameters with their limits and defaults, empty for none
+     * @since 2.1.3
      */
-    public boolean supportsVideoSource() {
-        return supportsExtendedAspectRatios();
+    public java.util.List<ModelParameter> parameters() {
+        return ModelParameters.of(this);
+    }
+
+    /**
+     * Gets a parameter this model takes by its name.
+     *
+     * @param name the name, e.g. {@code guidance}
+     * @return the parameter, null if the model does not take it
+     * @since 2.1.3
+     */
+    public ModelParameter parameter(String name) {
+        return ModelParameters.find(this, name);
     }
 
     /**
@@ -698,22 +759,30 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Finds a GenerationModel by its localized display name.
-     * 
-     * @param localizedDisplayName the localized display name to search for
+     * Finds a GenerationModel by a dropdown item or chat entry name in any language: the fixed id a chat entry stores
+     * since 2.1.3 (see {@link #entryModelOf(String)}), the display name, a localized display name (see
+     * {@link #displayNameKey()}) or a family name.
+     *
+     * <p>A localized display name differs from the display name only after the family name, e.g. "FLUX.2 [pro] -
+     * Produktionsqualität ($0.03+)", so it is found by its family without the texts of the languages.</p>
+     *
+     * @param localizedDisplayName the dropdown item or name to search for (may be null)
      * @return the corresponding GenerationModel, or null if not found
      */
     public static GenerationModel fromLocalizedDisplayName(String localizedDisplayName) {
         if (openAiModelId(localizedDisplayName) != null) {
             return OPENAI_IMAGE;
         }
-        for (GenerationModel model : values()) {
-            if (model.getLocalizedDisplayName().equals(localizedDisplayName)) {
-                return model;
-            }
+        GenerationModel constant = constantOf(localizedDisplayName);
+        if (constant != null)
+            return constant;
+        GenerationModel exact = fromDisplayName(localizedDisplayName);
+        if (exact != null) {
+            return exact;
         }
-        // A family name stands for its first variant, the resolution choice picks the right one; an older
-        // name with another tagline or price (e.g. "FLUX.2 [pro] - Production Grade ($0.03/MP)") counts as its family
+        // A family name stands for its first variant, the resolution choice picks the right one; a localized name
+        // or an older name with another tagline or price (e.g. "FLUX.2 [pro] - Production Grade ($0.03/MP)") counts
+        // as its family
         int tagline = localizedDisplayName == null ? -1 : localizedDisplayName.indexOf(" - ");
         String family = tagline > 0 ? localizedDisplayName.substring(0, tagline) : localizedDisplayName;
         for (GenerationModel model : values()) {
@@ -721,8 +790,7 @@ public enum GenerationModel implements UnifiedModel {
                 return model;
             }
         }
-        // Fallback: try original display name for backward compatibility
-        return fromDisplayName(localizedDisplayName);
+        return null;
     }
 
     /**
@@ -772,15 +840,68 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the dropdown item of a fixed id (see {@link #idOf(String)}), as shown in the current language.
+     * Gets the name of the model a chat entry stores: a fixed id that does not depend on the language, price or
+     * tagline of the model.
+     *
+     * @param id the fixed id of the order (see {@link #idOf(String)})
+     * @return the constant name, {@link #OPENAI_PREFIX} + id for a model of the gateway (so it is told from the
+     *         display names of older entries), null without id
+     * @since 2.1.3
+     */
+    public static String entryModelOf(String id) {
+        if (id == null)
+            return null;
+        return constantOf(id) != null ? id : OPENAI_PREFIX + id;
+    }
+
+    /**
+     * Finds the model a chat entry names: the {@link #entryModelOf(String) fixed id} of an entry since 2.1.3, else the
+     * English display name an older entry was stored with.
+     *
+     * @param stored the model of the entry (may be null)
+     * @return the model, null for a model of the gateway and an unknown or outdated display name
+     * @since 2.1.3
+     */
+    public static GenerationModel fromEntryModel(String stored) {
+        GenerationModel constant = constantOf(stored);
+        return constant != null ? constant : fromDisplayName(stored);
+    }
+
+    /**
+     * Gets the English name of the model of a chat entry, as the MCP server tells it.
+     *
+     * @param stored the model of the entry (may be null)
+     * @return the display name of its model, else the stored text (the item of a gateway model, an outdated name)
+     * @since 2.1.3
+     */
+    public static String entryDisplayName(String stored) {
+        GenerationModel model = fromEntryModel(stored);
+        return model != null ? model.getDisplayName() : stored;
+    }
+
+    /**
+     * Gets the English name of the model of a fixed id, as the MCP server tells it, whatever the language of the user
+     * interface.
+     *
+     * @param id the fixed id (see {@link #idOf(String)}, may be null)
+     * @return the display name of a constant, {@link #OPENAI_PREFIX} + id for a model of the gateway, null without id
+     * @since 2.1.3
+     */
+    public static String displayNameOf(String id) {
+        return entryDisplayName(entryModelOf(id));
+    }
+
+    /**
+     * Gets the constant of a fixed id, unlike {@link #fromId(String)} without the placeholder of the models a provider
+     * lists beyond the constants.
      *
      * @param id the id (may be null)
-     * @return the localized display name, {@link #OPENAI_PREFIX} + id for an OpenAI model, null without id
-     * @since 2.1.0
+     * @return the constant of that name, null for any other id, the name of the placeholder and null
+     * @since 2.1.3
      */
-    public static String itemOf(String id) {
+    public static GenerationModel constantOf(String id) {
         GenerationModel model = fromId(id);
-        return model == null ? null : model == OPENAI_IMAGE ? OPENAI_PREFIX + id : model.getLocalizedDisplayName();
+        return model != null && model != OPENAI_IMAGE && model.name().equals(id) ? model : null;
     }
 
     /**
@@ -795,19 +916,6 @@ public enum GenerationModel implements UnifiedModel {
             return false;
         String lower = modelId.toLowerCase(java.util.Locale.ROOT);
         return lower.startsWith("dall-e") || lower.contains("gpt-image") || lower.contains("chatgpt-image");
-    }
-
-    /**
-     * Gets the prompt limit in characters of an OpenAI image model.
-     *
-     * @param modelId the OpenAI model id
-     * @return 32,000 for gpt-image models, 4,000 for dall-e-3 and 1,000 for dall-e-2
-     */
-    public static int openAiMaxPromptLength(String modelId) {
-        String lower = modelId == null ? "" : modelId.toLowerCase(java.util.Locale.ROOT);
-        if (lower.equals("dall-e-2"))
-            return 1000;
-        return lower.startsWith("dall-e") ? 4000 : 32000;
     }
 
     /**
@@ -855,34 +963,6 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets all available models as display names for UI components.
-     * 
-     * @return array of display names
-     */
-    public static String[] getDisplayNames() {
-        GenerationModel[] models = values();
-        String[] names = new String[models.length];
-        for (int i = 0; i < models.length; i++) {
-            names[i] = models[i].displayName;
-        }
-        return names;
-    }
-
-    /**
-     * Gets all available models as localized display names for UI components.
-     * 
-     * @return array of localized display names
-     */
-    public static String[] getLocalizedDisplayNames() {
-        GenerationModel[] models = values();
-        String[] names = new String[models.length];
-        for (int i = 0; i < models.length; i++) {
-            names[i] = models[i].getLocalizedDisplayName();
-        }
-        return names;
-    }
-
-    /**
      * Gets the name of the model family: the variants that differ only by their resolution share it (for example
      * the Nano Banana 2 variants for 512, 1K, 2K and 4K). The model dropdown lists one entry per family and the
      * resolution has its own choice.
@@ -899,9 +979,8 @@ public enum GenerationModel implements UnifiedModel {
             case OMNI_360P, OMNI_720P, OMNI_1080P, OMNI_4K -> "Gemini Omni";
             default -> {
                 /*  Without variants the name is the display name up to the tagline: "FLUX.2 [pro] - ... ($0.03)"  */
-                String name = getLocalizedDisplayName();
-                int tagline = name.indexOf(" - ");
-                yield tagline > 0 ? name.substring(0, tagline) : name;
+                int tagline = displayName.indexOf(" - ");
+                yield tagline > 0 ? displayName.substring(0, tagline) : displayName;
             }
         };
     }
@@ -930,60 +1009,29 @@ public enum GenerationModel implements UnifiedModel {
     }
 
     /**
-     * Gets the localized display name for this model.
-     * 
-     * @return localized display name from i18n resources
+     * Gets the i18n key of the localized display name of this model, which the UI shows in the dropdown (see
+     * {@code service.generation.ModelLabels}). It differs from the display name only after the family name.
+     *
+     * @return the key for the FLUX.2 models [pro], [max] and [flex]; null for the models whose display name is
+     *         the same in every language
+     * @since 2.1.3
      */
-    public String getLocalizedDisplayName() {
-        switch (this) {
-            // FLUX.2 models
-            case FLUX2_PRO:
-                return art.moodframe.util.I18nManager.getText("model.flux2.pro");
-            case FLUX2_MAX:
-                return art.moodframe.util.I18nManager.getText("model.flux2.max");
-            case FLUX2_FLEX:
-                return art.moodframe.util.I18nManager.getText("model.flux2.flex");
-            // FLUX.2 [klein] models use English display names
-            case FLUX2_KLEIN_4B:
-            case FLUX2_KLEIN_9B:
-            // Nano Banana models use English display names
-            case GEMINI_FLASH_1K:
-            case GEMINI_PRO_2K:
-            case GEMINI_PRO_4K:
-            // Nano Banana 2 models use English display names
-            case NANO_BANANA2_512:
-            case NANO_BANANA2_1K:
-            case NANO_BANANA2_2K:
-            case NANO_BANANA2_4K:
-            // Nano Banana 2 Lite uses English display name
-            case NANO_BANANA2_LITE:
-            // Gemini Omni video models use English display names
-            case OMNI_360P:
-            case OMNI_720P:
-            case OMNI_1080P:
-            case OMNI_4K:
-                return displayName;
-            default:
-                return displayName; // Fallback to original
-        }
+    public String displayNameKey() {
+        return switch (this) {
+            case FLUX2_PRO -> "model.flux2.pro";
+            case FLUX2_MAX -> "model.flux2.max";
+            case FLUX2_FLEX -> "model.flux2.flex";
+            default -> null;
+        };
     }
 
     /**
-     * Gets the API provider for this model.
-     * FLUX models use BFL, Gemini models use GOOGLE_GEMINI.
+     * Gets the API provider for this model, given with each constant.
      *
-     * @return ApiProvider.BFL or ApiProvider.GOOGLE_GEMINI
+     * @return the provider: BFL for FLUX, GOOGLE_GEMINI for Nano Banana and Gemini Omni, OPENAI for the OpenAI models
      */
-    @Override
     public ApiProvider getProvider() {
-        // Determine provider based on model type
-        if (apiModelId.startsWith("gemini")) {
-            return ApiProvider.GOOGLE_GEMINI;
-        }
-        if (apiModelId.startsWith("openai-")) {
-            return ApiProvider.OPENAI;
-        }
-        return ApiProvider.BFL;
+        return provider;
     }
 
     @Override

@@ -33,22 +33,9 @@ public final class DownloadsFolder {
     }
 
     /**
-     * Copies a file into {@code ~/Downloads} as {@code <chat> <yyyy-MM-dd> <HH.mm.ss>.<ext>}, e.g.
-     * {@code Lighthouse series 2026-11-16 17.36.17.png}; an existing file is kept and the copy numbered
-     * {@code ... 2.png}, {@code ... 3.png} and so on.
-     *
-     * @param source    the image or video file
-     * @param chatName  the name of the chat of the image, null without chat
-     * @param createdAt the creation time of the image, null for the time the file was last changed
-     * @return the name of the copy
-     * @throws IOException if the copy fails
-     */
-    public static String copy(File source, String chatName, LocalDateTime createdAt) throws IOException {
-        return copy(source, chatName, createdAt, new File(System.getProperty("user.home"), "Downloads"));
-    }
-
-    /**
-     * Copies a file into the given folder, see {@link #copy(File, String, LocalDateTime)}.
+     * Copies a file into the given folder, usually {@code ~/Downloads} ({@code LibraryPaths.downloads()}), as
+     * {@code <chat> <yyyy-MM-dd> <HH.mm.ss>.<ext>}, e.g. {@code Lighthouse series 2026-11-16 17.36.17.png}; an
+     * existing file is kept and the copy numbered {@code ... 2.png}, {@code ... 3.png} and so on.
      *
      * @param source       the image or video file
      * @param chatName     the name of the chat of the image, null without chat

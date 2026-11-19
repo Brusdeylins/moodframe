@@ -1,13 +1,27 @@
 /**
- * MVVM View Controllers for JavaFX UI.
- * 
- * Contains all FXML controller classes that serve as the binding layer
- * between FXML views and ViewModels.
- * 
- * Main components:
- * - MainWindowController: Main window controller
- * - ChatController: Chat view controller
- * - SettingsController: Settings dialog
- * - ImageViewController: Image view controller
+ * The controllers of the FXML views in {@code src/main/resources/fxml}. The main window is split into parts, each
+ * with its FXML file and controller, which the coordinator {@link MainWindowController} wires together; it looks up
+ * the services once and hands them to the parts, which never ask the service locator themselves (only the two
+ * coordinators, {@link MainWindowController} and {@link SettingsController}, do), and lets go of what the window
+ * registered beyond itself when it closes. The sidebar keeps its own list of the chats, which follows the
+ * {@code ChatLibrary}.
+ *
+ * <p>Main classes:</p>
+ * <ul>
+ * <li>{@link MainWindowController}: the main window ({@code MainWindow.fxml}) with its header, the coordinator</li>
+ * <li>{@link LibrarySidebarController}: the chats and the groups by mood or frame ({@code LibrarySidebar.fxml})</li>
+ * <li>{@link ChatViewController}: the entries of the chat or group ({@code ChatView.fxml}), with their full view
+ * {@link EntryFullView}</li>
+ * <li>{@link InputBarController}: the prompt and the send button ({@code InputBar.fxml})</li>
+ * <li>{@link GenerationPanelController}: the group Generation ({@code GenerationPanel.fxml}), with its parts
+ * {@link GenerationAttachments} and {@link ProviderParameters}</li>
+ * <li>{@link StatusBarController}: the status bar ({@code StatusBar.fxml}), where the parts report through
+ * {@code ui.support.StatusSink}</li>
+ * <li>{@link SettingsController}: the settings dialog ({@code SettingsDialog.fxml}), coordinator of its sections in
+ * {@code ui.controller.settings}</li>
+ * </ul>
+ *
+ * <p>The groups Mood and Frame ({@code ui.panel.MoodFramePanelController}) lie in {@code ui.panel}, below the
+ * brainstorm dialog, which may show them as well.</p>
  */
 package art.moodframe.ui.controller;

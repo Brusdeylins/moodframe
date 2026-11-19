@@ -16,20 +16,9 @@ import java.util.Map;
  */
 public class Mood {
 
-    /** The fields a mood sets, each with the column of its block id in the table {@code moods}. */
+    /** The fields a mood sets. */
     public enum Field {
-        ATMOSPHERE("atmosphere_id"), STYLE("style_id"), COLOR("color_id"), LIGHT("light_id"), CAMERA("camera_id");
-
-        private final String column;
-
-        Field(String column) {
-            this.column = column;
-        }
-
-        /** The column of the block id in the table {@code moods}. */
-        public String column() {
-            return column;
-        }
+        ATMOSPHERE, STYLE, COLOR, LIGHT, CAMERA
     }
 
     private String id;

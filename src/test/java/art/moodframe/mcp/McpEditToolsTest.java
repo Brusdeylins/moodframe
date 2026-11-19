@@ -1,37 +1,45 @@
 package art.moodframe.mcp;
 
+import art.moodframe.repository.ChatGroupQueries;
+import art.moodframe.repository.ChatTrashRepository;
+import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
+import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationCost;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.util.I18nManager;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
-import art.moodframe.service.BlockTrashGroup;
-import art.moodframe.service.ChatHistoryService;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.ChatTrashGroup;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.FrameTrashGroup;
-import art.moodframe.service.GenerationService;
-import art.moodframe.service.ImageTrashGroup;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodAnalysisService;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.MoodTrashGroup;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.service.PromptComposer;
-import art.moodframe.service.RequestResponseService;
-import art.moodframe.service.TrashCenter;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ChatTrashGroup;
+import art.moodframe.service.chat.ImageTrashGroup;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.RequestResponseService;
+import art.moodframe.service.library.BlockTrashGroup;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.FrameTrashGroup;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.MoodTrashGroup;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.prompt.PromptComposer;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.provider.MockProviders;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -50,6 +58,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -63,7 +72,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -105,35 +113,40 @@ class McpEditToolsTest {
         Platform.setImplicitExit(false);
 
         Path database = tempDir.resolve("db").resolve("edit.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
-        ChatRepository repository = new ChatRepository(new DatabaseManager(database));
-        chats = new ChatLibrary(new ChatHistoryService(repository, null, null), events);
-        blocks = new PromptBlockService(events);
-        colors = new ColorStyleService(events);
-        moods = new MoodService(blocks, colors, events);
-        frames = new FrameService(events);
-        favorites = new FavoriteService(events);
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
+        DatabaseManager manager = new DatabaseManager(database);
+        ChatRepository repository = new ChatRepository(manager);
+        ChatTrashRepository chatTrash = new ChatTrashRepository(manager, ChatFiles.NONE);
+        chats = new ChatLibrary(new ChatHistoryService(repository, chatTrash, new ChatGroupQueries(manager), null),
+                events);
+        blocks = TestLibraryServices.blocks(events);
+        colors = TestLibraryServices.palettes(events);
+        moods = TestLibraryServices.moods(blocks, colors, events);
+        frames = TestLibraryServices.frames(events);
+        favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository));
-        trash.register(new ImageTrashGroup(repository, ChatFiles.NONE, null, null));
+        trash.register(new ChatTrashGroup(chatTrash));
+        trash.register(new ImageTrashGroup(repository, chatTrash, null, null));
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));
         trash.register(new FrameTrashGroup(frames));
         trash.addListener(chats);
 
         /*  Only BFL is enabled with a key; no language model for the analysis of images  */
-        ApplicationConfig config = mock(ApplicationConfig.class);
-        when(config.isBflProviderEnabled()).thenReturn(true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.getOpenAiModels()).thenReturn(List.of());
-        when(config.getFlux2SafetyTolerance()).thenReturn(2);
-        when(config.getFlux2FlexGuidance()).thenReturn(5.0);
-        when(config.getFlux2FlexSteps()).thenReturn(50);
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
+        when(config.accounts().isEnabled(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().getOpenAiModels()).thenReturn(List.of());
+        when(config.generation().getFlux2SafetyTolerance()).thenReturn(2);
+        when(config.generation().getFlux2FlexGuidance()).thenReturn(5.0);
+        when(config.generation().getFlux2FlexSteps()).thenReturn(50);
 
         provider = new Provider(repository);
-        GenerationService generation = new GenerationService(config, chats, moods, provider);
+        GenerationService generation = new GenerationService(config, chats, moods, provider,
+                MockProviders.preparing(config), Runnable::run);
         tools = McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                 new MoodAnalysisService(null, null, config));
     }
@@ -191,6 +204,45 @@ class McpEditToolsTest {
         assertTrue(ids(call("list_chats", "{}").path("chats")).contains(chatId), "the chat is back");
     }
 
+    @Test
+    void theChatToolsDoNotWaitForTheJavaFxThread() throws Exception {
+        CountDownLatch blocked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            blocked.countDown();
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertTrue(blocked.await(10, TimeUnit.SECONDS));
+        String chatId;
+        try {
+            /*  while the JavaFX thread is busy, the tools change and read the chats on the thread of the call  */
+            chatId = CompletableFuture.supplyAsync(() -> {
+                try {
+                    String id = call("create_chat", "{\"name\":\"Busy window\"}").path("id").asText();
+                    call("rename_chat", "{\"chatId\":\"" + id + "\",\"name\":\"Busy window, renamed\"}");
+                    assertEquals("Busy window, renamed", call("get_chat", "{\"chatId\":\"" + id + "\"}")
+                            .path("chat").path("name").asText());
+                    assertTrue(ids(call("list_chats", "{}").path("chats")).contains(id));
+                    return id;
+                }
+                catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }).get(10, TimeUnit.SECONDS);
+            assertFalse(reported.contains("CHAT:" + chatId), "the main window learns of it once its thread is free");
+        }
+        finally {
+            release.countDown();
+        }
+        drainFxThread();
+        assertTrue(reported.contains("CHAT:" + chatId));
+    }
+
     /*  ===== Moods =====  */
 
     @Test
@@ -246,7 +298,8 @@ class McpEditToolsTest {
         JsonNode palette = found.path("blocks").path("color");
         assertTrue(palette.path("new").asBoolean());
         assertFalse(palette.path("colors").isEmpty(), "the palette comes from the pixels");
-        assertFalse(found.path("notice").isNull(), "without a language model, the notice says why");
+        assertEquals(art.moodframe.util.I18nManager.getTextIn(java.util.Locale.ENGLISH, "mood.image.no.model"),
+                found.path("notice").asText(), "without a language model, the notice says why, in English");
         assertEquals(palettes, colors.getAllStyles().size(), "nothing is stored");
         assertTrue(error("mood_from_image", "{\"image\":\"no-such-image\"}").contains("No image"));
     }
@@ -342,6 +395,19 @@ class McpEditToolsTest {
             + "\"frameId\":\"Social Post\",\"aspectRatio\":\"16:9\",\"count\":2";
 
     @Test
+    void thePreviewNamesTheModelInEnglishWhateverTheLanguageOfTheWindow() throws Exception {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(),
+                    call("preview_generation", "{" + ORDER + "}").path("name").asText());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
+    }
+
+    @Test
     void previewTellsWhatTheMainWindowSends() throws Exception {
         int sent = provider.sent.size();
         JsonNode preview = call("preview_generation", "{" + ORDER + "}");
@@ -349,10 +415,11 @@ class McpEditToolsTest {
         /*  As the main window composes and maps it: the blocks of the mood without the emptied atmosphere  */
         Mood filmNoir = moods.find("std:mood:film-noir");
         PromptComposer.Selection selection = moods.selection(filmNoir);
-        String expected = new PromptComposer(GenerationService.maxPromptLength(MODEL)).compose("a harbor at dawn",
+        String expected = new PromptComposer(MockProviders.preparing().get(GenerationModel.fromId(MODEL).getProvider())
+                .maxPromptLength(GenerationModel.fromId(MODEL).getApiModelId())).compose("a harbor at dawn",
                 new PromptComposer.Selection(selection.style(), null, selection.light(), selection.camera(),
                         selection.palette()));
-        String item = GenerationModel.itemOf(MODEL);
+        String item = ModelLabels.itemOf(MODEL);
         assertEquals(expected, preview.path("prompt").asText());
         assertTrue(preview.path("fits").asBoolean());
         assertEquals(AspectRatios.nearestForItem("16:9", item), preview.path("aspectRatio").asText());
@@ -507,11 +574,6 @@ class McpEditToolsTest {
         }
 
         @Override
-        public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry) {
-            return submitImageGeneration(request, chatEntry, null);
-        }
-
-        @Override
         public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
                 File attachedImageFile) {
             sent.add(request);
@@ -549,6 +611,10 @@ class McpEditToolsTest {
         }
 
         @Override
+        public void markFailed(ChatEntry chatEntry, Throwable failure) {
+        }
+
+        @Override
         public CompletableFuture<Boolean> cancelEntry(ChatEntry chatEntry) {
             CompletableFuture<Boolean> cancelled = new CompletableFuture<>();
             Platform.runLater(() -> {
@@ -564,17 +630,23 @@ class McpEditToolsTest {
         }
 
         @Override
-        public boolean cancelGeneration(String jobId) {
-            return false;
-        }
-
-        @Override
-        public boolean isGenerationActive(String jobId) {
-            return false;
-        }
-
-        @Override
         public void shutdown() {
         }
+    }
+
+    @Test
+    void theParametersAreCheckedAgainstTheTableOfTheModel() throws Exception {
+        String flex = "{\"prompt\":\"x\",\"model\":\"FLUX2_FLEX\",\"params\":";
+        call("preview_generation", flex + "{\"guidance\":1.5,\"steps\":50,\"seed\":7,\"safetyTolerance\":5}}");
+        assertTrue(error("preview_generation", flex + "{\"guidance\":1.4}}")
+                .contains("The parameter 'guidance' must be a number from 1.5 to 10"));
+        assertTrue(error("preview_generation", flex + "{\"guidance\":10.5}}")
+                .contains("The parameter 'guidance' must be a number from 1.5 to 10"));
+        assertTrue(error("preview_generation", flex + "{\"steps\":51}}")
+                .contains("The argument 'steps' must be an integer from 1 to 50"));
+        assertTrue(error("preview_generation", flex + "{\"safetyTolerance\":6}}")
+                .contains("The argument 'safetyTolerance' must be an integer from 0 to 5"));
+        assertTrue(error("preview_generation", flex + "{\"seed\":1.5}}")
+                .contains("The parameter 'seed' must be an integer"));
     }
 }

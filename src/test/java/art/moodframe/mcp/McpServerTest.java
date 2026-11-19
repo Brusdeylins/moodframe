@@ -1,9 +1,12 @@
 package art.moodframe.mcp;
 
+import art.moodframe.service.chat.TestChatServices;
+import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
@@ -13,18 +16,19 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.repository.ChatRepository;
-import art.moodframe.service.BlockTrashGroup;
-import art.moodframe.service.ChatHistoryService;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.FrameTrashGroup;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.MoodTrashGroup;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.service.TrashCenter;
+import art.moodframe.service.library.BlockTrashGroup;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.FrameTrashGroup;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.MoodTrashGroup;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.util.I18nManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Platform;
@@ -38,6 +42,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -69,7 +74,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -109,29 +113,29 @@ class McpServerTest {
         Platform.setImplicitExit(false);
 
         Path database = tempDir.resolve("db").resolve("test.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
         LibraryEvents events = new LibraryEvents();
-        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id));
-        ChatLibrary chats = new ChatLibrary(new ChatHistoryService(new ChatRepository(new DatabaseManager(database)),
-                null, null), events);
-        PromptBlockService blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
-        MoodService moods = new MoodService(blocks, colors, events);
-        FrameService frames = new FrameService(events);
-        FavoriteService favorites = new FavoriteService(events);
+        events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
+        ChatLibrary chats = new ChatLibrary(TestChatServices.history(new DatabaseManager(database)), events);
+        PromptBlockService blocks = TestLibraryServices.blocks(events);
+        ColorStyleService colors = TestLibraryServices.palettes(events);
+        MoodService moods = TestLibraryServices.moods(blocks, colors, events);
+        FrameService frames = TestLibraryServices.frames(events);
+        FavoriteService favorites = TestLibraryServices.favorites(events);
         TrashCenter trash = new TrashCenter();
         trash.register(new BlockTrashGroup(blocks, colors, moods));
         trash.register(new MoodTrashGroup(moods));
         trash.register(new FrameTrashGroup(frames));
 
         /*  Only BFL is enabled with a key  */
-        ApplicationConfig config = mock(ApplicationConfig.class);
-        when(config.isBflProviderEnabled()).thenReturn(true);
-        when(config.hasApiKey()).thenReturn(true);
-        when(config.getOpenAiModels()).thenReturn(List.of());
-        when(config.getFlux2SafetyTolerance()).thenReturn(2);
-        when(config.getFlux2FlexGuidance()).thenReturn(5.0);
-        when(config.getFlux2FlexSteps()).thenReturn(50);
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(art.moodframe.config.LibraryPaths.under(tempDir));
+        when(config.accounts().isEnabled(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().hasApiKey(ApiProvider.BFL)).thenReturn(true);
+        when(config.accounts().getOpenAiModels()).thenReturn(List.of());
+        when(config.generation().getFlux2SafetyTolerance()).thenReturn(2);
+        when(config.generation().getFlux2FlexGuidance()).thenReturn(5.0);
+        when(config.generation().getFlux2FlexSteps()).thenReturn(50);
 
         /*  A chat with one entry and its image of 2000 x 1000 pixels  */
         imageFile = tempDir.resolve("image-1.png");
@@ -139,7 +143,7 @@ class McpServerTest {
         chat = chats.createChat("Lighthouses");
         ChatEntry entry = new ChatEntry.Builder().id("entry-1").chatId(chat.getId()).userPrompt("a lighthouse")
                 .enhancedPrompt("Image style: Film.\na lighthouse").status(ChatEntry.Status.COMPLETED)
-                .model(GenerationModel.FLUX2_PRO.getDisplayName()).cost(0.03)
+                .model(GenerationModel.entryModelOf("FLUX2_PRO")).cost(0.03)
                 .mood(new EntryMood("std:mood:film-noir", "Film Noir", Map.of()))
                 .frame(new EntryFrame("std:frame:social-post", "Social Post", "4:5", "2K")).build();
         entry.getImages().add(new GeneratedImage.Builder().id("image-1").chatEntryId("entry-1")
@@ -183,7 +187,7 @@ class McpServerTest {
             port = free.getLocalPort();
         }
         server = new McpServer(port, TOKEN, McpTools.reading(config, chats, moods, blocks, colors, frames, favorites,
-                trash, events));
+                trash, events, art.moodframe.service.provider.MockProviders.preparing()));
         server.start();
     }
 
@@ -369,6 +373,19 @@ class McpServerTest {
     }
 
     @Test
+    void theModelsAreNamedInEnglishWhateverTheLanguageOfTheWindow() throws Exception {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            JsonNode pro = find(call("get_capabilities", "{}").path("models"), "id", "FLUX2_PRO");
+            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), pro.path("name").asText());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
+    }
+
+    @Test
     void listChatsAndGetChatShowTheChatPageByPage() throws Exception {
         JsonNode listed = find(call("list_chats", "{}").path("chats"), "id", chat.getId());
         assertEquals("Lighthouses", listed.path("name").asText());
@@ -381,6 +398,7 @@ class McpServerTest {
         assertEquals("entry-1", entry.path("id").asText());
         assertEquals("a lighthouse", entry.path("prompt").asText());
         assertEquals("FLUX2_PRO", entry.path("modelId").asText());
+        assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), entry.path("model").asText(), "a human name");
         assertEquals("COMPLETED", entry.path("status").asText());
         assertEquals("Film Noir", entry.path("mood").path("name").asText());
         assertEquals("4:5", entry.path("frame").path("aspectRatio").asText());

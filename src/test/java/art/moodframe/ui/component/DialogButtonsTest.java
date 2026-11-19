@@ -1,5 +1,6 @@
 package art.moodframe.ui.component;
 
+import art.moodframe.ui.dialog.CameraEditDialog;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
@@ -95,7 +96,7 @@ class DialogButtonsTest {
 
             CameraEditDialog dialog = onFxThread(() -> {
                 I18nManager.setLocale(Locale.ENGLISH);
-                return new CameraEditDialog(null);
+                return new CameraEditDialog(null, null);
             });
             assertEquals("Cancel", onFxThread(() -> cancelText(dialog)));
 

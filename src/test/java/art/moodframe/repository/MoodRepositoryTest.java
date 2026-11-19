@@ -1,6 +1,6 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Mood;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,15 +20,15 @@ class MoodRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final MoodRepository repository = new MoodRepository();
+    private final MoodRepository repository = new MoodRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test
-    void storesUpdatesAndDeletesMoodsOfTheUser() {
+    void storesUpdatesAndDeletesMoodsOfTheUser() throws Exception {
         Mood mood = new Mood(null, "Harbor Dawn");
         mood.setReference(Mood.Field.ATMOSPHERE, "atmosphere-1");
         mood.setReference(Mood.Field.COLOR, "std:color:ocean-breeze");
@@ -41,28 +41,30 @@ class MoodRepositoryTest {
         mood.setReference(Mood.Field.CAMERA, "std:camera:street-35mm");
         assertTrue(repository.update(mood));
 
-        Mood stored = repository.findByName("Harbor Morning");
+        Mood stored = repository.findByName("Harbor Morning").orElseThrow();
         assertEquals(mood.getId(), stored.getId());
         assertNull(stored.getReference(Mood.Field.ATMOSPHERE));
         assertEquals("std:color:ocean-breeze", stored.getReference(Mood.Field.COLOR));
         assertEquals("std:camera:street-35mm", stored.getReference(Mood.Field.CAMERA));
         assertFalse(stored.isDefault());
-        assertNull(repository.findByName("Harbor Dawn"));
+        assertTrue(repository.findByName("Harbor Dawn").isEmpty());
 
+        assertFalse(repository.delete(mood.getId()), "a mood in use is not removed for good");
+        assertTrue(repository.moveToTrash(mood.getId()));
         assertTrue(repository.delete(mood.getId()));
-        assertNull(repository.findById(mood.getId()));
+        assertTrue(repository.findById(mood.getId()).isEmpty());
         assertFalse(repository.exists(mood.getId()));
     }
 
     @Test
-    void movesMoodsToTheTrashAndBack() {
+    void movesMoodsToTheTrashAndBack() throws Exception {
         Mood kept = save("Kept Mood", 1001);
         Mood trashed = save("Trashed Mood", 1002);
 
         assertTrue(repository.moveToTrash(trashed.getId()));
         assertFalse(repository.moveToTrash(trashed.getId()), "a mood in the trash is not moved again");
-        assertNull(repository.findById(trashed.getId()));
-        assertNull(repository.findByName("Trashed Mood"));
+        assertTrue(repository.findById(trashed.getId()).isEmpty());
+        assertTrue(repository.findByName("Trashed Mood").isEmpty());
         assertTrue(repository.exists(trashed.getId()), "the id stays taken while the mood is in the trash");
         assertTrue(repository.findAll().stream().anyMatch((Mood mood) -> mood.getId().equals(kept.getId())));
 
@@ -71,12 +73,14 @@ class MoodRepositoryTest {
         assertNotNull(deleted.getDeletedAt());
 
         assertTrue(repository.restore(trashed.getId()));
-        assertNotNull(repository.findById(trashed.getId()));
+        assertTrue(repository.findById(trashed.getId()).isPresent());
         assertNull(deleted(trashed.getId()));
+        assertFalse(repository.delete(trashed.getId()), "a restored mood survives a removal from the trash");
+        assertTrue(repository.findById(trashed.getId()).isPresent());
     }
 
     @Test
-    void dropsTheReferencesToABlockInEveryMood() {
+    void dropsTheReferencesToABlockInEveryMood() throws Exception {
         Mood first = save("Drop First", 1003);
         first.setReference(Mood.Field.LIGHT, "light-gone");
         first.setReference(Mood.Field.STYLE, "std:style:watercolor");
@@ -87,18 +91,18 @@ class MoodRepositoryTest {
         repository.moveToTrash(second.getId());
 
         assertEquals(2, repository.dropReference("light-gone"), "moods in the trash lose the reference, too");
-        Mood stored = repository.findById(first.getId());
+        Mood stored = repository.findById(first.getId()).orElseThrow();
         assertNull(stored.getReference(Mood.Field.LIGHT));
         assertEquals("std:style:watercolor", stored.getReference(Mood.Field.STYLE));
         assertTrue(deleted(second.getId()).isEmpty());
     }
 
-    private Mood deleted(String id) {
+    private Mood deleted(String id) throws Exception {
         return repository.findDeleted().stream().filter((Mood mood) -> mood.getId().equals(id)).findFirst()
                 .orElse(null);
     }
 
-    private Mood save(String name, int sortOrder) {
+    private Mood save(String name, int sortOrder) throws Exception {
         Mood mood = new Mood(null, name);
         mood.setSortOrder(sortOrder);
         repository.save(mood);

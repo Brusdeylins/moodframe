@@ -1,0 +1,172 @@
+package art.moodframe.service.chat;
+
+import art.moodframe.database.DatabaseManager;
+import art.moodframe.model.Chat;
+import art.moodframe.model.ChatEntry;
+import art.moodframe.model.GeneratedImage;
+import art.moodframe.repository.ChatFiles;
+import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
+import art.moodframe.service.trash.TrashEntry;
+import art.moodframe.util.I18nManager;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** Runs against a fresh SQLite database, so the group works on the soft delete of the real repository. */
+class ChatTrashGroupTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static ChatRepository repository;
+    private static ChatTrashRepository trash;
+
+    private final ChatTrashGroup group = new ChatTrashGroup(trash);
+
+    @BeforeAll
+    static void createDatabase() throws Exception {
+        DatabaseManager databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
+        databaseManager.initialize();
+        repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
+    }
+
+    @Test
+    void listsOnlyDeletedChatsWithTheNumberOfTheirImages() throws Exception {
+        Chat active = chat("Aktiv");
+        entry(active, 0.10, 1);
+        Chat deleted = chat("Regen");
+        entry(deleted, 0.08, 2);
+        entry(deleted, 0.04, 1);
+        trash.softDeleteChat(deleted.getId());
+
+        assertTrue(trashed(active).isEmpty());
+        TrashEntry entry = trashed(deleted).orElseThrow();
+        assertEquals("Regen", entry.name());
+        assertNotNull(entry.deletedAt());
+        assertEquals(I18nManager.getText("trash.context.chat.plural", 3, I18nManager.formatCost(0.12)),
+                entry.context());
+    }
+
+    @Test
+    void countsOnlyTheImagesThatCameNotTheRowsOfAFailedRequest() throws Exception {
+        Chat chat = chat("Gewitter");
+        entry(chat, 0.04, 1);
+        ChatEntry failed = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").build();
+        repository.saveChatEntry(failed);
+        repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(failed.getId()).model("flux-pro")
+                .downloadStatus(GeneratedImage.DownloadStatus.FAILED).build());
+        trash.softDeleteChat(chat.getId());
+
+        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, I18nManager.formatCost(0.04)),
+                trashed(chat).orElseThrow().context());
+    }
+
+    @Test
+    void restoresAChatAndItsCostDisplayStaysAsItWas() throws Exception {
+        Chat chat = chat("Kosten");
+        ChatEntry first = entry(chat, 0.50, 2);
+        ChatEntry second = entry(chat, 0.20, 1);
+        trash.softDeleteImage(repository.findGeneratedImagesByEntry(first.getId()).get(0).getId());
+        trash.softDeleteChatEntry(second.getId());
+        double headerCost = headerCost(chat);
+        assertEquals(0.70, headerCost, 0.0001);
+
+        trash.softDeleteChat(chat.getId());
+        assertEquals(I18nManager.getText("trash.context.chat.singular", 1, I18nManager.formatCost(headerCost)),
+                trashed(chat).orElseThrow().context());
+
+        assertTrue(group.restore(chat.getId()));
+
+        assertTrue(trashed(chat).isEmpty());
+        assertFalse(repository.findChatById(chat.getId()).orElseThrow().isDeleted());
+        assertEquals(headerCost, headerCost(chat), 0.0001);
+        assertEquals(1, repository.findGeneratedImagesByEntry(first.getId()).size());
+    }
+
+    @Test
+    void deletesAChatForGoodWithItsEntries() throws Exception {
+        Chat chat = chat("Weg");
+        entry(chat, 0.10, 1);
+        trash.softDeleteChat(chat.getId());
+
+        assertTrue(group.deletePermanently(chat.getId()));
+
+        assertTrue(trashed(chat).isEmpty());
+        assertTrue(repository.findChatById(chat.getId()).isEmpty());
+        assertTrue(repository.findChatEntriesByChatId(chat.getId()).isEmpty());
+        assertFalse(group.deletePermanently(chat.getId()));
+    }
+
+    @Test
+    void tellsTheContextInEnglishWithAPointForTheMcpClients() throws Exception {
+        Chat chat = chat("Dämmerung");
+        entry(chat, 1.25, 2);
+        trash.softDeleteChat(chat.getId());
+        Locale language = I18nManager.getCurrentLocale();
+        Locale numbers = Locale.getDefault();
+        try {
+            I18nManager.setLocale(Locale.GERMAN);
+            Locale.setDefault(Locale.GERMANY);
+            TrashEntry english = group.list(Locale.ENGLISH).stream()
+                    .filter((TrashEntry entry) -> entry.id().equals(chat.getId())).findFirst().orElseThrow();
+
+            assertEquals("2 images · $1.25", english.context());
+            assertEquals("2 Bilder · $1,25", trashed(chat).orElseThrow().context(), "the window keeps its language");
+        }
+        finally {
+            Locale.setDefault(numbers);
+            I18nManager.setLocale(language);
+        }
+    }
+
+    @Test
+    void doesNotRestoreAChatThatIsNotInTheTrash() throws Exception {
+        Chat active = chat("Aktiv");
+
+        assertFalse(group.restore(active.getId()));
+        assertFalse(group.restore("unknown"));
+    }
+
+    private Chat chat(String name) throws Exception {
+        Chat chat = new Chat.Builder().name(name).build();
+        repository.saveChat(chat);
+        return chat;
+    }
+
+    /**
+     * Stores an entry with downloaded images without a stored cost: they share the cost of the entry evenly when
+     * deleted.
+     */
+    private ChatEntry entry(Chat chat, double cost, int images) throws Exception {
+        ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").cost(cost).build();
+        repository.saveChatEntry(entry);
+        for (int i = 0; i < images; i++) {
+            repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(entry.getId())
+                    .model("flux-pro").downloadStatus(GeneratedImage.DownloadStatus.CACHED).build());
+        }
+        return entry;
+    }
+
+    private Optional<TrashEntry> trashed(Chat chat) {
+        List<TrashEntry> entries = group.list();
+        return entries.stream().filter((entry) -> entry.id().equals(chat.getId())).findFirst();
+    }
+
+    /** The total the header of the main window shows for a chat: its entries plus the cost of its deleted entries. */
+    private double headerCost(Chat chat) throws Exception {
+        return repository.findChatEntriesByChatId(chat.getId()).stream().mapToDouble(ChatEntry::getCost).sum()
+                + repository.findChatById(chat.getId()).orElseThrow().getDeletedCost();
+    }
+}

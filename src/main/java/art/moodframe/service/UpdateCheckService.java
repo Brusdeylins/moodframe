@@ -1,9 +1,9 @@
 package art.moodframe.service;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
+import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
 import art.moodframe.util.VersionManager;
-import okhttp3.Credentials;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -13,14 +13,13 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.StringReader;
 import java.math.BigInteger;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * Finds a newer version of MoodFrame on the update site. Conveyor updates the packages for macOS and Windows itself at
@@ -88,7 +87,7 @@ public class UpdateCheckService {
 
     private final ApplicationConfig config;
     private final Properties system;
-    private final OkHttpClient httpClient;
+    private final Supplier<OkHttpClient> httpClient;
     private final AtomicBoolean checkedAtStart = new AtomicBoolean();
 
     /**
@@ -109,24 +108,13 @@ public class UpdateCheckService {
     public UpdateCheckService(ApplicationConfig config, Properties system) {
         this.config = config;
         this.system = system;
-        OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(5, TimeUnit.SECONDS)
-                .callTimeout(10, TimeUnit.SECONDS);
 
         /*  The proxy and the own root certificates of the settings, as for the API calls  */
-        CorporateProxyConfig proxy = new CorporateProxyConfig(config);
-        if (proxy.isProxyEnabled() && proxy.isProxyConfigurationValid()) {
-            builder.proxy(new Proxy(Proxy.Type.HTTP,
-                    new InetSocketAddress(proxy.getProxyHost(), proxy.getProxyPort())));
-            if (proxy.hasProxyAuthentication())
-                builder.proxyAuthenticator((route, response) -> response.request().header("Proxy-Authorization") != null
-                        ? null
-                        : response.request().newBuilder().header("Proxy-Authorization",
-                                Credentials.basic(proxy.getProxyUsername(), proxy.getProxyPassword())).build());
-        }
-        OpenAiApiServiceImpl.configureSSLContext(builder, config);
-        this.httpClient = builder.build();
+        this.httpClient = new HttpClients(config).rebuilding(clients -> clients.okHttp()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .callTimeout(10, TimeUnit.SECONDS)
+                .build());
     }
 
     /**
@@ -216,7 +204,7 @@ public class UpdateCheckService {
         String installed = installedVersion();
         String url = system.getProperty("app.repositoryUrl", "").replaceAll("/+$", "") + "/metadata.properties";
         return CompletableFuture.supplyAsync(() -> {
-            try (Response response = httpClient.newCall(new Request.Builder().url(url)
+            try (Response response = httpClient.get().newCall(new Request.Builder().url(url)
                     .header("User-Agent", "MoodFrame/" + installed).build()).execute()) {
                 if (!response.isSuccessful() || response.body() == null)
                     throw new IOException("HTTP " + response.code());
@@ -231,7 +219,7 @@ public class UpdateCheckService {
                 logger.warn("Update check of {} failed: {}", url, e.getMessage());
                 return new Result(installed, null);
             }
-        });
+        }, IoExecutor.get());
     }
 
     /**

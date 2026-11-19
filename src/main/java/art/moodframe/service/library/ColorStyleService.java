@@ -1,0 +1,613 @@
+package art.moodframe.service.library;
+
+import art.moodframe.model.ColorStyle;
+import art.moodframe.repository.ColorStyleRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.*;
+
+/**
+ * Service for managing color styles with SQLite persistence.
+ *
+ * <p>
+ * This service provides 20 default color palettes that are hardcoded with
+ * fixed ids ({@code std:color:<slug>}) and cannot be modified. Custom color styles are stored in SQLite and can be
+ * added, edited, and deleted by users.
+ * </p>
+ *
+ * <p>
+ * <strong>Default Color Palettes (20 styles):</strong>
+ * </p>
+ *
+ * <p>
+ * <em>Cinematic & Film:</em>
+ * </p>
+ * <ul>
+ * <li>Cinematic Teal-Orange - Hollywood film look (complementary)</li>
+ * <li>Noir Classic - Film noir, mystery, dramatic contrast</li>
+ * </ul>
+ *
+ * <p>
+ * <em>Retro & Synthwave:</em>
+ * </p>
+ * <ul>
+ * <li>Synthwave Sunset - 80s retro, neon gradients</li>
+ * <li>Vaporwave Dreams - Pastel neon, retrofuturism</li>
+ * <li>Cyberpunk 2077 - High-tech dystopia, neon contrast</li>
+ * </ul>
+ *
+ * <p>
+ * <em>Nature & Seasons:</em>
+ * </p>
+ * <ul>
+ * <li>Sunset Amber - Warm sunset tones for portraits and landscapes</li>
+ * <li>Ocean Breeze - Cool coastal blues for serene scenes</li>
+ * <li>Forest Dusk - Earthy green tones for nature photography</li>
+ * <li>Autumn Leaves - Rich fall colors for warm seasonal imagery</li>
+ * <li>Arctic Ice - Cold whites and blues for winter/clean themes</li>
+ * <li>Coral Reef - Tropical colors for vibrant underwater/summer scenes</li>
+ * </ul>
+ *
+ * <p>
+ * <em>Artistic & Mood:</em>
+ * </p>
+ * <ul>
+ * <li>Midnight Purple - Deep purples for mysterious/elegant themes</li>
+ * <li>Pastel Serenity - Soft pastels for calm, feminine aesthetics</li>
+ * <li>Faded Cream - Muted nostalgic tones for retro aesthetics</li>
+ * <li>Bold Retro - 70s vintage, split-complementary</li>
+ * </ul>
+ *
+ * <p>
+ * <em>Professional:</em>
+ * </p>
+ * <ul>
+ * <li>Monochrome Pro - Professional grays for business/minimal design</li>
+ * <li>Neon Nights - Vibrant cyberpunk colors for modern/tech themes</li>
+ * <li>Silver Screen - Neutral grays from black to white for black-and-white images</li>
+ * <li>Warm Skin Studio - Warm skin tones for portraits</li>
+ * <li>Fresh Corporate - Light neutrals with a calm blue for business images</li>
+ * </ul>
+ *
+ * <p>Every successful write is reported as {@link LibraryEvents.Kind#COLOR}. The writes are serialized, so parallel
+ * callers cannot take the same name.</p>
+ *
+ * @since 1.3.0
+ */
+public class ColorStyleService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ColorStyleService.class);
+
+    /** Former names of default palettes, renamed as a light block and a mood take these names. */
+    private static final Map<String, String> RENAMED_STYLES = Map.of(
+            "Golden Hour", "Sunset Amber",
+            "Vintage Film", "Faded Cream");
+
+    private final ColorStyleRepository repository;
+    private final ObjectMapper objectMapper;
+    private final List<ColorStyle> defaultStyles;
+    private final LibraryEvents events;
+    private final RepositoryAccess access = new RepositoryAccess(logger);
+
+    /**
+     * Creates a new ColorStyleService on the given repository; it reads and writes nothing until it is used.
+     *
+     * @param repository the custom color styles
+     * @param events     where the writes are reported
+     */
+    public ColorStyleService(ColorStyleRepository repository, LibraryEvents events) {
+        this.repository = repository;
+        this.objectMapper = new ObjectMapper();
+        this.events = events;
+        this.defaultStyles = initializeDefaultStyles();
+    }
+
+    /**
+     * Starts the service once at the program start, before the library is used: a palette of the user named like a
+     * standard palette, which a new version may have added, gets the next free name (see {@link #freeName}). Not in
+     * the constructor, so creating the service writes nothing.
+     */
+    public void start() {
+        renameCustomPalettesNamedLikeDefaults();
+    }
+
+
+    /*  reports a successful write  */
+    private boolean changed(boolean success, String id) {
+        if (success)
+            events.changed(LibraryEvents.Kind.COLOR, id);
+        return success;
+    }
+
+    private List<ColorStyle> findAllCustom() {
+        return access.call(repository::findAllCustom, new ArrayList<>(), "Failed to retrieve custom color styles");
+    }
+
+    private ColorStyle findByName(String name) {
+        return access.call(() -> repository.findByName(name).orElse(null), null,
+                "Failed to find color style by name: " + name);
+    }
+
+    private boolean update(ColorStyle style) {
+        return access.call(() -> repository.update(style), false, "Failed to update color style: " + style.getName());
+    }
+
+    private boolean save(ColorStyle style) {
+        return access.call(() -> repository.save(style), false, "Failed to save color style: " + style.getName());
+    }
+
+    private boolean moveToTrash(String id) {
+        return access.call(() -> repository.moveToTrash(id), false,
+                "Failed to move color style to the trash, ID: " + id);
+    }
+
+    private boolean takeFromTrash(String id) {
+        return access.call(() -> repository.restore(id), false, "Failed to restore color style with ID: " + id);
+    }
+
+    /**
+     * A palette of the user named like a standard palette (which may be new) keeps its colors and gets the next
+     * free name with a counter, so it stays selectable next to the standard one.
+     */
+    private void renameCustomPalettesNamedLikeDefaults() {
+        for (ColorStyle custom : findAllCustom()) {
+            if (!isDefaultStyle(custom.getName()))
+                continue;
+            String original = custom.getName();
+            custom.setName(freeName(original));
+            if (update(custom))
+                logger.info("Renamed palette '{}' of the user to '{}', a standard palette has its name", original,
+                        custom.getName());
+        }
+    }
+
+    /**
+     * Returns the name unchanged if no palette has it yet, else the name with the next free counter,
+     * e.g. {@code "Silver Screen (1)"}.
+     *
+     * @param name the wanted name
+     * @return a name no palette has
+     */
+    public String freeName(String name) {
+        if (!styleExists(name))
+            return name;
+        int counter = 1;
+        while (styleExists(name + " (" + counter + ")"))
+            counter++;
+        return name + " (" + counter + ")";
+    }
+
+    /**
+     * Initializes the 20 default color palettes.
+     *
+     * <p>
+     * These color palettes are designed to enhance AI-generated images
+     * by providing consistent color guidance to the model.
+     * </p>
+     */
+    private List<ColorStyle> initializeDefaultStyles() {
+        List<ColorStyle> defaults = new ArrayList<>();
+
+        // === CINEMATIC & FILM LOOKS ===
+
+        // 1. Cinematic Teal-Orange - Hollywood film look (complementary)
+        defaults.add(new ColorStyle("Cinematic Teal-Orange",
+                List.of("#FF7F50", "#FFA62B", "#101820", "#00BCD4", "#008BA3"), true));
+
+        // 2. Noir Classic - Film noir, mystery, dramatic contrast
+        defaults.add(new ColorStyle("Noir Classic",
+                List.of("#0D0D0D", "#1A1A2E", "#16213E", "#E94560", "#FFFFFF"), true));
+
+        // === RETRO & SYNTHWAVE ===
+
+        // 3. Synthwave Sunset - 80s retro, neon gradients
+        defaults.add(new ColorStyle("Synthwave Sunset",
+                List.of("#FFD319", "#FF901F", "#FF2975", "#F222FF", "#8C1EFF"), true));
+
+        // 4. Vaporwave Dreams - Pastel neon, retrofuturism
+        defaults.add(new ColorStyle("Vaporwave Dreams",
+                List.of("#A653F5", "#8F8CF2", "#65B8BF", "#F96CFF", "#FA92FB"), true));
+
+        // 5. Cyberpunk 2077 - High-tech dystopia, neon contrast
+        defaults.add(new ColorStyle("Cyberpunk 2077",
+                List.of("#F9C54E", "#3A0A4D", "#FF5C8A", "#A42DB4", "#090720"), true));
+
+        // === NATURE & SEASONS ===
+
+        // 6. Sunset Amber - Warm sunset tones for portraits and landscapes
+        defaults.add(new ColorStyle("Sunset Amber",
+                List.of("#FFB347", "#FF9F1C", "#E85D04", "#D00000", "#370617"), true));
+
+        // 7. Ocean Breeze - Cool coastal blues for serene scenes
+        defaults.add(new ColorStyle("Ocean Breeze",
+                List.of("#48BDFF", "#0096C7", "#0077B6", "#023E8A", "#03045E"), true));
+
+        // 8. Forest Dusk - Earthy green tones for nature photography
+        defaults.add(new ColorStyle("Forest Dusk",
+                List.of("#2D6A4F", "#40916C", "#74C69D", "#B7E4C7", "#D8F3DC"), true));
+
+        // 9. Autumn Leaves - Rich fall colors for warm seasonal imagery
+        defaults.add(new ColorStyle("Autumn Leaves",
+                List.of("#9B2226", "#AE2012", "#BB3E03", "#CA6702", "#EE9B00"), true));
+
+        // 10. Arctic Ice - Cold whites and blues for winter/clean themes
+        defaults.add(new ColorStyle("Arctic Ice",
+                List.of("#CAF0F8", "#ADE8F4", "#90E0EF", "#48CAE4", "#00B4D8"), true));
+
+        // 11. Coral Reef - Tropical colors for vibrant underwater/summer scenes
+        defaults.add(new ColorStyle("Coral Reef",
+                List.of("#FF6B6B", "#F8A978", "#FFC75F", "#A8E6CF", "#88D8B0"), true));
+
+        // === ARTISTIC & MOOD ===
+
+        // 12. Midnight Purple - Deep purples for mysterious/elegant themes
+        defaults.add(new ColorStyle("Midnight Purple",
+                List.of("#10002B", "#240046", "#3C096C", "#5A189A", "#7B2CBF"), true));
+
+        // 13. Pastel Serenity - Soft pastels for calm, feminine aesthetics
+        defaults.add(new ColorStyle("Pastel Serenity",
+                List.of("#FFD1DC", "#E6E6FA", "#B5EAD7", "#FFDAC1", "#C7CEEA"), true));
+
+        // 14. Faded Cream - Muted nostalgic tones for retro aesthetics
+        defaults.add(new ColorStyle("Faded Cream",
+                List.of("#D4A373", "#CCD5AE", "#E9EDC9", "#FEFAE0", "#FAEDCD"), true));
+
+        // 15. Bold Retro - 70s vintage, split-complementary
+        defaults.add(new ColorStyle("Bold Retro",
+                List.of("#003366", "#FF6600", "#FFD700", "#8B0000", "#006400"), true));
+
+        // === PROFESSIONAL ===
+
+        // 16. Monochrome Pro - Professional grays for business/minimal design
+        defaults.add(new ColorStyle("Monochrome Pro",
+                List.of("#212529", "#495057", "#6C757D", "#ADB5BD", "#DEE2E6"), true));
+
+        // 17. Neon Nights - Vibrant cyberpunk colors for modern/tech themes
+        defaults.add(new ColorStyle("Neon Nights",
+                List.of("#FF00FF", "#00FFFF", "#FF006E", "#8338EC", "#3A0CA3"), true));
+
+        // 18. Silver Screen - Neutral grays from black to white for black-and-white images
+        defaults.add(new ColorStyle("Silver Screen",
+                List.of("#0A0A0A", "#3D3D3D", "#808080", "#C4C4C4", "#F5F5F5"), true));
+
+        // 19. Warm Skin Studio - Warm skin tones for portraits
+        defaults.add(new ColorStyle("Warm Skin Studio",
+                List.of("#F4E3D3", "#E0B899", "#B5805F", "#6E4A38", "#2B1D17"), true));
+
+        // 20. Fresh Corporate - Light neutrals with a calm blue for business images
+        defaults.add(new ColorStyle("Fresh Corporate",
+                List.of("#FFFFFF", "#F2F5F7", "#B8C4CC", "#2F6FA7", "#1C2B39"), true));
+
+        // Set sort order and fixed id for defaults
+        for (int i = 0; i < defaults.size(); i++) {
+            defaults.get(i).setSortOrder(i);
+            defaults.get(i).setId("std:color:" + PromptBlockService.slug(defaults.get(i).getName()));
+        }
+
+        return defaults;
+    }
+
+    /**
+     * Gets all available color styles (default from code + custom from DB).
+     */
+    public List<ColorStyle> getAllStyles() {
+        List<ColorStyle> allStyles = new ArrayList<>(defaultStyles);
+        allStyles.addAll(findAllCustom());
+        return allStyles;
+    }
+
+    /**
+     * Gets only the default system color styles (from code, not DB).
+     */
+    public List<ColorStyle> getDefaultStyles() {
+        return new ArrayList<>(defaultStyles);
+    }
+
+    /**
+     * Gets only the custom user-created color styles (from DB).
+     */
+    public List<ColorStyle> getCustomStyles() {
+        return findAllCustom();
+    }
+
+    /**
+     * Gets a color style by name (checks defaults first, then custom, then the former names of defaults).
+     */
+    public ColorStyle getStyleByName(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+
+        // First check defaults (from code)
+        for (ColorStyle style : defaultStyles) {
+            if (style.getName().equals(name)) {
+                return style;
+            }
+        }
+
+        // Then check custom styles (from DB)
+        ColorStyle custom = findByName(name);
+        return custom == null && RENAMED_STYLES.containsKey(name) ? getStyleByName(RENAMED_STYLES.get(name)) : custom;
+    }
+
+    /**
+     * Gets a color style in use by its id, a standard palette or one of the user.
+     *
+     * @param id the id, for example {@code std:color:ocean-breeze}
+     * @return the color style, null if there is none in use
+     */
+    public ColorStyle getStyleById(String id) {
+        if (id == null || id.isEmpty())
+            return null;
+        for (ColorStyle style : defaultStyles) {
+            if (style.getId().equals(id))
+                return style;
+        }
+        return access.call(() -> repository.findById(id).orElse(null), null,
+                "Failed to find color style by ID: " + id);
+    }
+
+    /**
+     * Finds a color style of the user in the trash.
+     *
+     * @param id the id of the color style
+     * @return the color style, null if it is not in the trash
+     */
+    public ColorStyle findInTrash(String id) {
+        return id == null || id.startsWith("std:") ? null
+                : access.call(() -> repository.findInTrash(id).orElse(null), null,
+                        "Failed to find color style in the trash: " + id);
+    }
+
+    /**
+     * Adds a new custom color style.
+     */
+    public synchronized boolean addCustomStyle(ColorStyle style) {
+        // Check for duplicate names (in defaults or custom)
+        if (styleExists(style.getName())) {
+            logger.warn("Cannot add color style '{}' - name already exists", style.getName());
+            return false;
+        }
+
+        // Ensure it's marked as custom
+        style.setDefault(false);
+
+        // Auto-assign sort order if not set
+        if (style.getSortOrder() == 0 || style.getSortOrder() == 999) {
+            style.setSortOrder(getNextCustomSortOrder());
+        }
+
+        boolean success = save(style);
+
+        if (success) {
+            logger.debug("Added custom color style: {}", style.getName());
+        }
+
+        return changed(success, style.getId());
+    }
+
+    /**
+     * Updates an existing custom color style.
+     */
+    public synchronized boolean updateCustomStyle(String oldName, ColorStyle updatedStyle) {
+        // Cannot update default styles
+        if (isDefaultStyle(oldName)) {
+            logger.warn("Cannot update default color style: {}", oldName);
+            return false;
+        }
+
+        ColorStyle existing = findByName(oldName);
+        if (existing == null) {
+            logger.warn("Cannot update color style '{}' - not found", oldName);
+            return false;
+        }
+
+        // Check for name conflicts (if renaming)
+        if (!oldName.equals(updatedStyle.getName()) && styleExists(updatedStyle.getName())) {
+            logger.warn("Cannot rename color style to '{}' - name already exists", updatedStyle.getName());
+            return false;
+        }
+
+        // Preserve ID and metadata
+        updatedStyle.setId(existing.getId());
+        updatedStyle.setDefault(false);
+        updatedStyle.setSortOrder(existing.getSortOrder());
+
+        boolean success = update(updatedStyle);
+
+        if (success) {
+            logger.debug("Updated custom color style: {} -> {}", oldName, updatedStyle.getName());
+        }
+
+        return changed(success, updatedStyle.getId());
+    }
+
+    /**
+     * Adds a palette as a new custom color style, e.g. a copy of a default one; a taken name gets the next free
+     * counter.
+     */
+    public synchronized boolean addCopy(ColorStyle style) {
+        style.setId(null);
+        style.setSortOrder(999);
+        style.setName(freeName(style.getName()));
+        return addCustomStyle(style);
+    }
+
+    /**
+     * Puts the custom color styles into the given order.
+     */
+    public synchronized boolean reorderCustomStyles(List<String> ids) {
+        boolean updated = true;
+        for (ColorStyle style : findAllCustom()) {
+            int index = ids.indexOf(style.getId());
+            if (index < 0 || style.getSortOrder() == 100 + index)
+                continue;
+            style.setSortOrder(100 + index);
+            updated &= update(style);
+        }
+        return changed(updated, null);
+    }
+
+    /**
+     * Moves a custom color style to the trash.
+     */
+    public synchronized boolean deleteCustomStyle(String name) {
+        // Cannot delete default styles
+        if (isDefaultStyle(name)) {
+            logger.warn("Cannot delete default color style: {}", name);
+            return false;
+        }
+
+        ColorStyle existing = findByName(name);
+        if (existing == null) {
+            logger.warn("Cannot delete color style '{}' - not found", name);
+            return false;
+        }
+
+        boolean success = moveToTrash(existing.getId());
+
+        if (success) {
+            logger.debug("Moved custom color style to the trash: {}", name);
+        }
+
+        return changed(success, existing.getId());
+    }
+
+    /**
+     * Gets the custom color styles in the trash, the latest deletion first.
+     */
+    public List<ColorStyle> getDeletedStyles() {
+        return access.call(repository::findDeleted, new ArrayList<>(),
+                "Failed to retrieve the color styles in the trash");
+    }
+
+    /**
+     * Takes a custom color style out of the trash; its name stayed taken meanwhile.
+     */
+    public synchronized boolean restoreStyle(String id) {
+        return getDeletedStyles().stream().anyMatch((ColorStyle style) -> style.getId().equals(id))
+                && changed(takeFromTrash(id), id);
+    }
+
+    /**
+     * Removes a custom color style in the trash for good; a style in use stays.
+     */
+    public synchronized boolean deleteStylePermanently(String id) {
+        return changed(id != null && !id.startsWith("std:")
+                && access.call(() -> repository.delete(id), false, "Failed to delete color style with ID: " + id), id);
+    }
+
+    /**
+     * Checks if a style exists (in defaults or custom).
+     */
+    public boolean styleExists(String name) {
+        // Check defaults first
+        for (ColorStyle style : defaultStyles) {
+            if (style.getName().equals(name)) {
+                return true;
+            }
+        }
+
+        // Check custom styles
+        return access.call(() -> repository.existsByName(name), false,
+                "Failed to check if color style exists: " + name);
+    }
+
+    /**
+     * Checks if a style is a default (system) style.
+     */
+    public boolean isDefaultStyle(String name) {
+        for (ColorStyle style : defaultStyles) {
+            if (style.getName().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Exports custom styles to a JSON file.
+     */
+    public boolean exportStyles(File file) {
+        try {
+            List<ColorStyle> customStyles = getCustomStyles();
+            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(customStyles);
+            Files.writeString(file.toPath(), json);
+
+            logger.debug("Exported {} custom color styles to {}", customStyles.size(), file.getAbsolutePath());
+
+            return true;
+        } catch (Exception e) {
+            logger.error("Failed to export color styles to " + file.getAbsolutePath(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Adds the styles of a JSON file behind the custom styles, like {@link #importStyles(List)}.
+     */
+    public synchronized int importStyles(File file) {
+        try {
+            String json = Files.readString(file.toPath());
+            List<ColorStyle> importedStyles = objectMapper.readValue(json,
+                    new TypeReference<List<ColorStyle>>() {
+                    });
+
+            int imported = importStyles(importedStyles);
+
+            logger.debug("Imported {} color styles from {}", imported, file.getAbsolutePath());
+
+            return imported;
+
+        } catch (Exception e) {
+            logger.error("Failed to import color styles from " + file.getAbsolutePath(), e);
+            return 0;
+        }
+    }
+
+    /**
+     * Adds palettes behind the custom styles: an ID that is taken gets a new one, a taken name the next free
+     * counter.
+     */
+    public synchronized int importStyles(List<ColorStyle> styles) {
+        int imported = 0;
+        for (ColorStyle style : styles) {
+            if (style.getName() == null || style.getName().isBlank())
+                continue;
+            style.setDefault(false);
+            style.setName(freeName(style.getName()));
+            String id = style.getId();
+            if (id == null || id.isEmpty() || id.startsWith("std:") || access.call(() -> repository.exists(id),
+                    false, "Failed to check if color style ID exists: " + id))
+                style.setId(UUID.randomUUID().toString());
+            style.setSortOrder(getNextCustomSortOrder());
+            if (save(style)) {
+                imported++;
+            }
+        }
+        changed(true, null);
+        return imported;
+    }
+
+    /**
+     * Gets the next available sort order for custom styles.
+     */
+    private int getNextCustomSortOrder() {
+        List<ColorStyle> customStyles = getCustomStyles();
+        if (customStyles.isEmpty()) {
+            return 100; // Start custom styles at 100 (after defaults 0-9)
+        }
+
+        int maxOrder = customStyles.stream()
+                .mapToInt(ColorStyle::getSortOrder)
+                .max()
+                .orElse(99);
+
+        return maxOrder + 1;
+    }
+}

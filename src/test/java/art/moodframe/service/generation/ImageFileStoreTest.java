@@ -1,0 +1,217 @@
+package art.moodframe.service.generation;
+
+import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
+import art.moodframe.config.LibraryPaths;
+import art.moodframe.model.GeneratedImage;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.Map;
+
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class ImageFileStoreTest {
+
+    private static GeneratedImage image() {
+        GeneratedImage image = new GeneratedImage("0123456789abcdef");
+        image.setCreatedAt(LocalDateTime.of(2026, 10, 26, 14, 30, 5));
+        image.setModel("Nano Banana 2 1K");
+        return image;
+    }
+
+    private static String base64(String format) throws Exception {
+        return base64(8, 4, format);
+    }
+
+    private static String base64(int width, int height, String format) throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB), format, bytes);
+        return Base64.getEncoder().encodeToString(bytes.toByteArray());
+    }
+
+    private static ApplicationConfig config(Path dir) {
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(LibraryPaths.under(dir).withImages(dir));
+        return config;
+    }
+
+    @Test
+    void detectsPngAndJpegByTheirMagicBytes() {
+        assertEquals("PNG", ImageFileStore.detectFormat(new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0}));
+        assertEquals("JPEG", ImageFileStore.detectFormat(new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0}));
+        assertEquals("UNKNOWN", ImageFileStore.detectFormat(new byte[] {1, 2, 3, 4}));
+        assertEquals("UNKNOWN", ImageFileStore.detectFormat(null));
+    }
+
+    @Test
+    void namesFilesByTimeModelAndId() {
+        assertEquals("moodframe_20261026_143005_nano-banana-2-1k_01234567",
+                ImageFileStore.filenameWithoutExtension(image()));
+    }
+
+    @Test
+    void namesTheModelByItsReadableShortName() {
+        GeneratedImage image = image();
+
+        image.setModel("gemini-3.1-flash-image");
+        assertEquals("moodframe_20261026_143005_nano-banana-2_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("flux.2-pro");
+        assertEquals("moodframe_20261026_143005_flux-2-pro_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("gemini-omni-1.1-flash");
+        assertEquals("moodframe_20261026_143005_gemini-omni_01234567", ImageFileStore.filenameWithoutExtension(image));
+        image.setModel("gpt-image-1.5");
+        assertEquals("moodframe_20261026_143005_gpt-image-1-5_01234567", ImageFileStore.filenameWithoutExtension(image));
+    }
+
+    @Test
+    void writesABase64JpegAsPngWithItsDimensions(@TempDir Path dir) throws Exception {
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(LibraryPaths.under(dir).withImages(dir));
+
+        ImageFileStore.StoredImage stored = new ImageFileStore(config, null).writeBase64(base64("jpg"), image());
+
+        assertEquals("PNG", stored.format());
+        assertEquals("image/png", stored.mimeType());
+        assertEquals(8, stored.width());
+        assertEquals(4, stored.height());
+        assertTrue(stored.filename().endsWith(".png"));
+        assertEquals(Files.size(stored.path()), stored.size());
+        assertEquals(dir, stored.path().getParent());
+    }
+
+    @Test
+    void aGeminiImageGetsTheSizeOfItsFile(@TempDir Path dir) throws Exception {
+        GeneratedImage image = image();
+
+        new ImageFileStore(config(dir), null).writeBase64(base64(160, 90, "png"), image).applyTo(image);
+
+        assertEquals(160, image.getWidth());
+        assertEquals(90, image.getHeight());
+        assertEquals("160x90", image.getDimensions());
+    }
+
+    @Test
+    void anOpenAiWebpGetsTheSizeOfItsHeader(@TempDir Path dir) throws Exception {
+        ByteBuffer header = ByteBuffer.allocate(30).order(ByteOrder.LITTLE_ENDIAN);
+        header.put(0, "RIFF".getBytes(US_ASCII)).putInt(4, 22).put(8, "WEBP".getBytes(US_ASCII))
+                .put(12, "VP8X".getBytes(US_ASCII)).putShort(24, (short) 2751).putShort(27, (short) 1535);
+        GeneratedImage image = image();
+
+        new ImageFileStore(config(dir), null).writeBase64(Base64.getEncoder().encodeToString(header.array()), image)
+                .applyTo(image);
+
+        assertEquals(2752, image.getWidth());
+        assertEquals(1536, image.getHeight());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aDownloadedBflImageGetsTheSizeOfItsFileInsteadOfTheRequestedOne(@TempDir Path dir) throws Exception {
+        HttpResponse<byte[]> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn(Base64.getDecoder().decode(base64(160, 90, "png")));
+        HttpClient client = mock(HttpClient.class);
+        doReturn(response).when(client).send(any(), any());
+        GeneratedImage image = new GeneratedImage.Builder().id("0123456789abcdef").model("FLUX.2 [pro]")
+                .createdAt(LocalDateTime.of(2026, 10, 26, 14, 30, 5)).imageUrl("https://delivery.example/result.png")
+                .width(1024).height(1024).build();
+
+        new ImageFileStore(config(dir), () -> client).download(image, Map.of()).applyTo(image);
+
+        assertEquals(160, image.getWidth());
+        assertEquals(90, image.getHeight());
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, image.getDownloadStatus());
+    }
+
+    @Test
+    void doesNotQuoteTheSignatureOfARejectedUrl(@TempDir Path dir) {
+        ApplicationConfig config = ConfigMocks.config();
+        when(config.paths()).thenReturn(LibraryPaths.under(dir).withImages(dir));
+        GeneratedImage image = image();
+        image.setImageUrl("https://delivery.example/result image.png?sp=r&sig=SECRETSIG");
+
+        Exception error = assertThrows(java.io.IOException.class, () -> new ImageFileStore(config, null)
+                .download(image, Map.of()));
+
+        assertTrue(error.getMessage().contains("sig=***"), error.getMessage());
+        assertFalse(error.getMessage().contains("SECRETSIG"), error.getMessage());
+    }
+
+    /*  a local server answering every request with a status and a body, recording the key header  */
+    private static com.sun.net.httpserver.HttpServer server(int status, byte[] body, java.util.List<String> keys)
+            throws Exception {
+        com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", (exchange) -> {
+            keys.add(String.valueOf(exchange.getRequestHeaders().getFirst("x-goog-api-key")));
+            exchange.sendResponseHeaders(status, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    @Test
+    void aVideoIsDownloadedWithTheHeadersOfItsProviderOnTheOnePath(@TempDir Path dir) throws Exception {
+        byte[] video = "not really an mp4".getBytes(US_ASCII);
+        java.util.List<String> keys = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer server = server(200, video, keys);
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/files/abc:download";
+            GeneratedImage image = image();
+            image.setIsVideo(true);
+
+            ImageFileStore.StoredImage stored = new ImageFileStore(config(dir), HttpClient::newHttpClient)
+                    .downloadVideo(url, java.util.Map.of("x-goog-api-key", "the-key"), image);
+            stored.applyTo(image);
+
+            assertEquals(java.util.List.of("the-key"), keys);
+            assertEquals("moodframe_20261026_143005_nano-banana-2-1k_01234567.mp4", stored.filename());
+            assertTrue(java.util.Arrays.equals(video, Files.readAllBytes(dir.resolve(stored.filename()))));
+            assertEquals("MP4", image.getFormat(), "the format of the video, upper case");
+            assertEquals("video/mp4", image.getMimeType());
+            assertEquals(video.length, image.getFileSizeBytes());
+            assertEquals(GeneratedImage.DownloadStatus.CACHED, image.getDownloadStatus());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void aVideoTheServerRefusesFailsWithItsStatus(@TempDir Path dir) throws Exception {
+        java.util.List<String> keys = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer server = server(403, new byte[0], keys);
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/files/abc:download";
+            ImageFileStore.HttpStatusException error = assertThrows(ImageFileStore.HttpStatusException.class,
+                    () -> new ImageFileStore(config(dir), HttpClient::newHttpClient)
+                            .downloadVideo(url, java.util.Map.of(), image()));
+            assertEquals(403, error.getStatusCode());
+            assertEquals("Video download failed: HTTP 403", error.getMessage());
+            assertEquals(java.util.List.of("null"), keys);
+        } finally {
+            server.stop(0);
+        }
+    }
+}

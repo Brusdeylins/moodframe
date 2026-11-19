@@ -1,7 +1,5 @@
 package art.moodframe.model;
 
-import art.moodframe.model.ApiProvider;
-import art.moodframe.model.GenerationModel;
 
 import java.util.Arrays;
 import java.util.Comparator;

@@ -1,10 +1,15 @@
 package art.moodframe.service;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.service.library.TestLibraryServices;
+import art.moodframe.config.ConfigMocks;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,10 +20,11 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /** The full backup of the moods and frames of the user in a fresh SQLite database. */
 class ConfigurationExporterTest {
@@ -28,26 +34,27 @@ class ConfigurationExporterTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test
     void exportsAndImportsTheMoodsOfTheUser() throws Exception {
-        MoodService moods = new MoodService(new PromptBlockService(), new ColorStyleService());
+        MoodService moods = TestLibraryServices.moods(TestLibraryServices.blocks(), TestLibraryServices.palettes());
         Mood mood = new Mood(null, "Backup Me");
         mood.setReference(Mood.Field.STYLE, "std:style:analog-film");
         mood.setReference(Mood.Field.COLOR, "std:color:faded-cream");
         mood.setReference(Mood.Field.CAMERA, "std:camera:street-35mm");
         assertTrue(moods.add(mood));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("backup.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.MOODS));
 
         /*  A restore after the mood was lost brings it back under its id and name  */
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 moods imported", result.getChanges().get("Moods"));
         Mood restored = moods.find(mood.getId());
@@ -56,7 +63,7 @@ class ConfigurationExporterTest {
         assertEquals(mood.getReferences(), restored.getReferences());
 
         /*  Importing again keeps the mood and adds a copy under a new id and the next free name  */
-        result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        result = exporter.importConfiguration(file, ConfigMocks.config());
         assertEquals("1 moods imported", result.getChanges().get("Moods"));
         Mood copy = moods.getCustom().stream().filter((Mood custom) -> custom.getName().equals("Backup Me (1)"))
                 .findFirst().orElseThrow();
@@ -66,20 +73,21 @@ class ConfigurationExporterTest {
 
     @Test
     void exportsAndImportsTheFramesOfTheUser() throws Exception {
-        FrameService frames = new FrameService();
+        FrameService frames = TestLibraryServices.frames();
         Frame frame = new Frame(null, "Druck A3");
         frame.setAspectRatio("2:3");
         frame.setResolution("4K");
         assertTrue(frames.add(frame));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("frames-backup.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.FRAMES));
 
         /*  A restore after the frame was lost brings it back under its id and name  */
+        assertTrue(frames.moveToTrash(frame.getId()));
         assertTrue(frames.deletePermanently(frame.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 frames imported", result.getChanges().get("Frames"));
         Frame restored = frames.find(frame.getId());
@@ -102,11 +110,11 @@ class ConfigurationExporterTest {
                 }
                 """);
 
-        ConfigurationExporter.ImportResult result = new ConfigurationExporter().importConfiguration(file,
-                mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter().importConfiguration(file,
+                ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         assertEquals("1 frames imported", result.getChanges().get("Frames"));
-        Frame imported = new FrameService().find("older-backup");
+        Frame imported = TestLibraryServices.frames().find("older-backup");
         assertNotNull(imported);
         assertEquals("Older Backup", imported.getName());
         assertEquals("21:9", imported.getAspectRatio());
@@ -114,25 +122,52 @@ class ConfigurationExporterTest {
     }
 
     @Test
+    void aFileThatCannotBeReadToTheEndChangesNothing() throws Exception {
+        File file = tempDir.resolve("broken-backup.json").toFile();
+        Files.writeString(file.toPath(), """
+                {
+                  "metadata": { "exportVersion": "1.0", "applicationVersion": "2.0.0" },
+                  "configuration": {
+                    "apiSettings": { "apiRegion": "EU" },
+                    "uiPreferences": { "uiTheme": "dark" },
+                    "frames": [ { "id": "broken-backup", "name": "Broken Backup", "aspectRatio": "1:1" } ],
+                    "customPalettes": "no list"
+                  }
+                }
+                """);
+
+        art.moodframe.config.ApplicationConfig config = ConfigMocks.config();
+        org.mockito.Mockito.clearInvocations(config.accounts(), config.ui());
+        ConfigurationExporter.ImportResult result = exporter().importConfiguration(file, config);
+        assertFalse(result.isSuccess());
+        org.mockito.Mockito.verify(config.accounts(), org.mockito.Mockito.never()).setApiRegion(
+                org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(config.ui(), org.mockito.Mockito.never()).setUiTheme(
+                org.mockito.ArgumentMatchers.any());
+        assertNull(TestLibraryServices.frames().find("broken-backup"), "no frame of a broken file");
+    }
+
+    @Test
     void aRestoredMoodFindsItsRestoredBlocks() throws Exception {
-        PromptBlockService blocks = new PromptBlockService();
-        MoodService moods = new MoodService(blocks, new ColorStyleService());
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        MoodService moods = TestLibraryServices.moods(blocks, TestLibraryServices.palettes());
         PromptBlock style = new PromptBlock(null, PromptBlock.Type.STYLE, "Backup Style", "grainy test look", null, true);
         assertTrue(blocks.addCustom(style));
         Mood mood = new Mood(null, "Backup With Block");
         mood.setReference(Mood.Field.STYLE, style.getId());
         assertTrue(moods.add(mood));
 
-        ConfigurationExporter exporter = new ConfigurationExporter();
+        ConfigurationExporter exporter = exporter();
         File file = tempDir.resolve("backup-blocks.json").toFile();
-        exporter.exportConfiguration(mock(ApplicationConfig.class), file,
+        exporter.exportConfiguration(ConfigMocks.config(), file,
                 Set.of(ConfigurationExporter.ConfigCategory.CUSTOM_STYLES, ConfigurationExporter.ConfigCategory.MOODS));
 
         /*  Block and mood are lost, the backup brings both back and the mood points at the block again  */
         assertTrue(blocks.deleteCustom(style.getId()));
         assertTrue(blocks.deletePermanently(style.getId()));
+        assertTrue(moods.moveToTrash(mood.getId()));
         assertTrue(moods.deletePermanently(mood.getId()));
-        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, mock(ApplicationConfig.class));
+        ConfigurationExporter.ImportResult result = exporter.importConfiguration(file, ConfigMocks.config());
         assertTrue(result.isSuccess(), result.getMessage());
         Mood restored = moods.find(mood.getId());
         assertNotNull(restored);
@@ -142,10 +177,18 @@ class ConfigurationExporterTest {
 
     @Test
     void aStyleOfTheUserNamedLikeAFormerLookStaysAStyle() {
-        PromptBlockService blocks = new PromptBlockService();
-        MoodService moods = new MoodService(blocks, new ColorStyleService());
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        MoodService moods = TestLibraryServices.moods(blocks, TestLibraryServices.palettes());
         assertNotNull(moods.findForLegacyStyle("Film Noir"));
         assertTrue(blocks.addCustom(new PromptBlock(null, PromptBlock.Type.STYLE, "Film Noir", "my own noir", null, true)));
         assertEquals(null, moods.findForLegacyStyle("Film Noir"));
+    }
+
+    /*  an exporter on library services of its own, as the application builds one on its registered services  */
+    private static ConfigurationExporter exporter() {
+        PromptBlockService blocks = TestLibraryServices.blocks();
+        ColorStyleService palettes = TestLibraryServices.palettes();
+        return new ConfigurationExporter(blocks, palettes, TestLibraryServices.moods(blocks, palettes),
+                TestLibraryServices.frames());
     }
 }

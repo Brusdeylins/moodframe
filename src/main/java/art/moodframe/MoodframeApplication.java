@@ -2,50 +2,126 @@ package art.moodframe;
 
 import java.io.IOException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.CorporateProxyConfig;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.config.DetailedLogging;
+import art.moodframe.config.LibraryPaths;
 import art.moodframe.config.ServiceFactory;
+import art.moodframe.database.DatabaseManager;
+import art.moodframe.mcp.McpService;
+import art.moodframe.mcp.McpTools;
+import art.moodframe.net.CertificateStore;
+import art.moodframe.net.HttpClients;
+import art.moodframe.net.IoExecutor;
+import art.moodframe.repository.BrainstormRepository;
+import art.moodframe.repository.ChatGroupQueries;
+import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
+import art.moodframe.repository.ColorStyleRepository;
+import art.moodframe.repository.FavoriteRepository;
+import art.moodframe.repository.FrameRepository;
+import art.moodframe.repository.MoodRepository;
+import art.moodframe.repository.PromptBlockRepository;
+import art.moodframe.service.ConfigurationExporter;
+import art.moodframe.service.UpdateCheckService;
+import art.moodframe.service.brainstorm.BrainstormModels;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.BrainstormSessions;
+import art.moodframe.service.brainstorm.BrainstormTools;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.brainstorm.YouTubeInfoService;
+import art.moodframe.service.chat.ChatFileService;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ChatTrashGroup;
+import art.moodframe.service.chat.FileManagerService;
+import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ImageTrashGroup;
+import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.generation.ChatEntryTracker;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.GenerationWorkers;
+import art.moodframe.service.generation.ImageFileStore;
+import art.moodframe.service.generation.RequestResponseManager;
+import art.moodframe.service.library.BlockTrashGroup;
+import art.moodframe.service.library.BlockUsage;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.FrameTrashGroup;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.MoodTrashGroup;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.bfl.BflApiServiceImpl;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
+import art.moodframe.service.provider.openai.OpenAiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiServiceImpl;
+import art.moodframe.service.provider.validation.ApiProviderValidator;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanupService;
+import art.moodframe.service.trash.TrashManager;
 import art.moodframe.ui.SplashScreen;
+import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.support.ThemeManager;
+import art.moodframe.util.I18nManager;
 import art.moodframe.util.Secrets;
-import art.moodframe.util.ThemeManager;
 
 /**
  * Main JavaFX Application class for MoodFrame.
- * 
+ *
  * <p>
  * This class initializes the application, loads the main FXML layout,
  * and sets up the primary stage. It also initializes the application
  * configuration and database systems.
  * </p>
- * 
+ *
  * <p>
  * <strong>Application Flow:</strong>
  * </p>
  * <ol>
- * <li>Initialize application configuration</li>
- * <li>Initialize database schema</li>
- * <li>Load MainWindow FXML with controller</li>
- * <li>Apply CSS styling</li>
- * <li>Display the primary stage</li>
+ * <li>Show the splash screen (JavaFX thread)</li>
+ * <li>On the startup thread meanwhile: configuration, database schema, services, trash cleanup, then the chats</li>
+ * <li>Once both are done, at least one second after the splash showed: load MainWindow FXML with controller, apply
+ * the theme and display the primary stage (JavaFX thread)</li>
  * </ol>
- * 
+ *
  * @since 1.0.0
  */
 public class MoodframeApplication extends Application {
 
     private static final Logger logger = LoggerFactory.getLogger(MoodframeApplication.class);
+
+    /*  The folders of the library, the only reading of user.home; the configuration may move the images folder  */
+    private final LibraryPaths homePaths = LibraryPaths.fromUserHome();
+
+    /*  the theme the system prefers, detected by the startup while no theme is chosen (null: one is chosen)  */
+    private volatile String systemTheme;
 
     @Override
     public void start(Stage primaryStage) {
@@ -60,34 +136,125 @@ public class MoodframeApplication extends Application {
                         window.getScene().getStylesheets().add(iconButtonCss);
         });
 
-        // Show splash screen first
-        SplashScreen splash = new SplashScreen(() -> {
-            // This callback runs after splash screen closes
-            initializeAndShowMainWindow(primaryStage);
-        });
+        /*  The one configuration, read before the splash, which places itself by the saved bounds of the main window  */
+        ApplicationConfig config;
+        try {
+            config = new ApplicationConfig(homePaths);
+        }
+        catch (RuntimeException e) {
+            logger.error("Failed to read the configuration", e);
+            showErrorAndExit("Application Startup Failed", e.getMessage());
+            return;
+        }
 
+        /*  The work that needs no JavaFX thread runs on a thread of its own while the splash shows: the rest of the
+            configuration, database and migrations, services, the trash cleanup and the chats. The splash stays until
+            it is done, at least one second  */
+        CompletableFuture<Void> prepared = new CompletableFuture<>();
+        SplashScreen splash = new SplashScreen(prepared, () -> prepared.whenComplete((Void done, Throwable failure) ->
+                Platform.runLater(() -> showMainWindow(primaryStage, failure))), config);
         splash.show();
+        Thread startup = new Thread(() -> {
+            try {
+                prepare(config);
+                prepared.complete(null);
+            }
+            catch (Throwable e) {
+                prepared.completeExceptionally(e);
+            }
+        }, "MoodFrame-startup");
+        startup.setDaemon(true);
+        startup.start();
     }
 
     /**
-     * Initializes the application and shows the main window.
-     * This is called after the splash screen closes.
-     * 
-     * @param primaryStage the primary stage to display
+     * Prepares the application off the JavaFX thread, while the splash shows: configuration, the theme the system
+     * prefers, database, services, the trash cleanup, then the chats, the thumbnails of older images and the check of
+     * the accounts.
      */
-    private void initializeAndShowMainWindow(Stage primaryStage) {
+    private void prepare(ApplicationConfig config) {
+        initializeApplication(config);
+        ServiceFactory services = ServiceFactory.getInstance();
+        detectSystemTheme(services.getService(ApplicationConfig.class));
+        startLibrary(services);
+        cleanUpAndLoad(createTrashCleanup(), services.getService(ChatLibrary.class));
+        performRetroactiveThumbnailGeneration();
+        validateApiProviders();
+        createWindowServices();
+    }
+
+    /**
+     * Asks the system for its preferred theme while no theme is chosen, which runs programs ({@code defaults},
+     * {@code reg}, {@code gdbus}) for up to 2 s, so not on the JavaFX thread; the theme is applied with the window.
+     *
+     * @param config the configuration, which remembers the chosen theme
+     */
+    private void detectSystemTheme(ApplicationConfig config) {
+        ThemeManager.useConfig(config);
+        if (!config.ui().hasUserSetTheme())
+            systemTheme = ThemeManager.getSystemPreferredTheme();
+    }
+
+    /**
+     * Starts the services of the library once, before anything uses them: the blocks, palettes and moods of the
+     * user named like a standard one get a free name; the moods last, as they refer to blocks and palettes.
+     *
+     * @param services the registered services
+     */
+    private static void startLibrary(ServiceFactory services) {
+        services.getService(PromptBlockService.class).start();
+        services.getService(ColorStyleService.class).start();
+        services.getService(MoodService.class).start();
+    }
+
+    /**
+     * Cleans up the trash and loads the chats, in this order, so the chats hold nothing the cleanup removes and the
+     * main window gets them loaded. A failed cleanup does not stop the start.
+     *
+     * @param cleanup the trash cleanup, null if it could not be created
+     * @param chats   the chats, null if they are not available
+     */
+    static void cleanUpAndLoad(TrashCleanupService cleanup,
+                               ChatLibrary chats) {
+        if (cleanup != null) {
+            try {
+                cleanup.performAutoCleanup();
+            } catch (Exception e) {
+                logger.error("Failed to perform trash cleanup", e);
+            }
+        }
+        if (chats != null)
+            chats.load();
+    }
+
+    /**
+     * Creates the services the main window looks up, so their construction (database, folders, threads) does not
+     * run on the JavaFX thread.
+     */
+    private void createWindowServices() {
+        ServiceFactory services = ServiceFactory.getInstance();
+        for (Class<?> type : List.of(PromptBlockService.class,
+                ColorStyleService.class, MoodService.class,
+                FrameService.class, FavoriteService.class,
+                ChatHistoryService.class,
+                GenerationService.class,
+                UpdateCheckService.class, ImageSizeCheck.class,
+                McpService.class))
+            services.findService(type);
+    }
+
+    /**
+     * Shows the main window once the preparation is done, on the JavaFX thread: the FXML layout, the theme and the
+     * stage; then the MCP server starts if it is enabled. A failed preparation ends the application.
+     *
+     * @param primaryStage the primary stage to display
+     * @param failure      why the preparation failed, null if it succeeded
+     */
+    private void showMainWindow(Stage primaryStage, Throwable failure) {
         try {
-            // Initialize application systems
-            initializeApplication();
-
-            // Perform trash cleanup on startup
-            performTrashCleanup();
-
-            // Perform retroactive thumbnail generation
-            performRetroactiveThumbnailGeneration();
-
-            // Validate API providers (BFL, Gemini and OpenAI)
-            validateApiProviders();
+            if (failure != null)
+                throw failure instanceof CompletionException && failure.getCause() != null
+                        ? failure.getCause() : failure;
 
             // Load the main FXML layout
             Parent root = loadMainWindow();
@@ -107,276 +274,47 @@ public class MoodframeApplication extends Application {
             /*  Start the MCP server if it is enabled  */
             startMcpServer();
 
-        } catch (Exception e) {
+            /*  Tell once that the settings file could not be read and where its copy is  */
+            warnOfUnreadableConfig(primaryStage);
+
+        } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
-            showErrorAndExit(primaryStage, "Application Startup Failed", e.getMessage());
+            showErrorAndExit("Application Startup Failed", e.getMessage());
         }
     }
 
     /**
-     * Initializes application systems (configuration, database, services).
+     * Initializes application systems (configuration, database, services): registers the services in the locator,
+     * most of them as providers created on their first use.
      */
-    private void initializeApplication() {
+    private void initializeApplication(ApplicationConfig config) {
 
         try {
-            // Initialize configuration
-            ApplicationConfig config = new ApplicationConfig();
-            ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+            setUpConfiguration(config);
+            LibraryPaths paths = config.paths();
 
-            /*  Earlier versions wrote the Gemini key into the log files  */
-            Secrets.redactLogs(java.nio.file.Paths.get(config.getLogsPath()));
-
-            // Initialize CorporateProxyConfig after ApplicationConfig
-            CorporateProxyConfig proxyConfig = new CorporateProxyConfig(config);
-            ServiceFactory.getInstance().registerService(CorporateProxyConfig.class, proxyConfig);
-
-            // Initialize I18n with user's preferred language
-            String userLanguage = config.getUiLanguage();
-            java.util.Locale appLocale = "de".equals(userLanguage) ? java.util.Locale.GERMAN : java.util.Locale.ENGLISH;
-            art.moodframe.util.I18nManager.setLocale(appLocale);
-
-            // Initialize database
-            DatabaseConfig.initialize(config.getDatabasePath());
-
-            // Register DatabaseManager in service factory for dependency injection
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.database.DatabaseManager.class,
-                    () -> {
-                        try {
-                            return new art.moodframe.database.DatabaseManager(
-                                    java.nio.file.Paths.get(config.getDatabasePath()));
-                        } catch (Exception e) {
-                            logger.error("Failed to create DatabaseManager", e);
-                            return null;
-                        }
-                    });
+            /*  The one database of the library with its schema up to date, every repository gets its connections
+                here  */
+            DatabaseManager database = new DatabaseManager(paths.database());
+            database.initialize();
 
             /*  The services report every change of the library here, the main window shows what others changed  */
-            art.moodframe.service.LibraryEvents events = new art.moodframe.service.LibraryEvents();
-            ServiceFactory.getInstance().registerService(art.moodframe.service.LibraryEvents.class, events);
+            LibraryEvents events = new LibraryEvents();
+            ServiceFactory.getInstance().registerService(LibraryEvents.class, events);
 
-            // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.PromptBlockService.class,
-                    () -> new art.moodframe.service.PromptBlockService(events));
+            /*  The blocking network work of the providers runs on its own bounded pool, never on the common pool  */
+            ExecutorService io = IoExecutor.get();
 
-            // Initialize ColorStyleService for color palette management
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ColorStyleService.class,
-                    () -> new art.moodframe.service.ColorStyleService(events));
-
-            // Initialize MoodService for the moods, the saved combinations of building blocks
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.MoodService.class,
-                    () -> new art.moodframe.service.MoodService(
-                            ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
-                            events));
-
-            /*  The frames, the saved settings of model, aspect ratio and image count  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.FrameService.class,
-                    () -> new art.moodframe.service.FrameService(events));
-
-            /*  The favorites among moods, frames and building blocks, shown first in their lists  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.FavoriteService.class,
-                    () -> new art.moodframe.service.FavoriteService(events));
-
-            /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.BlockUsage.class,
-                    () -> ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class));
-
-            // Initialize TrashManager for trash file operations (60 days retention)
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashManager.class,
-                    () -> new art.moodframe.service.TrashManager(60));
-
-            // Initialize BFL API Service
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.BflApiService.class,
-                    () -> new art.moodframe.service.BflApiServiceImpl());
-
-            // Initialize Google Gemini API Service
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.GeminiApiService.class,
-                    () -> new art.moodframe.service.GeminiApiServiceImpl(config));
-
-            // Initialize OpenAI API Service
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.OpenAiApiService.class,
-                    () -> new art.moodframe.service.OpenAiApiServiceImpl(config));
-
-            // Moves the files of chats, entries and images to the trash and back
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatFileService.class,
-                    () -> new art.moodframe.service.ChatFileService(
-                            ServiceFactory.getInstance().getService(art.moodframe.service.TrashManager.class),
-                            ServiceFactory.getInstance().getService(art.moodframe.service.ThumbnailManager.class),
-                            new art.moodframe.service.FileManagerService()));
-
-            // The one ChatRepository: the request manager, the trash and the main window share it
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.repository.ChatRepository.class,
-                    () -> {
-                        art.moodframe.database.DatabaseManager dbManager = ServiceFactory.getInstance()
-                                .getService(art.moodframe.database.DatabaseManager.class);
-                        if (dbManager == null)
-                            return null;
-
-                        return new art.moodframe.repository.ChatRepository(dbManager,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class));
-                    });
-
-            // The central trash: chats first, the other kinds of items dock in with their own group
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashCenter.class,
-                    () -> {
-                        art.moodframe.service.TrashCenter trashCenter = new art.moodframe.service.TrashCenter();
-                        art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
-                                .getService(art.moodframe.repository.ChatRepository.class);
-                        if (chatRepo != null) {
-                            trashCenter.register(new art.moodframe.service.ChatTrashGroup(chatRepo));
-                            ServiceFactory services = ServiceFactory.getInstance();
-                            trashCenter.register(new art.moodframe.service.ImageTrashGroup(chatRepo,
-                                    services.getService(art.moodframe.service.ChatFileService.class),
-                                    services.getService(art.moodframe.service.TrashManager.class),
-                                    services.getService(art.moodframe.service.ThumbnailManager.class)));
-                        }
-                        trashCenter.register(new art.moodframe.service.BlockTrashGroup(
-                                ServiceFactory.getInstance().getService(art.moodframe.service.PromptBlockService.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ColorStyleService.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.BlockUsage.class)));
-
-                        /*  Moods lose the references to blocks deleted for good, also by the automatic cleanup  */
-                        art.moodframe.service.MoodService moodService = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.MoodService.class);
-                        trashCenter.register(new art.moodframe.service.MoodTrashGroup(moodService));
-                        trashCenter.register(new art.moodframe.service.FrameTrashGroup(ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.FrameService.class)));
-                        trashCenter.addListener(new art.moodframe.service.TrashCenter.Listener() {
-                            @Override
-                            public void restored(art.moodframe.service.TrashGroup.Kind kind, String id) {
-                            }
-
-                            @Override
-                            public void deleted(art.moodframe.service.TrashGroup.Kind kind, java.util.List<String> ids) {
-                                if (kind == art.moodframe.service.TrashGroup.Kind.BLOCKS)
-                                    moodService.blocksDeleted(ids);
-                            }
-                        });
-                        return trashCenter;
-                    });
-
-            // Loads the chats and settles what a restart left behind
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatHistoryService.class,
-                    () -> {
-                        art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
-                                .getService(art.moodframe.repository.ChatRepository.class);
-                        return chatRepo != null ? new art.moodframe.service.ChatHistoryService(chatRepo,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.TrashManager.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatFileService.class))
-                                : null;
-                    });
-
-            /*  The list of the chats, shared by the main window and later callers; it follows the trash as well  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ChatLibrary.class,
-                    () -> {
-                        art.moodframe.service.ChatLibrary chats = new art.moodframe.service.ChatLibrary(
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatHistoryService.class),
-                                events);
-                        art.moodframe.service.TrashCenter trashCenter = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.TrashCenter.class);
-                        if (trashCenter != null)
-                            trashCenter.addListener(chats);
-                        return chats;
-                    });
-
-            /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ImageSizeCheck.class,
-                    () -> {
-                        art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
-                                .getService(art.moodframe.repository.ChatRepository.class);
-                        return chatRepo != null ? new art.moodframe.service.ImageSizeCheck(chatRepo) : null;
-                    });
-
-            // Initialize RequestResponseManager for real API integration
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.RequestResponseManager.class,
-                    () -> {
-                        try {
-                            art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
-                                    .getService(art.moodframe.repository.ChatRepository.class);
-                            return new art.moodframe.service.RequestResponseManager(config, chatRepo);
-                        } catch (Exception e) {
-                            logger.error("Failed to create RequestResponseManager with database integration", e);
-                            return null;
-                        }
-                    });
-
-            /*  Carries out a generation order without the user interface: entry, request and submission  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.GenerationService.class,
-                    () -> {
-                        art.moodframe.service.RequestResponseManager requests = ServiceFactory.getInstance()
-                                .getService(art.moodframe.service.RequestResponseManager.class);
-                        return requests != null ? new art.moodframe.service.GenerationService(config,
-                                ServiceFactory.getInstance().getService(art.moodframe.service.ChatLibrary.class),
-                                ServiceFactory.getInstance().getService(art.moodframe.service.MoodService.class),
-                                requests) : null;
-                    });
-
-            /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled. Without the
-                generation service, it only reads  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.mcp.McpService.class,
-                    () -> {
-                        ServiceFactory services = ServiceFactory.getInstance();
-                        art.moodframe.service.ChatLibrary chats = services.getService(
-                                art.moodframe.service.ChatLibrary.class);
-                        art.moodframe.service.MoodService moods = services.getService(
-                                art.moodframe.service.MoodService.class);
-                        art.moodframe.service.PromptBlockService blocks = services.getService(
-                                art.moodframe.service.PromptBlockService.class);
-                        art.moodframe.service.ColorStyleService colors = services.getService(
-                                art.moodframe.service.ColorStyleService.class);
-                        art.moodframe.service.FrameService frames = services.getService(
-                                art.moodframe.service.FrameService.class);
-                        art.moodframe.service.FavoriteService favorites = services.getService(
-                                art.moodframe.service.FavoriteService.class);
-                        art.moodframe.service.TrashCenter trash = services.getService(
-                                art.moodframe.service.TrashCenter.class);
-                        art.moodframe.service.GenerationService generation = services.getService(
-                                art.moodframe.service.GenerationService.class);
-                        return new art.moodframe.mcp.McpService(config, generation != null
-                                ? art.moodframe.mcp.McpTools.all(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash, events, generation,
-                                        art.moodframe.service.MoodAnalysisService.create(config))
-                                : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash, events));
-                    });
+            registerLibrary(database, events);
+            registerProviders(config, io);
+            registerChats(paths, database, events);
+            registerGeneration(config, io);
+            registerMcp(config, events);
+            registerBrainstorm(config, database);
 
             /*  A newer version on the update site: hint behind the version in the header, checked at the start  */
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.UpdateCheckService.class,
-                    () -> new art.moodframe.service.UpdateCheckService(config));
-
-            // Initialize ThumbnailManager for image optimization
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ThumbnailManager.class,
-                    () -> {
-                        try {
-                            return new art.moodframe.service.ThumbnailManager();
-                        } catch (Exception e) {
-                            logger.error("Failed to create ThumbnailManager", e);
-                            return null;
-                        }
-                    });
+            ServiceFactory.getInstance().registerProvider(UpdateCheckService.class, () -> new UpdateCheckService(config));
 
         } catch (Exception e) {
             logger.error("Failed to initialize application systems", e);
@@ -384,27 +322,239 @@ public class MoodframeApplication extends Application {
         }
     }
 
-    /**
-     * Initializes and starts the background trash cleanup service.
-     * This runs initial cleanup on application startup and then continues
-     * to run automatic cleanup every 6 hours during application runtime.
-     */
-    private void performTrashCleanup() {
+    /*  Registers the configuration with the folders of the library and sets up the logging, the certificates and
+        the language  */
+    private void setUpConfiguration(ApplicationConfig config) {
+        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
+        LibraryPaths paths = config.paths();
+        ServiceFactory.getInstance().registerService(LibraryPaths.class, paths);
+        DetailedLogging.apply(config.getLoggingEnabled());
+
+        /*  Earlier versions wrote the Gemini key into the log files  */
+        Secrets.redactLogs(paths.logs());
+
+        /*  The folder of the corporate certificates exists from the start, so the user finds it  */
         try {
+            new CertificateStore(Path.of(config.proxy().getCertificatePath().trim())).createDirectory();
+        }
+        catch (IOException | RuntimeException e) {
+            logger.warn("Failed to create the folder of the certificates", e);
+        }
 
-            // Create and register TrashCleanupService in ServiceFactory
-            art.moodframe.service.TrashCleanupService cleanupService = new art.moodframe.service.TrashCleanupService(
-                    ServiceFactory.getInstance().getService(art.moodframe.service.TrashCenter.class));
-            ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.TrashCleanupService.class,
-                    () -> cleanupService);
+        /*  The HTTP clients with proxy and certificates of the services built here, which read them on first use  */
+        ServiceFactory.getInstance().registerService(HttpClients.class, new HttpClients(config));
 
-            // Perform initial cleanup
-            cleanupService.performAutoCleanup();
+        // Initialize I18n with user's preferred language
+        String userLanguage = config.ui().getUiLanguage();
+        I18nManager.setLocale("de".equals(userLanguage) ? Locale.GERMAN : Locale.ENGLISH);
+    }
 
-        } catch (Exception e) {
-            // Don't let cleanup failure prevent app startup
+    /*  The moods, frames, building blocks, palettes and favorites with the backup of the settings and the library  */
+    private static void registerLibrary(DatabaseManager database, LibraryEvents events) {
+        ServiceFactory services = ServiceFactory.getInstance();
+
+        // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
+        services.registerProvider(PromptBlockService.class,
+                () -> new PromptBlockService(new PromptBlockRepository(database), events));
+
+        // Initialize ColorStyleService for color palette management
+        services.registerProvider(ColorStyleService.class,
+                () -> new ColorStyleService(new ColorStyleRepository(database), events));
+
+        // Initialize MoodService for the moods, the saved combinations of building blocks
+        services.registerProvider(MoodService.class,
+                () -> new MoodService(new MoodRepository(database), services.getService(PromptBlockService.class),
+                        services.getService(ColorStyleService.class), events));
+
+        /*  The frames, the saved settings of model, aspect ratio and image count  */
+        services.registerProvider(FrameService.class, () -> new FrameService(new FrameRepository(database), events));
+
+        /*  The favorites among moods, frames and building blocks, shown first in their lists  */
+        services.registerProvider(FavoriteService.class,
+                () -> new FavoriteService(new FavoriteRepository(database), events));
+
+        /*  Backup of the settings and the library; an import reaches the main window through the events  */
+        services.registerProvider(ConfigurationExporter.class,
+                () -> new ConfigurationExporter(services.getService(PromptBlockService.class),
+                        services.getService(ColorStyleService.class), services.getService(MoodService.class),
+                        services.getService(FrameService.class)));
+
+        /*  The moods tell which of them use a building block (question before deleting, count in the trash)  */
+        services.registerProvider(BlockUsage.class, () -> services.getService(MoodService.class));
+    }
+
+    /*  The clients of BFL, Gemini and OpenAI and their registry  */
+    private static void registerProviders(ApplicationConfig config, ExecutorService io) {
+        ServiceFactory services = ServiceFactory.getInstance();
+
+        // Initialize BFL API Service
+        services.registerProvider(BflApiService.class, () -> new BflApiServiceImpl(config, io));
+
+        // Initialize Google Gemini API Service
+        services.registerProvider(GeminiApiService.class, () -> new GeminiApiServiceImpl(config, io));
+
+        // Initialize OpenAI API Service
+        services.registerProvider(OpenAiApiService.class, () -> new OpenAiApiServiceImpl(config, io));
+
+        /*  The providers by their id, for the services that dispatch by provider  */
+        services.registerProvider(ProviderRegistry.class,
+                () -> new ProviderRegistry(services.getService(BflApiService.class),
+                        services.getService(GeminiApiService.class), services.getService(OpenAiApiService.class)));
+    }
+
+    /*  The chats with their files, thumbnails and attachments, and the central trash with its groups  */
+    private static void registerChats(LibraryPaths paths, DatabaseManager database, LibraryEvents events) {
+        ServiceFactory services = ServiceFactory.getInstance();
+
+        // Initialize TrashManager for trash file operations (60 days retention)
+        services.registerProvider(TrashManager.class, () -> new TrashManager(paths, 60));
+
+        /*  The thumbnails of the images  */
+        services.registerProvider(ThumbnailManager.class, () -> new ThumbnailManager(paths));
+
+        // Moves the files of chats, entries and images to the trash and back
+        services.registerProvider(ChatFileService.class, () -> {
+            ThumbnailManager thumbnails = services.getService(ThumbnailManager.class);
+            return new ChatFileService(services.getService(TrashManager.class), thumbnails,
+                    new FileManagerService(paths.images(), thumbnails));
+        });
+
+        // The one ChatRepository: the request manager, the trash and the main window share it
+        services.registerProvider(ChatRepository.class, () -> new ChatRepository(database));
+
+        /*  The trash of the chats, entries and images; it moves their files after each commit  */
+        services.registerProvider(ChatTrashRepository.class,
+                () -> new ChatTrashRepository(database, services.getService(ChatFileService.class)));
+
+        // The central trash: chats first, the other kinds of items dock in with their own group
+        services.registerProvider(TrashCenter.class, () -> {
+            TrashCenter trashCenter = new TrashCenter();
+            ChatRepository chatRepo = services.getService(ChatRepository.class);
+            ChatTrashRepository chatTrash = services.getService(ChatTrashRepository.class);
+            trashCenter.register(new ChatTrashGroup(chatTrash));
+            trashCenter.register(new ImageTrashGroup(chatRepo, chatTrash, services.getService(TrashManager.class),
+                    services.getService(ThumbnailManager.class)));
+            trashCenter.register(new BlockTrashGroup(services.getService(PromptBlockService.class),
+                    services.getService(ColorStyleService.class), services.getService(BlockUsage.class)));
+
+            /*  Moods lose the references to blocks deleted for good, also by the automatic cleanup  */
+            MoodService moodService = services.getService(MoodService.class);
+            trashCenter.register(new MoodTrashGroup(moodService));
+            trashCenter.register(new FrameTrashGroup(services.getService(FrameService.class)));
+            moodService.followTrash(trashCenter);
+            return trashCenter;
+        });
+
+        // Loads the chats and settles what a restart left behind
+        services.registerProvider(ChatHistoryService.class, () -> new ChatHistoryService(
+                services.getService(ChatRepository.class), services.getService(ChatTrashRepository.class),
+                new ChatGroupQueries(database), services.getService(TrashManager.class)));
+
+        /*  The list of the chats, shared by the main window and later callers; it follows the trash as well  */
+        services.registerProvider(ChatLibrary.class, () -> {
+            ChatLibrary chats = new ChatLibrary(services.getService(ChatHistoryService.class), events);
+            services.getService(TrashCenter.class).addListener(chats);
+            return chats;
+        });
+
+        /*  Reads, shrinks and encodes the images attached to an order, for the attachment panel  */
+        services.registerService(ImageAttachmentService.class, new ImageAttachmentService());
+
+        /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
+        services.registerProvider(ImageSizeCheck.class,
+                () -> new ImageSizeCheck(services.getService(ChatRepository.class), Platform::runLater));
+    }
+
+    /*  The generation: the requests to the providers and the orders without the user interface  */
+    private static void registerGeneration(ApplicationConfig config, ExecutorService io) {
+        ServiceFactory services = ServiceFactory.getInstance();
+
+        /*  The threads of the polling and of the database writes, shared by the requests and the orders  */
+        services.registerProvider(GenerationWorkers.class, GenerationWorkers::new);
+
+        /*  The requests to the providers: the tracker writes on the store thread and tells the chats what it stored,
+            the files come from the downloads of the shared HTTP clients  */
+        services.registerProvider(RequestResponseManager.class, () -> {
+            GenerationWorkers workers = services.getService(GenerationWorkers.class);
+            ImageFileStore files = new ImageFileStore(config, services.getService(HttpClients.class)
+                    .rebuilding((HttpClients clients) -> clients.javaHttp().connectTimeout(Duration.ofSeconds(30))
+                            .followRedirects(HttpClient.Redirect.NORMAL).build()));
+            ChatEntryTracker tracker = new ChatEntryTracker(services.getService(ChatRepository.class),
+                    services.getService(ChatTrashRepository.class), workers.store());
+            tracker.setOnEntryStored(services.getService(ChatLibrary.class)::entryStored);
+            return new RequestResponseManager(config, services.getService(ProviderRegistry.class), tracker, files,
+                    workers, io);
+        });
+
+        /*  Carries out a generation order without the user interface: entry, request and submission; the chats let it
+            settle the generation of an entry before the entry goes to the trash  */
+        services.registerProvider(GenerationService.class, () -> {
+            ChatLibrary chats = services.getService(ChatLibrary.class);
+            GenerationService generation = new GenerationService(config, chats, services.getService(MoodService.class),
+                    services.getService(RequestResponseManager.class), services.getService(ProviderRegistry.class),
+                    services.getService(GenerationWorkers.class).store());
+            chats.setGenerations(generation::settle);
+            return generation;
+        });
+    }
+
+    /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled  */
+    private static void registerMcp(ApplicationConfig config, LibraryEvents events) {
+        ServiceFactory services = ServiceFactory.getInstance();
+        services.registerProvider(McpService.class, () -> {
+            ChatLibrary chats = services.getService(ChatLibrary.class);
+            MoodService moods = services.getService(MoodService.class);
+            PromptBlockService blocks = services.getService(PromptBlockService.class);
+            ColorStyleService colors = services.getService(ColorStyleService.class);
+            FrameService frames = services.getService(FrameService.class);
+            FavoriteService favorites = services.getService(FavoriteService.class);
+            TrashCenter trash = services.getService(TrashCenter.class);
+            return new McpService(config, McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash,
+                    events, services.getService(GenerationService.class),
+                    services.getService(MoodAnalysisService.class)));
+        });
+    }
+
+    /*  The analysis of an image into a mood and the brainstorm windows  */
+    private static void registerBrainstorm(ApplicationConfig config, DatabaseManager database) {
+        ServiceFactory services = ServiceFactory.getInstance();
+
+        /*  The analysis of an image into a mood, for the panel of the main window and the MCP tools  */
+        services.registerProvider(MoodAnalysisService.class,
+                () -> new MoodAnalysisService(services.getService(GeminiApiService.class),
+                        services.getService(OpenAiApiService.class), config));
+
+        /*  A brainstorm service for each brainstorm window, on the stored sessions, the language models and the tools,
+            which share one lookup of the YouTube videos  */
+        services.registerProvider(BrainstormService.Factory.class, () -> {
+            GeminiApiService gemini = services.getService(GeminiApiService.class);
+            BrainstormSessions sessions = new BrainstormSessions(new BrainstormRepository(database));
+            BrainstormModels models = new BrainstormModels(gemini, services.getService(OpenAiApiService.class), config);
+            BrainstormTools tools = new BrainstormTools(gemini, new YouTubeInfoService(config));
+            return () -> new BrainstormService(sessions, models, tools);
+        });
+    }
+
+    /**
+     * Creates the trash cleanup, which also cleans up every 6 hours while the application runs.
+     *
+     * @return the cleanup, null if it cannot be created
+     */
+    private TrashCleanupService createTrashCleanup() {
+        try {
+            TrashCleanupService cleanupService =
+                    new TrashCleanupService(
+                            ServiceFactory.getInstance().getService(TrashCenter.class));
+            cleanupService.start();
+
+            /*  Registered as created, so the shutdown, which creates nothing, finds it  */
+            ServiceFactory.getInstance().registerService(TrashCleanupService.class, cleanupService);
+            return cleanupService;
+        }
+        catch (Exception e) {
+            /*  A failed cleanup does not stop the start  */
             logger.error("Failed to perform trash cleanup", e);
+            return null;
         }
     }
 
@@ -416,33 +566,25 @@ public class MoodframeApplication extends Application {
         try {
 
             // Get ThumbnailManager from ServiceFactory
-            art.moodframe.service.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ThumbnailManager.class);
+            ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
+                    .getService(ThumbnailManager.class);
 
-            if (thumbnailManager != null) {
-                // Start thumbnail generation in background (non-blocking)
-                thumbnailManager.generateThumbnailsForExistingImages()
-                        .whenCompleteAsync((generatedCount, throwable) -> {
-                            if (throwable != null) {
-                                logger.error("Retroactive thumbnail generation failed", throwable);
-                            } else {
-                                // Thumbnail generation completed
-                            }
-                        });
+            // Start thumbnail generation in background (non-blocking)
+            thumbnailManager.generateThumbnailsForExistingImages()
+                    .whenComplete((generatedCount, throwable) -> {
+                        if (throwable != null)
+                            logger.error("Retroactive thumbnail generation failed", throwable);
+                    });
 
-                // Also clean up orphaned thumbnails from old deletions
-                thumbnailManager.cleanupOrphanedThumbnails()
-                        .whenCompleteAsync((deletedCount, throwable) -> {
-                            if (throwable != null) {
-                                logger.error("Orphaned thumbnail cleanup failed", throwable);
-                            } else if (deletedCount > 0) {
-                                logger.info("Cleaned up {} orphaned thumbnails from old deletions", deletedCount);
-                            }
-                        });
-
-            } else {
-                logger.warn("ThumbnailManager not available for retroactive generation");
-            }
+            // Also clean up orphaned thumbnails from old deletions
+            thumbnailManager.cleanupOrphanedThumbnails()
+                    .whenComplete((deletedCount, throwable) -> {
+                        if (throwable != null) {
+                            logger.error("Orphaned thumbnail cleanup failed", throwable);
+                        } else if (deletedCount > 0) {
+                            logger.info("Cleaned up {} orphaned thumbnails from old deletions", deletedCount);
+                        }
+                    });
 
         } catch (Exception e) {
             // Don't let thumbnail generation failure prevent app startup
@@ -451,12 +593,32 @@ public class MoodframeApplication extends Application {
     }
 
     /**
+     * Tells the user that the settings file could not be read, so the defaults apply, and where the copy of the
+     * unreadable file lies, with its stored keys.
+     *
+     * @param owner the main window
+     */
+    private void warnOfUnreadableConfig(Stage owner) {
+        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        if (config == null || !config.wasConfigUnreadable())
+            return;
+        java.nio.file.Path copy = config.unreadableConfigCopy();
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING,
+                copy != null ? I18nManager.getText("config.unreadable.copied", copy)
+                        : I18nManager.getText("config.unreadable.kept"));
+        alert.initOwner(owner);
+        alert.setTitle("MoodFrame");
+        alert.setHeaderText(I18nManager.getText("config.unreadable.title"));
+        alert.show();
+    }
+
+    /**
      * Starts the MCP server in the background if it is enabled. Neither a port in use nor an error blocks the app.
      */
     private void startMcpServer() {
         try {
-            art.moodframe.mcp.McpService mcp = ServiceFactory.getInstance()
-                    .getService(art.moodframe.mcp.McpService.class);
+            McpService mcp = ServiceFactory.getInstance()
+                    .getService(McpService.class);
             if (mcp != null)
                 mcp.applyAsync();
         }
@@ -474,28 +636,24 @@ public class MoodframeApplication extends Application {
         try {
             // Get required services from ServiceFactory
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-            art.moodframe.service.BflApiService bflService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.BflApiService.class);
-            art.moodframe.service.GeminiApiService geminiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.GeminiApiService.class);
-            art.moodframe.service.OpenAiApiService openAiService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.OpenAiApiService.class);
+            ProviderRegistry providers = ServiceFactory.getInstance()
+                    .getService(ProviderRegistry.class);
 
-            if (config == null || bflService == null || geminiService == null || openAiService == null) {
+            if (config == null || providers == null) {
                 logger.warn("Cannot validate API providers: required services not available");
                 return;
             }
 
             // Create and register ApiProviderValidator
-            art.moodframe.service.ApiProviderValidator validator = new art.moodframe.service.ApiProviderValidator(
-                    config, bflService, geminiService, openAiService);
+            ApiProviderValidator validator =
+                    new ApiProviderValidator(config, providers);
             ServiceFactory.getInstance().registerProvider(
-                    art.moodframe.service.ApiProviderValidator.class,
+                    ApiProviderValidator.class,
                     () -> validator);
 
             // Start validation in background (non-blocking)
             validator.validateAllProviders()
-                    .whenCompleteAsync((results, throwable) -> {
+                    .whenComplete((results, throwable) -> {
                         if (throwable != null) {
                             logger.error("API provider validation failed", throwable);
                         } else {
@@ -530,31 +688,26 @@ public class MoodframeApplication extends Application {
 
     /**
      * Applies AtlantaFX theme to the application.
-     * 
+     *
      * This method sets the application theme based on the user's configuration.
-     * If the user hasn't explicitly set a theme preference, it will attempt
-     * to detect and use the system theme preference.
+     * If the user hasn't explicitly set a theme preference, it uses the theme the system prefers, which the startup
+     * detected.
      * AtlantaFX provides modern, consistent styling across all JavaFX controls.
      */
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        String configuredTheme = config.getUiTheme();
-
-        // Check if user has explicitly set a theme preference
-        boolean hasUserPreference = config.hasUserSetTheme();
+        String configuredTheme = config.ui().getUiTheme();
 
         String themeToApply;
-        if (!hasUserPreference) {
-            // No user preference set, try to apply system-preferred theme
-            themeToApply = ThemeManager.getSystemPreferredTheme();
-
-            // If system theme differs from config, update the config
-            if (!themeToApply.equals(configuredTheme)) {
-                config.setUiTheme(themeToApply);
-            }
-        } else {
-            // User has set a preference, use it
+        if (systemTheme != null) {
+            /*  No theme chosen: the system decides; it is stored, not as a choice, so the next start asks again  */
+            themeToApply = systemTheme;
+            if (!themeToApply.equals(configuredTheme))
+                config.ui().setSystemTheme(themeToApply);
+        }
+        else {
+            /*  The theme the user chose  */
             themeToApply = configuredTheme;
         }
 
@@ -565,17 +718,8 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Changes the application theme at runtime.
-     * 
-     * @param themeName the name of the theme to apply
-     */
-    public void changeTheme(String themeName) {
-        ThemeManager.changeTheme(themeName);
-    }
-
-    /**
      * Configures the primary stage properties.
-     * 
+     *
      * @param stage the primary stage
      * @param scene the scene to display
      */
@@ -614,18 +758,18 @@ public class MoodframeApplication extends Application {
 
     /**
      * Restores window bounds from configuration.
-     * 
+     *
      * @param stage the primary stage
      */
     private void restoreWindowBounds(Stage stage) {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null) {
-                double x = config.getWindowX();
-                double y = config.getWindowY();
-                int width = config.getWindowWidth();
-                int height = config.getWindowHeight();
-                boolean maximized = config.getWindowMaximized();
+                double x = config.ui().getWindowX();
+                double y = config.ui().getWindowY();
+                int width = config.ui().getWindowWidth();
+                int height = config.ui().getWindowHeight();
+                boolean maximized = config.ui().getWindowMaximized();
 
                 stage.setWidth(width);
                 stage.setHeight(height);
@@ -647,14 +791,14 @@ public class MoodframeApplication extends Application {
 
     /**
      * Saves current window bounds to configuration.
-     * 
+     *
      * @param stage the primary stage
      */
     private void saveWindowBounds(Stage stage) {
         try {
             ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
             if (config != null && stage.isShowing()) {
-                config.setWindowBounds(
+                config.ui().setWindowBounds(
                         stage.getX(),
                         stage.getY(),
                         stage.getWidth(),
@@ -667,64 +811,72 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Shows an error dialog and exits the application.
-     * 
-     * @param stage   the primary stage
+     * Logs the error, shows it in a message box (on the JavaFX thread, where the start fails) and exits the
+     * application.
+     *
      * @param title   error title
      * @param message error message
      */
-    private void showErrorAndExit(Stage stage, String title, String message) {
+    private static void showErrorAndExit(String title, String message) {
         logger.error("Showing error and exiting: {} - {}", title, message);
-
-        // For now, just log and exit
-        // In future, could show a proper error dialog
         System.err.println("ERROR: " + title + ": " + message);
+        if (Platform.isFxApplicationThread()) {
+            try {
+                Alert alert = new Alert(Alert.AlertType.ERROR, message != null ? message : title, DialogButtons.ok());
+                alert.setTitle(title);
+                alert.setHeaderText(title);
+                alert.showAndWait();
+            }
+            catch (RuntimeException e) {
+                logger.error("Failed to show the error", e);
+            }
+        }
         System.exit(1);
     }
 
     @Override
     public void stop() {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Shutting down MoodFrame Application...");
-        }
+        logger.debug("Shutting down MoodFrame Application...");
+        shutDown(ServiceFactory.getInstance());
+    }
 
+    /**
+     * Stops what the application started, creates nothing (only services created already are stopped) and runs every
+     * step even if one before it failed, so the settings are written in any case.
+     *
+     * @param services the registered services, cleared at the end
+     */
+    static void shutDown(ServiceFactory services) {
+        stopService(services, TrashCleanupService.class, TrashCleanupService::shutdown);
+        stopService(services, RequestResponseManager.class, RequestResponseManager::shutdown);
+        stopService(services, ThumbnailManager.class, ThumbnailManager::shutdown);
+        stopService(services, ImageSizeCheck.class, ImageSizeCheck::shutdown);
+
+        /*  The MCP server stops before the database closes  */
+        stopService(services, McpService.class, McpService::stop);
+
+        /*  Pending provider calls and downloads end with the application  */
+        runStep("the I/O executor", IoExecutor::shutdown);
+
+        /*  Write the window bounds and divider positions of the last moments, which wait for a quiet time  */
+        stopService(services, ApplicationConfig.class, ApplicationConfig::flushConfiguration);
+        runStep("the services", services::clearServices);
+    }
+
+    /*  Stops a service if it was created; a failure is logged and the shutdown goes on  */
+    private static <T> void stopService(ServiceFactory services, Class<T> type, Consumer<T> stop) {
+        T service = services.getCreatedService(type);
+        if (service != null)
+            runStep(type.getSimpleName(), () -> stop.accept(service));
+    }
+
+    /*  Runs a step of the shutdown; a failure is logged and the shutdown goes on  */
+    private static void runStep(String name, Runnable step) {
         try {
-            // Shutdown TrashCleanupService background tasks
-            art.moodframe.service.TrashCleanupService cleanupService = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.TrashCleanupService.class);
-            if (cleanupService != null) {
-                cleanupService.shutdown();
-            }
-
-            // Shutdown RequestResponseManager to stop all threads
-            art.moodframe.service.RequestResponseManager requestManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.RequestResponseManager.class);
-            if (requestManager != null) {
-                requestManager.shutdown();
-            }
-
-            // Shutdown ThumbnailManager to stop thumbnail generation threads
-            art.moodframe.service.ThumbnailManager thumbnailManager = ServiceFactory.getInstance()
-                    .getService(art.moodframe.service.ThumbnailManager.class);
-            if (thumbnailManager != null) {
-                thumbnailManager.shutdown();
-            }
-
-            /*  The MCP server stops before the database closes  */
-            art.moodframe.mcp.McpService mcp = ServiceFactory.getInstance()
-                    .getService(art.moodframe.mcp.McpService.class);
-            if (mcp != null)
-                mcp.stop();
-
-            // Close database connections
-            DatabaseConfig.close();
-
-            // Clear service factory
-            ServiceFactory.getInstance().clearServices();
-
-        } catch (Exception e) {
-            logger.error("Error during application shutdown", e);
+            step.run();
+        }
+        catch (RuntimeException e) {
+            logger.error("Failed to stop {}", name, e);
         }
     }
 

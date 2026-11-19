@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Path?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- The groups Mood and Frame of the right panel of the main window, a part of its own that a dialog can show as well:
+     the building blocks of the image and its target aspect ratio and resolution -->
+<VBox xmlns="http://javafx.com/javafx/21.0.2" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="art.moodframe.ui.panel.MoodFramePanelController"
+      spacing="10.0">
+
+    <!-- Mood: the building blocks that decide how the image looks -->
+    <VBox fx:id="moodGroupPane" styleClass="panel-group, panel-group-mood">
+        <Path styleClass="panel-group-line" managed="false" />
+
+        <HBox styleClass="panel-group-header" alignment="CENTER_LEFT" spacing="2.0" prefHeight="36.0">
+            <Button styleClass="icon-button, panel-group-arrow">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
+                </graphic>
+            </Button>
+            <Label fx:id="moodTitleLabel" text="Mood" styleClass="title-4" minWidth="-Infinity" />
+            <Region HBox.hgrow="ALWAYS" />
+
+            <!-- The actions of the mood group, also usable while it is folded -->
+            <HBox alignment="CENTER_RIGHT" spacing="2.0">
+
+                <!-- Finds atmosphere, style, light and colors in an image -->
+                <Button fx:id="moodFromImageButton" styleClass="icon-button, panel-group-action" onAction="#onMoodFromImageClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2i-image-search-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+
+                <!-- Saves the fields over the chosen mood of the user, or as a new mood -->
+                <Button fx:id="saveMoodButton" styleClass="icon-button, panel-group-action" onAction="#onSaveMoodClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+
+                <!-- Saves the fields as a new mood under a name the user enters -->
+                <Button fx:id="saveMoodAsButton" styleClass="icon-button, panel-group-action" onAction="#onSaveMoodAsClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+
+                <!-- Opens the window for the moods of the user -->
+                <Button fx:id="manageMoodsButton" styleClass="icon-button, panel-group-action" onAction="#onManageMoodsClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+            </HBox>
+        </HBox>
+
+        <!-- Always shown: "No mood" and the moods, with a reference image also whether they apply -->
+        <VBox styleClass="panel-group-summary" spacing="15.0">
+            <!-- Only with a reference image: whether the building blocks go into the prompt -->
+            <CheckBox fx:id="moodApplyCheckBox" text="Apply mood" visible="false" managed="false" />
+
+            <!-- "No mood" and the moods; the warning leads to a block of the mood in the trash -->
+            <HBox alignment="CENTER_LEFT" spacing="4.0">
+                <ComboBox fx:id="moodComboBox" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" />
+                <Button fx:id="moodIncompleteButton" styleClass="icon-button, mood-incomplete"
+                        onAction="#onMoodIncompleteClicked" visible="false" managed="false">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2a-alert-circle-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+            </HBox>
+        </VBox>
+
+        <!-- Folded: the building blocks -->
+        <VBox styleClass="panel-group-details" spacing="15.0">
+
+            <!-- Atmosphere; in each field the list comes first, so Tab leads from it to the actions and the
+                 lock in the row above -->
+            <GridPane vgap="5.0" styleClass="block-field">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+                <ComboBox fx:id="atmosphereComboBox" maxWidth="Infinity" minWidth="0" GridPane.rowIndex="1" />
+                <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
+                    <Label fx:id="atmosphereLabel" text="Atmosphere:" styleClass="text-bold" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <ToggleButton fx:id="atmosphereLockButton" styleClass="icon-button, block-lock">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </ToggleButton>
+                </HBox>
+            </GridPane>
+
+            <!-- Style -->
+            <GridPane vgap="5.0" styleClass="block-field">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+                <ComboBox fx:id="stylePresetsComboBox" maxWidth="Infinity" minWidth="0" GridPane.rowIndex="1" />
+                <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
+                    <Label fx:id="styleLabel" text="Style:" styleClass="text-bold" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <ToggleButton fx:id="styleLockButton" styleClass="icon-button, block-lock">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </ToggleButton>
+                </HBox>
+            </GridPane>
+
+            <!-- Color -->
+            <GridPane vgap="5.0" styleClass="block-field">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+                <ComboBox fx:id="colorStyleComboBox" maxWidth="Infinity" minWidth="0" GridPane.rowIndex="1" />
+                <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
+                    <Label fx:id="colorStyleLabel" text="Color:" styleClass="text-bold" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <ToggleButton fx:id="colorLockButton" styleClass="icon-button, block-lock">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </ToggleButton>
+                </HBox>
+            </GridPane>
+
+            <!-- Light -->
+            <GridPane vgap="5.0" styleClass="block-field">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+                <ComboBox fx:id="lightComboBox" maxWidth="Infinity" minWidth="0" GridPane.rowIndex="1" />
+                <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
+                    <Label fx:id="lightLabel" text="Light:" styleClass="text-bold" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <ToggleButton fx:id="lightLockButton" styleClass="icon-button, block-lock">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </ToggleButton>
+                </HBox>
+
+                <!-- Shown for a layout style: the light keeps its choice, but does not apply -->
+                <Label fx:id="lightLayoutHint" text="Does not apply to layout styles"
+                       styleClass="text-small, text-muted" wrapText="true" GridPane.rowIndex="2"
+                       visible="false" managed="false" />
+            </GridPane>
+
+            <!-- Camera -->
+            <GridPane vgap="5.0" styleClass="block-field">
+                <columnConstraints>
+                    <ColumnConstraints hgrow="ALWAYS" />
+                </columnConstraints>
+                <ComboBox fx:id="cameraComboBox" maxWidth="Infinity" minWidth="0" GridPane.rowIndex="1" />
+                <HBox alignment="CENTER_LEFT" GridPane.rowIndex="0">
+                    <Label fx:id="cameraLabel" text="Camera:" styleClass="text-bold" />
+                    <Region HBox.hgrow="ALWAYS" />
+                    <ToggleButton fx:id="cameraLockButton" styleClass="icon-button, block-lock">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2l-lock-open-variant-outline" iconSize="14" styleClass="ikonli-font-icon" />
+                        </graphic>
+                    </ToggleButton>
+                </HBox>
+
+                <!-- Shown for a style that is not photographic, layout included: only the framing applies -->
+                <Label fx:id="cameraHint" text="Only perspective and shot size apply to this style"
+                       styleClass="text-small, text-muted" wrapText="true" GridPane.rowIndex="2"
+                       visible="false" managed="false" />
+            </GridPane>
+
+        </VBox>
+    </VBox>
+
+    <!-- Frame: the target aspect ratio and resolution, of which the chosen model takes its closest ones -->
+    <VBox fx:id="frameGroupPane" styleClass="panel-group, panel-group-frame">
+        <Path styleClass="panel-group-line" managed="false" />
+
+        <HBox styleClass="panel-group-header" alignment="CENTER_LEFT" spacing="2.0" prefHeight="36.0">
+            <Button styleClass="icon-button, panel-group-arrow">
+                <graphic>
+                    <FontIcon iconLiteral="mdi2c-chevron-right" iconSize="16" styleClass="ikonli-font-icon" />
+                </graphic>
+            </Button>
+            <Label fx:id="frameTitleLabel" text="Frame" styleClass="title-4" minWidth="-Infinity" />
+            <Region HBox.hgrow="ALWAYS" />
+
+            <!-- The actions of the frame group, also usable while it is folded -->
+            <HBox alignment="CENTER_RIGHT" spacing="2.0">
+
+                <!-- Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame -->
+                <Button fx:id="saveFrameButton" styleClass="icon-button, panel-group-action" onAction="#onSaveFrameClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-content-save-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+
+                <!-- Saves aspect ratio and resolution as a new frame under a name the user enters -->
+                <Button fx:id="saveFrameAsButton" styleClass="icon-button, panel-group-action" onAction="#onSaveFrameAsClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-content-save-edit-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+
+                <!-- Opens the window for the frames of the user -->
+                <Button fx:id="manageFramesButton" styleClass="icon-button, panel-group-action" onAction="#onManageFramesClicked">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-cog-outline" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+            </HBox>
+        </HBox>
+
+        <!-- Always shown: "No frame" and the frames -->
+        <VBox styleClass="panel-group-summary">
+            <ComboBox fx:id="frameComboBox" maxWidth="Infinity" minWidth="0" />
+        </VBox>
+
+        <!-- Folded: aspect ratio and resolution -->
+        <VBox styleClass="panel-group-details" spacing="15.0">
+
+            <!-- Aspect Ratio: the formats of all models; below, what the chosen model makes of it, only if it
+                 cannot do the target -->
+            <VBox spacing="5.0">
+                <Label fx:id="aspectRatioLabel" text="Aspect Ratio:" styleClass="text-bold" />
+                <ChoiceBox fx:id="aspectRatioComboBox" maxWidth="Infinity" minWidth="0" />
+                <Label fx:id="aspectRatioHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true"
+                   visible="false" managed="false" />
+            </VBox>
+
+            <!-- Resolution: the sizes of all models; below, what the chosen model makes of it, only if it cannot
+                 do the target or has a fixed size -->
+            <VBox spacing="5.0">
+                <Label fx:id="resolutionLabel" text="Resolution:" styleClass="text-bold" />
+                <ChoiceBox fx:id="resolutionChoiceBox" maxWidth="Infinity" minWidth="0" />
+                <Label fx:id="resolutionHintLabel" styleClass="text-small, aspect-ratio-hint" wrapText="true"
+                   visible="false" managed="false" />
+            </VBox>
+
+        </VBox>
+    </VBox>
+</VBox>

@@ -1,25 +1,37 @@
 package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.ui.component.ChatEntryCard;
-import art.moodframe.ui.component.MultiImageAttachmentPanel;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.ModelLabels;
+import art.moodframe.service.generation.RequestResponseManager;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.TestLibraryServices;
+import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.ui.entry.ChatEntryCard;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.layout.VBox;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,11 +40,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,9 +50,6 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -52,8 +59,8 @@ import static org.mockito.Mockito.mock;
  */
 class MainWindowModelResolutionTest {
 
-    private static final String NANO_BANANA_PRO_2K = GenerationModel.GEMINI_PRO_2K.getLocalizedDisplayName();
-    private static final String NANO_BANANA_PRO_4K = GenerationModel.GEMINI_PRO_4K.getLocalizedDisplayName();
+    private static final String NANO_BANANA_PRO_2K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_2K);
+    private static final String NANO_BANANA_PRO_4K = ModelLabels.displayName(GenerationModel.GEMINI_PRO_4K);
 
     @TempDir
     static java.nio.file.Path home;
@@ -77,20 +84,37 @@ class MainWindowModelResolutionTest {
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
         Platform.setImplicitExit(false);
-        realConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        realConfig = ServiceFactory.getInstance().findService(ApplicationConfig.class).orElse(null);
         locale = I18nManager.getCurrentLocale();
 
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
-        DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
+        TestDatabase.open(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
+        PromptBlockService blocks = TestLibraryServices.blocks(events);
+        ColorStyleService colors = TestLibraryServices.palettes(events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
-        register(MoodService.class, new MoodService(blocks, colors, events));
-        register(FrameService.class, new FrameService(events));
-        register(FavoriteService.class, new FavoriteService(events));
+        register(MoodService.class, TestLibraryServices.moods(blocks, colors, events));
+        register(FrameService.class, TestLibraryServices.frames(events));
+        register(FavoriteService.class, TestLibraryServices.favorites(events));
+        ChatLibrary chats = new ChatLibrary(null, events);
+        chats.load();
+        register(ChatLibrary.class, chats);
+
+        /*  tells the prompt limits of the models, as the providers know them  */
+        register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing(),
+                Runnable::run));
+        register(ImageAttachmentService.class, new ImageAttachmentService());
+
+        /*  the rest the window looks up, which this test does not use  */
+        register(ChatHistoryService.class, mock(ChatHistoryService.class));
+        register(TrashCenter.class, new TrashCenter());
+        register(ThumbnailManager.class, mock(ThumbnailManager.class));
+        register(ImageSizeCheck.class, mock(ImageSizeCheck.class));
+        register(BrainstormService.Factory.class, mock(BrainstormService.Factory.class));
+        register(MoodAnalysisService.class, mock(MoodAnalysisService.class));
+        register(RequestResponseManager.class, mock(RequestResponseManager.class));
     }
 
     @AfterAll
@@ -125,16 +149,8 @@ class MainWindowModelResolutionTest {
     @BeforeEach
     void load() throws Exception {
 
-        /*  a configuration without file and with the keys of BFL and Gemini, so that every model can be chosen  */
-        ApplicationConfig config = mock(ApplicationConfig.class, CALLS_REAL_METHODS);
-        Field properties = ApplicationConfig.class.getDeclaredField("properties");
-        properties.setAccessible(true);
-        properties.set(config, new Properties());
-        doNothing().when(config).saveConfiguration();
-        doReturn(true).when(config).hasApiKey();
-        doReturn(true).when(config).hasGeminiApiKey();
-        doReturn(true).when(config).isBflProviderEnabled();
-        doReturn(true).when(config).isGeminiProviderEnabled();
+        /*  a fresh configuration with the keys of BFL and Gemini, so that every model can be chosen  */
+        ApplicationConfig config = ConfigMocks.withBflAndGemini();
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
 
         I18nManager.setLocale(Locale.ENGLISH);
@@ -148,9 +164,10 @@ class MainWindowModelResolutionTest {
 
     @AfterEach
     void dispose() throws Exception {
-        onFxThread(() -> ((MultiImageAttachmentPanel) ((VBox) field("multiImageAttachmentContainer"))
-                .getChildren().get(0)).dispose());
-        I18nManager.removeChangeListener(controller);
+
+        /*  as on closing the window: its listeners go, its work and the delayed save of its settings end, so nothing
+            writes into the throwaway home while it is deleted  */
+        onFxThread(controller::dispose);
     }
 
     /*  a step on the JavaFX thread  */
@@ -176,63 +193,61 @@ class MainWindowModelResolutionTest {
         assertTrue(later.await(10, TimeUnit.SECONDS));
     }
 
-    /*  a field of the window, which a lookup does not reach in the panel before it is shown  */
-    private static Object field(String id) throws Exception {
-        Field field = MainWindowController.class.getDeclaredField(id);
-        field.setAccessible(true);
-        return field.get(controller);
-    }
-
+    /*  the fields of the window; a lookup from the window does not reach the panel before it is shown, one from the
+        group Frame does  */
     @SuppressWarnings("unchecked")
-    private static ChoiceBox<String> choice(String id) throws Exception {
-        return (ChoiceBox<String>) field(id);
+    private static ChoiceBox<String> resolution() {
+        return (ChoiceBox<String>) controller.moodFramePanel().frameGroup().lookup("#resolutionChoiceBox");
     }
 
-    private static Label hint() throws Exception {
-        return (Label) field("resolutionHintLabel");
+    private static ChoiceBox<String> family() {
+        return controller.generationPanel().modelFamilyChoice();
+    }
+
+    private static ChoiceBox<String> model() {
+        return controller.generationPanel().modelChoice();
+    }
+
+    private static Label hint() {
+        return (Label) controller.moodFramePanel().frameGroup().lookup("#resolutionHintLabel");
     }
 
     private static void reuse(ChatEntry entry) throws Exception {
-        onFxThread(() -> {
-            Method reuse = MainWindowController.class.getDeclaredMethod("reuseEntry", ChatEntry.class,
-                    ChatEntryCard.Reuse.class);
-            reuse.setAccessible(true);
-            reuse.invoke(controller, entry, ChatEntryCard.Reuse.ALL);
-        });
+        onFxThread(() -> controller.reuseEntry(entry, ChatEntryCard.Reuse.ALL));
     }
 
     @Test
     void theFamilyMakesTheTargetOfTheFrame() throws Exception {
         onFxThread(() -> {
-            choice("resolutionChoiceBox").setValue("4K");
-            choice("modelFamilyChoiceBox").setValue("Nano Banana Pro");
+            resolution().setValue("4K");
+            family().setValue("Nano Banana Pro");
         });
-        assertEquals(NANO_BANANA_PRO_4K, choice("modelComboBox").getValue());
+        assertEquals(NANO_BANANA_PRO_4K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
 
         String lite = GenerationModel.NANO_BANANA2_LITE.getFamilyName();
-        onFxThread(() -> choice("modelFamilyChoiceBox").setValue(lite));
+        onFxThread(() -> family().setValue(lite));
         assertTrue(hint().isVisible(), "a family that cannot make the target says so");
         assertEquals(lite + " → 1K", hint().getText());
     }
 
     @Test
     void aReusedEntryTakesTheModelForTheTargetItWasMadeFor() throws Exception {
-        onFxThread(() -> choice("resolutionChoiceBox").setValue("4K"));
+        onFxThread(() -> resolution().setValue("4K"));
 
         /*  made for 4K with the 2K variant, as before this fix: the target stays, the model follows it  */
         reuse(new ChatEntry.Builder().chatId("chat").userPrompt("a lighthouse")
                 .model(GenerationModel.GEMINI_PRO_2K.getDisplayName())
                 .frame(new EntryFrame(null, null, "16:9", "4K")).build());
-        assertEquals("4K", choice("resolutionChoiceBox").getValue());
-        assertEquals(NANO_BANANA_PRO_4K, choice("modelComboBox").getValue());
+        assertEquals("4K", resolution().getValue());
+        assertEquals(NANO_BANANA_PRO_4K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
 
         /*  from before the frames were copied: the target becomes the resolution of its model  */
         reuse(new ChatEntry.Builder().chatId("chat").userPrompt("a lighthouse")
                 .model(GenerationModel.GEMINI_PRO_2K.getDisplayName()).size("16:9").build());
-        assertEquals("2K", choice("resolutionChoiceBox").getValue());
-        assertEquals(NANO_BANANA_PRO_2K, choice("modelComboBox").getValue());
+        assertEquals("2K", resolution().getValue());
+        assertEquals(NANO_BANANA_PRO_2K, model().getValue());
         assertFalse(hint().isVisible(), hint().getText());
     }
 }

@@ -1,0 +1,30 @@
+package art.moodframe.service.provider;
+
+import art.moodframe.model.ApiProvider;
+import art.moodframe.config.ApplicationConfig;
+import art.moodframe.model.GenerationModel;
+
+/**
+ * Which providers may be contacted, decided from the configuration.
+ *
+ * @since 1.9.1
+ */
+public final class ProviderPolicy {
+
+    private ProviderPolicy() {
+    }
+
+    /**
+     * Checks if OpenAI is the only provider in use: an OpenAI image model is selected and the brainstorm talks to
+     * OpenAI, which can brainstorm (language model and web search). Then no other provider (Gemini, BFL) may be
+     * contacted; an OpenAI without web search leaves the brainstorm to Gemini, so Gemini is checked then.
+     *
+     * @param config the application configuration
+     * @return true if only OpenAI is to be contacted
+     */
+    public static boolean isOpenAiOnly(ApplicationConfig config) {
+        return GenerationModel.openAiModelId(config.getDefaultModel()) != null
+                && "openai".equals(config.accounts().getBrainstormEngine())
+                && config.accounts().isBrainstormAvailable(ApiProvider.OPENAI);
+    }
+}

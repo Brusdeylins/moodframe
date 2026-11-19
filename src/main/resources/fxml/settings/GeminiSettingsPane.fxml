@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<!-- The Google Gemini account: API key -->
+<ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" xmlns="http://javafx.com/javafx/23" xmlns:fx="http://javafx.com/fxml/1" fx:controller="art.moodframe.ui.controller.settings.GeminiSettingsPane">
+    <VBox spacing="15.0">
+        <padding>
+            <Insets bottom="10.0" left="0" right="10.0" top="10.0" />
+        </padding>
+        <!-- Google Gemini API Section -->
+        <VBox spacing="8.0">
+            <Label fx:id="geminiTitleLabel" styleClass="text-bold" text="%settings.gemini.title" />
+            <Label fx:id="geminiDescriptionLabel" text="%settings.gemini.description" />
+
+            <HBox alignment="CENTER_LEFT" spacing="10.0">
+                <PasswordField fx:id="geminiApiKeyField" promptText="%settings.gemini.key.placeholder" HBox.hgrow="ALWAYS" />
+
+                <Button fx:id="showGeminiApiKeyButton" onAction="#onShowGeminiApiKeyToggle" styleClass="icon-button">
+                    <graphic>
+                        <FontIcon fx:id="showGeminiApiKeyIcon" iconLiteral="mdi2e-eye" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip text="%settings.gemini.key.toggle.tooltip" />
+                    </tooltip>
+                </Button>
+
+                <Button fx:id="testGeminiConnectionButton" onAction="#onTestGeminiConnection" styleClass="accent" text="%settings.gemini.test">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-connection" iconSize="16" styleClass="ikonli-font-icon" />
+                    </graphic>
+                </Button>
+            </HBox>
+
+            <!-- Gemini Connection Status -->
+            <HBox fx:id="geminiConnectionStatusContainer" alignment="CENTER_LEFT" spacing="8.0">
+                <FontIcon fx:id="geminiConnectionStatusIcon" iconLiteral="mdi2c-circle" iconSize="12" />
+                <Label fx:id="geminiConnectionStatusLabel" text="%settings.gemini.connection.none" />
+            </HBox>
+
+            <!-- Gemini Provider Activation Checkbox -->
+            <CheckBox fx:id="geminiProviderEnabledCheckBox" onAction="#onGeminiProviderToggle" text="%settings.gemini.enable">
+                <tooltip>
+                    <Tooltip text="%settings.gemini.enable.tooltip" />
+                </tooltip>
+            </CheckBox>
+        </VBox>
+    </VBox>
+</ScrollPane>

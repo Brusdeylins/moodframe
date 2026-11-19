@@ -4,10 +4,14 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -28,12 +32,14 @@ import java.util.Base64;
  * 
  * <p><strong>Usage Example:</strong></p>
  * <pre>{@code
+ * EncryptionUtil encryption = new EncryptionUtil(paths.secretKey());
+ *
  * // Encrypt sensitive data
  * String apiKey = "bfl_api_key_12345";
- * String encrypted = EncryptionUtil.encrypt(apiKey);
- * 
+ * String encrypted = encryption.encrypt(apiKey);
+ *
  * // Decrypt when needed
- * String decrypted = EncryptionUtil.decrypt(encrypted);
+ * String decrypted = encryption.decrypt(encrypted);
  * }</pre>
  * 
  * <p><strong>External References:</strong></p>
@@ -44,57 +50,109 @@ import java.util.Base64;
  * 
  * @since 1.0.0
  */
-public class EncryptionUtil {
+class EncryptionUtil {
     
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int TAG_LENGTH_BIT = 128;
     private static final int IV_LENGTH_BYTE = 12;
     
-    private static SecretKey masterKey;
-    
-    static {
-        initializeMasterKey();
-    }
-    
+    private final Path keyFile;
+    private SecretKey masterKey;
+
     /**
-     * Initializes the master encryption key.
+     * Creates the encryption with the key in the given file, which is read or created on first use.
+     *
+     * @param keyFile the key file, {@link LibraryPaths#secretKey()}
+     */
+    public EncryptionUtil(Path keyFile) {
+        this.keyFile = keyFile;
+    }
+
+    /**
+     * Gets the master encryption key, read or created on first use.
      *
      * <p>Every installation has its own random 256-bit key in {@code ~/.moodframe/secret.key},
      * created on first use and readable only by the user (where the file system supports it).
      * The key never leaves this file; deleting it makes the stored API keys unreadable.</p>
      *
+     * @return the key
      * @throws RuntimeException if the master key cannot be initialized
      * @since 2.0.0
      */
-    private static void initializeMasterKey() {
+    private synchronized SecretKey masterKey() {
+        if (masterKey != null)
+            return masterKey;
         try {
-            Path keyFile = Path.of(System.getProperty("user.home"), ".moodframe", "secret.key");
-            byte[] key;
-            if (Files.exists(keyFile))
-                key = Base64.getDecoder().decode(Files.readString(keyFile, StandardCharsets.US_ASCII).trim());
-            else {
-                key = new byte[32];
-                new SecureRandom().nextBytes(key);
-                Files.createDirectories(keyFile.getParent());
-                Files.writeString(keyFile, Base64.getEncoder().encodeToString(key), StandardCharsets.US_ASCII);
-                try {
-                    Files.setPosixFilePermissions(keyFile, PosixFilePermissions.fromString("rw-------"));
-                }
-                catch (UnsupportedOperationException e) {
-
-                    /*  Windows: the file stays in the user profile, which only the user can read by default  */
-                    keyFile.toFile().setReadable(false, false);
-                    keyFile.toFile().setReadable(true, true);
-                }
-            }
+            byte[] key = Files.exists(keyFile) ? readKey() : createKey();
             if (key.length != 32)
                 throw new IllegalStateException("Invalid key file: " + keyFile);
             masterKey = new SecretKeySpec(key, "AES");
+            return masterKey;
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize master encryption key", e);
         }
     }
     
+    /*  A new random key; if another instance created the file meanwhile, its key is taken, so both use one key  */
+    private byte[] createKey() throws IOException, InterruptedException {
+        byte[] key = new byte[32];
+        new SecureRandom().nextBytes(key);
+        Files.createDirectories(keyFile.getParent());
+        return writeKeyFile(Base64.getEncoder().encodeToString(key)) ? key : readKey();
+    }
+
+    /*  The key of the file; a file another instance has just created without POSIX permissions may still be empty  */
+    private byte[] readKey() throws IOException, InterruptedException {
+        String text = Files.readString(keyFile, StandardCharsets.US_ASCII).trim();
+        for (int attempt = 0; text.isEmpty() && attempt < 20; attempt++) {
+            Thread.sleep(50);
+            text = Files.readString(keyFile, StandardCharsets.US_ASCII).trim();
+        }
+        return Base64.getDecoder().decode(text);
+    }
+
+    /**
+     * Writes a new key file that nobody but the user can read at any time, unless it exists: where the file system
+     * has POSIX permissions, the key goes into a temporary file created with {@code rw-------}, which is then linked
+     * into place, so the key file appears at once with its content and permissions; elsewhere the file is created
+     * new. Either way, of two instances starting at once only one creates the file.
+     *
+     * @param key the key, Base64
+     * @return true if the file was written, false if it existed
+     * @throws IOException if the file cannot be written
+     */
+    private boolean writeKeyFile(String key) throws IOException {
+        Path directory = keyFile.getParent();
+        if (!Files.getFileStore(directory).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            try {
+                Files.writeString(keyFile, key, StandardCharsets.US_ASCII, StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE);
+            }
+            catch (FileAlreadyExistsException e) {
+                return false;
+            }
+
+            /*  Windows: the file stays in the user profile, which only the user can read by default  */
+            keyFile.toFile().setReadable(false, false);
+            keyFile.toFile().setReadable(true, true);
+            return true;
+        }
+
+        Path temporary = Files.createTempFile(directory, keyFile.getFileName().toString(), ".tmp",
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        try {
+            Files.writeString(temporary, key, StandardCharsets.US_ASCII);
+            Files.createLink(keyFile, temporary);
+            return true;
+        }
+        catch (FileAlreadyExistsException e) {
+            return false;
+        }
+        finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
     /**
      * Encrypts a plaintext string using AES-256-GCM encryption.
      * 
@@ -112,7 +170,7 @@ public class EncryptionUtil {
      * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/crypto/Cipher.html">Java Cipher API</a>
      * @since 1.0.0
      */
-    public static String encrypt(String plainText) {
+    public String encrypt(String plainText) {
         if (plainText == null || plainText.isEmpty()) {
             return null;
         }
@@ -128,7 +186,7 @@ public class EncryptionUtil {
             // Encrypt
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, masterKey, parameterSpec);
+            cipher.init(Cipher.ENCRYPT_MODE, masterKey(), parameterSpec);
             
             byte[] cipherText = cipher.doFinal(plainBytes);
             
@@ -161,7 +219,7 @@ public class EncryptionUtil {
      * @throws RuntimeException if decryption fails (invalid format, wrong key, or tampering detected)
      * @since 1.0.0
      */
-    public static String decrypt(String encryptedText) {
+    public String decrypt(String encryptedText) {
         if (encryptedText == null || encryptedText.isEmpty()) {
             return null;
         }
@@ -180,7 +238,7 @@ public class EncryptionUtil {
             // Decrypt
             Cipher cipher = Cipher.getInstance(ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
-            cipher.init(Cipher.DECRYPT_MODE, masterKey, parameterSpec);
+            cipher.init(Cipher.DECRYPT_MODE, masterKey(), parameterSpec);
             
             byte[] plainBytes = cipher.doFinal(cipherText);
             

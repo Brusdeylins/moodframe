@@ -8,23 +8,21 @@ import art.moodframe.model.Frame;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.service.BrainstormContext;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.MoodAnalysisService;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.service.TrashCenter;
-import art.moodframe.service.TrashGroup;
+import art.moodframe.service.brainstorm.BrainstormContext;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashGroup;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -64,9 +62,6 @@ class LibraryEditTools {
 
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9A-Fa-f]{6}");
     private static final int MAX_COLORS = 5;
-
-    /*  the long side of the image the analysis gets, as in the dialog "Mood from image"  */
-    private static final int ANALYSIS_SIDE = 1024;
 
     private final ChatLibrary chats;
     private final MoodService moods;
@@ -343,7 +338,8 @@ class LibraryEditTools {
                 blocks.getAll(PromptBlock.Type.ATMOSPHERE), blocks.getAll(PromptBlock.Type.LIGHT),
                 blocks.getAll(PromptBlock.Type.CAMERA), colors.getAllStyles(), List.of(), List.of(), "", List.of(),
                 Set.of());
-        MoodAnalysisService.Analysis found = analysis.analyze(scaled(image), context).join();
+        MoodAnalysisService.Analysis found = analysis.analyze(MoodAnalysisService.scaledDown(image), context,
+                true).join();
 
         ObjectNode result = McpTools.JSON.createObjectNode();
         ObjectNode fields = result.putObject("blocks");
@@ -363,22 +359,7 @@ class LibraryEditTools {
             if (block.isNew() && block.settings() != null)
                 node.set("settings", McpTools.parse(block.settings().toJson()));
         }
-        return new McpTools.Result(result.put("notice", found.notice()));
-    }
-
-    /*  the image with its long side at most as long as the analysis takes it  */
-    private static BufferedImage scaled(BufferedImage image) {
-        double scale = (double) ANALYSIS_SIDE / Math.max(image.getWidth(), image.getHeight());
-        if (scale >= 1)
-            return image;
-        int width = Math.max(1, (int) Math.round(image.getWidth() * scale));
-        int height = Math.max(1, (int) Math.round(image.getHeight() * scale));
-        BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = scaled.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        graphics.drawImage(image, 0, 0, width, height, null);
-        graphics.dispose();
-        return scaled;
+        return new McpTools.Result(result.put("notice", found.englishNotice()));
     }
 
     /*  ===== Building blocks =====  */

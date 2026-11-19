@@ -3,8 +3,8 @@ package art.moodframe.mcp;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.GenerationService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.generation.GenerationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -21,7 +21,7 @@ import java.util.List;
  */
 class ChatEditTools {
 
-    /*  an image with its entry, found on the JavaFX thread  */
+    /*  an image with its entry, found inside ChatLibrary#read  */
     private record Found(ChatEntry entry, GeneratedImage image, boolean running) {
     }
 
@@ -57,8 +57,8 @@ class ChatEditTools {
 
         ObjectNode chat = McpTools.JSON.createObjectNode();
         chat.set("chatId", McpTools.string("The ID of the chat, see list_chats"));
-        tools.add("delete_chat", "Moves a chat with its entries and images to the trash; restore brings it back.",
-                McpTools.input(chat, "chatId"), this::deleteChat);
+        tools.add("delete_chat", "Moves a chat with its entries and images to the trash; restore brings it back. Its "
+                + "running entries are cancelled first.", McpTools.input(chat, "chatId"), this::deleteChat);
 
         ObjectNode entry = McpTools.JSON.createObjectNode();
         entry.set("entryId", McpTools.string("The ID of the chat entry, see get_chat"));

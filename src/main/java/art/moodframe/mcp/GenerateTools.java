@@ -7,18 +7,21 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.model.ModelParameter;
+import art.moodframe.model.ModelParameters;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.service.ChatLibrary;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.GenerationOrder;
-import art.moodframe.service.GenerationService;
-import art.moodframe.service.ImageAttachmentService;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.PromptBlockService;
-import art.moodframe.service.PromptComposer;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.generation.GenerationOrder;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.prompt.PromptComposer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -46,7 +49,7 @@ import java.util.concurrent.TimeoutException;
  */
 class GenerateTools {
 
-    private static final int MAX_COUNT = 4;
+    private static final int MAX_COUNT = ImageGenerationRequest.MAX_IMAGE_COUNT;
     private static final int MAX_REFERENCES = 14;
     private static final int DEFAULT_WAIT = 120;
     private static final int MAX_WAIT = 600;
@@ -119,14 +122,13 @@ class GenerateTools {
                         + "one takes the default of MoodFrame")
                 .put("additionalProperties", false);
         ObjectNode paramSchemas = params.putObject("properties");
-        paramSchemas.putObject("seed").put("type", "integer");
-        paramSchemas.putObject("safetyTolerance").put("type", "integer");
-        paramSchemas.putObject("promptUpsampling").put("type", "boolean");
-        paramSchemas.putObject("guidance").put("type", "number");
-        paramSchemas.putObject("steps").put("type", "integer");
-        paramSchemas.putObject("thinkingLevel").put("type", "string");
-        paramSchemas.putObject("googleSearch").put("type", "boolean");
-        paramSchemas.putObject("videoSeconds").put("type", "integer");
+        for (ModelParameter parameter : ModelParameters.all())
+            paramSchemas.putObject(parameter.name()).put("type", switch (parameter.type()) {
+                case INTEGER -> "integer";
+                case NUMBER -> "number";
+                case BOOLEAN -> "boolean";
+                case CHOICE -> "string";
+            });
         order.set("params", params);
 
         ObjectNode preview = order.deepCopy();
@@ -190,9 +192,11 @@ class GenerateTools {
             throw new McpTools.ToolException(e.getMessage());
         }
 
-        /*  The entry ends once the provider reports it; a longer job is followed by get_entry  */
+        /*  The entry is in its chat once stored, so get_entry finds it; it ends once the provider reports it, a
+            longer job is followed by get_entry  */
         boolean finished = false;
         try {
+            submission.stored().get();
             if (wait > 0) {
                 submission.finished().get(wait, TimeUnit.SECONDS);
                 finished = true;
@@ -231,7 +235,7 @@ class GenerateTools {
 
     /*  the model and the format it makes of the target  */
     private static void format(ObjectNode node, GenerationOrder order, GenerationService.Preview preview) {
-        node.put("model", order.modelId()).put("name", GenerationModel.itemOf(order.modelId()))
+        node.put("model", order.modelId()).put("name", GenerationModel.displayNameOf(order.modelId()))
                 .put("aspectRatio", preview.aspectRatio()).put("resolution", preview.resolution())
                 .put("count", order.imageCount());
     }
@@ -259,7 +263,7 @@ class GenerateTools {
             throws McpTools.ToolException, IOException {
         String prompt = McpTools.text(arguments, "prompt");
         String modelId = McpTools.text(arguments, "model");
-        if (GenerationService.availableItems(config).stream()
+        if (generation.availableItems(config, 0).stream()
                 .noneMatch((String item) -> modelId.equals(GenerationModel.idOf(item))))
             throw new McpTools.ToolException("No model with the id '" + modelId + "' to generate with, see "
                     + "get_capabilities");
@@ -325,39 +329,59 @@ class GenerateTools {
                         + ", see get_capabilities");
         }
 
-        Long seed = null;
-        if (params.hasNonNull("seed")) {
-            if (!params.get("seed").isIntegralNumber())
-                throw new McpTools.ToolException("The parameter 'seed' must be an integer");
-            seed = params.get("seed").asLong();
+        Number seed = (Number) value(params, model.parameter(ModelParameters.SEED.name()));
+        Number safety = (Number) value(params, model.parameter(ModelParameters.SAFETY_TOLERANCE.name()));
+        Number guidance = valueOrDefault(params, model.parameter(ModelParameters.GUIDANCE.name()));
+        Number steps = valueOrDefault(params, model.parameter(ModelParameters.STEPS.name()));
+        String thinkingLevel = (String) value(params, model.parameter(ModelParameters.THINKING_LEVEL.name()));
+        Boolean googleSearch = (Boolean) value(params, model.parameter(ModelParameters.GOOGLE_SEARCH.name()));
+        Number videoSeconds = valueOrDefault(params, model.parameter(ModelParameters.VIDEO_SECONDS));
+        Boolean upsampling = (Boolean) value(params, model.parameter(ModelParameters.PROMPT_UPSAMPLING.name()));
+        int tolerance = safety != null ? safety.intValue() : config.generation().getFlux2SafetyTolerance();
+        return new GenerationOrder.Parameters(seed != null ? seed.longValue() : null, tolerance,
+                safety != null ? safety.intValue() : null, upsampling != null && upsampling, thinkingLevel,
+                googleSearch, guidance != null ? guidance.doubleValue() : null,
+                steps != null ? steps.intValue() : null, videoSeconds != null ? videoSeconds.intValue() : null);
+    }
+
+    /*  the value of a parameter the model takes, the default of the settings or the provider without one  */
+    private Number valueOrDefault(JsonNode params, ModelParameter parameter) throws McpTools.ToolException {
+        Object value = value(params, parameter);
+        return (Number) (value != null || parameter == null ? value : LibraryTools.defaultOf(config, parameter));
+    }
+
+    /*  the value of a parameter, checked against its description; null if it is missing or the model takes none  */
+    private static Object value(JsonNode params, ModelParameter parameter) throws McpTools.ToolException {
+        if (parameter == null || !params.hasNonNull(parameter.name()))
+            return null;
+        String name = parameter.name();
+        JsonNode value = params.get(name);
+        switch (parameter.type()) {
+            case BOOLEAN:
+                return McpTools.flag(params, name, false);
+            case CHOICE:
+                return McpTools.choice(params, name, parameter.choices().stream().map(String::valueOf).toList(),
+                        null);
+            case NUMBER:
+                if (!value.isNumber() || !parameter.accepts(value.asDouble()))
+                    throw new McpTools.ToolException("The parameter '" + name + "' must be a number "
+                            + parameter.range());
+                return value.asDouble();
+            default:
+                if (parameter.minimum() != null && parameter.maximum() != null)
+                    return McpTools.number(params, name, parameter.minimum().intValue(),
+                            parameter.maximum().intValue(), 0);
+                if (!parameter.choices().isEmpty()) {
+                    int choice = McpTools.number(params, name, 1, Integer.MAX_VALUE, 0);
+                    if (!parameter.accepts(choice))
+                        throw new McpTools.ToolException("The parameter '" + name + "' must be one of "
+                                + parameter.choices());
+                    return choice;
+                }
+                if (!value.isIntegralNumber())
+                    throw new McpTools.ToolException("The parameter '" + name + "' must be an integer");
+                return value.asLong();
         }
-        Integer safety = params.hasNonNull("safetyTolerance")
-                ? McpTools.number(params, "safetyTolerance", 0, 5, 0) : null;
-        Double guidance = null;
-        if (params.hasNonNull("guidance")) {
-            JsonNode value = params.get("guidance");
-            if (!value.isNumber() || value.asDouble() < 1.5 || value.asDouble() > 10.0)
-                throw new McpTools.ToolException("The parameter 'guidance' must be a number from 1.5 to 10");
-            guidance = value.asDouble();
-        }
-        else if (model.isFlux2Flex())
-            guidance = config.getFlux2FlexGuidance();
-        Integer steps = params.hasNonNull("steps") ? Integer.valueOf(McpTools.number(params, "steps", 1, 50, 0))
-                : model.isFlux2Flex() ? Integer.valueOf(config.getFlux2FlexSteps()) : null;
-        String thinkingLevel = params.hasNonNull("thinkingLevel")
-                ? McpTools.choice(params, "thinkingLevel", List.of("minimal", "high"), null) : null;
-        Boolean googleSearch = params.hasNonNull("googleSearch") ? McpTools.flag(params, "googleSearch", false)
-                : null;
-        Integer videoSeconds = null;
-        if (model.isVideoModel()) {
-            videoSeconds = McpTools.number(params, "videoSeconds", 1, Integer.MAX_VALUE, 8);
-            if (!model.getVideoDurationChoices().contains(videoSeconds))
-                throw new McpTools.ToolException("The parameter 'videoSeconds' must be one of "
-                        + model.getVideoDurationChoices());
-        }
-        int tolerance = safety != null ? safety : config.getFlux2SafetyTolerance();
-        return new GenerationOrder.Parameters(seed, tolerance, safety, McpTools.flag(params, "promptUpsampling",
-                false), thinkingLevel, googleSearch, guidance, steps, videoSeconds);
     }
 
     private static List<String> names(ObjectNode node) {
@@ -380,7 +404,7 @@ class GenerateTools {
                     + " reference images");
 
         ImageAttachmentService attachments = new ImageAttachmentService();
-        attachments.setMaxFileSize(GenerationModel.getMaxFileSize(model.getProvider()));
+        long maxFileSize = GenerationModel.getMaxFileSize(model.getProvider());
         List<String> encoded = new ArrayList<>();
         for (JsonNode image : images) {
             if (!image.isTextual())
@@ -391,7 +415,7 @@ class GenerateTools {
                 continue;
             }
             try {
-                encoded.add(attachments.attachImage(file.toFile()).getBase64Data());
+                encoded.add(attachments.attachImage(file.toFile(), maxFileSize).getBase64Data());
             }
             catch (IllegalArgumentException e) {
                 throw new McpTools.ToolException("The reference image '" + image.asText() + "': " + e.getMessage());

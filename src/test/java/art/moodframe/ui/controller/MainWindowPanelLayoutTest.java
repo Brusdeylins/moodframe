@@ -1,20 +1,33 @@
 package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
+import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.model.StylePresetItem;
-import art.moodframe.service.ColorStyleService;
-import art.moodframe.service.FavoriteService;
-import art.moodframe.service.FrameService;
-import art.moodframe.service.LibraryEvents;
-import art.moodframe.service.MoodService;
-import art.moodframe.service.PromptBlockService;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatHistoryService;
+import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ThumbnailManager;
+import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.RequestResponseManager;
+import art.moodframe.service.library.ColorStyleService;
+import art.moodframe.service.library.FavoriteService;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.service.library.LibraryEvents;
+import art.moodframe.service.library.MoodService;
+import art.moodframe.service.library.PromptBlockService;
+import art.moodframe.service.library.TestLibraryServices;
+import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
+import art.moodframe.ui.component.StylePresetItem;
+import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.ThemeManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
@@ -68,7 +81,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -80,9 +92,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -136,21 +145,38 @@ class MainWindowPanelLayoutTest {
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
         Platform.setImplicitExit(false);
-        realConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        realConfig = ServiceFactory.getInstance().findService(ApplicationConfig.class).orElse(null);
         userAgentStylesheet = Application.getUserAgentStylesheet();
         locale = I18nManager.getCurrentLocale();
 
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
-        DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
+        TestDatabase.open(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
-        blocks = new PromptBlockService(events);
-        ColorStyleService colors = new ColorStyleService(events);
+        blocks = TestLibraryServices.blocks(events);
+        ColorStyleService colors = TestLibraryServices.palettes(events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
-        register(MoodService.class, new MoodService(blocks, colors, events));
-        register(FrameService.class, new FrameService(events));
-        register(FavoriteService.class, new FavoriteService(events));
+        register(MoodService.class, TestLibraryServices.moods(blocks, colors, events));
+        register(FrameService.class, TestLibraryServices.frames(events));
+        register(FavoriteService.class, TestLibraryServices.favorites(events));
+        ChatLibrary chats = new ChatLibrary(null, events);
+        chats.load();
+        register(ChatLibrary.class, chats);
+
+        /*  tells the prompt limits of the models, as the providers know them  */
+        register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing(),
+                Runnable::run));
+        register(ImageAttachmentService.class, new ImageAttachmentService());
+
+        /*  the rest the window looks up, which this test does not use  */
+        register(ChatHistoryService.class, mock(ChatHistoryService.class));
+        register(TrashCenter.class, new TrashCenter());
+        register(ThumbnailManager.class, mock(ThumbnailManager.class));
+        register(ImageSizeCheck.class, mock(ImageSizeCheck.class));
+        register(BrainstormService.Factory.class, mock(BrainstormService.Factory.class));
+        register(MoodAnalysisService.class, mock(MoodAnalysisService.class));
+        register(RequestResponseManager.class, mock(RequestResponseManager.class));
     }
 
     @AfterAll
@@ -189,17 +215,9 @@ class MainWindowPanelLayoutTest {
     private static void show(String open) throws Exception {
         close();
 
-        /*  a configuration without file and with the keys of BFL and Gemini, so that every model can be chosen  */
-        ApplicationConfig config = mock(ApplicationConfig.class, CALLS_REAL_METHODS);
-        Field properties = ApplicationConfig.class.getDeclaredField("properties");
-        properties.setAccessible(true);
-        properties.set(config, new Properties());
-        doNothing().when(config).saveConfiguration();
-        doReturn(true).when(config).hasApiKey();
-        doReturn(true).when(config).hasGeminiApiKey();
-        doReturn(true).when(config).isBflProviderEnabled();
-        doReturn(true).when(config).isGeminiProviderEnabled();
-        config.setOpenPanelGroup(open);
+        /*  a fresh configuration with the keys of BFL and Gemini, so that every model can be chosen  */
+        ApplicationConfig config = ConfigMocks.withBflAndGemini();
+        config.ui().setOpenPanelGroup(open);
         ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
 
         I18nManager.setLocale(Locale.ENGLISH);
@@ -448,14 +466,7 @@ class MainWindowPanelLayoutTest {
 
     /*  a chat as if chosen in the list, without which the fields of the panel are off  */
     private static void selectAChat() throws Exception {
-        onFxThread(() -> {
-            Field chat = MainWindowController.class.getDeclaredField("currentChat");
-            chat.setAccessible(true);
-            chat.set(controller, new Chat("chat"));
-            Method update = MainWindowController.class.getDeclaredMethod("updateUIState");
-            update.setAccessible(true);
-            update.invoke(controller);
-        });
+        onFxThread(() -> controller.chooseChat(new Chat("chat")));
     }
 
     /*  whether a node shows, with all its parents  */
@@ -648,6 +659,8 @@ class MainWindowPanelLayoutTest {
                 .orElseThrow();
         onFxThread(() -> duration.setValue(other));
         assertEquals(other.replace("s", "") + " s · Gemini Omni", text("generationSummaryModel"));
+        assertEquals(other, ServiceFactory.getInstance().getService(ApplicationConfig.class).generation()
+                .getDefaultVideoDuration(), "the next start takes the chosen duration");
 
         /*  and the attached images, also in German  */
         chooseModel("Nano Banana Pro");
@@ -763,11 +776,7 @@ class MainWindowPanelLayoutTest {
 
     /*  the edit pencil of an image, as the cards, the grid and the large preview call it  */
     private static void edit(File image) throws Exception {
-        onFxThread(() -> {
-            Method edit = MainWindowController.class.getDeclaredMethod("editImageFromPath", String.class);
-            edit.setAccessible(true);
-            edit.invoke(controller, image.getPath());
-        });
+        onFxThread(() -> controller.editImage(image.getPath()));
     }
 
     /*  waits until the attachment holds the given number of images and the window is laid out  */
@@ -793,7 +802,7 @@ class MainWindowPanelLayoutTest {
         awaitAttachments(attachments, 1);
         assertTrue(unfolded("moodGroupPane"), "the paperclip leaves Mood unfolded");
         assertFalse(unfolded("generationGroupPane"), "the paperclip leaves Generation folded");
-        assertEquals("mood", config.getOpenPanelGroup(), "the paperclip leaves the remembered group");
+        assertEquals("mood", config.ui().getOpenPanelGroup(), "the paperclip leaves the remembered group");
 
         /*  the edit pencil attaches the image and unfolds Generation  */
         onFxThread(attachments::clearAllAttachments);
@@ -802,7 +811,7 @@ class MainWindowPanelLayoutTest {
         assertTrue(unfolded("generationGroupPane"), "the edit pencil unfolds Generation");
         assertFalse(unfolded("moodGroupPane"), "the edit pencil folds Mood");
         assertFalse(unfolded("frameGroupPane"), "the edit pencil folds Frame");
-        assertEquals("generation", config.getOpenPanelGroup(), "remembered like a click on the title");
+        assertEquals("generation", config.ui().getOpenPanelGroup(), "remembered like a click on the title");
         assertTheCardsEncloseTheirFields("Generation unfolded by the edit pencil");
 
         /*  an edit that attaches nothing changes no group: a missing image, or the attachment is full  */
@@ -823,6 +832,6 @@ class MainWindowPanelLayoutTest {
         assertEquals(2, attachments.getAttachmentCount(), "the full attachment takes no further image");
         assertTrue(unfolded("moodGroupPane"), "an edit into the full attachment leaves Mood unfolded");
         assertFalse(unfolded("generationGroupPane"), "an edit into the full attachment leaves Generation folded");
-        assertEquals("mood", config.getOpenPanelGroup(), "a failed edit leaves the remembered group");
+        assertEquals("mood", config.ui().getOpenPanelGroup(), "a failed edit leaves the remembered group");
     }
 }

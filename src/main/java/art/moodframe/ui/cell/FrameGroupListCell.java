@@ -1,8 +1,8 @@
 package art.moodframe.ui.cell;
 
 import art.moodframe.model.FrameGroup;
-import art.moodframe.service.FrameService;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.service.library.FrameService;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

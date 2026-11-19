@@ -1,7 +1,7 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Runs against a fresh SQLite database, so migration V023 is applied together with all earlier ones. */
@@ -35,21 +37,21 @@ class FrameRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final FrameRepository repository = new FrameRepository();
+    private final FrameRepository repository = new FrameRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test
-    void storesUpdatesAndDeletesFramesOfTheUser() {
+    void storesUpdatesAndDeletesFramesOfTheUser() throws Exception {
         Frame frame = frame("Instagram Story", "9:16", 1000);
         frame.setResolution("2K");
         assertTrue(repository.save(frame));
         assertNotNull(frame.getId());
 
-        Frame stored = repository.findByName("Instagram Story");
+        Frame stored = repository.findByName("Instagram Story").orElseThrow();
         assertEquals("9:16", stored.getAspectRatio());
         assertEquals("2K", stored.getResolution());
         assertEquals(1000, stored.getSortOrder());
@@ -61,7 +63,7 @@ class FrameRepositoryTest {
         frame.setSortOrder(1005);
         assertTrue(repository.update(frame));
 
-        stored = repository.findById(frame.getId());
+        stored = repository.findById(frame.getId()).orElseThrow();
         assertEquals("Druck A3", stored.getName());
         assertEquals("2:3", stored.getAspectRatio());
         assertEquals("4K", stored.getResolution());
@@ -69,16 +71,19 @@ class FrameRepositoryTest {
 
         frame.setResolution(null);
         assertTrue(repository.update(frame));
-        assertNull(repository.findById(frame.getId()).getResolution(), "a frame without resolution keeps it as is");
-        assertNull(repository.findByName("Instagram Story"));
+        assertNull(repository.findById(frame.getId()).orElseThrow().getResolution(),
+                "a frame without resolution keeps it as is");
+        assertTrue(repository.findByName("Instagram Story").isEmpty());
 
+        assertFalse(repository.delete(frame.getId()), "a frame in use is not removed for good");
+        assertTrue(repository.moveToTrash(frame.getId()));
         assertTrue(repository.delete(frame.getId()));
-        assertNull(repository.findById(frame.getId()));
+        assertTrue(repository.findById(frame.getId()).isEmpty());
         assertFalse(repository.exists(frame.getId()));
     }
 
     @Test
-    void movesFramesToTheTrashAndBack() {
+    void movesFramesToTheTrashAndBack() throws Exception {
         Frame kept = frame("Kept Frame", "1:1", 1002);
         Frame trashed = frame("Trashed Frame", "16:9", 1003);
         assertTrue(repository.save(kept));
@@ -86,8 +91,8 @@ class FrameRepositoryTest {
 
         assertTrue(repository.moveToTrash(trashed.getId()));
         assertFalse(repository.moveToTrash(trashed.getId()), "a frame in the trash is not moved again");
-        assertNull(repository.findById(trashed.getId()));
-        assertNull(repository.findByName("Trashed Frame"));
+        assertTrue(repository.findById(trashed.getId()).isEmpty());
+        assertTrue(repository.findByName("Trashed Frame").isEmpty());
         assertTrue(repository.exists(trashed.getId()), "the id stays taken while the frame is in the trash");
         assertTrue(repository.findAll().stream().anyMatch((Frame frame) -> frame.getId().equals(kept.getId())));
 
@@ -97,20 +102,22 @@ class FrameRepositoryTest {
         assertNotNull(deleted.getDeletedAt());
 
         assertTrue(repository.restore(trashed.getId()));
-        assertNotNull(repository.findById(trashed.getId()));
+        assertTrue(repository.findById(trashed.getId()).isPresent());
         assertTrue(repository.findDeleted().stream().noneMatch((Frame frame) -> frame.getId().equals(trashed.getId())));
+        assertFalse(repository.delete(trashed.getId()), "a restored frame survives a removal from the trash");
+        assertTrue(repository.findById(trashed.getId()).isPresent());
     }
 
     @Test
-    void doesNotStoreAFrameWithoutAspectRatio() {
+    void doesNotStoreAFrameWithoutAspectRatio() throws Exception {
         Frame frame = frame("No Ratio", null, 1004);
-        assertFalse(repository.save(frame));
-        assertNull(repository.findByName("No Ratio"));
+        assertThrows(SQLException.class, () -> repository.save(frame));
+        assertTrue(repository.findByName("No Ratio").isEmpty());
     }
 
     @Test
     void aFreshDatabaseHasNoModelColumnsButATargetResolution() throws Exception {
-        try (Connection conn = DatabaseConfig.getConnection()) {
+        try (Connection conn = TestDatabase.get().getConnection()) {
             assertEquals(COLUMNS, columns(conn));
         }
     }
@@ -140,12 +147,14 @@ class FrameRepositoryTest {
 
             /*  The tables of the chat entries, which V024 extends, of the chats, which V025 numbers, of the
                 brainstorm sessions, which V026 numbers, of the entries whose favorites V027 drops with them, and
-                the costs of the entries and images, which V029 fills  */
-            stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY, model TEXT, status TEXT, cost REAL, "
-                    + "deleted_at TIMESTAMP, deleted_cost REAL)");
+                the costs of the entries and images, which V029 fills and V030 books again  */
+            stmt.execute("CREATE TABLE chat_entries (id TEXT PRIMARY KEY, chat_id TEXT, model TEXT, status TEXT, "
+                    + "cost REAL, deleted_at TIMESTAMP, deleted_cost REAL)");
             stmt.execute("CREATE TABLE generated_images (id TEXT PRIMARY KEY, chat_entry_id TEXT, model TEXT, "
-                    + "width INTEGER, height INTEGER, generation_job_id TEXT, failure_reason TEXT, base_cost REAL)");
-            stmt.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, updated_at TIMESTAMP, sort_order INTEGER)");
+                    + "width INTEGER, height INTEGER, generation_job_id TEXT, failure_reason TEXT, base_cost REAL, "
+                    + "search_cost REAL, reasoning_cost REAL, deleted_at TIMESTAMP, deleted_cost REAL)");
+            stmt.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, updated_at TIMESTAMP, sort_order INTEGER, "
+                    + "deleted_cost REAL)");
             stmt.execute("CREATE TABLE brainstorm_sessions (id TEXT PRIMARY KEY, updated_at TIMESTAMP)");
             stmt.execute("CREATE TABLE moods (id TEXT PRIMARY KEY)");
             stmt.execute("CREATE TABLE prompt_blocks (id TEXT PRIMARY KEY, type TEXT)");

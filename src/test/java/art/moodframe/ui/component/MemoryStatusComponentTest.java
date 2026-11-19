@@ -1,6 +1,7 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.util.ThemeManager;
+import art.moodframe.ui.support.ThemeManager;
+import art.moodframe.util.I18nManager;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.Event;
@@ -20,6 +21,7 @@ import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -98,6 +100,28 @@ class MemoryStatusComponentTest {
     }
 
     @Test
+    void theTooltipAndTheImageCountFollowTheLanguage() {
+        Locale before = I18nManager.getCurrentLocale();
+        try {
+            I18nManager.setLocale(Locale.ENGLISH);
+            assertEquals("Memory: 512 MB used / 2,048 MB max (25.0%)\nAllocated: 1,024 MB / Free: 512 MB",
+                    I18nManager.getText("memory.status.tooltip", 512L, 2048L, 25.0, 1024L, 512L));
+            assertEquals("3 imgs", I18nManager.getText("memory.status.images", 3));
+            assertEquals("Loaded thumbnails: 1,200\nImages are loaded on demand as you scroll",
+                    I18nManager.getText("memory.status.images.tooltip", 1200));
+            I18nManager.setLocale(Locale.GERMAN);
+            assertEquals("Arbeitsspeicher: 512 MB belegt / 2.048 MB maximal (25,0 %)\nReserviert: 1.024 MB / Frei: "
+                    + "512 MB", I18nManager.getText("memory.status.tooltip", 512L, 2048L, 25.0, 1024L, 512L));
+            assertEquals("3 Bilder", I18nManager.getText("memory.status.images", 3));
+            assertEquals("Geladene Vorschaubilder: 1.200\nBilder werden beim Scrollen nach Bedarf geladen",
+                    I18nManager.getText("memory.status.images.tooltip", 1200));
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
+    }
+
+    @Test
     void theMemoryTooltipShowsWithinHalfASecondAndStaysAcrossAnUpdate() throws Exception {
         AtomicReference<MemoryStatusComponent> status = new AtomicReference<>();
         AtomicReference<Stage> stage = new AtomicReference<>();
@@ -138,7 +162,8 @@ class MemoryStatusComponentTest {
             });
             assertTrue(await(() -> !"outdated".equals(tooltip.getText()), 3000), "the text follows the update");
             onFxThread(() -> {
-                assertTrue(tooltip.getText().startsWith("Memory: "), tooltip.getText());
+                String text = I18nManager.getText("memory.status.tooltip", 0, 0, 0.0, 0, 0);
+                assertTrue(tooltip.getText().startsWith(text.substring(0, text.indexOf(':') + 1)), tooltip.getText());
                 assertSame(tooltip, group.get().getProperties().get(TOOLTIP_KEY));
                 assertTrue(tooltip.isShowing(), "the tooltip stays shown across the update");
                 assertEquals(0, hidden.get(), "the tooltip never flickered");

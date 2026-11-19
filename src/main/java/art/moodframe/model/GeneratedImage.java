@@ -1,6 +1,9 @@
 package art.moodframe.model;
 
-import javafx.beans.property.*;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -47,56 +50,56 @@ public class GeneratedImage {
         }
     }
     
-    private final StringProperty id = new SimpleStringProperty();
-    private final StringProperty chatEntryId = new SimpleStringProperty();
-    private final StringProperty imageUrl = new SimpleStringProperty();
-    private final StringProperty localFilePath = new SimpleStringProperty();
-    private final StringProperty fileName = new SimpleStringProperty();
+    private String id;
+    private String chatEntryId;
+    private String imageUrl;
+    private String localFilePath;
+    private String fileName;
     private final ObjectProperty<DownloadStatus> downloadStatus = new SimpleObjectProperty<>(DownloadStatus.PENDING);
-    private final ObjectProperty<LocalDateTime> createdAt = new SimpleObjectProperty<>();
-    private final ObjectProperty<LocalDateTime> downloadedAt = new SimpleObjectProperty<>();
-    private final LongProperty fileSizeBytes = new SimpleLongProperty();
+    private LocalDateTime createdAt;
+    private LocalDateTime downloadedAt;
+    private long fileSizeBytes;
     private final IntegerProperty imageWidth = new SimpleIntegerProperty();
     private final IntegerProperty imageHeight = new SimpleIntegerProperty();
-    private final StringProperty mimeType = new SimpleStringProperty();
-    private final IntegerProperty sortOrder = new SimpleIntegerProperty();
+    private String mimeType;
+    private int sortOrder;
     
     // Generation metadata
-    private final StringProperty generationJobId = new SimpleStringProperty();
-    private final StringProperty prompt = new SimpleStringProperty();
-    private final StringProperty model = new SimpleStringProperty();
-    private final LongProperty seed = new SimpleLongProperty();
-    private final IntegerProperty safetyTolerance = new SimpleIntegerProperty();
-    private final BooleanProperty promptUpsampling = new SimpleBooleanProperty();
+    private String generationJobId;
+    private String prompt;
+    private String model;
+    private long seed;
+    private int safetyTolerance;
+    private boolean promptUpsampling;
     
     // Error tracking fields
-    private final StringProperty errorMessage = new SimpleStringProperty();
-    private final StringProperty failureReason = new SimpleStringProperty();
-    private final StringProperty apiStatus = new SimpleStringProperty();
+    private String errorMessage;
+    private String failureReason;
+    private String apiStatus;
     
     // Additional generation parameters for recreation
-    private final StringProperty aspectRatio = new SimpleStringProperty();
-    private final StringProperty stylePreset = new SimpleStringProperty();
-    private final StringProperty format = new SimpleStringProperty();
+    private String aspectRatio;
+    private String stylePreset;
+    private String format;
     private final IntegerProperty width = new SimpleIntegerProperty();
     private final IntegerProperty height = new SimpleIntegerProperty();
     
     // Soft delete tracking
-    private final BooleanProperty isInTrash = new SimpleBooleanProperty(false);
-    private final ObjectProperty<LocalDateTime> deletedAt = new SimpleObjectProperty<>();
+    private boolean isInTrash = false;
+    private LocalDateTime deletedAt;
 
     // Gemini Phase 2 Advanced Features - Cost tracking and metadata
-    private final ObjectProperty<Double> baseCost = new SimpleObjectProperty<>(0.0); // Base model generation cost
-    private final ObjectProperty<Double> searchCost = new SimpleObjectProperty<>(0.0);
-    private final ObjectProperty<Double> reasoningCost = new SimpleObjectProperty<>(0.0);
-    private final ObjectProperty<Integer> thinkingTokens = new SimpleObjectProperty<>(0);
-    private final StringProperty thoughtSummary = new SimpleStringProperty();
+    private Double baseCost = 0.0; // Base model generation cost
+    private Double searchCost = 0.0;
+    private Double reasoningCost = 0.0;
+    private Integer thinkingTokens = 0;
+    private String thoughtSummary;
 
     // video metadata
-    private final BooleanProperty isVideo = new SimpleBooleanProperty(false);
-    private final ObjectProperty<Integer> videoDurationSeconds = new SimpleObjectProperty<>(0);
-    private final StringProperty videoResolution = new SimpleStringProperty();
-    private final BooleanProperty hasAudio = new SimpleBooleanProperty(false);
+    private boolean isVideo = false;
+    private int videoDurationSeconds;
+    private String videoResolution;
+    private boolean hasAudio = false;
 
     /**
      * Creates a new generated image with auto-generated UUID.
@@ -111,15 +114,15 @@ public class GeneratedImage {
      * @param id the image ID
      */
     public GeneratedImage(String id) {
-        this.id.set(id);
-        this.createdAt.set(LocalDateTime.now());
-        this.sortOrder.set(0);
-        this.fileSizeBytes.set(0);
+        this.id = id;
+        this.createdAt = LocalDateTime.now();
+        this.sortOrder = 0;
+        this.fileSizeBytes = 0;
         this.imageWidth.set(0);
         this.imageHeight.set(0);
-        this.seed.set(-1);
-        this.safetyTolerance.set(2);
-        this.promptUpsampling.set(false);
+        this.seed = -1;
+        this.safetyTolerance = 2;
+        this.promptUpsampling = false;
     }
     
     /**
@@ -434,44 +437,13 @@ public class GeneratedImage {
         }
     }
     
-    // Property getters for JavaFX binding
-    
-    public StringProperty idProperty() {
-        return id;
-    }
-    
-    public StringProperty chatEntryIdProperty() {
-        return chatEntryId;
-    }
-    
-    public StringProperty imageUrlProperty() {
-        return imageUrl;
-    }
-    
-    public StringProperty localFilePathProperty() {
-        return localFilePath;
-    }
-    
-    public StringProperty fileNameProperty() {
-        return fileName;
-    }
-    
+    /*  The download status is observed by the entry card and the images view, the four sizes by the shape of the
+        tile in the entry card; every other value is plain  */
+
     public ObjectProperty<DownloadStatus> downloadStatusProperty() {
         return downloadStatus;
     }
-    
-    public ObjectProperty<LocalDateTime> createdAtProperty() {
-        return createdAt;
-    }
-    
-    public ObjectProperty<LocalDateTime> downloadedAtProperty() {
-        return downloadedAt;
-    }
-    
-    public LongProperty fileSizeBytesProperty() {
-        return fileSizeBytes;
-    }
-    
+
     public IntegerProperty imageWidthProperty() {
         return imageWidth;
     }
@@ -479,79 +451,47 @@ public class GeneratedImage {
     public IntegerProperty imageHeightProperty() {
         return imageHeight;
     }
-    
-    public StringProperty mimeTypeProperty() {
-        return mimeType;
-    }
-    
-    public IntegerProperty sortOrderProperty() {
-        return sortOrder;
-    }
-    
-    public StringProperty generationJobIdProperty() {
-        return generationJobId;
-    }
-    
-    public StringProperty promptProperty() {
-        return prompt;
-    }
-    
-    public StringProperty modelProperty() {
-        return model;
-    }
-    
-    public LongProperty seedProperty() {
-        return seed;
-    }
-    
-    public IntegerProperty safetyToleranceProperty() {
-        return safetyTolerance;
-    }
-    
-    public BooleanProperty promptUpsamplingProperty() {
-        return promptUpsampling;
-    }
-    
+
     // Standard getters and setters
     
     public String getId() {
-        return id.get();
+        return id;
     }
     
     public void setId(String id) {
-        this.id.set(id);
+        this.id = id;
     }
     
     public String getChatEntryId() {
-        return chatEntryId.get();
+        return chatEntryId;
     }
     
     public void setChatEntryId(String chatEntryId) {
-        this.chatEntryId.set(chatEntryId);
+        this.chatEntryId = chatEntryId;
     }
     
     public String getImageUrl() {
-        return imageUrl.get();
+        return imageUrl;
     }
     
     public void setImageUrl(String imageUrl) {
-        this.imageUrl.set(imageUrl);
+        this.imageUrl = imageUrl;
     }
     
     public String getLocalFilePath() {
-        return localFilePath.get();
+        return localFilePath;
     }
     
     public void setLocalFilePath(String localFilePath) {
-        this.localFilePath.set(localFilePath);
+        this.localFilePath = localFilePath;
     }
     
     public String getFileName() {
-        return fileName.get();
+        return fileName;
     }
     
     public void setFileName(String fileName) {
-        this.fileName.set(fileName);
+        this.fileName = fileName;
     }
     
     public DownloadStatus getDownloadStatus() {
@@ -566,27 +506,27 @@ public class GeneratedImage {
     }
     
     public LocalDateTime getCreatedAt() {
-        return createdAt.get();
+        return createdAt;
     }
     
     public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt.set(createdAt);
+        this.createdAt = createdAt;
     }
     
     public LocalDateTime getDownloadedAt() {
-        return downloadedAt.get();
+        return downloadedAt;
     }
     
     public void setDownloadedAt(LocalDateTime downloadedAt) {
-        this.downloadedAt.set(downloadedAt);
+        this.downloadedAt = downloadedAt;
     }
     
     public long getFileSizeBytes() {
-        return fileSizeBytes.get();
+        return fileSizeBytes;
     }
     
     public void setFileSizeBytes(long fileSizeBytes) {
-        this.fileSizeBytes.set(fileSizeBytes);
+        this.fileSizeBytes = fileSizeBytes;
     }
     
     public int getImageWidth() {
@@ -606,11 +546,11 @@ public class GeneratedImage {
     }
     
     public String getMimeType() {
-        return mimeType.get();
+        return mimeType;
     }
     
     public void setMimeType(String mimeType) {
-        this.mimeType.set(mimeType);
+        this.mimeType = mimeType;
     }
     
     /**
@@ -620,7 +560,7 @@ public class GeneratedImage {
      */
     public String getFormat() {
         // Prefer the explicit format property, fallback to mime type
-        String explicitFormat = format.get();
+        String explicitFormat = format;
         if (explicitFormat != null && !explicitFormat.isEmpty()) {
             return explicitFormat.toUpperCase();
         }
@@ -653,86 +593,59 @@ public class GeneratedImage {
     }
     
     public int getSortOrder() {
-        return sortOrder.get();
+        return sortOrder;
     }
     
     public void setSortOrder(int sortOrder) {
-        this.sortOrder.set(sortOrder);
+        this.sortOrder = sortOrder;
     }
     
     public String getGenerationJobId() {
-        return generationJobId.get();
+        return generationJobId;
     }
     
     public void setGenerationJobId(String generationJobId) {
-        this.generationJobId.set(generationJobId);
+        this.generationJobId = generationJobId;
     }
     
     public String getPrompt() {
-        return prompt.get();
+        return prompt;
     }
     
     public void setPrompt(String prompt) {
-        this.prompt.set(prompt);
+        this.prompt = prompt;
     }
     
     public String getModel() {
-        return model.get();
+        return model;
     }
     
     public void setModel(String model) {
-        this.model.set(model);
+        this.model = model;
     }
     
     public long getSeed() {
-        return seed.get();
+        return seed;
     }
     
     public void setSeed(long seed) {
-        this.seed.set(seed);
+        this.seed = seed;
     }
     
     public int getSafetyTolerance() {
-        return safetyTolerance.get();
+        return safetyTolerance;
     }
     
     public void setSafetyTolerance(int safetyTolerance) {
-        this.safetyTolerance.set(safetyTolerance);
+        this.safetyTolerance = safetyTolerance;
     }
     
     public boolean isPromptUpsampling() {
-        return promptUpsampling.get();
+        return promptUpsampling;
     }
     
     public void setPromptUpsampling(boolean promptUpsampling) {
-        this.promptUpsampling.set(promptUpsampling);
-    }
-    
-    /**
-     * Checks if the image is available locally.
-     * 
-     * @return true if download status is CACHED
-     */
-    public boolean isAvailableLocally() {
-        return downloadStatus.get() == DownloadStatus.CACHED;
-    }
-    
-    /**
-     * Checks if the image is currently being downloaded.
-     * 
-     * @return true if download status is DOWNLOADING
-     */
-    public boolean isDownloading() {
-        return downloadStatus.get() == DownloadStatus.DOWNLOADING;
-    }
-    
-    /**
-     * Checks if the download has failed.
-     * 
-     * @return true if download status is FAILED
-     */
-    public boolean isDownloadFailed() {
-        return downloadStatus.get() == DownloadStatus.FAILED;
+        this.promptUpsampling = promptUpsampling;
     }
     
     /**
@@ -757,30 +670,24 @@ public class GeneratedImage {
     }
     
     // Error tracking getters/setters
-    public String getErrorMessage() { return errorMessage.get(); }
-    public void setErrorMessage(String errorMessage) { this.errorMessage.set(errorMessage); }
-    public StringProperty errorMessageProperty() { return errorMessage; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
-    public String getFailureReason() { return failureReason.get(); }
-    public void setFailureReason(String failureReason) { this.failureReason.set(failureReason); }
-    public StringProperty failureReasonProperty() { return failureReason; }
+    public String getFailureReason() { return failureReason; }
+    public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
 
-    public String getApiStatus() { return apiStatus.get(); }
-    public void setApiStatus(String apiStatus) { this.apiStatus.set(apiStatus); }
-    public StringProperty apiStatusProperty() { return apiStatus; }
+    public String getApiStatus() { return apiStatus; }
+    public void setApiStatus(String apiStatus) { this.apiStatus = apiStatus; }
 
     // Additional generation parameters getters/setters
-    public String getAspectRatio() { return aspectRatio.get(); }
-    public void setAspectRatio(String aspectRatio) { this.aspectRatio.set(aspectRatio); }
-    public StringProperty aspectRatioProperty() { return aspectRatio; }
+    public String getAspectRatio() { return aspectRatio; }
+    public void setAspectRatio(String aspectRatio) { this.aspectRatio = aspectRatio; }
 
-    public String getStylePreset() { return stylePreset.get(); }
-    public void setStylePreset(String stylePreset) { this.stylePreset.set(stylePreset); }
-    public StringProperty stylePresetProperty() { return stylePreset; }
+    public String getStylePreset() { return stylePreset; }
+    public void setStylePreset(String stylePreset) { this.stylePreset = stylePreset; }
 
     // Note: getFormat(), getWidth(), getHeight() methods already exist above
-    public void setFormat(String format) { this.format.set(format); }
-    public StringProperty formatProperty() { return format; }
+    public void setFormat(String format) { this.format = format; }
 
     public void setWidth(int width) { this.width.set(width); }
     public IntegerProperty widthProperty() { return width; }
@@ -788,52 +695,51 @@ public class GeneratedImage {
     public void setHeight(int height) { this.height.set(height); }
     public IntegerProperty heightProperty() { return height; }
     
-    public boolean isInTrash() { return isInTrash.get(); }
-    public void setIsInTrash(boolean isInTrash) { this.isInTrash.set(isInTrash); }
-    public BooleanProperty isInTrashProperty() { return isInTrash; }
+    /**
+     * Tells whether the image came: downloaded, unlike the row of a failed or unfinished request, which holds no
+     * picture. The trash counts only these.
+     *
+     * @return true for a downloaded image
+     */
+    public boolean isReal() {
+        return getDownloadStatus() == DownloadStatus.CACHED;
+    }
+
+    public boolean isInTrash() { return isInTrash; }
+    public void setIsInTrash(boolean isInTrash) { this.isInTrash = isInTrash; }
 
     /*  when the image went to the trash on its own or with its entry, null as long as it is in use  */
-    public LocalDateTime getDeletedAt() { return deletedAt.get(); }
-    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt.set(deletedAt); }
-    public ObjectProperty<LocalDateTime> deletedAtProperty() { return deletedAt; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 
     // Gemini Phase 2 Advanced Features - Cost tracking getters/setters
-    public Double getBaseCost() { return baseCost.get(); }
-    public void setBaseCost(Double baseCost) { this.baseCost.set(baseCost); }
-    public ObjectProperty<Double> baseCostProperty() { return baseCost; }
+    public Double getBaseCost() { return baseCost; }
+    public void setBaseCost(Double baseCost) { this.baseCost = baseCost; }
 
-    public Double getSearchCost() { return searchCost.get(); }
-    public void setSearchCost(Double searchCost) { this.searchCost.set(searchCost); }
-    public ObjectProperty<Double> searchCostProperty() { return searchCost; }
+    public Double getSearchCost() { return searchCost; }
+    public void setSearchCost(Double searchCost) { this.searchCost = searchCost; }
 
-    public Double getReasoningCost() { return reasoningCost.get(); }
-    public void setReasoningCost(Double reasoningCost) { this.reasoningCost.set(reasoningCost); }
-    public ObjectProperty<Double> reasoningCostProperty() { return reasoningCost; }
+    public Double getReasoningCost() { return reasoningCost; }
+    public void setReasoningCost(Double reasoningCost) { this.reasoningCost = reasoningCost; }
 
-    public Integer getThinkingTokens() { return thinkingTokens.get(); }
-    public void setThinkingTokens(Integer thinkingTokens) { this.thinkingTokens.set(thinkingTokens); }
-    public ObjectProperty<Integer> thinkingTokensProperty() { return thinkingTokens; }
+    public Integer getThinkingTokens() { return thinkingTokens; }
+    public void setThinkingTokens(Integer thinkingTokens) { this.thinkingTokens = thinkingTokens; }
 
-    public String getThoughtSummary() { return thoughtSummary.get(); }
-    public void setThoughtSummary(String thoughtSummary) { this.thoughtSummary.set(thoughtSummary); }
-    public StringProperty thoughtSummaryProperty() { return thoughtSummary; }
+    public String getThoughtSummary() { return thoughtSummary; }
+    public void setThoughtSummary(String thoughtSummary) { this.thoughtSummary = thoughtSummary; }
 
     // video metadata getters/setters
-    public boolean isVideo() { return isVideo.get(); }
-    public void setIsVideo(boolean isVideo) { this.isVideo.set(isVideo); }
-    public BooleanProperty isVideoProperty() { return isVideo; }
+    public boolean isVideo() { return isVideo; }
+    public void setIsVideo(boolean isVideo) { this.isVideo = isVideo; }
 
-    public int getVideoDurationSeconds() { return videoDurationSeconds.get(); }
-    public void setVideoDurationSeconds(int seconds) { this.videoDurationSeconds.set(seconds); }
-    public ObjectProperty<Integer> videoDurationSecondsProperty() { return videoDurationSeconds; }
+    public int getVideoDurationSeconds() { return videoDurationSeconds; }
+    public void setVideoDurationSeconds(int seconds) { this.videoDurationSeconds = seconds; }
 
-    public String getVideoResolution() { return videoResolution.get(); }
-    public void setVideoResolution(String resolution) { this.videoResolution.set(resolution); }
-    public StringProperty videoResolutionProperty() { return videoResolution; }
+    public String getVideoResolution() { return videoResolution; }
+    public void setVideoResolution(String resolution) { this.videoResolution = resolution; }
 
-    public boolean hasAudio() { return hasAudio.get(); }
-    public void setHasAudio(boolean hasAudio) { this.hasAudio.set(hasAudio); }
-    public BooleanProperty hasAudioProperty() { return hasAudio; }
+    public boolean hasAudio() { return hasAudio; }
+    public void setHasAudio(boolean hasAudio) { this.hasAudio = hasAudio; }
 
     /**
      * Gets the image dimensions as a string.

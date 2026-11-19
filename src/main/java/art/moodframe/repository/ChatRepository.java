@@ -1,38 +1,40 @@
 package art.moodframe.repository;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.EntryMood;
-import art.moodframe.model.FrameGroup;
 import art.moodframe.model.GeneratedImage;
-import art.moodframe.model.Mood;
-import art.moodframe.model.MoodGroup;
-import art.moodframe.model.PromptBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Repository for Chat entities providing database operations.
- * 
- * <p>
- * This repository handles all database operations for chats, chat entries,
- * and generated images using the repository pattern.
- * </p>
- * 
+ * Stores and finds the chats, their entries and their images, and maps their rows.
+ *
+ * <p>Their trash with the booking of the deleted costs and the files lives in {@link ChatTrashRepository}, the
+ * groups of the entries by mood and by frame in {@link ChatGroupQueries}; both use the mapping of this class.</p>
+ *
+ * <p>The trash: the finders of one row by id ({@link #findChatById}, {@link #findChatEntryById},
+ * {@link #findGeneratedImageById}) also answer a row in the trash, with its {@code deleted_at} set, as the trash, its
+ * restore and a deletion look the rows up by id; the finders of lists skip the rows in the trash, except
+ * {@link #findDeletedChats()}.</p>
+ *
+ * <p>Former columns: {@code guidance} of the entries and images holds the safety tolerance of the generation (the
+ * column of the former FLUX guidance, reused); {@code steps} is always written as 0.</p>
+ *
  * @since 1.0.0
  */
 public class ChatRepository {
@@ -40,60 +42,63 @@ public class ChatRepository {
     private static final Logger logger = LoggerFactory.getLogger(ChatRepository.class);
 
     private final DatabaseManager databaseManager;
-    private final ChatFiles chatFiles;
-    private final ApplicationConfig config;
 
     /**
      * Creates a new chat repository.
-     * 
+     *
      * @param databaseManager the database manager
      */
     public ChatRepository(DatabaseManager databaseManager) {
-        this(databaseManager, ChatFiles.NONE);
-    }
-
-    /**
-     * Creates a new chat repository that hands the files of deleted chats to the given handler.
-     * 
-     * @param databaseManager the database manager
-     * @param chatFiles       moves, restores and removes the files of a chat
-     */
-    public ChatRepository(DatabaseManager databaseManager, ChatFiles chatFiles) {
         this.databaseManager = databaseManager;
-        this.chatFiles = chatFiles;
-        this.config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
     }
 
     // ========== Chat Operations ==========
 
     /**
      * Saves a chat to the database (insert or update).
-     * 
+     *
      * @param chat the chat to save
      * @throws SQLException if database operation fails
      */
     public void saveChat(Chat chat) throws SQLException {
-        if (findChatById(chat.getId()).isPresent()) {
-            updateChat(chat);
-        } else {
-            insertChat(chat);
+        databaseManager.inTransaction((Connection conn) -> {
+            if (exists(conn, "chats", chat.getId()))
+                updateChat(conn, chat);
+            else
+                insertChat(conn, chat);
+            return null;
+        });
+    }
+
+    /*  whether a row of the table has the id; the table is a constant of this class  */
+    private static boolean exists(Connection conn, String table, String id) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM " + table + " WHERE id = ?")) {
+            stmt.setString(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
         }
+    }
+
+    /*  the time of a deletion, now, in the format of all time columns (see package-info)  */
+    static Timestamp now() {
+        return Timestamp.valueOf(LocalDateTime.now());
     }
 
     /**
      * Inserts a new chat into the database.
-     * 
+     *
+     * @param conn the connection of the transaction
      * @param chat the chat to insert
      * @throws SQLException if insert fails
      */
-    private void insertChat(Chat chat) throws SQLException {
+    private static void insertChat(Connection conn, Chat chat) throws SQLException {
         String sql = """
                 INSERT INTO chats (id, name, created_at, updated_at, deleted_at, sort_order)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """;
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, chat.getId());
             stmt.setString(2, chat.getName());
@@ -107,25 +112,25 @@ public class ChatRepository {
     }
 
     /**
-     * Updates an existing chat in the database.
-     * 
+     * Updates an existing chat in the database. It leaves deleted_at alone: a chat goes to the trash and comes back
+     * only by {@link ChatTrashRepository#softDeleteChat} and {@link ChatTrashRepository#restoreChat}, so a stale chat in memory undoes neither.
+     *
+     * @param conn the connection of the transaction
      * @param chat the chat to update
      * @throws SQLException if update fails
      */
-    private void updateChat(Chat chat) throws SQLException {
+    private static void updateChat(Connection conn, Chat chat) throws SQLException {
         String sql = """
-                UPDATE chats SET name = ?, updated_at = ?, deleted_at = ?, sort_order = ?
+                UPDATE chats SET name = ?, updated_at = ?, sort_order = ?
                 WHERE id = ?
                 """;
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, chat.getName());
             stmt.setTimestamp(2, Timestamp.valueOf(chat.getUpdatedAt()));
-            stmt.setTimestamp(3, chat.getDeletedAt() != null ? Timestamp.valueOf(chat.getDeletedAt()) : null);
-            stmt.setInt(4, chat.getSortOrder());
-            stmt.setString(5, chat.getId());
+            stmt.setInt(3, chat.getSortOrder());
+            stmt.setString(4, chat.getId());
 
             stmt.executeUpdate();
         }
@@ -141,30 +146,24 @@ public class ChatRepository {
     public void updateChatSortOrders(List<Chat> chats) throws SQLException {
         String sql = "UPDATE chats SET sort_order = ? WHERE id = ?";
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            conn.setAutoCommit(false);
-            try {
+        databaseManager.inTransaction((Connection conn) -> {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 for (Chat chat : chats) {
                     stmt.setInt(1, chat.getSortOrder());
                     stmt.setString(2, chat.getId());
                     stmt.addBatch();
                 }
                 stmt.executeBatch();
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
             }
-        }
+            return null;
+        });
     }
 
     /**
-     * Finds a chat by ID.
-     * 
+     * Finds a chat by ID, also one in the trash (its deleted_at set).
+     *
      * @param chatId the chat ID
-     * @return optional containing the chat if found
+     * @return optional containing the chat if it is stored, in use or in the trash
      * @throws SQLException if query fails
      */
     public Optional<Chat> findChatById(String chatId) throws SQLException {
@@ -187,7 +186,7 @@ public class ChatRepository {
 
     /**
      * Finds all chats that are not deleted.
-     * 
+     *
      * @return list of active chats
      * @throws SQLException if query fails
      */
@@ -210,12 +209,12 @@ public class ChatRepository {
 
     /**
      * Finds all deleted chats (in trash).
-     * 
+     *
      * @return list of deleted chats
      * @throws SQLException if query fails
      */
     public List<Chat> findDeletedChats() throws SQLException {
-        String sql = "SELECT * FROM chats WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC";
+        String sql = "SELECT * FROM chats WHERE deleted_at IS NOT NULL";
 
         List<Chat> chats = new ArrayList<>();
 
@@ -228,233 +227,53 @@ public class ChatRepository {
             }
         }
 
+        /*  sorted here: older rows hold deleted_at in other formats (see readDeletedAt), which SQL sorts apart  */
+        chats.sort(Comparator.comparing(Chat::getDeletedAt, Comparator.nullsLast(Comparator.reverseOrder())));
         return chats;
-    }
-
-    /**
-     * Soft deletes a chat by setting the deleted_at timestamp.
-     * Files are moved to trash instead of being deleted.
-     * 
-     * @param chatId the chat ID to soft delete
-     * @return true if chat was marked as deleted
-     * @throws SQLException if database operation fails
-     */
-    public boolean softDeleteChat(String chatId) throws SQLException {
-        String sql = "UPDATE chats SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setObject(1, LocalDateTime.now());
-            stmt.setString(2, chatId);
-            int updatedRows = stmt.executeUpdate();
-            
-            if (updatedRows > 0) {
-                // Move files to trash
-                moveFilesToTrash(chatId);
-                
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Soft deleted chat: {} (moved to trash)", chatId);
-                }
-                return true;
-            }
-            return false;
-        }
-    }
-    
-    /**
-     * Restores a soft-deleted chat by clearing the deleted_at timestamp.
-     * Files are restored from trash back to active directories.
-     * 
-     * @param chatId the chat ID to restore
-     * @return true if chat was restored
-     * @throws SQLException if database operation fails
-     */
-    public boolean restoreChat(String chatId) throws SQLException {
-        String sql = "UPDATE chats SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, chatId);
-            int updatedRows = stmt.executeUpdate();
-            
-            if (updatedRows > 0) {
-                // Restore files from trash
-                restoreFilesFromTrash(chatId);
-                
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Restored chat: {} (files restored from trash)", chatId);
-                }
-                return true;
-            }
-            return false;
-        }
-    }
-    
-    /**
-     * Moves all images and thumbnails for a chat to the trash directory.
-     */
-    private void moveFilesToTrash(String chatId) {
-        try {
-            chatFiles.moveToTrash(chatId, findAllGeneratedImagesForChat(chatId));
-        } catch (Exception e) {
-            logger.error("Error moving files to trash for chat: {}", chatId, e);
-        }
-    }
-
-    /**
-     * Restores all images and thumbnails for a chat from the trash directory.
-     * Only restores images that are not individually deleted.
-     */
-    private void restoreFilesFromTrash(String chatId) {
-        try {
-            chatFiles.restoreFromTrash(chatId, findAllNonDeletedImagesForChat(chatId));
-        } catch (Exception e) {
-            logger.error("Error restoring files from trash for chat: {}", chatId, e);
-        }
-    }
-
-    /**
-     * Permanently deletes a chat and all its associated data.
-     * This is called when the chat expires from trash after 60 days.
-     * 
-     * @param chatId the chat ID to delete
-     * @return true if chat was deleted
-     * @throws SQLException if database operation fails
-     */
-    public boolean deleteChatPermanently(String chatId) throws SQLException {
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("Starting permanent deletion of chat: {}", chatId);
-        }
-
-        boolean filesDeletionSuccessful = true;
-
-        // First, get all generated images for this chat to delete their files
-        try {
-            filesDeletionSuccessful = chatFiles.deletePermanently(chatId, findAllGeneratedImagesForChat(chatId));
-        } catch (Exception e) {
-            logger.error("Error deleting files for chat: {}", chatId, e);
-            filesDeletionSuccessful = false;
-        }
-
-        // Delete from database (this will cascade to entries and images due to foreign
-        // keys)
-        String sql = "DELETE FROM chats WHERE id = ?";
-        boolean databaseDeletionSuccessful = false;
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, chatId);
-            int deletedRows = stmt.executeUpdate();
-
-            if (deletedRows > 0) {
-                if (config != null && config.getLoggingEnabled()) {
-                    logger.info("Permanently deleted chat from database: {}", chatId);
-                }
-                databaseDeletionSuccessful = true;
-                
-                // Log warning if some files couldn't be deleted but database deletion succeeded
-                if (!filesDeletionSuccessful) {
-                    logger.warn("Chat {} successfully deleted from database, but some image files could not be removed from disk", chatId);
-                }
-            } else {
-                logger.warn("No chat found to delete with ID: {}", chatId);
-            }
-        }
-
-        // Return success based on database deletion - files are secondary
-        return databaseDeletionSuccessful;
-    }
-
-    /**
-     * Finds all generated images for a specific chat (across all entries).
-     * 
-     * @param chatId the chat ID
-     * @return list of all generated images for the chat
-     * @throws SQLException if query fails
-     */
-    private List<GeneratedImage> findAllGeneratedImagesForChat(String chatId) throws SQLException {
-        String sql = """
-                SELECT gi.* FROM generated_images gi
-                JOIN chat_entries ce ON gi.chat_entry_id = ce.id
-                WHERE ce.chat_id = ?
-                ORDER BY gi.created_at
-                """;
-
-        List<GeneratedImage> images = new ArrayList<>();
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, chatId);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    images.add(mapRowToGeneratedImage(rs));
-                }
-            }
-        }
-
-        return images;
-    }
-    
-    /**
-     * Finds only non-deleted generated images for a specific chat.
-     * 
-     * @param chatId the chat ID
-     * @return list of non-deleted generated images for the chat
-     * @throws SQLException if query fails
-     */
-    private List<GeneratedImage> findAllNonDeletedImagesForChat(String chatId) throws SQLException {
-        String sql = """
-                SELECT gi.* FROM generated_images gi
-                JOIN chat_entries ce ON gi.chat_entry_id = ce.id
-                WHERE ce.chat_id = ? AND gi.deleted_at IS NULL
-                ORDER BY gi.created_at
-                """;
-
-        List<GeneratedImage> images = new ArrayList<>();
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, chatId);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    images.add(mapRowToGeneratedImage(rs));
-                }
-            }
-        }
-
-        return images;
     }
 
     // ========== Chat Entry Operations ==========
 
     /**
-     * Saves a chat entry to the database.
-     * 
+     * Saves a chat entry to the database: inserts a new one, updates a stored one that is not in the trash. An entry
+     * in the trash is left alone, as its cost is booked there. A generation stores the changes of its entry with
+     * {@link #updateChatEntry} instead, which never inserts, so an entry removed for good does not come back.
+     *
      * @param entry the chat entry to save
      * @throws SQLException if database operation fails
      */
     public void saveChatEntry(ChatEntry entry) throws SQLException {
-        if (findChatEntryById(entry.getId()).isPresent()) {
-            updateChatEntry(entry);
-        } else {
-            insertChatEntry(entry);
-        }
+        databaseManager.inTransaction((Connection conn) -> {
+            if (!exists(conn, "chat_entries", entry.getId()))
+                insertChatEntry(conn, entry);
+            else if (updateChatEntry(conn, entry, false) == 0)
+                logger.debug("Entry {} not saved: it is in the trash", entry.getId());
+            return null;
+        });
+    }
+
+    /**
+     * Stores the changes a generation made to its entry while the entry and its chat are in use. An entry in the
+     * trash, on its own or with its chat, keeps what it went there with: the trash booked its cost, which changes
+     * only through the trash. An entry that is not stored, e.g. removed from the trash for good meanwhile, is not
+     * inserted again.
+     *
+     * @param entry the entry
+     * @return true if it was updated, false if it is in the trash or not stored
+     * @throws SQLException if database operation fails
+     */
+    public boolean updateChatEntry(ChatEntry entry) throws SQLException {
+        return databaseManager.inTransaction((Connection conn) -> updateChatEntry(conn, entry, true) > 0);
     }
 
     /**
      * Inserts a new chat entry into the database.
-     * 
+     *
+     * @param conn  the connection of the transaction
      * @param entry the chat entry to insert
      * @throws SQLException if insert fails
      */
-    private void insertChatEntry(ChatEntry entry) throws SQLException {
+    private static void insertChatEntry(Connection conn, ChatEntry entry) throws SQLException {
         String sql = """
                 INSERT INTO chat_entries (
                     id, chat_id, user_prompt, enhanced_prompt, status, error_message,
@@ -463,8 +282,7 @@ public class ChatRepository {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, entry.getId());
             stmt.setString(2, entry.getChatId());
@@ -495,23 +313,25 @@ public class ChatRepository {
     }
 
     /**
-     * Updates an existing chat entry in the database.
-     * 
-     * @param entry the chat entry to update
+     * Updates a stored chat entry that is not in the trash, and, if asked, whose chat is not in the trash either.
+     *
+     * @param conn      the connection of the transaction
+     * @param entry     the chat entry to update
+     * @param chatInUse whether its chat must be in use as well
+     * @return the number of rows updated, 0 if it is in the trash or not stored
      * @throws SQLException if update fails
      */
-    private void updateChatEntry(ChatEntry entry) throws SQLException {
+    private static int updateChatEntry(Connection conn, ChatEntry entry, boolean chatInUse) throws SQLException {
         String sql = """
                 UPDATE chat_entries SET
                     user_prompt = ?, enhanced_prompt = ?, status = ?, error_message = ?,
                     completed_at = ?, sort_order = ?, model = ?, size = ?, format = ?, style = ?,
                     prompt_upsampling = ?, steps = ?, guidance = ?, seed = ?, cost = ?, mood_json = ?, mood_id = ?,
                     frame_json = ?, frame_id = ?
-                WHERE id = ?
-                """;
+                WHERE id = ? AND deleted_at IS NULL
+                """ + (chatInUse ? " AND chat_id IN (SELECT id FROM chats WHERE deleted_at IS NULL)" : "");
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, entry.getUserPrompt());
             stmt.setString(2, entry.getEnhancedPrompt());
@@ -534,49 +354,35 @@ public class ChatRepository {
             stmt.setString(19, entry.getFrame() != null ? entry.getFrame().frameId() : null);
             stmt.setString(20, entry.getId());
 
-            stmt.executeUpdate();
+            return stmt.executeUpdate();
         }
     }
 
     /**
-     * Finds a chat entry by ID.
-     * 
+     * Finds a chat entry by ID, also one in the trash or of a chat in the trash.
+     *
      * @param entryId the entry ID
-     * @return optional containing the entry if found
+     * @return optional containing the entry if it is stored, in use or in the trash
      * @throws SQLException if query fails
      */
     public Optional<ChatEntry> findChatEntryById(String entryId) throws SQLException {
-        String sql = "SELECT * FROM chat_entries WHERE id = ?";
+        try (Connection conn = databaseManager.getConnection()) {
+            return findChatEntryById(conn, entryId);
+        }
+    }
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+    static Optional<ChatEntry> findChatEntryById(Connection conn, String entryId) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT * FROM chat_entries WHERE id = ?")) {
             stmt.setString(1, entryId);
-
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(mapRowToChatEntry(rs));
-                }
+                return rs.next() ? Optional.of(mapRowToChatEntry(rs)) : Optional.empty();
             }
         }
-
-        return Optional.empty();
     }
 
     /**
-     * Finds all chat entries for a specific chat.
-     * 
-     * @param chatId the chat ID
-     * @return list of chat entries
-     * @throws SQLException if query fails
-     */
-    public List<ChatEntry> findChatEntriesByChat(String chatId) throws SQLException {
-        return findChatEntriesByChatId(chatId);
-    }
-    
-    /**
-     * Finds all chat entries for a specific chat (alternative method name).
-     * 
+     * Finds the chat entries of a chat that are not in the trash on their own.
+     *
      * @param chatId the chat ID
      * @return list of chat entries
      * @throws SQLException if query fails
@@ -601,261 +407,87 @@ public class ChatRepository {
         return entries;
     }
 
-    // ========== Mood Group Operations ==========
-
-    /**
-     * Groups the entries of the active chats by the mood stored at them: one group per mood with at least one image,
-     * the latest use first, followed by the combinations of their own and the entries without blocks, which are always
-     * listed. Only images that were generated and downloaded count; chats, entries and images in the trash do not.
-     *
-     * @return the groups
-     * @throws SQLException if query fails
-     */
-    public List<MoodGroup> findMoodGroups() throws SQLException {
-        String sql = """
-                SELECT ce.mood_id, ce.mood_json, ce.created_at, m.name AS mood_name,
-                       m.id IS NULL OR m.deleted_at IS NOT NULL AS mood_deleted,
-                       (SELECT COUNT(*) FROM generated_images gi
-                        WHERE gi.chat_entry_id = ce.id AND gi.deleted_at IS NULL
-                        AND gi.download_status = 'CACHED') AS image_count
-                FROM chat_entries ce
-                JOIN chats c ON c.id = ce.chat_id
-                LEFT JOIN moods m ON m.id = ce.mood_id
-                WHERE ce.deleted_at IS NULL AND c.deleted_at IS NULL
-                ORDER BY ce.created_at DESC
-                """;
-
-        /*  The entries come latest first: the first one of a group names it and gives its palette  */
-        Map<String, MoodGroup> groups = new LinkedHashMap<>();
-        Map<String, Integer> imageCounts = new HashMap<>();
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql);
-                ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                String moodId = rs.getString("mood_id");
-                String json = rs.getString("mood_json");
-                MoodGroup.Kind kind = moodId != null ? MoodGroup.Kind.MOOD
-                        : json != null ? MoodGroup.Kind.CUSTOM : MoodGroup.Kind.NONE;
-                String key = kind + ":" + moodId;
-                imageCounts.merge(key, rs.getInt("image_count"), Integer::sum);
-                if (groups.containsKey(key))
-                    continue;
-
-                /*  A standard mood is never stored, so only a mood of the user can be deleted  */
-                EntryMood mood = EntryMood.fromJson(json);
-                EntryMood.Block palette = mood != null ? mood.blocks().get(Mood.Field.COLOR) : null;
-                boolean deleted = kind == MoodGroup.Kind.MOOD && !moodId.startsWith(PromptBlock.STANDARD_PREFIX)
-                        && rs.getBoolean("mood_deleted");
-                String current = rs.getString("mood_name");
-                String name = kind != MoodGroup.Kind.MOOD ? null
-                        : !deleted && current != null ? current : mood != null ? mood.moodName() : null;
-                groups.put(key, new MoodGroup(kind, moodId, name, deleted,
-                        kind == MoodGroup.Kind.MOOD && palette != null ? palette.colors() : List.of(), 0,
-                        rs.getTimestamp("created_at").toLocalDateTime()));
-            }
-        }
-
-        /*  A mood is listed once an image of it exists, the two fixed groups always  */
-        List<MoodGroup> result = new ArrayList<>();
-        for (MoodGroup.Kind kind : MoodGroup.Kind.values()) {
-            groups.forEach((String key, MoodGroup group) -> {
-                int count = imageCounts.get(key);
-                if (group.kind() == kind && (kind != MoodGroup.Kind.MOOD || count > 0))
-                    result.add(new MoodGroup(kind, group.moodId(), group.name(), group.deleted(), group.colors(),
-                            count, group.lastUsed()));
-            });
-            if (kind != MoodGroup.Kind.MOOD && !groups.containsKey(kind + ":null"))
-                result.add(new MoodGroup(kind, null, null, false, List.of(), 0, null));
-        }
-        return result;
-    }
-
-    /**
-     * Lists the entries of a group (see {@link #findMoodGroups()}) in the active chats, in the order of their creation.
-     * Entries in the trash do not count.
-     *
-     * @param group the group
-     * @return the ids of the entries
-     * @throws SQLException if query fails
-     */
-    public List<String> findChatEntryIdsByMood(MoodGroup group) throws SQLException {
-        return findChatEntryIds(switch (group.kind()) {
-            case MOOD -> "ce.mood_id = ?";
-            case CUSTOM -> "ce.mood_id IS NULL AND ce.mood_json IS NOT NULL";
-            case NONE -> "ce.mood_json IS NULL";
-        }, group.moodId());
-    }
-
-    // ========== Frame Group Operations ==========
-
-    /**
-     * Groups the entries of the active chats by the frame stored at them: one group per frame with at least one image,
-     * the latest use first, followed by the settings of their own and the entries without copy, which are always
-     * listed. Only images that were generated and downloaded count; chats, entries and images in the trash do not.
-     *
-     * @return the groups
-     * @throws SQLException if query fails
-     */
-    public List<FrameGroup> findFrameGroups() throws SQLException {
-        String sql = """
-                SELECT ce.frame_id, ce.frame_json, ce.created_at, f.name AS frame_name,
-                       f.id IS NULL OR f.deleted_at IS NOT NULL AS frame_deleted,
-                       (SELECT COUNT(*) FROM generated_images gi
-                        WHERE gi.chat_entry_id = ce.id AND gi.deleted_at IS NULL
-                        AND gi.download_status = 'CACHED') AS image_count
-                FROM chat_entries ce
-                JOIN chats c ON c.id = ce.chat_id
-                LEFT JOIN frames f ON f.id = ce.frame_id
-                WHERE ce.deleted_at IS NULL AND c.deleted_at IS NULL
-                ORDER BY ce.created_at DESC
-                """;
-
-        /*  The entries come latest first: the first one of a group names it and gives its target  */
-        Map<String, FrameGroup> groups = new LinkedHashMap<>();
-        Map<String, Integer> imageCounts = new HashMap<>();
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql);
-                ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                String frameId = rs.getString("frame_id");
-                String json = rs.getString("frame_json");
-                FrameGroup.Kind kind = frameId != null ? FrameGroup.Kind.FRAME
-                        : json != null ? FrameGroup.Kind.CUSTOM : FrameGroup.Kind.NONE;
-                String key = kind + ":" + frameId;
-                imageCounts.merge(key, rs.getInt("image_count"), Integer::sum);
-                if (groups.containsKey(key))
-                    continue;
-
-                /*  A standard frame is never stored, so only a frame of the user can be deleted  */
-                EntryFrame frame = kind == FrameGroup.Kind.FRAME ? EntryFrame.fromJson(json) : null;
-                boolean deleted = kind == FrameGroup.Kind.FRAME && !frameId.startsWith(PromptBlock.STANDARD_PREFIX)
-                        && rs.getBoolean("frame_deleted");
-                String current = rs.getString("frame_name");
-                String name = kind != FrameGroup.Kind.FRAME ? null
-                        : !deleted && current != null ? current : frame != null ? frame.frameName() : null;
-                groups.put(key, new FrameGroup(kind, frameId, name, deleted, frame != null ? frame.aspectRatio() : null,
-                        frame != null ? frame.resolution() : null, 0, rs.getTimestamp("created_at").toLocalDateTime()));
-            }
-        }
-
-        /*  A frame is listed once an image of it exists, the two fixed groups always  */
-        List<FrameGroup> result = new ArrayList<>();
-        for (FrameGroup.Kind kind : FrameGroup.Kind.values()) {
-            groups.forEach((String key, FrameGroup group) -> {
-                int count = imageCounts.get(key);
-                if (group.kind() == kind && (kind != FrameGroup.Kind.FRAME || count > 0))
-                    result.add(new FrameGroup(kind, group.frameId(), group.name(), group.deleted(),
-                            group.aspectRatio(), group.resolution(), count, group.lastUsed()));
-            });
-            if (kind != FrameGroup.Kind.FRAME && !groups.containsKey(kind + ":null"))
-                result.add(new FrameGroup(kind, null, null, false, null, null, 0, null));
-        }
-        return result;
-    }
-
-    /**
-     * Lists the entries of a group (see {@link #findFrameGroups()}) in the active chats, in the order of their
-     * creation. Entries in the trash do not count.
-     *
-     * @param group the group
-     * @return the ids of the entries
-     * @throws SQLException if query fails
-     */
-    public List<String> findChatEntryIdsByFrame(FrameGroup group) throws SQLException {
-        return findChatEntryIds(switch (group.kind()) {
-            case FRAME -> "ce.frame_id = ?";
-            case CUSTOM -> "ce.frame_id IS NULL AND ce.frame_json IS NOT NULL";
-            case NONE -> "ce.frame_json IS NULL";
-        }, group.frameId());
-    }
-
-    /**
-     * Lists the entries of the active chats that meet a condition, in the order of their creation.
-     *
-     * @param condition the condition on {@code ce}, the entries, with at most one parameter
-     * @param id the value of the parameter, null for a condition without one
-     * @return the ids of the entries
-     * @throws SQLException if query fails
-     */
-    private List<String> findChatEntryIds(String condition, String id) throws SQLException {
-        String sql = "SELECT ce.id FROM chat_entries ce JOIN chats c ON c.id = ce.chat_id "
-                + "WHERE ce.deleted_at IS NULL AND c.deleted_at IS NULL AND " + condition + " ORDER BY ce.created_at";
-
-        List<String> ids = new ArrayList<>();
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            if (id != null)
-                stmt.setString(1, id);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next())
-                    ids.add(rs.getString("id"));
-            }
-        }
-
-        return ids;
-    }
-
     // ========== Generated Image Operations ==========
 
-    /**
-     * Checks if a chat entry exists and is not deleted.
-     * 
-     * @param entryId the entry ID to check
-     * @return true if exists and not deleted
-     * @throws SQLException if query fails
-     */
-    private boolean chatEntryExistsAndActive(String entryId) throws SQLException {
-        if (entryId == null) {
-            return false;
-        }
-        
-        String sql = "SELECT id FROM chat_entries WHERE id = ? AND deleted_at IS NULL";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+    /*  Where the entry of an image is: in use, in the trash (on its own or, if asked, with its chat) or not stored  */
+    enum EntryPlace {
+        IN_USE, IN_TRASH, NOT_STORED
+    }
+
+    /*  where the entry of an image is; the chat counts only if asked  */
+    static EntryPlace entryPlace(Connection conn, String entryId, boolean withChat) throws SQLException {
+        if (entryId == null)
+            return EntryPlace.NOT_STORED;
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT e.deleted_at IS NULL AND c.deleted_at IS NULL, "
+                + "e.deleted_at IS NULL FROM chat_entries e JOIN chats c ON c.id = e.chat_id WHERE e.id = ?")) {
             stmt.setString(1, entryId);
-            ResultSet rs = stmt.executeQuery();
-            return rs.next();
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next())
+                    return EntryPlace.NOT_STORED;
+                return rs.getBoolean(withChat ? 1 : 2) ? EntryPlace.IN_USE : EntryPlace.IN_TRASH;
+            }
         }
     }
 
     /**
-     * Saves a generated image to the database.
-     * 
+     * Saves an image of a generation to the database (insert or update) while its entry and chat are in use. An image
+     * whose entry or chat is in the trash, or which went there on its own, is not saved, on purpose and without an
+     * error: a generation that finishes after its entry, chat or image went to the trash leaves no image behind, and
+     * a chat restored later shows the entry without it. Its file, written into the folder of the images in use, is no
+     * business of this class: the trash removes it ({@link ChatTrashRepository#dropLateImage}).
+     *
+     * @param image the image to save
+     * @return true if it is saved, false if it, its entry or its chat is in the trash
+     * @throws SQLException if database operation fails, or the entry of the image is not stored (its insert failed,
+     *                      or it was removed from the trash for good meanwhile); nothing is saved then
+     */
+    public boolean saveGeneratedImage(GeneratedImage image) throws SQLException {
+        EntryPlace place = save(image, true);
+        if (place == EntryPlace.NOT_STORED)
+            throw new SQLException("The image " + image.getId() + " cannot be saved: its entry "
+                    + image.getChatEntryId() + " is not stored");
+        if (place == EntryPlace.IN_TRASH)
+            logger.debug("Image {} not saved: it, its entry {} or chat is in the trash", image.getId(),
+                    image.getChatEntryId());
+        return place == EntryPlace.IN_USE;
+    }
+
+    /**
+     * Stores the state of an image the load corrected, also of a chat in the trash, whose images stay where the trash
+     * put them. An image whose entry is deleted or not stored is skipped without an error.
+     *
      * @param image the image to save
      * @throws SQLException if database operation fails
      */
-    public void saveGeneratedImage(GeneratedImage image) throws SQLException {
-        // First check if the chat entry exists and is not deleted
-        if (!chatEntryExistsAndActive(image.getChatEntryId())) {
-            logger.warn("Cannot save image {} - chat entry {} is deleted or does not exist", 
-                image.getId(), image.getChatEntryId());
-            return;
-        }
-        
-        if (findGeneratedImageById(image.getId()).isPresent()) {
-            updateGeneratedImage(image);
-        } else {
-            insertGeneratedImage(image);
-        }
+    public void saveRepairedImage(GeneratedImage image) throws SQLException {
+        if (save(image, false) != EntryPlace.IN_USE)
+            logger.debug("Image {} not saved: its entry {} is deleted or not stored", image.getId(),
+                    image.getChatEntryId());
+    }
+
+    /*  inserts or updates an image whose entry (and, if asked, chat) is in use; tells where the entry is, an image in
+        the trash itself counting as in the trash  */
+    private EntryPlace save(GeneratedImage image, boolean withChat) throws SQLException {
+        return databaseManager.inTransaction((Connection conn) -> {
+            EntryPlace place = entryPlace(conn, image.getChatEntryId(), withChat);
+            if (place != EntryPlace.IN_USE)
+                return place;
+            if (!exists(conn, "generated_images", image.getId()))
+                insertGeneratedImage(conn, image);
+            else if (updateGeneratedImage(conn, image) == 0)
+                return EntryPlace.IN_TRASH;
+            return place;
+        });
     }
 
     /**
-     * Inserts a new generated image into the database.
-     * 
+     * Inserts a new generated image into the database; its entry is stored (see {@link #saveGeneratedImage}).
+     *
+     * @param conn  the connection of the transaction
      * @param image the image to insert
      * @throws SQLException if insert fails
      */
-    private void insertGeneratedImage(GeneratedImage image) throws SQLException {
-        // Try without the extra columns that might be causing issues
+    private static void insertGeneratedImage(Connection conn, GeneratedImage image) throws SQLException {
         String sql = """
                 INSERT INTO generated_images (
                     id, chat_entry_id, image_url, local_file_path, file_name,
@@ -868,17 +500,7 @@ public class ChatRepository {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        Connection conn = null;
-        PreparedStatement stmt = null;
-        try {
-            conn = databaseManager.getConnection();
-            
-            // Temporarily disable foreign keys for this connection
-            try (Statement s = conn.createStatement()) {
-                s.execute("PRAGMA foreign_keys = OFF");
-            }
-            
-            stmt = conn.prepareStatement(sql);
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, image.getId());
             stmt.setString(2, image.getChatEntryId());
@@ -917,24 +539,18 @@ public class ChatRepository {
             stmt.setInt(31, image.getHeight());
 
             stmt.executeUpdate();
-            
-            // Re-enable foreign keys
-            try (Statement s = conn.createStatement()) {
-                s.execute("PRAGMA foreign_keys = ON");
-            }
-        } finally {
-            if (stmt != null) stmt.close();
-            if (conn != null) conn.close();
         }
     }
 
     /**
-     * Updates an existing generated image in the database.
-     * 
+     * Updates an existing generated image in the database, unless it is in the trash.
+     *
+     * @param conn  the connection of the transaction
      * @param image the image to update
+     * @return the number of rows updated, 0 for an image in the trash
      * @throws SQLException if update fails
      */
-    private void updateGeneratedImage(GeneratedImage image) throws SQLException {
+    private static int updateGeneratedImage(Connection conn, GeneratedImage image) throws SQLException {
         String sql = """
                 UPDATE generated_images SET
                     image_url = ?, local_file_path = ?, file_name = ?, download_status = ?,
@@ -945,11 +561,10 @@ public class ChatRepository {
                     style_preset = ?, safety_tolerance = ?, output_format = ?, width = ?, height = ?,
                     base_cost = ?, search_cost = ?, reasoning_cost = ?, thinking_tokens = ?, thought_summary = ?,
                     is_video = ?, video_duration_seconds = ?, video_resolution = ?, has_audio = ?
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
                 """;
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, image.getImageUrl());
             stmt.setString(2, image.getLocalFilePath());
@@ -992,7 +607,7 @@ public class ChatRepository {
             stmt.setBoolean(35, image.hasAudio());
             stmt.setString(36, image.getId());
 
-            stmt.executeUpdate();
+            return stmt.executeUpdate();
         }
     }
 
@@ -1019,19 +634,25 @@ public class ChatRepository {
 
 
     /**
-     * Finds all generated images for a specific chat entry.
-     * 
+     * Finds the generated images of a chat entry that are not in the trash on their own.
+     *
      * @param chatEntryId the chat entry ID
      * @return list of generated images
      * @throws SQLException if query fails
      */
     public List<GeneratedImage> findGeneratedImagesByEntry(String chatEntryId) throws SQLException {
+        try (Connection conn = databaseManager.getConnection()) {
+            return findGeneratedImagesByEntry(conn, chatEntryId);
+        }
+    }
+
+    static List<GeneratedImage> findGeneratedImagesByEntry(Connection conn, String chatEntryId)
+            throws SQLException {
         String sql = "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NULL ORDER BY sort_order, created_at";
 
         List<GeneratedImage> images = new ArrayList<>();
 
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, chatEntryId);
 
@@ -1046,7 +667,7 @@ public class ChatRepository {
     }
 
     /**
-     * Finds all generated images for multiple chat entries in a single query.
+     * Finds the generated images of several chat entries that are not in the trash, in a single query.
      * This solves the N+1 problem by loading all images at once instead of
      * one query per entry.
      *
@@ -1087,6 +708,29 @@ public class ChatRepository {
         return result;
     }
 
+    /**
+     * Finds a generated image by ID, also one in the trash or of an entry or chat in the trash.
+     *
+     * @param imageId the image ID
+     * @return optional containing the image if it is stored, in use or in the trash
+     * @throws SQLException if query fails
+     */
+    public Optional<GeneratedImage> findGeneratedImageById(String imageId) throws SQLException {
+        try (Connection conn = databaseManager.getConnection()) {
+            return findGeneratedImageById(conn, imageId);
+        }
+    }
+
+    static Optional<GeneratedImage> findGeneratedImageById(Connection conn, String imageId)
+            throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement("SELECT * FROM generated_images WHERE id = ?")) {
+            stmt.setString(1, imageId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? Optional.of(mapRowToGeneratedImage(rs)) : Optional.empty();
+            }
+        }
+    }
+
     // ========== Helper Methods ==========
 
     /**
@@ -1096,7 +740,7 @@ public class ChatRepository {
      * @return the mapped chat
      * @throws SQLException if mapping fails
      */
-    private Chat mapRowToChat(ResultSet rs) throws SQLException {
+    static Chat mapRowToChat(ResultSet rs) throws SQLException {
         Chat.Builder builder = new Chat.Builder()
                 .id(rs.getString("id"))
                 .name(rs.getString("name"))
@@ -1111,12 +755,12 @@ public class ChatRepository {
 
     /**
      * Maps a database row to a ChatEntry object.
-     * 
+     *
      * @param rs the result set
      * @return the mapped chat entry
      * @throws SQLException if mapping fails
      */
-    private ChatEntry mapRowToChatEntry(ResultSet rs) throws SQLException {
+    static ChatEntry mapRowToChatEntry(ResultSet rs) throws SQLException {
         ChatEntry.Builder builder = new ChatEntry.Builder()
                 .id(rs.getString("id"))
                 .chatId(rs.getString("chat_id"))
@@ -1149,41 +793,55 @@ public class ChatRepository {
     }
 
     /**
-     * Reads the deleted_at column of a chat, an entry or an image, as ISO-8601 text or as an SQL timestamp.
+     * Reads the deleted_at column of a chat, an entry or an image (see {@link #parseDeletedAt}).
      *
      * @param rs the result set
      * @return when the row went to the trash, null as long as it is in use
+     * @throws SQLException if the column cannot be read
      */
-    private LocalDateTime readDeletedAt(ResultSet rs) {
+    private static LocalDateTime readDeletedAt(ResultSet rs) throws SQLException {
+        return parseDeletedAt(rs.getObject("deleted_at"));
+    }
+
+    /**
+     * Turns a stored deleted_at into the local time. It is written as epoch milliseconds (see package-info); rows put
+     * in the trash before 2.1.3 hold text: a chat the local time as ISO-8601 ({@code 2026-11-18T16:36:13.512}), an
+     * entry or an image the UTC time of SQLite's {@code CURRENT_TIMESTAMP} ({@code 2026-11-18 15:36:13}).
+     *
+     * A value that cannot be read still marks a row in the trash: it is logged and taken as deleted now, so the row
+     * neither comes back into use nor runs out of the trash before the user decides.
+     *
+     * @param value the value of the column
+     * @return the local time, null for none
+     */
+    static LocalDateTime parseDeletedAt(Object value) {
+        if (value == null)
+            return null;
+        if (value instanceof Number millis)
+            return new Timestamp(millis.longValue()).toLocalDateTime();
+
+        String text = value.toString().trim();
         try {
-            String deletedAtStr = rs.getString("deleted_at");
-            if (deletedAtStr != null && !rs.wasNull()) {
-                // Parse ISO-8601 format directly
-                return LocalDateTime.parse(deletedAtStr.replace(" ", "T"));
-            }
-        } catch (Exception e) {
-            // Fallback to timestamp parsing if string parsing fails
-            try {
-                Timestamp deletedAt = rs.getTimestamp("deleted_at");
-                if (deletedAt != null) {
-                    return deletedAt.toLocalDateTime();
-                }
-            } catch (Exception ex) {
-                // Log but don't fail - deleted_at is optional
-                logger.debug("Could not parse deleted_at timestamp", ex);
-            }
+            if (!text.isEmpty() && text.chars().allMatch(Character::isDigit))
+                return new Timestamp(Long.parseLong(text)).toLocalDateTime();
+            if (text.indexOf('T') >= 0)
+                return LocalDateTime.parse(text);
+            return LocalDateTime.parse(text.replace(' ', 'T')).atOffset(ZoneOffset.UTC)
+                    .atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+        } catch (RuntimeException e) {
+            logger.warn("deleted_at '{}' cannot be read, taken as deleted now", text);
+            return LocalDateTime.now();
         }
-        return null;
     }
 
     /**
      * Maps a database row to a GeneratedImage object.
-     * 
+     *
      * @param rs the result set
      * @return the mapped generated image
      * @throws SQLException if mapping fails
      */
-    private GeneratedImage mapRowToGeneratedImage(ResultSet rs) throws SQLException {
+    static GeneratedImage mapRowToGeneratedImage(ResultSet rs) throws SQLException {
         GeneratedImage.Builder builder = new GeneratedImage.Builder()
                 .id(rs.getString("id"))
                 .chatEntryId(rs.getString("chat_entry_id"))
@@ -1221,60 +879,17 @@ public class ChatRepository {
             if (outputFormat != null) builder.format(outputFormat);
         }
 
-        // Gemini Phase 2 cost tracking - safe column access with fallback
-        try {
-            builder.baseCost(rs.getDouble("base_cost"));
-        } catch (SQLException e) {
-            // Column doesn't exist yet, use default
-            builder.baseCost(0.0);
-        }
-
-        try {
-            builder.searchCost(rs.getDouble("search_cost"));
-        } catch (SQLException e) {
-            // Column doesn't exist yet, use default
-            builder.searchCost(0.0);
-        }
-
-        try {
-            builder.reasoningCost(rs.getDouble("reasoning_cost"));
-        } catch (SQLException e) {
-            builder.reasoningCost(0.0);
-        }
-
-        try {
-            builder.thinkingTokens((Integer) rs.getObject("thinking_tokens"));
-        } catch (SQLException e) {
-            builder.thinkingTokens(null);
-        }
-
-        try {
-            builder.thoughtSummary(rs.getString("thought_summary"));
-        } catch (SQLException e) {
-            builder.thoughtSummary(null);
-        }
-
-        // video fields
-        try {
-            builder.isVideo(rs.getBoolean("is_video"));
-        } catch (SQLException e) {
-            builder.isVideo(false);
-        }
-        try {
-            builder.videoDurationSeconds(rs.getInt("video_duration_seconds"));
-        } catch (SQLException e) {
-            builder.videoDurationSeconds(0);
-        }
-        try {
-            builder.videoResolution(rs.getString("video_resolution"));
-        } catch (SQLException e) {
-            builder.videoResolution(null);
-        }
-        try {
-            builder.hasAudio(rs.getBoolean("has_audio"));
-        } catch (SQLException e) {
-            builder.hasAudio(false);
-        }
+        /*  the cost columns come from V007, the video columns from V011  */
+        builder.baseCost(rs.getDouble("base_cost"))
+                .searchCost(rs.getDouble("search_cost"))
+                .reasoningCost(rs.getDouble("reasoning_cost"));
+        int thinkingTokens = rs.getInt("thinking_tokens");
+        builder.thinkingTokens(rs.wasNull() ? null : thinkingTokens)
+                .thoughtSummary(rs.getString("thought_summary"))
+                .isVideo(rs.getBoolean("is_video"))
+                .videoDurationSeconds(rs.getInt("video_duration_seconds"))
+                .videoResolution(rs.getString("video_resolution"))
+                .hasAudio(rs.getBoolean("has_audio"));
 
         Timestamp downloadedAt = rs.getTimestamp("downloaded_at");
         if (downloadedAt != null) {
@@ -1283,554 +898,5 @@ public class ChatRepository {
         builder.deletedAt(readDeletedAt(rs));
 
         return builder.build();
-    }
-    
-    // ============= SOFT DELETE METHODS =============
-    
-    /**
-     * Soft deletes a single image and moves it to trash.
-     * Updates the entry's deleted_cost.
-     * 
-     * @param imageId the image ID to delete
-     * @return true if successfully deleted
-     */
-    public boolean softDeleteImage(String imageId) throws SQLException {
-        logger.info("Soft deleting image: {}", imageId);
-        
-        // Get the image details first
-        GeneratedImage image = findGeneratedImageByIdInternal(imageId);
-        if (image == null) {
-            logger.warn("Image not found for soft delete: {}", imageId);
-            return false;
-        }
-        
-        // Calculate the cost of this image
-        double imageCost = calculateImageCost(image);
-        
-        // Start transaction
-        Connection conn = databaseManager.getConnection();
-        try {
-            conn.setAutoCommit(false);
-            
-            // 1. Mark image as deleted
-            String sqlImage = """
-                UPDATE generated_images 
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    deleted_cost = ?,
-                    is_in_trash = TRUE
-                WHERE id = ?
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlImage)) {
-                stmt.setDouble(1, imageCost);
-                stmt.setString(2, imageId);
-                stmt.executeUpdate();
-            }
-            
-            // 2. Update entry's deleted_cost
-            String sqlEntry = """
-                UPDATE chat_entries 
-                SET deleted_cost = deleted_cost + ?
-                WHERE id = ?
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlEntry)) {
-                stmt.setDouble(1, imageCost);
-                stmt.setString(2, image.getChatEntryId());
-                stmt.executeUpdate();
-            }
-            
-            // 3. Check if all images in entry are deleted
-            String sqlCheck = """
-                SELECT COUNT(*) as active_count
-                FROM generated_images
-                WHERE chat_entry_id = ? AND deleted_at IS NULL
-                """;
-            
-            int activeCount = 0;
-            try (PreparedStatement stmt = conn.prepareStatement(sqlCheck)) {
-                stmt.setString(1, image.getChatEntryId());
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    activeCount = rs.getInt("active_count");
-                }
-            }
-            
-            // 4. If no active images left, mark entry as deleted
-            if (activeCount == 0) {
-                String sqlDeleteEntry = """
-                    UPDATE chat_entries
-                    SET deleted_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """;
-                
-                try (PreparedStatement stmt = conn.prepareStatement(sqlDeleteEntry)) {
-                    stmt.setString(1, image.getChatEntryId());
-                    stmt.executeUpdate();
-                }
-            }
-            
-            // NOTE: We do NOT update the chat's deleted_cost here!
-            // Chat.deleted_cost only tracks fully deleted entries, not individual deleted images.
-            // Individual deleted images are tracked in chat_entries.deleted_cost
-            
-            conn.commit();
-            logger.info("Successfully soft deleted image: {} (cost: {})", imageId, imageCost);
-            return true;
-            
-        } catch (SQLException e) {
-            conn.rollback();
-            throw e;
-        } finally {
-            conn.setAutoCommit(true);
-            conn.close();
-        }
-    }
-    
-    /**
-     * Soft deletes a chat entry and all its images.
-     * 
-     * @param entryId the entry ID to delete
-     * @return true if successfully deleted
-     */
-    public boolean softDeleteChatEntry(String entryId) throws SQLException {
-        logger.info("Soft deleting chat entry: {}", entryId);
-        
-        Connection conn = databaseManager.getConnection();
-        try {
-            conn.setAutoCommit(false);
-            
-            // Check if entry is already deleted
-            String checkSql = "SELECT deleted_at FROM chat_entries WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(checkSql)) {
-                stmt.setString(1, entryId);
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next() && rs.getTimestamp("deleted_at") != null) {
-                    logger.info("Entry {} is already deleted, skipping", entryId);
-                    conn.rollback();
-                    return false;  // Already deleted
-                }
-            }
-            
-            // 1. Get all images for this entry
-            List<GeneratedImage> images = findGeneratedImagesByEntryId(entryId);
-            double totalCost = 0.0;
-            
-            // 2. Mark all images as deleted
-            String sqlImages = """
-                UPDATE generated_images
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    is_in_trash = TRUE
-                WHERE chat_entry_id = ? AND deleted_at IS NULL
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlImages)) {
-                stmt.setString(1, entryId);
-                stmt.executeUpdate();
-            }
-            
-            // 3. Calculate cost of ACTIVE (non-deleted) images only
-            // Images already marked as deleted should not be counted again
-            for (GeneratedImage image : images) {
-                // Only count images that are not already in trash
-                if (!image.isInTrash()) {
-                    totalCost += calculateImageCost(image);
-                }
-            }
-            
-            // 4. Mark entry as deleted and set deleted_cost to the entry's total cost
-            // Since all images are now deleted, deleted_cost should equal the total cost
-            String sqlEntry = """
-                UPDATE chat_entries
-                SET deleted_at = CURRENT_TIMESTAMP,
-                    deleted_cost = cost
-                WHERE id = ?
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlEntry)) {
-                stmt.setString(1, entryId);
-                stmt.executeUpdate();
-            }
-            
-            // 5. Update chat's deleted_cost
-            String sqlChat = """
-                UPDATE chats
-                SET deleted_cost = deleted_cost + ?
-                WHERE id = (SELECT chat_id FROM chat_entries WHERE id = ?)
-                """;
-            
-            try (PreparedStatement stmt = conn.prepareStatement(sqlChat)) {
-                stmt.setDouble(1, totalCost);
-                stmt.setString(2, entryId);
-                stmt.executeUpdate();
-            }
-            
-            conn.commit();
-            logger.info("Successfully soft deleted entry: {} with {} images (total cost: {})", 
-                entryId, images.size(), totalCost);
-            return true;
-            
-        } catch (SQLException e) {
-            conn.rollback();
-            throw e;
-        } finally {
-            conn.setAutoCommit(true);
-            conn.close();
-        }
-    }
-    
-    /**
-     * Finds generated images by entry ID for soft delete operations.
-     * 
-     * @param entryId the entry ID
-     * @return list of generated images
-     * @throws SQLException if query fails
-     */
-    public List<GeneratedImage> findGeneratedImagesByEntryId(String entryId) throws SQLException {
-        return findGeneratedImagesByEntry(entryId);
-    }
-    
-    /**
-     * Finds a generated image by ID.
-     * 
-     * @param imageId the image ID
-     * @return optional containing the image if found
-     * @throws SQLException if query fails
-     */
-    public Optional<GeneratedImage> findGeneratedImageById(String imageId) throws SQLException {
-        GeneratedImage image = findGeneratedImageByIdInternal(imageId);
-        return image != null ? Optional.of(image) : Optional.empty();
-    }
-    
-    /**
-     * Finds a generated image by ID (internal method).
-     */
-    private GeneratedImage findGeneratedImageByIdInternal(String imageId) throws SQLException {
-        String sql = "SELECT * FROM generated_images WHERE id = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, imageId);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return mapRowToGeneratedImage(rs);
-            }
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Calculates the cost of a single image based on model pricing.
-     */
-    private double calculateImageCost(GeneratedImage image) {
-        String model = image.getModel();
-        if (model == null) {
-            return 0.0;
-        }
-        
-        // Get pricing from model
-        return switch (model.toLowerCase()) {
-            case "flux.1-dev", "flux-dev" -> 0.025;
-            case "flux.1-pro", "flux-pro" -> 0.04;
-            case "flux.1.1-pro" -> 0.04;
-            case "flux.1.1-pro-ultra" -> 0.06;
-            case "flux.1-kontext-pro" -> 0.04;
-            case "flux.1-kontext-max" -> 0.08;
-            default -> 0.025; // Default price
-        };
-    }
-    
-    /**
-     * Marks an image as being in trash (for migration).
-     */
-    public void markImageAsInTrash(String imageId) throws SQLException {
-        String sql = "UPDATE generated_images SET is_in_trash = TRUE WHERE id = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, imageId);
-            stmt.executeUpdate();
-        }
-    }
-    
-    /**
-     * Checks if there are deleted chats with images not in trash.
-     */
-    public boolean hasDeletedChatsNotInTrash() throws SQLException {
-        String sql = """
-            SELECT COUNT(*) as count
-            FROM generated_images gi
-            JOIN chat_entries ce ON gi.chat_entry_id = ce.id
-            JOIN chats c ON ce.chat_id = c.id
-            WHERE c.deleted_at IS NOT NULL
-            AND gi.is_in_trash = FALSE
-            """;
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("count") > 0;
-            }
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Gets the deleted cost for a chat entry.
-     */
-    public double getDeletedCostForEntry(String entryId) throws SQLException {
-        String sql = "SELECT deleted_cost FROM chat_entries WHERE id = ?";
-        
-        try (Connection conn = databaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, entryId);
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getDouble("deleted_cost");
-            }
-        }
-        
-        return 0.0;
-    }
-
-    // ============= IMAGES IN THE TRASH =============
-
-    /**
-     * Finds the entries of the chats in use that have images in the trash: entries deleted as a whole and entries
-     * in use that lost single images. The images of a deleted chat stay with the chat.
-     *
-     * @return the entries, each carrying its deleted images (not the ones in use)
-     * @throws SQLException if query fails
-     */
-    public List<ChatEntry> findEntriesWithDeletedImages() throws SQLException {
-        String sqlEntries = """
-                SELECT ce.* FROM chat_entries ce
-                JOIN chats c ON ce.chat_id = c.id
-                WHERE c.deleted_at IS NULL
-                AND (ce.deleted_at IS NOT NULL OR EXISTS (SELECT 1 FROM generated_images gi
-                    WHERE gi.chat_entry_id = ce.id AND gi.deleted_at IS NOT NULL))
-                ORDER BY ce.sort_order, ce.created_at
-                """;
-        String sqlImages = """
-                SELECT gi.* FROM generated_images gi
-                JOIN chat_entries ce ON gi.chat_entry_id = ce.id
-                JOIN chats c ON ce.chat_id = c.id
-                WHERE c.deleted_at IS NULL AND gi.deleted_at IS NOT NULL
-                ORDER BY gi.sort_order, gi.created_at
-                """;
-
-        Map<String, ChatEntry> entries = new LinkedHashMap<>();
-        try (Connection conn = databaseManager.getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement(sqlEntries);
-                    ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    ChatEntry entry = mapRowToChatEntry(rs);
-                    entries.put(entry.getId(), entry);
-                }
-            }
-
-            /*  An image deleted between both queries has no entry here and waits for the next listing  */
-            try (PreparedStatement stmt = conn.prepareStatement(sqlImages);
-                    ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    GeneratedImage image = mapRowToGeneratedImage(rs);
-                    ChatEntry entry = entries.get(image.getChatEntryId());
-                    if (entry != null)
-                        entry.getImages().add(image);
-                }
-            }
-        }
-        return new ArrayList<>(entries.values());
-    }
-
-    /**
-     * Finds the deleted images of an entry.
-     *
-     * @param entryId the entry
-     * @return the images of the entry in the trash
-     * @throws SQLException if query fails
-     */
-    public List<GeneratedImage> findDeletedImagesByEntry(String entryId) throws SQLException {
-        String sql = "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL "
-                + "ORDER BY sort_order, created_at";
-
-        List<GeneratedImage> images = new ArrayList<>();
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, entryId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next())
-                    images.add(mapRowToGeneratedImage(rs));
-            }
-        }
-        return images;
-    }
-
-    /**
-     * Takes an entry out of the trash with all its deleted images: a deleted entry is back in use, an entry in use
-     * gets back the images it lost. Only the database is touched, the files are up to the caller.
-     *
-     * @param entryId the entry
-     * @return true if the entry or some of its images came back
-     * @throws SQLException if database operation fails
-     */
-    public boolean restoreChatEntry(String entryId) throws SQLException {
-        return restoreImages(entryId, null);
-    }
-
-    /**
-     * Takes a single deleted image out of the trash; a deleted entry comes back with it, its other images stay in
-     * the trash. Only the database is touched, the files are up to the caller.
-     *
-     * @param imageId the image
-     * @return true if the image came back
-     * @throws SQLException if database operation fails
-     */
-    public boolean restoreImage(String imageId) throws SQLException {
-        GeneratedImage image = findGeneratedImageByIdInternal(imageId);
-        return image != null && restoreImages(image.getChatEntryId(), imageId);
-    }
-
-    /**
-     * Restores the deleted images of an entry, all of them or a single one, and the entry with them if it is
-     * deleted. The costs follow the deletion backwards: a deleted entry leaves the deleted cost of its chat, and
-     * the deleted cost of the entry is what its images still in the trash had cost.
-     */
-    private boolean restoreImages(String entryId, String imageId) throws SQLException {
-        ChatEntry entry = findChatEntryById(entryId).orElse(null);
-        if (entry == null)
-            return false;
-        List<GeneratedImage> deleted = findDeletedImagesByEntry(entryId);
-        boolean nothingToRestore = imageId != null
-                ? deleted.stream().noneMatch((image) -> image.getId().equals(imageId))
-                : entry.getDeletedAt() == null && deleted.isEmpty();
-        if (nothingToRestore)
-            return false;
-
-        Connection conn = databaseManager.getConnection();
-        try {
-            conn.setAutoCommit(false);
-
-            /*  The chat counts a deleted entry with the images deleted together with it, those without a cost
-                of their own (see softDeleteChatEntry): the chat drops that share, the images get their cost  */
-            if (entry.getDeletedAt() != null) {
-                double share = 0.0;
-                try (PreparedStatement select = conn.prepareStatement(
-                                "SELECT * FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL "
-                                + "AND deleted_cost = 0");
-                        PreparedStatement update = conn.prepareStatement(
-                                "UPDATE generated_images SET deleted_cost = ? WHERE id = ?")) {
-                    select.setString(1, entryId);
-                    try (ResultSet rs = select.executeQuery()) {
-                        while (rs.next()) {
-                            GeneratedImage image = mapRowToGeneratedImage(rs);
-                            double imageCost = calculateImageCost(image);
-                            share += imageCost;
-                            update.setDouble(1, imageCost);
-                            update.setString(2, image.getId());
-                            update.executeUpdate();
-                        }
-                    }
-                }
-                try (PreparedStatement stmt = conn.prepareStatement(
-                        "UPDATE chats SET deleted_cost = MAX(0, deleted_cost - ?) WHERE id = ?")) {
-                    stmt.setDouble(1, share);
-                    stmt.setString(2, entry.getChatId());
-                    stmt.executeUpdate();
-                }
-            }
-
-            String sqlImages = "UPDATE generated_images SET deleted_at = NULL, deleted_cost = 0, is_in_trash = FALSE "
-                    + (imageId != null ? "WHERE id = ?" : "WHERE chat_entry_id = ? AND deleted_at IS NOT NULL");
-            try (PreparedStatement stmt = conn.prepareStatement(sqlImages)) {
-                stmt.setString(1, imageId != null ? imageId : entryId);
-                stmt.executeUpdate();
-            }
-
-            String sqlEntry = """
-                UPDATE chat_entries
-                SET deleted_at = NULL,
-                    deleted_cost = (SELECT COALESCE(SUM(deleted_cost), 0) FROM generated_images
-                        WHERE chat_entry_id = ? AND deleted_at IS NOT NULL)
-                WHERE id = ?
-                """;
-            try (PreparedStatement stmt = conn.prepareStatement(sqlEntry)) {
-                stmt.setString(1, entryId);
-                stmt.setString(2, entryId);
-                stmt.executeUpdate();
-            }
-
-            conn.commit();
-            logger.info("Restored {} from the trash: entry {}", imageId != null ? "image " + imageId : "all images",
-                    entryId);
-            return true;
-
-        } catch (SQLException e) {
-            conn.rollback();
-            throw e;
-        } finally {
-            conn.setAutoCommit(true);
-            conn.close();
-        }
-    }
-
-    /**
-     * Removes what an entry has in the trash for good: its deleted images, and the entry itself if it is deleted.
-     * The costs stay as they are, as the images were paid for. Only the database is touched, the files are up to
-     * the caller.
-     *
-     * @param entryId the entry
-     * @return true if something was removed
-     * @throws SQLException if database operation fails
-     */
-    public boolean deleteChatEntryPermanently(String entryId) throws SQLException {
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement images = conn.prepareStatement(
-                        "DELETE FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NOT NULL");
-                PreparedStatement entry = conn.prepareStatement(
-                        "DELETE FROM chat_entries WHERE id = ? AND deleted_at IS NOT NULL")) {
-            images.setString(1, entryId);
-            entry.setString(1, entryId);
-            return images.executeUpdate() + entry.executeUpdate() > 0;
-        }
-    }
-
-    /**
-     * Removes a deleted image for good; a deleted entry goes with its last image. The costs stay as they are, as
-     * the image was paid for. Only the database is touched, the files are up to the caller.
-     *
-     * @param imageId the image
-     * @return true if the image was removed
-     * @throws SQLException if database operation fails
-     */
-    public boolean deleteImagePermanently(String imageId) throws SQLException {
-        GeneratedImage image = findGeneratedImageByIdInternal(imageId);
-        if (image == null)
-            return false;
-
-        try (Connection conn = databaseManager.getConnection();
-                PreparedStatement deleteImage = conn.prepareStatement(
-                        "DELETE FROM generated_images WHERE id = ? AND deleted_at IS NOT NULL");
-                PreparedStatement deleteEntry = conn.prepareStatement(
-                        "DELETE FROM chat_entries WHERE id = ? AND deleted_at IS NOT NULL "
-                        + "AND NOT EXISTS (SELECT 1 FROM generated_images WHERE chat_entry_id = ?)")) {
-            deleteImage.setString(1, imageId);
-            if (deleteImage.executeUpdate() == 0)
-                return false;
-
-            deleteEntry.setString(1, image.getChatEntryId());
-            deleteEntry.setString(2, image.getChatEntryId());
-            deleteEntry.executeUpdate();
-            return true;
-        }
     }
 }

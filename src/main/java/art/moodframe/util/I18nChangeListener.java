@@ -24,8 +24,8 @@ package art.moodframe.util;
  *     
  *     @FXML
  *     private void initialize() {
- *         // Register for language change notifications
- *         I18nManager.addChangeListener(this);
+ *         // Register for language change notifications on the JavaFX thread
+ *         FxI18n.addChangeListener(this);
  *         
  *         // Set initial texts
  *         onLanguageChanged();
@@ -43,8 +43,10 @@ public interface I18nChangeListener {
      * 
      * <p>
      * Implementations should update all text elements to reflect
-     * the new language. This method is called on the JavaFX
-     * Application Thread, so UI updates are safe.
+     * the new language. This method is called through the executor
+     * given at the registration; a view registered with
+     * {@code ui.support.FxI18n} is called on the JavaFX Application
+     * Thread, so UI updates are safe.
      * </p>
      */
     void onLanguageChanged();

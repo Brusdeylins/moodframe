@@ -1,7 +1,7 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
+import art.moodframe.ui.support.ImageCache;
+import art.moodframe.util.I18nManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
  * <p><strong>Displayed Metrics:</strong></p>
  * <ul>
  * <li><strong>Memory Usage</strong>: Current JVM memory usage percentage and MB</li>
- * <li><strong>Loaded Images</strong>: Number of thumbnail images currently loaded in ImageViews</li>
+ * <li><strong>Loaded Images</strong>: Number of decoded thumbnails the window holds in its {@link ImageCache}</li>
  * </ul>
  *
  * @since 1.2.0 - Simplified Memory Monitoring
@@ -50,6 +50,9 @@ public class MemoryStatusComponent extends HBox {
 
     // Update timeline
     private final Timeline updateTimeline;
+
+    /*  the decoded thumbnails counted, none until the window hands them  */
+    private ImageCache images;
 
 
     /**
@@ -97,13 +100,19 @@ public class MemoryStatusComponent extends HBox {
         // Initial status update
         updateStatus();
 
-        // Only log if logging is enabled
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        if (config != null && config.getLoggingEnabled()) {
-            logger.info("MemoryStatusComponent initialized with image and listener tracking");
-        }
+        logger.debug("MemoryStatusComponent initialized with image and listener tracking");
     }
     
+    /**
+     * Counts the decoded thumbnails of a window from now on.
+     *
+     * @param images the decoded thumbnails
+     */
+    public void countImagesOf(ImageCache images) {
+        this.images = images;
+        updateStatus();
+    }
+
     /**
      * Sets up the UI layout and styling.
      */
@@ -152,7 +161,7 @@ public class MemoryStatusComponent extends HBox {
         
         // Calculate percentage based on maximum available memory
         double usagePercentage = (double) usedMemory / maxMemory * 100.0;
-        String memoryText = String.format("%.0f%% (%dMB)", usagePercentage, usedMemory / 1024 / 1024);
+        String memoryText = String.format(I18nManager.getCurrentLocale(), "%.0f%% (%dMB)", usagePercentage, usedMemory / 1024 / 1024);
         
         // Update UI
         memoryLabel.setText(memoryText);
@@ -170,17 +179,8 @@ public class MemoryStatusComponent extends HBox {
         }
         
         // Update tooltip with memory information
-        String tooltipText = String.format(
-            "Memory: %dMB used / %dMB max (%.1f%%)\n" +
-            "Allocated: %dMB / Free: %dMB",
-            usedMemory / 1024 / 1024, 
-            maxMemory / 1024 / 1024, 
-            usagePercentage,
-            totalMemory / 1024 / 1024,
-            freeMemory / 1024 / 1024
-        );
-
-        memoryTooltip.setText(tooltipText);
+        memoryTooltip.setText(I18nManager.getText("memory.status.tooltip", usedMemory / 1024 / 1024,
+                maxMemory / 1024 / 1024, usagePercentage, totalMemory / 1024 / 1024, freeMemory / 1024 / 1024));
     }
 
     /**
@@ -188,9 +188,9 @@ public class MemoryStatusComponent extends HBox {
      * Shows: number of loaded thumbnail images
      */
     private void updateTasksStatus() {
-        int loadedImages = art.moodframe.ui.component.ChatEntryCard.getTotalLoadedImages();
+        int loadedImages = images != null ? images.size() : 0;
 
-        tasksLabel.setText(String.format("%d imgs", loadedImages));
+        tasksLabel.setText(I18nManager.getText("memory.status.images", loadedImages));
 
         // Update icon color based on loaded images count
         if (loadedImages > 500) {
@@ -204,31 +204,7 @@ public class MemoryStatusComponent extends HBox {
             tasksIcon.getStyleClass().add("text-success");
         }
 
-        // Update tooltip
-        String tooltipText = String.format(
-            "Loaded Thumbnails: %d\n" +
-            "Images are loaded on-demand as you scroll",
-            loadedImages
-        );
-
-        tasksTooltip.setText(tooltipText);
-    }
-
-    /**
-     * Gets a summary of current memory status.
-     * 
-     * @return formatted status summary
-     */
-    public String getStatusSummary() {
-        Runtime runtime = Runtime.getRuntime();
-        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
-        double memoryUsage = (double) usedMemory / runtime.maxMemory() * 100.0;
-        
-        return String.format(
-            "Memory Status: %.1f%% (%dMB)",
-            memoryUsage,
-            usedMemory / 1024 / 1024
-        );
+        tasksTooltip.setText(I18nManager.getText("memory.status.images.tooltip", loadedImages));
     }
     
     /**
