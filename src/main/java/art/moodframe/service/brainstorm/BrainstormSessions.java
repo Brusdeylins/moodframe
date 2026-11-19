@@ -62,6 +62,11 @@ public class BrainstormSessions {
                 "Failed to update brainstorm session title: " + sessionId);
     }
 
+    boolean replaceTitle(String sessionId, String expected, String title) {
+        return access.call(() -> repository.replaceTitle(sessionId, expected, title), false,
+                "Failed to update brainstorm session title: " + sessionId);
+    }
+
     void updateEngine(String sessionId, String engine) {
         access.run(() -> repository.updateEngine(sessionId, engine),
                 "Failed to update brainstorm session engine: " + sessionId);

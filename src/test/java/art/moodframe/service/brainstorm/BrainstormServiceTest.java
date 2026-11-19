@@ -240,7 +240,7 @@ class BrainstormServiceTest {
 
     @Test
     void renamesASession() throws Exception {
-        service.renameSession("s1", "Neuer Name");
+        service.renameSession("s1", "Neuer Name").get(5, TimeUnit.SECONDS);
 
         verify(repository).updateTitle("s1", "Neuer Name");
     }
@@ -592,6 +592,8 @@ class BrainstormServiceTest {
     void replacesTheFirstSentenceByAShortNameOnceTheTopicIsClear() throws Exception {
         when(gemini.suggestTitle(anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture("\"Nautilus-Infografik\"\n"));
+        when(repository.replaceTitle(eq("s1"), anyString(), eq("Nautilus-Infografik")))
+                .thenReturn(true);
         CountDownLatch named = new CountDownLatch(1);
         service.setOnTitleChanged(changed -> named.countDown());
         answers(text(STEP_TWO_REPLY));
@@ -600,7 +602,35 @@ class BrainstormServiceTest {
 
         assertTrue(named.await(5, TimeUnit.SECONDS));
         assertEquals("Nautilus-Infografik", session.getTitle(), "quotes and line breaks are removed");
-        verify(repository).updateTitle("s1", "Nautilus-Infografik");
+    }
+
+    @Test
+    void aRenameDuringTheNamingWins() throws Exception {
+        String[] title = { "Neue Sitzung" };
+        org.mockito.Mockito.doAnswer((invocation) -> title[0] = invocation.getArgument(1))
+                .when(repository).updateTitle(eq("s1"), anyString());
+        when(repository.replaceTitle(eq("s1"), anyString(), anyString())).thenAnswer((invocation) -> {
+            if (!title[0].equals(invocation.getArgument(1)))
+                return false;
+            title[0] = invocation.getArgument(2);
+            return true;
+        });
+        CompletableFuture<String> naming = new CompletableFuture<>();
+        when(gemini.suggestTitle(anyString(), anyString())).thenReturn(naming);
+        List<BrainstormSession> named = new java.util.concurrent.CopyOnWriteArrayList<>();
+        service.setOnTitleChanged(named::add);
+        answers(text(STEP_TWO_REPLY));
+
+        service.sendUserMessage(session, "Ein Logo", context).get(5, TimeUnit.SECONDS);
+        verify(gemini, org.mockito.Mockito.timeout(5000)).suggestTitle(anyString(), anyString());
+        service.renameSession("s1", "Mein Name").get(5, TimeUnit.SECONDS);
+        naming.complete("Logo");
+        verify(repository, org.mockito.Mockito.timeout(5000)).replaceTitle("s1", "Ein Logo", "Logo");
+        service.noteAdopted(session).get(5, TimeUnit.SECONDS);
+
+        assertEquals("Mein Name", title[0], "the name of the user stays");
+        assertEquals("Ein Logo", session.getTitle());
+        assertEquals(List.of(), named);
     }
 
     @Test

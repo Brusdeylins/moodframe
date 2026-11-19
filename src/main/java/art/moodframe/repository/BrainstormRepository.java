@@ -154,6 +154,29 @@ public class BrainstormRepository {
     }
 
     /**
+     * Replaces the title of a session only if it is still the expected one, and marks it as changed now; a title
+     * the user changed meanwhile stays.
+     *
+     * @param sessionId the session id
+     * @param expected  the title the session must still have
+     * @param title     the new title
+     * @return true if the title was replaced
+     * @throws SQLException if the database fails
+     */
+    public boolean replaceTitle(String sessionId, String expected, String title) throws SQLException {
+        String sql = "UPDATE brainstorm_sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ?";
+
+        try (Connection conn = database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, title);
+            stmt.setTimestamp(2, Timestamp.valueOf(LocalDateTime.now()));
+            stmt.setString(3, sessionId);
+            stmt.setString(4, expected);
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    /**
      * Stores which language model answers a session (does not count as a change of the session).
      *
      * @param sessionId the session id

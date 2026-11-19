@@ -171,8 +171,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   (`moodframe-disk-N`), never on the JavaFX thread or on `ForkJoinPool.commonPool()`.
 - **Brainstorm**: `BrainstormService` queues the requests of each session; a request reads and writes the session
   (its title from the first message, the messages, the draft) on a thread of that queue, after the request before
-  it, and "draft adopted" is stored on the same queue. `sendUserMessage`, `sendEvent` and `noteAdopted` only queue,
-  so the JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
+  it, and "draft adopted" and a rename are stored on the same queue. The short name of a session is asked for on a
+  thread of its own and stored on the queue only while the title is still the first message (compare and set), so
+  a rename meanwhile wins. `sendUserMessage`, `sendEvent`, `noteAdopted` and `renameSession` only queue, so the
+  JavaFX thread may call them. The brainstorm window lists, opens, renames, moves and deletes the sessions and
   creates a new one on its own worker (`BrainstormWorker`, one thread that ends when idle) and takes the results back
   with `Platform.runLater`; nothing of it touches the database on the JavaFX thread.
 - **Generation**: `service.generation` changes the chat entry and its images on the JavaFX thread through `FxModel`

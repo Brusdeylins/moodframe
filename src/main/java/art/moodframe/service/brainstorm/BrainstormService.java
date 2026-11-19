@@ -212,13 +212,18 @@ public class BrainstormService {
     }
 
     /**
-     * Renames a session.
+     * Renames a session on the queue of the session, after the requests before it, so the short name a running
+     * request makes never overwrites the new title; returns at once.
      *
      * @param sessionId the session id
      * @param title the new, non-empty title
+     * @return completes when the title is stored
      */
-    public void renameSession(String sessionId, String title) {
-        sessions.updateTitle(sessionId, title);
+    public CompletableFuture<Void> renameSession(String sessionId, String title) {
+        return enqueue(sessionId, () -> {
+            sessions.updateTitle(sessionId, title);
+            return null;
+        });
     }
 
     public List<BrainstormMessage> loadMessages(String sessionId) {
@@ -359,14 +364,16 @@ public class BrainstormService {
 
     /**
      * Gives the session a short name (one or two words) once the topic is clear, instead of the first sentence of
-     * the user. A title the user changed is kept: only a title that is still the first sentence is replaced. The
-     * name is made in the background, a failure keeps the old title.
+     * the user. A title the user changed is kept: only a title that is still the first sentence is replaced, checked
+     * again when the name is stored on the queue of the session, so a rename during the naming wins. The name is
+     * made in the background, a failure keeps the old title.
      */
     private void nameSessionOnce(BrainstormSession session, List<BrainstormMessage> history, BrainstormReply reply) {
         String firstUserMessage = history.stream()
                 .filter((BrainstormMessage message) -> BrainstormMessage.ROLE_USER.equals(message.getRole()))
                 .map(BrainstormMessage::getContent).findFirst().orElse("");
-        if (reply.getStep() < FIRST_STEP_WITH_TOPIC || !session.getTitle().equals(firstMessageTitle(firstUserMessage))) {
+        String automatic = firstMessageTitle(firstUserMessage);
+        if (reply.getStep() < FIRST_STEP_WITH_TOPIC || !session.getTitle().equals(automatic)) {
             return;
         }
 
@@ -378,14 +385,22 @@ public class BrainstormService {
                 if (title.isEmpty() || deleted.contains(session.getId())) {
                     return;
                 }
-                title = title.length() > SHORT_TITLE_MAX_LENGTH ? title.substring(0, SHORT_TITLE_MAX_LENGTH).trim() : title;
-                session.setTitle(title);
-                sessions.updateTitle(session.getId(), title);
-                onTitleChanged.accept(session);
+                String name = title.length() > SHORT_TITLE_MAX_LENGTH
+                        ? title.substring(0, SHORT_TITLE_MAX_LENGTH).trim() : title;
+                enqueue(session.getId(), () -> applyName(session, automatic, name));
             } catch (RuntimeException e) {
                 logger.warn("Could not name the brainstorm session: {}", e.getMessage());
             }
         }, TURNS);
+    }
+
+    /*  On the queue of the session: the short name replaces the title only while it is still the first sentence  */
+    private Void applyName(BrainstormSession session, String automatic, String name) {
+        if (deleted.contains(session.getId()) || !sessions.replaceTitle(session.getId(), automatic, name))
+            return null;
+        session.setTitle(name);
+        onTitleChanged.accept(session);
+        return null;
     }
 
     /** The name of the language of the user interface, for example "German". */

@@ -56,6 +56,17 @@ class BrainstormRepositoryTest {
     }
 
     @Test
+    void replacesATitleOnlyWhileItIsTheExpectedOne() throws Exception {
+        BrainstormSession session = repository.createSession("Erster Satz");
+
+        assertTrue(repository.replaceTitle(session.getId(), "Erster Satz", "Kurz"));
+        assertFalse(repository.replaceTitle(session.getId(), "Erster Satz", "Anders"), "the title changed");
+        assertEquals("Kurz", repository.findAllSessions().stream()
+                .filter((BrainstormSession s) -> s.getId().equals(session.getId())).findFirst().orElseThrow()
+                .getTitle());
+    }
+
+    @Test
     void remembersTheLanguageModelOfEachSession() throws Exception {
         BrainstormSession openAi = repository.createSession("OpenAI", "openai");
         BrainstormSession older = repository.createSession("Ohne Wahl");
