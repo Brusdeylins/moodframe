@@ -199,7 +199,7 @@ public class MoodframeApplication extends Application {
                 GenerationService.class,
                 UpdateCheckService.class, ImageSizeCheck.class,
                 McpService.class))
-            services.getService(type);
+            services.findService(type);
     }
 
     /**
@@ -405,18 +405,14 @@ public class MoodframeApplication extends Application {
         });
 
         // Loads the chats and settles what a restart left behind
-        services.registerProvider(ChatHistoryService.class, () -> {
-            ChatRepository chatRepo = services.getService(ChatRepository.class);
-            return chatRepo != null ? new ChatHistoryService(chatRepo, services.getService(ChatTrashRepository.class),
-                    new ChatGroupQueries(database), services.getService(TrashManager.class)) : null;
-        });
+        services.registerProvider(ChatHistoryService.class, () -> new ChatHistoryService(
+                services.getService(ChatRepository.class), services.getService(ChatTrashRepository.class),
+                new ChatGroupQueries(database), services.getService(TrashManager.class)));
 
         /*  The list of the chats, shared by the main window and later callers; it follows the trash as well  */
         services.registerProvider(ChatLibrary.class, () -> {
             ChatLibrary chats = new ChatLibrary(services.getService(ChatHistoryService.class), events);
-            TrashCenter trashCenter = services.getService(TrashCenter.class);
-            if (trashCenter != null)
-                trashCenter.addListener(chats);
+            services.getService(TrashCenter.class).addListener(chats);
             return chats;
         });
 
@@ -424,10 +420,8 @@ public class MoodframeApplication extends Application {
         services.registerService(ImageAttachmentService.class, new ImageAttachmentService());
 
         /*  Corrects a missing or wrong pixel size of an image from its file when the image is first shown  */
-        services.registerProvider(ImageSizeCheck.class, () -> {
-            ChatRepository chatRepo = services.getService(ChatRepository.class);
-            return chatRepo != null ? new ImageSizeCheck(chatRepo, Platform::runLater) : null;
-        });
+        services.registerProvider(ImageSizeCheck.class,
+                () -> new ImageSizeCheck(services.getService(ChatRepository.class), Platform::runLater));
     }
 
     /*  The generation: the requests to the providers and the orders without the user interface  */
@@ -446,12 +440,11 @@ public class MoodframeApplication extends Application {
         });
 
         /*  Carries out a generation order without the user interface: entry, request and submission  */
-        services.registerProvider(GenerationService.class, () -> {
-            RequestResponseManager requests = services.getService(RequestResponseManager.class);
-            return requests != null ? new GenerationService(config, services.getService(ChatLibrary.class),
-                    services.getService(MoodService.class), requests, services.getService(ProviderRegistry.class))
-                    : null;
-        });
+        services.registerProvider(GenerationService.class, () -> services.findService(RequestResponseManager.class)
+                .map((RequestResponseManager requests) -> new GenerationService(config,
+                        services.getService(ChatLibrary.class), services.getService(MoodService.class), requests,
+                        services.getService(ProviderRegistry.class)))
+                .orElse(null));
     }
 
     /*  The MCP server for clients on this computer, like Claude Code; it runs only if enabled. Without the generation
@@ -466,7 +459,7 @@ public class MoodframeApplication extends Application {
             FrameService frames = services.getService(FrameService.class);
             FavoriteService favorites = services.getService(FavoriteService.class);
             TrashCenter trash = services.getService(TrashCenter.class);
-            GenerationService generation = services.getService(GenerationService.class);
+            GenerationService generation = services.findService(GenerationService.class).orElse(null);
             return new McpService(config, generation != null
                     ? McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                             services.getService(MoodAnalysisService.class))

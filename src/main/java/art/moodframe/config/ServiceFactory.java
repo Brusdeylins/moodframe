@@ -1,14 +1,16 @@
 package art.moodframe.config;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Central service factory for dependency injection using the Singleton pattern.
- * 
- * <p>This factory provides a centralized registry for services and supports
- * both eager and lazy initialization through service providers. The factory
- * maintains thread-safe access to registered services.</p>
+ * The singleton service locator of the application, not a DI container: the composition root
+ * ({@code MoodframeApplication}) registers the services and lazy providers and hands every service its dependencies
+ * in the constructor; only the coordinators of the user interface look services up here (see ARCHITECTURE.md).
+ *
+ * <p>It supports both eager and lazy initialization through service providers and maintains thread-safe access to
+ * the registered services. A lookup of a service that is not registered fails at once.</p>
  * 
  * <p><strong>Thread Safety:</strong> Service registration uses concurrent maps. Creating a service
  * from its provider is synchronized, so a provider runs at most once per service even if
@@ -27,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * FrameService frames = ServiceFactory.getInstance().getService(FrameService.class);
  * }</pre>
  * 
- * @see <a href="https://en.wikipedia.org/wiki/Dependency_injection">Dependency Injection Pattern</a>
+ * @see <a href="https://en.wikipedia.org/wiki/Service_locator_pattern">Service Locator Pattern</a>
  * @since 1.0.0
  */
 public class ServiceFactory {
@@ -98,16 +100,32 @@ public class ServiceFactory {
      * 
      * @param <T> the service type
      * @param serviceClass the class object representing the service type
-     * @return the service instance, or null if no service or provider is registered or the provider
-     *         returned null (a null result is not cached, the next call asks the provider again)
+     * @return the service instance, never null
+     * @throws IllegalStateException if no service or provider is registered or the provider returned null, so a
+     *         missing registration fails at the lookup instead of later
      * @throws RuntimeException if the service provider throws an exception
      * @since 1.0.0
      */
-    @SuppressWarnings("unchecked")
     public <T> T getService(Class<T> serviceClass) {
+        return findService(serviceClass).orElseThrow(
+                () -> new IllegalStateException("No service registered for " + serviceClass.getName()));
+    }
+
+    /**
+     * Retrieves a service the caller can do without, like the generation, whose provider gives none if its parts
+     * cannot be created; creates it from its provider like {@link #getService(Class)}.
+     *
+     * @param <T> the service type
+     * @param serviceClass the class object representing the service type
+     * @return the service, empty if no service or provider is registered or the provider returned null (which is
+     *         not cached, the next call asks the provider again)
+     * @throws RuntimeException if the service provider throws an exception
+     */
+    @SuppressWarnings("unchecked")
+    public <T> Optional<T> findService(Class<T> serviceClass) {
         T service = (T) services.get(serviceClass);
         if (service != null || !providers.containsKey(serviceClass))
-            return service;
+            return Optional.ofNullable(service);
 
         /*  A provider may ask for other services, the lock is reentrant  */
         synchronized (this) {
@@ -119,7 +137,7 @@ public class ServiceFactory {
                     services.put(serviceClass, service);
             }
         }
-        return service;
+        return Optional.ofNullable(service);
     }
     
     /**

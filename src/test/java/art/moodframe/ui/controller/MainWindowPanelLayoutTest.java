@@ -6,9 +6,15 @@ import art.moodframe.config.ServiceFactory;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
+import art.moodframe.service.brainstorm.BrainstormService;
+import art.moodframe.service.brainstorm.MoodAnalysisService;
+import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.generation.GenerationService;
+import art.moodframe.service.generation.RequestResponseManager;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.FrameService;
@@ -17,6 +23,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
 import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.ui.support.ThemeManager;
@@ -85,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * The cards of the groups of the right panel in the shown main window, on a throwaway {@code user.home} with the
@@ -137,7 +145,7 @@ class MainWindowPanelLayoutTest {
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
         Platform.setImplicitExit(false);
-        realConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        realConfig = ServiceFactory.getInstance().findService(ApplicationConfig.class).orElse(null);
         userAgentStylesheet = Application.getUserAgentStylesheet();
         locale = I18nManager.getCurrentLocale();
 
@@ -159,6 +167,15 @@ class MainWindowPanelLayoutTest {
         /*  tells the prompt limits of the models, as the providers know them  */
         register(GenerationService.class, new GenerationService(null, chats, null, null, MockProviders.preparing()));
         register(ImageAttachmentService.class, new ImageAttachmentService());
+
+        /*  the rest the window looks up, which this test does not use  */
+        register(ChatHistoryService.class, mock(ChatHistoryService.class));
+        register(TrashCenter.class, new TrashCenter());
+        register(ThumbnailManager.class, mock(ThumbnailManager.class));
+        register(ImageSizeCheck.class, mock(ImageSizeCheck.class));
+        register(BrainstormService.Factory.class, mock(BrainstormService.Factory.class));
+        register(MoodAnalysisService.class, mock(MoodAnalysisService.class));
+        register(RequestResponseManager.class, mock(RequestResponseManager.class));
     }
 
     @AfterAll

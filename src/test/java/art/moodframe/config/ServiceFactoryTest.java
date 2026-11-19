@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ServiceFactoryTest {
 
@@ -20,6 +20,9 @@ class ServiceFactoryTest {
     }
 
     private static final class Failing {
+    }
+
+    private static final class Missing {
     }
 
     @Test
@@ -52,8 +55,15 @@ class ServiceFactoryTest {
         AtomicInteger calls = new AtomicInteger();
         ServiceFactory.getInstance().registerProvider(Failing.class, () -> calls.incrementAndGet() == 1 ? null : new Failing());
 
-        assertNull(ServiceFactory.getInstance().getService(Failing.class));
+        assertThrows(IllegalStateException.class, () -> ServiceFactory.getInstance().getService(Failing.class));
         assertNotNull(ServiceFactory.getInstance().getService(Failing.class));
         assertEquals(2, calls.get());
+    }
+
+    @Test
+    void failsAtTheLookupOfAServiceThatIsNotRegistered() {
+        IllegalStateException missing = assertThrows(IllegalStateException.class,
+                () -> ServiceFactory.getInstance().getService(Missing.class));
+        assertEquals("No service registered for " + Missing.class.getName(), missing.getMessage());
     }
 }

@@ -173,8 +173,11 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 
 ## Dependency injection
 
-`config.ServiceFactory` is a singleton **service locator**, not a DI container. `MoodframeApplication` is the
-composition root: it registers the instances and lazy providers at startup and hands every service its
+`config.ServiceFactory` is a singleton **service locator**, not a DI container. `getService` fails with an
+`IllegalStateException` when nothing is registered for a type, so a missing registration shows at the lookup; a
+service the caller can do without (the generation, whose provider gives none if its requests cannot be set up, the
+check of the accounts, the update check, the trash cleanup) is looked up with `findService`, an `Optional`.
+`MoodframeApplication` is the composition root: it registers the instances and lazy providers at startup and hands every service its
 dependencies in the constructor, which is also how tests pass mocks: the provider clients take
 `ApplicationConfig`; the library services (`PromptBlockService`, `ColorStyleService`, `MoodService`,
 `FrameService`, `FavoriteService`) take their repository, which `MoodframeApplication` creates on the one

@@ -197,7 +197,7 @@ class MainWindowFlowsTest {
         }
         assertTrue(started.await(10, TimeUnit.SECONDS));
         Platform.setImplicitExit(false);
-        realConfig = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        realConfig = ServiceFactory.getInstance().findService(ApplicationConfig.class).orElse(null);
         locale = I18nManager.getCurrentLocale();
 
         /*  what the mocked Gemini answers: a small PNG  */

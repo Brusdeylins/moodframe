@@ -183,14 +183,14 @@ public class MainWindowController implements I18nChangeListener {
         ServiceFactory services = ServiceFactory.getInstance();
         config = services.getService(ApplicationConfig.class);
         chatHistory = services.getService(ChatHistoryService.class);
-        generationService = services.getService(GenerationService.class);
+        generationService = services.findService(GenerationService.class).orElse(null);
         blockService = services.getService(PromptBlockService.class);
         colorService = services.getService(ColorStyleService.class);
         moodService = services.getService(MoodService.class);
         brainstorms = services.getService(art.moodframe.service.brainstorm.BrainstormService.Factory.class);
         ChatLibrary chatLibrary = services.getService(ChatLibrary.class);
-        validator = services.getService(ApiProviderValidator.class);
-        updates = services.getService(art.moodframe.service.UpdateCheckService.class);
+        validator = services.findService(ApiProviderValidator.class).orElse(null);
+        updates = services.findService(art.moodframe.service.UpdateCheckService.class).orElse(null);
         logger.debug("Initializing MainWindow controller");
 
         statusBarController.init(config, validator);
@@ -204,7 +204,7 @@ public class MainWindowController implements I18nChangeListener {
 
         inputBar = chatViewController.inputBar();
         TrashWindow.Opener trash = new TrashWindow.Opener(services.getService(TrashCenter.class),
-                services.getService(TrashCleanupService.class), worker);
+                services.findService(TrashCleanupService.class).orElse(null), worker);
         chatViewController.useImageSources(new ImageSources(services.getService(ThumbnailManager.class),
                 services.getService(ImageSizeCheck.class)));
         chatViewController.init(config, chatLibrary, chatHistory, worker, (StackPane) mainBorderPane.getParent(),
