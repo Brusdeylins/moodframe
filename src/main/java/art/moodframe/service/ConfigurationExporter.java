@@ -293,7 +293,7 @@ public class ConfigurationExporter {
                     Integer newValue = (Integer) apiSettings.get("apiTimeoutSeconds");
                     if (!Objects.equals(newValue, targetConfig.accounts().getApiTimeoutSeconds())) {
                         changes.put("API Timeout", newValue + " seconds");
-                        targetConfig.setProperty("api.timeout_seconds", newValue.toString());
+                        targetConfig.accounts().setApiTimeoutSeconds(newValue);
                     }
                 }
                 if (apiSettings.containsKey("apiRegion")) {

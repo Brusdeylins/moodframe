@@ -40,14 +40,15 @@ class ApplicationConfigResetTest {
 
     @Test
     void keepsNoSecretThatWasNotThere() {
-        ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        ApplicationConfig config = new ApplicationConfig(store);
         config.accounts().setApiKey(ApiProvider.BFL, "bfl-key");
 
         config.resetToDefaults();
 
         assertEquals("bfl-key", config.accounts().getApiKey(ApiProvider.BFL));
         assertNull(config.accounts().getApiKey(ApiProvider.GOOGLE_GEMINI));
-        assertNull(config.getProperty("gemini.api.key"));
+        assertNull(store.get("gemini.api.key"));
         assertNull(config.mcp().getMcpToken());
     }
 }

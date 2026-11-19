@@ -34,13 +34,14 @@ class LibraryPathsTest {
     @Test
     void aFreshConfigurationWritesTheDefaultImagesFolderAsBefore() {
         LibraryPaths paths = LibraryPaths.under(home);
-        ApplicationConfig config = new ApplicationConfig(paths);
+        ConfigStore store = new ConfigStore(paths);
+        ApplicationConfig config = new ApplicationConfig(store);
 
         /*  the same string as the former ~/.moodframe constant, so no stored path moves; the database and the logs
             are no settings  */
-        assertEquals(home + "/.moodframe/images", config.getProperty("path.images"));
-        assertNull(config.getProperty("path.database"));
-        assertNull(config.getProperty("path.logs"));
+        assertEquals(home + "/.moodframe/images", store.get("path.images"));
+        assertNull(store.get("path.database"));
+        assertNull(store.get("path.logs"));
         assertEquals(paths, config.paths());
     }
 
@@ -58,9 +59,10 @@ class LibraryPathsTest {
 
     @Test
     void theConfiguredImagesFolderCountsEverywhere() {
-        ApplicationConfig config = new ApplicationConfig(LibraryPaths.under(home));
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        ApplicationConfig config = new ApplicationConfig(store);
         Path elsewhere = home.resolve("pictures");
-        config.setProperty("path.images", elsewhere.toString());
+        store.set("path.images", elsewhere.toString());
 
         assertEquals(elsewhere, config.paths().images());
         assertEquals(home.resolve(".moodframe").resolve("thumbnails"), config.paths().thumbnails());

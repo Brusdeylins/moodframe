@@ -108,6 +108,5 @@ class StatelessConnectionTestTest {
         assertEquals("https://api.bfl.ai", bfl.getApiBaseUrl());
         assertFalse(typed == bfl);
         verify(config.accounts(), never()).setApiRegion(any());
-        verify(config, never()).setProperty(any(), any());
     }
 }

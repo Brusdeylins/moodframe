@@ -284,9 +284,8 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   `accounts()` (`ProviderAccounts`: key, validation, activation, chat checks keyed by `ApiProvider`, the BFL and
   OpenAI extras, the brainstorm engine), `proxy()` (`ProxySettings`) and `mcp()` (`McpSettings`). The property keys
   are those of all former versions, so an existing file loads unchanged. `ApplicationConfig` itself keeps the
-  folders, detailed logging, the update hint, raw properties, the reset and a few shortcuts for the provider
-  clients and the generation; the user interface reads and writes only the typed methods of the sections, no raw
-  keys. A file that cannot be read is logged and copied to
+  folders, detailed logging, the update hint, the reset and a few shortcuts for the provider clients and the
+  generation; there is no access by raw key, every caller reads and writes the typed methods of the sections. A file that cannot be read is logged and copied to
   `config.properties.unreadable-<time>` before the defaults are written over it (if the copy fails, nothing is
   written in that session); the main window tells the user once where the copy is. The reset holds the lock of the
   writing, so the delayed writer never writes the file without the secrets.
