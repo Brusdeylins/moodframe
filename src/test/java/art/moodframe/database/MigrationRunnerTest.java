@@ -214,6 +214,46 @@ class MigrationRunnerTest {
         }
     }
 
+    @Test
+    void repairsTheMissingVideoColumnsOfARecordedV011AgainAndAgain() throws Exception {
+        Path path = tempDir.resolve("v011.db");
+        DatabaseManager database = new DatabaseManager(path);
+        database.initialize();
+        try (Connection connection = database.getConnection(); Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DROP INDEX idx_generated_images_is_video");
+            stmt.executeUpdate("ALTER TABLE generated_images DROP COLUMN video_resolution");
+            stmt.executeUpdate("ALTER TABLE generated_images DROP COLUMN negative_prompt");
+        }
+
+        new DatabaseManager(path).initialize();
+        new DatabaseManager(path).initialize();
+
+        try (Connection connection = database.getConnection()) {
+            List<String> columns = names(connection, "SELECT name FROM pragma_table_info('generated_images')");
+            assertTrue(columns.containsAll(List.of("is_video", "video_resolution", "negative_prompt")));
+            assertEquals(List.of("idx_generated_images_is_video"), names(connection,
+                    "SELECT name FROM sqlite_master WHERE name = 'idx_generated_images_is_video'"));
+            assertEquals(1, versions(connection).stream().filter("011"::equals).count());
+        }
+    }
+
+    @Test
+    void aFailedRepairSurfacesAndLeavesTheSchemaAsItWas() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("v011-fails.db"));
+        database.initialize();
+        try (Connection connection = database.getConnection(); Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE generated_images DROP COLUMN video_resolution");
+            stmt.executeUpdate("ALTER TABLE generated_images DROP COLUMN negative_prompt");
+
+            /*  the disk refuses every write: the repair must not log and go on  */
+            stmt.execute("PRAGMA query_only = ON");
+            assertThrows(SQLException.class, () -> MigrationRunner.repairIncorrectlySkippedMigrations(connection));
+            stmt.execute("PRAGMA query_only = OFF");
+            assertFalse(names(connection, "SELECT name FROM pragma_table_info('generated_images')")
+                    .contains("video_resolution"));
+        }
+    }
+
     private static List<String> triggers(Connection connection) throws SQLException {
         return names(connection, "SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name");
     }
