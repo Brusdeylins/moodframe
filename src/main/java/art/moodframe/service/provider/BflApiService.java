@@ -3,6 +3,7 @@ package art.moodframe.service.provider;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import art.moodframe.model.ApiProvider;
+import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
@@ -56,11 +57,11 @@ public interface BflApiService extends ImageProvider {
         return ApiProvider.BFL;
     }
 
-    /**
-     * BFL answers a submission with a job, {@code BflGenerationFlow} polls it until the image is ready.
-     */
     /** The prompt limit of FLUX: 512 tokens, about 2,000 characters. */
     int MAX_PROMPT_LENGTH = 2000;
+
+    /** BFL reports its prices in credits of one cent. */
+    double USD_PER_CREDIT = 0.01;
 
     @Override
     BflApiService withCredentials(String apiKey, String endpoint);
@@ -97,9 +98,49 @@ public interface BflApiService extends ImageProvider {
         }
     }
 
+    /**
+     * BFL answers a submission with a job, which the generation polls ({@link #pollJob}) until the image is ready.
+     */
     @Override
     default boolean answersWithImage() {
         return false;
+    }
+
+    /**
+     * Polls the job at the polling URL BFL answered the submission with, else by its id.
+     */
+    @Override
+    CompletableFuture<GenerationJobResult> pollJob(GenerationJobInfo job);
+
+    /**
+     * FLUX.2 takes a safety tolerance up to 5 only (FLUX 3 up to 7), FLUX 3 Klein seeds from 0 to 4294967295 only
+     * (FLUX 3 Image takes none).
+     */
+    @Override
+    default void prepareJob(ImageGenerationRequest job) {
+        String lower = job.getModel() != null ? job.getModel().toLowerCase() : "";
+        if (lower.startsWith("flux.2-") && job.getSafetyTolerance() != null && job.getSafetyTolerance() > 5)
+            job.setSafetyTolerance(5);
+        if (lower.startsWith("flux.3-") && job.getSeed() != null)
+            job.setSeed(job.getSeed() & 0xFFFFFFFFL);
+    }
+
+    /**
+     * A new account is refused a safety tolerance it is not approved for, with its approved maximum.
+     */
+    @Override
+    default Integer approvedSafetyTolerance(Throwable failure) {
+        return ProviderException.unwrap(failure) instanceof BflApiException refusal
+                ? refusal.getMaximumApprovedSafetyTolerance() : null;
+    }
+
+    /**
+     * BFL reports the price of a finished job in credits of one cent.
+     */
+    @Override
+    default Double reportedCost(GenerationJobResult result) {
+        Double credits = result != null ? result.getCost() : null;
+        return credits != null && credits > 0 ? credits * USD_PER_CREDIT : null;
     }
 
     @Override

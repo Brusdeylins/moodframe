@@ -2,6 +2,7 @@ package art.moodframe.service.provider;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 
@@ -10,7 +11,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * A provider of image and video generation: what the generation, the account checks and the MCP server need of every
- * provider. The client interface of a provider extends it and keeps its own extras (the polling of BFL jobs, the
+ * provider. The client interface of a provider extends it and keeps its own extras (the polling URL of BFL jobs, the
  * brainstorm chat of Gemini and OpenAI); the {@link ProviderRegistry} finds the provider of an {@link ApiProvider}.
  *
  * <p><strong>Threading:</strong> the methods returning a future do not block, the blocking HTTP work runs on
@@ -136,6 +137,52 @@ public interface ImageProvider {
      */
     default boolean answersWithImage() {
         return true;
+    }
+
+    /**
+     * Gets the state of a job {@link #submitGenerationRequest(ImageGenerationRequest)} answered with, for a provider
+     * that does not {@link #answersWithImage() answer with the image}; the generation polls it until it ends. The
+     * status of the result is one the generation knows, in any case: {@code Pending}; {@code Running},
+     * {@code Reasoning} or {@code Generating}; {@code Ready} with the URL of the image; or an end without image
+     * ({@code Failed}, {@code Error}, {@code Content Moderated}, {@code Request Moderated}, {@code Task not found}).
+     * A failure with an {@link ApiHttpException} of HTTP 404 means the job is not visible yet.
+     *
+     * @param job the job of the submission
+     * @return a future with the state of the job
+     */
+    default CompletableFuture<GenerationJobResult> pollJob(GenerationJobInfo job) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                getProvider().getDisplayName() + " answers with the image, it has no job to poll"));
+    }
+
+    /**
+     * Prepares the request of a single job of a polled generation, once its seed is set: what the model allows in a
+     * job beyond the request of all images, e.g. the range of the seed.
+     *
+     * @param job the request of one image, {@link ImageGenerationRequest#getModel()} is the API model id
+     */
+    default void prepareJob(ImageGenerationRequest job) {
+    }
+
+    /**
+     * Gets the safety tolerance the account is approved for if a submission failed because it asked for a higher
+     * one; the generation then retries once with it.
+     *
+     * @param failure the failure of the submission, also wrapped
+     * @return the approved safety tolerance, null if the failure is no such refusal
+     */
+    default Integer approvedSafetyTolerance(Throwable failure) {
+        return null;
+    }
+
+    /**
+     * Gets the price of a finished job as the provider reports it with the job.
+     *
+     * @param result the state of the finished job
+     * @return the price in US dollars, null if none is reported (the image keeps its estimate)
+     */
+    default Double reportedCost(GenerationJobResult result) {
+        return null;
     }
 
     /**

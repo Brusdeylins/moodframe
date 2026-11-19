@@ -19,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -40,17 +42,17 @@ class BflSafetyToleranceTest {
     /*  submits one FLUX.2 image with safety tolerance 5, every submission is answered with the given body  */
     private static void submit(String body, ApplicationConfig config, ChatEntryTracker tracker,
             List<Integer> sent, List<Integer> lowered) {
-        BflApiService api = mock(BflApiService.class);
-        when(api.submitGenerationRequest(any())).thenAnswer((invocation) -> {
+        BflApiService api = mock(BflApiService.class, CALLS_REAL_METHODS);
+        doAnswer((invocation) -> {
             sent.add(invocation.<ImageGenerationRequest>getArgument(0).getSafetyTolerance());
             return rejected(body);
-        });
-        BflGenerationFlow flow = new BflGenerationFlow(config, api, tracker,
-                mock(ImageFileStore.class), mock(ScheduledExecutorService.class), Runnable::run);
+        }).when(api).submitGenerationRequest(any());
+        JobPollingFlow flow = new JobPollingFlow(config, tracker, mock(ImageFileStore.class),
+                mock(ScheduledExecutorService.class), Runnable::run);
         flow.setOnSafetyToleranceLowered(lowered::add);
         ImageGenerationRequest request = new ImageGenerationRequest("an apple", "flux.2-pro");
         request.setSafetyTolerance(5);
-        flow.submit(request, mock(ChatEntry.class), 0);
+        flow.submit(api, request, mock(ChatEntry.class), 0);
     }
 
     @Test

@@ -78,4 +78,33 @@ class ProviderPreparationTest {
                 gemini.downloadHeaders("https://generativelanguage.googleapis.com/v1beta/files/abc:download"));
         assertTrue(gemini.downloadHeaders("https://cdn.example.com/video.mp4").isEmpty());
     }
+
+    @Test
+    void bflLimitsTheJobOfAnImageAndReportsItsPrice() {
+        ImageProvider bfl = providers.get(ApiProvider.BFL);
+        ImageGenerationRequest flux2 = new ImageGenerationRequest("an apple", "flux.2-pro");
+        flux2.setSafetyTolerance(6);
+        flux2.setSeed(-1L);
+        bfl.prepareJob(flux2);
+        assertEquals(5, flux2.getSafetyTolerance(), "FLUX.2 takes up to 5");
+        assertEquals(-1L, flux2.getSeed());
+
+        ImageGenerationRequest flux3 = new ImageGenerationRequest("an apple", "flux.3-klein");
+        flux3.setSafetyTolerance(6);
+        flux3.setSeed(-1L);
+        bfl.prepareJob(flux3);
+        assertEquals(6, flux3.getSafetyTolerance());
+        assertEquals(4294967295L, flux3.getSeed(), "FLUX 3 takes seeds of 32 bits");
+
+        art.moodframe.model.GenerationJobResult result = new art.moodframe.model.GenerationJobResult();
+        result.setCost(1.2);
+        assertEquals(0.012, bfl.reportedCost(result), 1e-9);
+        result.setCost(0.0);
+        assertNull(bfl.reportedCost(result));
+        assertNull(providers.get(ApiProvider.GOOGLE_GEMINI).reportedCost(result));
+        assertEquals(4, bfl.approvedSafetyTolerance(new java.util.concurrent.CompletionException(new BflApiException(
+                422, "", "{\"detail\":{\"code\":\"safety_tolerance_not_approved\","
+                        + "\"maximum_approved_safety_tolerance\":4}}"))));
+        assertNull(providers.get(ApiProvider.OPENAI).approvedSafetyTolerance(new IllegalStateException()));
+    }
 }

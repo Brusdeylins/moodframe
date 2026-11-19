@@ -6,15 +6,13 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationJobResult;
 import art.moodframe.model.ImageGenerationRequest;
-import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.ApiHttpException;
-import art.moodframe.service.provider.BflApiException;
+import art.moodframe.service.provider.ImageProvider;
 import art.moodframe.service.provider.ProviderException;
 import art.moodframe.util.Secrets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -28,18 +26,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
 /**
- * The asynchronous BFL flow of a generation: submit a job per image, poll its status until the image is ready,
- * download it. The images of the chat entry are changed on the FX thread through {@link FxModel}, files and
- * requests run on workers, the database writes on the worker of the {@link ChatEntryTracker}.
+ * The asynchronous flow of a generation for a provider that answers a submission with a job instead of the image
+ * ({@link ImageProvider#answersWithImage()} false, today BFL): submit a job per image, poll its status with
+ * {@link ImageProvider#pollJob} until the image is ready, download it. What differs per provider (the request of a
+ * job, the retry with an approved safety tolerance, the reported price) comes from the provider; the statuses are
+ * those {@link ImageProvider#pollJob} names. The images of the chat entry are changed on the FX thread through
+ * {@link FxModel}, files and requests run on workers, the database writes on the worker of the
+ * {@link ChatEntryTracker}.
  *
  * @since 1.9.1
  */
-public class BflGenerationFlow {
+public class JobPollingFlow {
 
-    private static final Logger logger = LoggerFactory.getLogger(BflGenerationFlow.class);
+    private static final Logger logger = LoggerFactory.getLogger(JobPollingFlow.class);
 
     private final ApplicationConfig config;
-    private final BflApiService bflApiService;
     private final ChatEntryTracker tracker;
     private final ImageFileStore imageFiles;
     private final ScheduledExecutorService scheduler;
@@ -49,23 +50,20 @@ public class BflGenerationFlow {
     private static final long FIRST_POLL_SECONDS = 5;
     private static final long POLL_INTERVAL_SECONDS = 3;
 
-    private final SecureRandom secureRandom = new SecureRandom(); // High-entropy random for seed generation
     private volatile IntConsumer onSafetyToleranceLowered = (value) -> { };
 
     /**
      * Creates the flow.
      *
      * @param config         the application configuration (timeout, FLUX.2 safety tolerance)
-     * @param bflApiService  the BFL API
      * @param tracker        keeps the chat entry in step with its images and stores them
      * @param imageFiles     writes the downloaded images
      * @param scheduler      runs the status polling
      * @param io             runs the downloads of the images
      */
-    public BflGenerationFlow(ApplicationConfig config, BflApiService bflApiService, ChatEntryTracker tracker,
-            ImageFileStore imageFiles, ScheduledExecutorService scheduler, Executor io) {
+    public JobPollingFlow(ApplicationConfig config, ChatEntryTracker tracker, ImageFileStore imageFiles,
+            ScheduledExecutorService scheduler, Executor io) {
         this.config = config;
-        this.bflApiService = bflApiService;
         this.tracker = tracker;
         this.imageFiles = imageFiles;
         this.scheduler = scheduler;
@@ -87,7 +85,7 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the account allows.
      * It is called on a worker thread.
      *
      * @param callback receives the lowered safety tolerance
@@ -105,9 +103,14 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Submits a single image generation request to the BFL API.
+     * Submits the job of a single image to its provider and polls it.
+     *
+     * @param provider   the provider of the model, one that answers with a job
+     * @param request    the request of all images of the entry
+     * @param chatEntry  the entry
+     * @param imageIndex the index of the image in the entry
      */
-    public void submit(ImageGenerationRequest request, ChatEntry chatEntry, int imageIndex) {
+    public void submit(ImageProvider provider, ImageGenerationRequest request, ChatEntry chatEntry, int imageIndex) {
         try {
             // Create a copy of the request with a unique seed for this image
             ImageGenerationRequest imageRequest = new ImageGenerationRequest(request.getPrompt(), request.getModel());
@@ -115,22 +118,7 @@ public class BflGenerationFlow {
             imageRequest.setHeight(request.getHeight());
             imageRequest.setPromptUpsampling(request.getPromptUpsampling());
             imageRequest.setOutputFormat(request.getOutputFormat());
-
-            // FLUX.2 models only support safety_tolerance 0-5 (FLUX 3: 0-7)
-            Integer safetyTolerance = request.getSafetyTolerance();
-            String modelId = request.getModel();
-            boolean isFlux2Model = modelId != null && modelId.toLowerCase().startsWith("flux.2-");
-            boolean isFlux3Model = modelId != null && modelId.toLowerCase().startsWith("flux.3-");
-
-            if (safetyTolerance != null && isFlux2Model && safetyTolerance > 5) {
-                logger.info("Capping safety tolerance from {} to 5 for FLUX.2 model: {}", safetyTolerance, modelId);
-                safetyTolerance = 5; // Cap at 5 for FLUX.2 models
-            }
-            imageRequest.setSafetyTolerance(safetyTolerance);
-
-            logger.debug("Safety tolerance set to {} for model {} (isFlux2: {})",
-                safetyTolerance, modelId, isFlux2Model);
-
+            imageRequest.setSafetyTolerance(request.getSafetyTolerance());
             imageRequest.setImageSize(request.getImageSize()); // FLUX 3 resolution tier
             imageRequest.setAspectRatio(request.getAspectRatio()); // Copy aspect ratio for proper model handling
             imageRequest.setStylePreset(request.getStylePreset()); // Copy style preset if present
@@ -138,11 +126,10 @@ public class BflGenerationFlow {
             /*  The price per image becomes the base cost of the image, the entry gets the sum of its images  */
             imageRequest.setBaseCostPerImage(request.getBaseCostPerImage());
 
-            // Copy FLUX.2 specific parameters
+            // Copy the parameters of the model
             imageRequest.setGuidance(request.getGuidance()); // FLUX.2 [flex] guidance
             imageRequest.setSteps(request.getSteps()); // FLUX.2 [flex] steps
-            // Note: grounding_search is NOT a parameter - FLUX.2 [max] has built-in grounding
-            // that activates automatically based on prompt content
+            // Note: FLUX.2 [max] has built-in grounding, no parameter
 
             // Copy the input images for image-to-image generation (FLUX.2 up to 8 images, FLUX 3 up to 10)
             if (request.hasInputImage()) {
@@ -155,33 +142,33 @@ public class BflGenerationFlow {
             }
 
             // Handle seed generation for multiple images: user seed with index offset, else a random seed
-            long seed = request.getSeed() != null ? request.getSeed() + imageIndex : generateRandomSeed(imageIndex);
+            imageRequest.setSeed(request.getSeed() != null ? request.getSeed() + imageIndex : Seeds.random(imageIndex));
 
-            /*  FLUX 3 Klein takes seeds from 0 to 4294967295 only (FLUX 3 Image takes none)  */
-            final Long imageSeed = isFlux3Model ? seed & 0xFFFFFFFFL : seed;
-            imageRequest.setSeed(imageSeed);
+            /*  What the model limits in a single job, e.g. the range of the seed or the safety tolerance  */
+            provider.prepareJob(imageRequest);
+            final Long imageSeed = imageRequest.getSeed();
+            logger.debug("Job of model {}: safety tolerance {}, seed {}", imageRequest.getModel(),
+                imageRequest.getSafetyTolerance(), imageSeed);
 
-            // Submit request through BflApiService with timeout
-            bflApiService.submitGenerationRequest(imageRequest)
+            // Submit the job with timeout
+            provider.submitGenerationRequest(imageRequest)
                 .exceptionallyCompose((throwable) -> {
                     /*  An account without approval for the safety tolerance gets one retry with its approved
                         maximum, which also becomes the value of the FLUX.2 slider  */
-                    Throwable cause = ProviderException.unwrap(throwable);
-                    Integer approved = cause instanceof BflApiException bflError
-                            ? bflError.getMaximumApprovedSafetyTolerance() : null;
+                    Integer approved = provider.approvedSafetyTolerance(throwable);
                     if (approved == null)
                         return CompletableFuture.failedFuture(throwable);
-                    logger.info("Safety tolerance {} not approved for the BFL account, retrying with {}",
-                        imageRequest.getSafetyTolerance(), approved);
+                    logger.info("Safety tolerance {} not approved for the {} account, retrying with {}",
+                        imageRequest.getSafetyTolerance(), provider.getProvider().getDisplayName(), approved);
                     imageRequest.setSafetyTolerance(approved);
                     config.setFlux2SafetyTolerance(approved);
                     onSafetyToleranceLowered.accept(approved);
-                    return bflApiService.submitGenerationRequest(imageRequest);
+                    return provider.submitGenerationRequest(imageRequest);
                 })
                 .orTimeout(30, TimeUnit.SECONDS) // 30 second timeout
                 .thenAccept(jobInfo -> {
                     // Handle successful submission
-                    handleSubmissionSuccess(jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
+                    handleSubmissionSuccess(provider, jobInfo, chatEntry, imageIndex, imageRequest, imageSeed);
                 })
                 .exceptionally(throwable -> {
                     if (ProviderException.unwrap(throwable) instanceof java.util.concurrent.TimeoutException) {
@@ -203,8 +190,8 @@ public class BflGenerationFlow {
     /**
      * Handles successful submission of generation request.
      */
-    private void handleSubmissionSuccess(GenerationJobInfo jobInfo, ChatEntry chatEntry, int imageIndex,
-            ImageGenerationRequest request, Long imageSeed) {
+    private void handleSubmissionSuccess(ImageProvider provider, GenerationJobInfo jobInfo, ChatEntry chatEntry,
+            int imageIndex, ImageGenerationRequest request, Long imageSeed) {
         try {
             String jobId = jobInfo.getJobId();
 
@@ -265,9 +252,7 @@ public class BflGenerationFlow {
                         logger.info("Job {} of a cancelled entry is not polled", jobId);
                         return;
                     }
-                    PendingRequest pendingRequest = new PendingRequest(jobId, chatEntry, generatedImage, request);
-                    // CRITICAL: Store the polling URL from BFL response to avoid 404 errors
-                    pendingRequest.setPollingUrl(jobInfo.getPollingUrl());
+                    PendingRequest pendingRequest = new PendingRequest(provider, jobInfo, chatEntry, generatedImage);
                     activeRequests.put(jobId, pendingRequest);
                     startPolling(jobId, pendingRequest);
                 });
@@ -310,7 +295,7 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Polls the BFL API for job status updates with improved error handling.
+     * Polls the provider for the status of a job.
      */
     private void pollJobStatus(String jobId, PendingRequest pendingRequest) {
         if (activeRequests.get(jobId) != pendingRequest)
@@ -335,24 +320,13 @@ public class BflGenerationFlow {
         }
 
         try {
-            CompletableFuture<GenerationJobResult> pollingFuture;
-
-            // Use the correct polling URL from the BFL response instead of constructing one
-            if (pendingRequest.pollingUrl != null && !pendingRequest.pollingUrl.isEmpty()) {
-                pollingFuture = bflApiService.getJobResultWithPollingUrl(pendingRequest.pollingUrl);
-            } else {
-                // Fallback to old method (will likely cause 404)
-                logger.warn("No polling URL available for job {}, using fallback method", jobId);
-                pollingFuture = bflApiService.getJobStatus(jobId);
-            }
-
-            pollingFuture.whenComplete((GenerationJobResult jobResult, Throwable throwable) -> {
+            pendingRequest.provider.pollJob(pendingRequest.job).whenComplete((GenerationJobResult jobResult, Throwable throwable) -> {
                 if (throwable == null) {
                     handleJobStatusUpdate(jobResult, jobId, pendingRequest);
                     return;
                 }
 
-                // Handle HTTP 404 (job not found) as normal - BFL API returns 404 until job is complete
+                // Handle HTTP 404 (job not found) as normal - BFL answers 404 until the job is visible
                 // This is expected behavior, not an error condition
                 if (ProviderException.unwrap(throwable) instanceof ApiHttpException http
                         && http.getStatusCode() == 404) {
@@ -374,7 +348,7 @@ public class BflGenerationFlow {
     }
 
     /**
-     * Handles a status answered by BFL, on the thread of the answer: a job that ended is claimed here, so it is handled
+     * Handles a status answered by the provider, on the thread of the answer: a job that ended is claimed here, so it is handled
      * once; the image, bound to the UI, is changed on the FX thread. A job still running is polled again.
      */
     private void handleJobStatusUpdate(GenerationJobResult jobResult, String jobId, PendingRequest pendingRequest) {
@@ -385,7 +359,7 @@ public class BflGenerationFlow {
             return;
         }
 
-        // Job status checked - handle all valid BFL API status values
+        // Job status checked - handle the statuses ImageProvider.pollJob names
         switch (status.toLowerCase()) {
             case "pending" -> {
                 // Job is queued and waiting to be processed
@@ -464,8 +438,8 @@ public class BflGenerationFlow {
 
                     tracker.notifyImageUpdated(pendingRequest.generatedImage);
 
-                    // Update the image cost with actual API cost if available
-                    tracker.updateCostFromApi(pendingRequest.generatedImage, jobResult);
+                    // Update the image cost with the price the provider reports, if any
+                    tracker.updateCost(pendingRequest.generatedImage, pendingRequest.provider.reportedCost(jobResult));
 
                     // Start actual image download
                     downloadImage(pendingRequest.generatedImage, pendingRequest.chatEntry);
@@ -500,7 +474,7 @@ public class BflGenerationFlow {
         pendingRequest.generatedImage.setFailureReason(userFriendlyMessage);
         pendingRequest.generatedImage.setErrorMessage(userFriendlyMessage);
 
-        /*  BFL bills finished jobs only, a failed or moderated one costs nothing  */
+        /*  A job is billed once finished only, a failed or moderated one costs nothing  */
         pendingRequest.generatedImage.setBaseCost(0.0);
 
         tracker.notifyImageUpdated(pendingRequest.generatedImage);
@@ -541,44 +515,8 @@ public class BflGenerationFlow {
 
 
     /**
-     * Generates a cryptographically strong random seed for better image variety.
-     * Uses multiple entropy sources to ensure maximum variety between images.
-     * 
-     * @param imageIndex the index of the image in the batch
-     * @return a strong random seed value that is guaranteed to be unique
-     */
-    public long generateRandomSeed(int imageIndex) {
-        // Add small delay to ensure different nanoTime values for consecutive calls
-        try {
-            Thread.sleep(imageIndex + 1); // Variable delay based on index
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // Combine multiple entropy sources for maximum variety
-        long timeSeed = System.nanoTime(); // High-resolution timestamp
-        long randomSeed1 = secureRandom.nextLong(); // First strong random number
-        long randomSeed2 = secureRandom.nextLong(); // Second strong random number for more entropy
-        long indexSeed = (long) imageIndex * 982451653L; // Large prime for index offset
-        long threadSeed = (long) Thread.currentThread().hashCode() * 1009L; // Thread variety
-        long memSeed = Runtime.getRuntime().freeMemory(); // Memory state as entropy
-
-        // XOR combine all entropy sources for truly unique seeds
-        long finalSeed = timeSeed ^ randomSeed1 ^ randomSeed2 ^ indexSeed ^ threadSeed ^ memSeed;
-
-        // Ensure seed is never 0 (which might be treated as "no seed")
-        if (finalSeed == 0) {
-            finalSeed = secureRandom.nextLong();
-        }
-
-        // Generated unique seed for image
-
-        return finalSeed;
-    }
-
-    /**
      * Converts technical API error messages to user-friendly messages.
-     * 
+     *
      * @param apiReason the raw API error reason
      * @return user-friendly error message
      */
@@ -626,20 +564,19 @@ public class BflGenerationFlow {
      * Internal class to track pending requests.
      */
     private static class PendingRequest {
+        final ImageProvider provider;
+        final GenerationJobInfo job;  // with the polling URL the provider answered
         final ChatEntry chatEntry;
         final GeneratedImage generatedImage;
         volatile ScheduledFuture<?> pollingTask;
         volatile int pollingAttempts = 0;
-        String pollingUrl; // CRITICAL: Store the polling URL from BFL response
 
-        PendingRequest(String jobId, ChatEntry chatEntry, GeneratedImage generatedImage,
-                ImageGenerationRequest originalRequest) {
+        PendingRequest(ImageProvider provider, GenerationJobInfo job, ChatEntry chatEntry,
+                GeneratedImage generatedImage) {
+            this.provider = provider;
+            this.job = job;
             this.chatEntry = chatEntry;
             this.generatedImage = generatedImage;
-        }
-        
-        void setPollingUrl(String pollingUrl) {
-            this.pollingUrl = pollingUrl;
         }
 
         void setPollingTask(ScheduledFuture<?> task) {
@@ -651,7 +588,7 @@ public class BflGenerationFlow {
                 pollingTask.cancel(false);
             }
         }
-        
+
         void incrementPollingAttempts() {
             this.pollingAttempts++;
         }

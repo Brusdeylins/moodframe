@@ -297,6 +297,17 @@ public class BflApiServiceImpl implements BflApiService {
     }
     
     @Override
+    public CompletableFuture<GenerationJobResult> pollJob(GenerationJobInfo job) {
+        String pollingUrl = job.getPollingUrl();
+        if (pollingUrl != null && !pollingUrl.isEmpty())
+            return getJobResultWithPollingUrl(pollingUrl);
+
+        /*  The job id alone may answer HTTP 404 if another region runs the job  */
+        logger.warn("No polling URL available for job {}, using fallback method", job.getJobId());
+        return getJobStatus(job.getJobId());
+    }
+
+    @Override
     public CompletableFuture<GenerationJobResult> getJobStatus(String jobId) {
         if (!isConfigured()) {
             return CompletableFuture.failedFuture(ProviderException.noKey("BFL"));
@@ -444,7 +455,7 @@ public class BflApiServiceImpl implements BflApiService {
             return CompletableFuture.completedFuture(body);
         }
 
-        // All error responses (including 404) are failures - no synthetic "not_found" status; BflGenerationFlow
+        // All error responses (including 404) are failures - no synthetic "not_found" status; the polling flow
         // logs them: a 404 is normal until the job is registered
         String errorMessage = extractErrorMessage(body, statusCode);
         logger.debug("BFL polling error [{}]: {}", statusCode, errorMessage);

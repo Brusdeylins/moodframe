@@ -29,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -52,7 +54,7 @@ class JobPollingTest {
     private ImageFileStore files;
     private ApplicationConfig config;
     private ChatEntryTracker tracker;
-    private BflGenerationFlow flow;
+    private JobPollingFlow flow;
     private ChatEntry entry;
 
     @BeforeAll
@@ -77,12 +79,12 @@ class JobPollingTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        api = mock(BflApiService.class);
-        when(api.getJobStatus(anyString())).thenAnswer((invocation) -> {
+        api = mock(BflApiService.class, CALLS_REAL_METHODS);
+        doAnswer((invocation) -> {
             CompletableFuture<GenerationJobResult> poll = new CompletableFuture<>();
             polls.add(poll);
             return poll;
-        });
+        }).when(api).pollJob(any());
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
         when(scheduler.schedule(any(Runnable.class), anyLong(), any())).thenAnswer((invocation) -> {
             scheduled.add(invocation.getArgument(0));
@@ -94,7 +96,7 @@ class JobPollingTest {
         config = ConfigMocks.config();
         when(config.getApiTimeoutSeconds()).thenReturn(600);
         tracker = new ChatEntryTracker(mock(ChatRepository.class), Runnable::run);
-        flow = new BflGenerationFlow(config, api, tracker, files, scheduler, Runnable::run);
+        flow = new JobPollingFlow(config, tracker, files, scheduler, Runnable::run);
 
         entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).build();
         entry.getImages().add(new GeneratedImage.Builder().chatEntryId(entry.getId())
@@ -103,11 +105,11 @@ class JobPollingTest {
 
     /*  submits one image, the job is answered at once  */
     private void submit(CompletableFuture<GenerationJobInfo> job) throws Exception {
-        when(api.submitGenerationRequest(any())).thenReturn(job);
+        doReturn(job).when(api).submitGenerationRequest(any());
         ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
                 GenerationModel.FLUX2_PRO.getApiModelId());
         request.setSeed(42L);
-        flow.submit(request, entry, 0);
+        flow.submit(api, request, entry, 0);
         drainFxThread();
     }
 

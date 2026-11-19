@@ -108,27 +108,20 @@ public class McpTools {
     /**
      * Creates the reading tools of the chats, the library and the models.
      *
-     * @param config    the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
-     * @param chats     the chats of the main window
-     * @param moods     the moods
-     * @param blocks    the text building blocks
-     * @param colors    the palettes
-     * @param frames    the frames
-     * @param favorites the favorites
-     * @param trash     the trash
-     * @param events    where a download is reported for the status bar
+     * @param config      the configuration (enabled providers, keys, OpenAI models, defaults of the parameters)
+     * @param chats       the chats of the main window
+     * @param moods       the moods
+     * @param blocks      the text building blocks
+     * @param colors      the palettes
+     * @param frames      the frames
+     * @param favorites   the favorites
+     * @param trash       the trash
+     * @param events      where a download is reported for the status bar
+     * @param promptLimit the prompt limit of a model by its fixed id, as its provider tells it, e.g.
+     *                    {@code ProviderRegistry::promptLimit}
      * @return the tools
      */
-    @SuppressWarnings("removal")
     public static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
-            PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
-            TrashCenter trash, LibraryEvents events) {
-        /*  Without a generation service, the prompt limits known without the providers  */
-        return reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
-                GenerationService::maxPromptLength);
-    }
-
-    private static McpTools reading(ApplicationConfig config, ChatLibrary chats, MoodService moods,
             PromptBlockService blocks, ColorStyleService colors, FrameService frames, FavoriteService favorites,
             TrashCenter trash, LibraryEvents events, ToIntFunction<String> promptLimit) {
         McpTools tools = new McpTools();

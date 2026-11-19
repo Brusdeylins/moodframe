@@ -472,7 +472,8 @@ public class MoodframeApplication extends Application {
                                         favorites, trash, events, generation, services.getService(
                                                 art.moodframe.service.brainstorm.MoodAnalysisService.class))
                                 : art.moodframe.mcp.McpTools.reading(config, chats, moods, blocks, colors, frames,
-                                        favorites, trash, events));
+                                        favorites, trash, events, services.getService(
+                                                art.moodframe.service.provider.ProviderRegistry.class)::promptLimit));
                     });
 
             /*  The analysis of an image into a mood, for the panel of the main window and the MCP tools  */

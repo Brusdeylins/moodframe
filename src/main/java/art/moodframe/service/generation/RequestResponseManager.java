@@ -9,7 +9,6 @@ import art.moodframe.model.GenerationJobInfo;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.repository.ChatRepository;
-import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.ImageProvider;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.ImageEncoder;
@@ -36,7 +35,7 @@ import java.util.function.Supplier;
 
 /**
  * Central manager for handling the requests of a generation and their answers: submission to the provider of the
- * model, the polling of BFL jobs (see {@link BflGenerationFlow}), download and storage of the images and videos, and
+ * model, the polling of the jobs of a provider that answers with a job (see {@link JobPollingFlow}), download and storage of the images and videos, and
  * the events for the user interface.
  *
  * <p><strong>Threading:</strong> requests, downloads and files run on the I/O executor, the chat entry and its
@@ -53,7 +52,7 @@ public class RequestResponseManager implements RequestResponseService {
     private final ApplicationConfig config;
     private final ScheduledExecutorService scheduler;
     private final ExecutorService store;
-    private final BflGenerationFlow bflFlow;
+    private final JobPollingFlow pollingFlow;
     private final ProviderRegistry providers;
     private final Executor io;
     private final Supplier<HttpClient> downloadClient;  // Simple client for downloading images from CDN
@@ -86,8 +85,7 @@ public class RequestResponseManager implements RequestResponseService {
         /*  One thread for the database writes keeps them in the order of the changes they store  */
         this.store = Executors.newSingleThreadExecutor(daemonThreads("generation-store"));
         this.tracker = new ChatEntryTracker(chatRepository, store);
-        this.bflFlow = new BflGenerationFlow(config, providers.get(ApiProvider.BFL, BflApiService.class),
-                tracker, imageFiles, scheduler, io);
+        this.pollingFlow = new JobPollingFlow(config, tracker, imageFiles, scheduler, io);
 
         logger.debug("RequestResponseManager initialized with timeout: {}s, proxy: {}",
                 config.getApiTimeoutSeconds(), config.isProxyEnabled() ? "enabled" : "disabled");
@@ -124,16 +122,15 @@ public class RequestResponseManager implements RequestResponseService {
     }
 
     /**
-     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the account allows.
      */
     @Override
     public void setOnSafetyToleranceLowered(IntConsumer callback) {
-        bflFlow.setOnSafetyToleranceLowered(callback);
+        pollingFlow.setOnSafetyToleranceLowered(callback);
     }
 
     /**
-     * Submits an image generation request to the appropriate provider (BFL or Gemini)
-     * with optional image attachment.
+     * Submits an image generation request to the provider of its model with optional image attachment.
      *
      * @param request           the generation request
      * @param chatEntry         the chat entry to update with results
@@ -167,13 +164,13 @@ public class RequestResponseManager implements RequestResponseService {
                     int imageCount = request.getImageCount() != null ? request.getImageCount() : 1;
 
                     for (int i = 0; i < imageCount; i++) {
-                        // Generate seed for each placeholder image (BFL only, Gemini doesn't use seeds)
+                        // Generate seed for each placeholder image of a provider with seeds
                         Long placeholderSeed = null;
                         if (provider.usesSeeds()) {
                             if (request.getSeed() != null) {
                                 placeholderSeed = request.getSeed() + i;
                             } else {
-                                placeholderSeed = bflFlow.generateRandomSeed(i);
+                                placeholderSeed = Seeds.random(i);
                             }
                         }
 
@@ -182,7 +179,7 @@ public class RequestResponseManager implements RequestResponseService {
                                 .downloadStatus(GeneratedImage.DownloadStatus.PENDING)
                                 .sortOrder(i);
 
-                        // Only set seed for a provider with seeds (BFL, not Gemini)
+                        // Only set seed for a provider with seeds
                         if (placeholderSeed != null) {
                             builder.seed(placeholderSeed);
                         }
@@ -209,9 +206,9 @@ public class RequestResponseManager implements RequestResponseService {
                                 provider.getProvider().getDisplayName());
                     }
                 } else {
-                    // BFL: Asynchronous polling flow
+                    // A provider that answers with a job (BFL): one job per image, polled until it is ready
                     for (int i = 0; i < imageCount; i++) {
-                        bflFlow.submit(request, chatEntry, i);
+                        pollingFlow.submit(provider, request, chatEntry, i);
                     }
                 }
 
@@ -232,14 +229,14 @@ public class RequestResponseManager implements RequestResponseService {
         return FxModel.changeAndGet(() -> {
             boolean running = tracker.cancel(chatEntry);
             if (running)
-                bflFlow.cancelEntry(chatEntry.getId());
+                pollingFlow.cancelEntry(chatEntry.getId());
             return running;
         });
     }
 
     @Override
     public void shutdown() {
-        bflFlow.cancelAll();
+        pollingFlow.cancelAll();
         scheduler.shutdown();
         store.shutdown();
 

@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
- * Interface for managing BFL API requests and responses.
+ * Sends the requests of a generation to the providers and reports the progress of the entries.
  * 
  * @since 1.0.0
  */
@@ -49,9 +49,10 @@ public interface RequestResponseService {
     void removeImageListener(Consumer<GeneratedImage> listener);
 
     /**
-     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the BFL account allows.
+     * Sets the callback for a FLUX.2 safety tolerance lowered to the maximum the account allows.
      *
-     * <p>BFL rejects a safety tolerance the account is not approved for; the request is then repeated once
+     * <p>A provider rejects a safety tolerance the account is not approved for (see
+     * {@link art.moodframe.service.provider.ImageProvider#approvedSafetyTolerance}); the request is then repeated once
      * with the approved maximum, which is also stored as the new FLUX.2 safety tolerance. The callback is
      * invoked on a worker thread.</p>
      *
@@ -84,7 +85,7 @@ public interface RequestResponseService {
     void markFailed(ChatEntry chatEntry, Throwable failure);
     
     /**
-     * Cancels a running chat entry: the polling of its BFL jobs stops, its images not finished yet fail and it ends
+     * Cancels a running chat entry: the polling of its jobs stops, its images not finished yet fail and it ends
      * as cancelled. A request Gemini or OpenAI got already cannot be called back; an image it still delivers is
      * kept, the entry stays cancelled.
      *
