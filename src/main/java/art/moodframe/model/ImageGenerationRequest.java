@@ -14,7 +14,10 @@ import java.util.List;
  * @since 1.0.0
  */
 public class ImageGenerationRequest {
-    
+
+    /** The most images one request makes. */
+    public static final int MAX_IMAGE_COUNT = 4;
+
     private String prompt;
     
     // Note: Model is determined by endpoint, not a request parameter
@@ -484,87 +487,6 @@ public class ImageGenerationRequest {
     public Integer getVideoDuration() { return videoDuration; }
     public void setVideoDuration(Integer videoDuration) { this.videoDuration = videoDuration; }
 
-    /**
-     * Checks if a model id belongs to the OpenAI provider: an OpenAI image model, or any model of an OpenAI-compatible
-     * gateway (e.g. {@code qwen-image-2.1}), as all BFL ids start with {@code flux.} and Gemini ids contain
-     * {@code gemini}.
-     *
-     * @param model the model id (may be null)
-     * @return true for OpenAI and gateway models
-     */
-    static boolean isOpenAiModel(String model) {
-        if (model == null)
-            return false;
-        String lower = model.toLowerCase(java.util.Locale.ROOT);
-        return GenerationModel.isOpenAiImageModelId(model) || (!lower.startsWith("flux.") && !lower.contains("gemini"));
-    }
-
-    /**
-     * Validates the request parameters.
-     *
-     * @throws IllegalArgumentException if any parameters are invalid
-     */
-    public void validate() {
-        if (prompt == null || prompt.trim().isEmpty()) {
-            throw new IllegalArgumentException("Prompt cannot be empty");
-        }
-
-        // The prompt limit is the one of the provider (ImageProvider#checkPromptLength), which the main window shows
-        if (model == null || model.trim().isEmpty()) {
-            throw new IllegalArgumentException("Model must be specified");
-        }
-        if (imageCount != null && (imageCount < 1 || imageCount > 4)) {
-            throw new IllegalArgumentException("Image count must be between 1 and 4");
-        }
-        // Width/Height validation only for FLUX.2 (Gemini uses imageSize and videoResolution, FLUX 3 a resolution tier)
-        boolean isOpenAiModel = isOpenAiModel(model);
-        boolean isGemini = model != null && (model.toLowerCase().contains("gemini") || isOpenAiModel);
-        if (!isGemini && !model.toLowerCase().startsWith("flux.3-")) {
-            // FLUX.2: min 64 and multiple of 16 (the schema has no other limit), else min 256 and multiple of 32
-            boolean flux2 = model.toLowerCase().startsWith("flux.2-");
-            int minDimension = flux2 ? 64 : 256;
-            int multiple = flux2 ? 16 : 32;
-            if (width != null && (width < minDimension || width > 2048 || width % multiple != 0)) {
-                throw new IllegalArgumentException(
-                        "Width must be between " + minDimension + "-2048 and multiple of " + multiple);
-            }
-            if (height != null && (height < minDimension || height > 2048 || height % multiple != 0)) {
-                throw new IllegalArgumentException(
-                        "Height must be between " + minDimension + "-2048 and multiple of " + multiple);
-            }
-        }
-        
-        // Validate input image for compatible models
-        if (hasInputImage()) {
-            // Check if model supports image input (FLUX 3, FLUX.2, Gemini and OpenAI models support input images)
-            if (model != null) {
-                String lowerModel = model.toLowerCase();
-                boolean isFlux = lowerModel.startsWith("flux.3-") || lowerModel.startsWith("flux.2-");
-
-                if (!isFlux && !lowerModel.contains("gemini") && !isOpenAiModel) {
-                    throw new IllegalArgumentException("Input image is only supported with FLUX 3, FLUX.2, Gemini, and OpenAI models");
-                }
-            }
-        }
-
-        // Validate FLUX.2 [flex] parameters
-        if (guidance != null && !ModelParameters.GUIDANCE.accepts(guidance)) {
-            throw new IllegalArgumentException("Guidance must be between " + ModelParameters.GUIDANCE.minimum()
-                    + " and " + ModelParameters.GUIDANCE.maximum());
-        }
-        if (steps != null && !ModelParameters.STEPS.accepts(steps)) {
-            throw new IllegalArgumentException("Steps must be between " + ModelParameters.STEPS.minimum() + " and "
-                    + ModelParameters.STEPS.maximum());
-        }
-
-        // Validate Gemini Omni video parameters (the duration is put into the prompt)
-        if (model != null && model.startsWith("gemini-omni")) {
-            if (videoDuration != null && (videoDuration < 3 || videoDuration > 10)) {
-                throw new IllegalArgumentException("Video duration must be between 3 and 10 seconds");
-            }
-        }
-    }
-    
     @Override
     public String toString() {
         return String.format("ImageGenerationRequest{prompt='%s', model='%s', size=%dx%d, format='%s', count=%d, hasInputImage=%s}", 

@@ -7,6 +7,7 @@ import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.model.ModelFamilies;
 import art.moodframe.model.ModelParameter;
 import art.moodframe.model.ModelParameters;
@@ -49,7 +50,7 @@ import java.util.concurrent.TimeoutException;
  */
 class GenerateTools {
 
-    private static final int MAX_COUNT = 4;
+    private static final int MAX_COUNT = ImageGenerationRequest.MAX_IMAGE_COUNT;
     private static final int MAX_REFERENCES = 14;
     private static final int DEFAULT_WAIT = 120;
     private static final int MAX_WAIT = 600;

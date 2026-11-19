@@ -8,6 +8,9 @@ package art.moodframe.model;
  */
 public final class ImageDimensions {
 
+    /*  the largest side of the former FLUX models  */
+    private static final int FORMER_FLUX_MAX = 2048;
+
     private ImageDimensions() {
     }
 
@@ -19,6 +22,28 @@ public final class ImageDimensions {
      */
     public static int multipleFor(GenerationModel model) {
         return model != null && model.isFlux2Model() ? 16 : 32;
+    }
+
+    /**
+     * Gets the smallest width or height a model sized by width and height takes: FLUX.2 64, FLUX.1 (and the default)
+     * 256.
+     *
+     * @param model the model (may be null)
+     * @return 64 or 256
+     */
+    public static int minimumFor(GenerationModel model) {
+        return model != null && model.isFlux2Model() ? 64 : 256;
+    }
+
+    /**
+     * Gets the largest width or height a model sized by width and height takes: its
+     * {@link GenerationModel#getMaxResolution() resolution limit}, 2048 for a former FLUX model, which is no constant.
+     *
+     * @param model the model (may be null)
+     * @return the side in pixels
+     */
+    public static int maximumFor(GenerationModel model) {
+        return model != null ? model.getMaxResolution() : FORMER_FLUX_MAX;
     }
 
     /**

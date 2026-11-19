@@ -509,7 +509,12 @@ Javadoc), a 404 means "not visible yet", and an approved safety tolerance is sto
 that is neither a constant nor served by a provider goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX
 models are no constants any more. The prompt limit of a model comes from its provider (`ProviderRegistry.promptLimit`),
 for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step)
-are one table, `model.ModelParameters`, which the MCP schema, the MCP validation and the providers read.
+are one table, `model.ModelParameters`, which the MCP schema, the MCP validation and the providers read. A request is
+checked before it is sent by the provider of its model (`ImageProvider.checkRequest`, in the dispatch and in the BFL
+client): the limits every provider shares come from that table and `GenerationModel` (image count, guidance, steps,
+the video lengths of the model, an input image as `checkImageInput` decides from `supportsImageAttachment`, the
+prompt limit), and a provider adds in its override what only its models have (BFL: width and height of FLUX.2 and the
+former FLUX models, by `ImageDimensions`); nothing guesses the provider from the model id.
 
 Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
 OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
@@ -544,7 +549,9 @@ there are. A new provider is, in this order:
 2. its client in a subpackage of its own, `service.provider.<name>` like `bfl`, `gemini` and `openai`, which uses
    `service.provider` and no other client (add it to `SERVICES` and `VENDORS` of `ArchitectureTest`): an interface
    extending `ImageProvider` with its implementation (prompt limit, `prepare`, the flow it answers with, seeds, costs,
-   download headers), created in `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
+   download headers, and `checkRequest` or `checkImageInput` only for a limit its models have beyond the table, such
+   as a model it lists that takes no image), created in `MoodframeApplication.registerProviders` and added to the
+   `ProviderRegistry` there;
 3. its models as constants of `model.GenerationModel`, which decides several things by provider: the branch of the
    constructor for their resolution (`maxMegapixels`, `maxResolution`; `supportsImageAttachment` is true for every
    provider but BFL), `supportsMultiImage` and `getMaxInputImages` for their reference images (false and 0 for a new
@@ -555,7 +562,9 @@ there are. A new provider is, in this order:
    `getResolutionLabel` for variants; their parameters in `model.ModelParameters`, their prices in
    `model.GenerationCost` (`GenerationCost.isKnown` answers false only for OpenAI, whose prices are unknown, so a
    provider without known prices needs its branch there), their aspect ratios in `AspectRatios.forModel` (a branch per
-   provider, BFL's otherwise) and the multiple of their sizes in `ImageDimensions.multipleFor`;
+   provider, BFL's otherwise), the multiple of their sizes in `ImageDimensions.multipleFor` and, for a model sized by
+   width and height, its sides in `ImageDimensions.minimumFor` and `maximumFor`, and the video lengths of a video
+   model in `getVideoDurationChoices`, which the MCP schema and the check of the request read;
 4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
    `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), its field in
    `ui.controller.ProviderParameters`, and its value in `mcp.GenerateTools.parameters`, which builds the
