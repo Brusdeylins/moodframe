@@ -28,6 +28,7 @@ import art.moodframe.service.provider.OpenAiApiServiceImpl;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.ui.controller.settings.SettingsPrompts;
 import art.moodframe.ui.controller.settings.SettingsServices;
+import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import atlantafx.base.theme.NordLight;
 import javafx.application.Application;
@@ -393,6 +394,22 @@ class SettingsDialogTest {
 
         onFx(controller::applySettings);
         assertEquals("nord-light", config.ui().getUiTheme());
+    }
+
+    @Test
+    void theThemeOfTheSystemIsDetectedOffTheJavaFxThread() throws Exception {
+        open();
+        select(2);
+        assertTrue(onFx(() -> {
+            Button reset = node("resetThemeButton");
+            reset.fire();
+            return reset.isDisabled();
+        }), "the detection runs off the JavaFX thread, its button disabled meanwhile");
+        waitFor(() -> !this.<Button>node("resetThemeButton").isDisabled(), "the theme of the system is detected");
+        String theme = onFx(() -> (String) this.<VBox>node("themeSelectionContainer").getChildren().stream()
+                .map((Node radio) -> (RadioButton) radio).filter(RadioButton::isSelected).findFirst().orElseThrow()
+                .getUserData());
+        assertEquals(ThemeManager.getSystemPreferredTheme(), theme);
     }
 
     @Test

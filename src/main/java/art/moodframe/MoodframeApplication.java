@@ -107,6 +107,9 @@ public class MoodframeApplication extends Application {
     /*  The folders of the library, the only reading of user.home; the configuration may move the images folder  */
     private final LibraryPaths homePaths = LibraryPaths.fromUserHome();
 
+    /*  the theme the system prefers, detected by the startup while no theme is chosen (null: one is chosen)  */
+    private volatile String systemTheme;
+
     @Override
     public void start(Stage primaryStage) {
 
@@ -141,17 +144,31 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Prepares the application off the JavaFX thread, while the splash shows: configuration, database, services,
-     * the trash cleanup, then the chats, the thumbnails of older images and the check of the accounts.
+     * Prepares the application off the JavaFX thread, while the splash shows: configuration, the theme the system
+     * prefers, database, services, the trash cleanup, then the chats, the thumbnails of older images and the check of
+     * the accounts.
      */
     private void prepare() {
         initializeApplication();
         ServiceFactory services = ServiceFactory.getInstance();
+        detectSystemTheme(services.getService(ApplicationConfig.class));
         startLibrary(services);
         cleanUpAndLoad(createTrashCleanup(), services.getService(ChatLibrary.class));
         performRetroactiveThumbnailGeneration();
         validateApiProviders();
         createWindowServices();
+    }
+
+    /**
+     * Asks the system for its preferred theme while no theme is chosen, which runs programs ({@code defaults},
+     * {@code reg}, {@code gdbus}) for up to 2 s, so not on the JavaFX thread; the theme is applied with the window.
+     *
+     * @param config the configuration, which remembers the chosen theme
+     */
+    private void detectSystemTheme(ApplicationConfig config) {
+        ThemeManager.useConfig(config);
+        if (!config.ui().hasUserSetTheme())
+            systemTheme = ThemeManager.getSystemPreferredTheme();
     }
 
     /**
@@ -654,23 +671,19 @@ public class MoodframeApplication extends Application {
      * Applies AtlantaFX theme to the application.
      *
      * This method sets the application theme based on the user's configuration.
-     * If the user hasn't explicitly set a theme preference, it will attempt
-     * to detect and use the system theme preference.
+     * If the user hasn't explicitly set a theme preference, it uses the theme the system prefers, which the startup
+     * detected.
      * AtlantaFX provides modern, consistent styling across all JavaFX controls.
      */
     private void applyAtlantaFXTheme() {
 
         ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-        ThemeManager.useConfig(config);
         String configuredTheme = config.ui().getUiTheme();
 
-        // Check if user has explicitly set a theme preference
-        boolean hasUserPreference = config.ui().hasUserSetTheme();
-
         String themeToApply;
-        if (!hasUserPreference) {
-            // No user preference set, try to apply system-preferred theme
-            themeToApply = ThemeManager.getSystemPreferredTheme();
+        if (systemTheme != null) {
+            // No user preference set, apply the system-preferred theme
+            themeToApply = systemTheme;
 
             // If system theme differs from config, update the config
             if (!themeToApply.equals(configuredTheme)) {

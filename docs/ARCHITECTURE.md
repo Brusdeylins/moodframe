@@ -106,7 +106,9 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
 - **JavaFX application thread**: all scene graph work, the controllers, dialogs and cells. Nothing blocking runs
   here: no HTTP, no database query of noticeable length, no image decoding of full-size files.
 - **Start**: `MoodframeApplication.start` shows the splash and starts the thread `MoodFrame-startup`, which prepares
-  everything that needs no JavaFX thread: the configuration, the database with its migrations (the Java data
+  everything that needs no JavaFX thread: the configuration, the theme the system prefers while the user chose none
+  (`ThemeManager.getSystemPreferredTheme` runs `defaults`, `reg` or `gdbus` for up to 2 s; "Use System Theme" in
+  the settings asks on a thread of its own as well), the database with its migrations (the Java data
   migrations included), the registration of the services, their start (see "Dependency injection"), the trash
   cleanup, then the loading of the chats
   (`ChatLibrary.load`, which checks every image file and repairs what a restart left behind), the thumbnails of older
