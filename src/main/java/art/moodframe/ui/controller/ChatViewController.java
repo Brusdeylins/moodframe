@@ -313,11 +313,6 @@ public class ChatViewController {
         addNewChatEntryToUI(entry);
     }
 
-    /** Renders the cards anew, e.g. once another model decides whether "Copy seed" applies. */
-    public void refreshEntries() {
-        chatEntriesListView.refresh();
-    }
-
     /**
      * Scrolls an entry into view.
      *
@@ -433,9 +428,11 @@ public class ChatViewController {
         ObservableList<ChatEntry> items = chatEntriesListView.getItems();
         int index = items != null ? items.indexOf(entry) : -1;
 
-        /*  Setting the item again renders its card anew, also for an entry that got back a single image  */
-        if (index >= 0)
+        /*  The card of a shown entry follows its images itself; another object of the entry takes its place  */
+        if (index >= 0 && items.get(index) != entry)
             items.set(index, entry);
+        else if (index >= 0)
+            showChanges(entry);
         else if (belongs && items != null) {
             java.util.Comparator<ChatEntry> order = java.util.Comparator.comparingInt(ChatEntry::getSortOrder)
                     .thenComparing(ChatEntry::getCreatedAt);
@@ -456,16 +453,15 @@ public class ChatViewController {
      */
     public void entryUpdated(ChatEntry chatEntry) {
         try {
-            // Only update if this is the currently displayed chat and entry exists (an open group shows all chats)
+            /*  only an entry of the shown chat or group (an open group shows all chats)  */
             java.util.List<ChatEntry> shown = group.get() != null ? chatEntriesListView.getItems()
                     : chat.get() != null ? ChatLibrary.entriesOf(chat.get()) : null;
             if (shown != null && shown.contains(chatEntry)) {
-                // Find and update only the specific ChatEntryCard instead of reloading entire
-                // chat
-                updateSpecificChatEntryCard(chatEntry);
-
+                showChanges(chatEntry);
+                followGeneration();
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("Error updating UI for ChatEntry", e);
         }
     }
@@ -477,51 +473,44 @@ public class ChatViewController {
      */
     public void imageUpdated(GeneratedImage image) {
         try {
-            // Only update if this image belongs to the currently displayed chat (an open group shows all chats)
+            /*  only an image of the shown chat or group (an open group shows all chats)  */
             java.util.List<ChatEntry> shown = group.get() != null ? chatEntriesListView.getItems()
                     : chat.get() != null ? ChatLibrary.entriesOf(chat.get()) : null;
-            if (shown != null) {
-                // Find the ChatEntry that contains this image
-                ChatEntry parentEntry = shown.stream()
-                        .filter(entry -> ChatLibrary.imagesOf(entry).stream()
-                                .anyMatch(img -> img.getId().equals(image.getId())))
-                        .findFirst()
-                        .orElse(null);
-
-                if (parentEntry != null) {
-                    // Update only the specific ChatEntryCard instead of reloading entire chat
-                    updateSpecificChatEntryCard(parentEntry);
-
-                } else {
-                    // Image not found in current chat, no UI update needed
-                }
-            } else {
-                // No current chat, no UI update needed
+            ChatEntry parentEntry = shown == null ? null : shown.stream()
+                    .filter((entry) -> ChatLibrary.imagesOf(entry).stream()
+                            .anyMatch((img) -> img.getId().equals(image.getId())))
+                    .findFirst()
+                    .orElse(null);
+            if (parentEntry != null) {
+                ChatEntryCard card = cardOf(parentEntry);
+                if (card != null)
+                    card.showImageChange(image);
+                followGeneration();
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             logger.error("Error updating UI for GeneratedImage", e);
         }
     }
 
-    /**
-     * Updates a specific ChatEntryCard without reloading the entire chat view.
-     * With virtualized ListView, we refresh the ListView items to trigger cell update.
-     */
-    private void updateSpecificChatEntryCard(ChatEntry chatEntry) {
-        if (chatEntriesListView == null || chatEntriesListView.getItems() == null) {
-            return;
-        }
+    /*  The card showing an entry, null if it is out of view  */
+    private ChatEntryCard cardOf(ChatEntry entry) {
+        return shownCards.stream().filter((card) -> card.entry() == entry).findFirst().orElse(null);
+    }
 
-        // Force refresh by updating the entry in the list
-        // ListView will automatically re-render the visible cell
-        chatEntriesListView.refresh();
+    /*  The card of an entry shows what it does not follow itself: no other card and no cell is built anew  */
+    private void showChanges(ChatEntry entry) {
+        ChatEntryCard card = cardOf(entry);
+        if (card != null)
+            card.showChanges();
+    }
+
+    /*  During a generation the chat keeps its end in view and its header the total cost  */
+    private void followGeneration() {
         if (wasScrolledToBottom)
             scrollToBottom("entry updated");
-
-        // Update total cost after entry update
-        if (chat.get() != null) {
+        if (chat.get() != null)
             updateChatTotalCost(chat.get());
-        }
     }
 
     /**
@@ -679,9 +668,13 @@ public class ChatViewController {
             }
         };
 
-        // CellFactory creates ChatEntryCard for each visible cell
+        /*  Each visible cell shows a card; it keeps its card while it shows the same entry in the same view  */
         chatEntriesListView.setCellFactory(listView -> new javafx.scene.control.ListCell<ChatEntry>() {
-            private art.moodframe.ui.entry.ChatEntryCard currentCard = null;
+            private ChatEntryCard currentCard = null;
+
+            /*  what the card was built for beside the entry: the chat in the trash, the chat named by a group  */
+            private boolean cardInTrash;
+            private Chat cardOrigin;
 
             {
                 // CRITICAL: Cell must fill entire width to prevent horizontal scroll
@@ -697,8 +690,15 @@ public class ChatViewController {
             @Override
             protected void updateItem(ChatEntry entry, boolean empty) {
                 super.updateItem(entry, empty);
+                boolean isChatDeleted = !empty && group.get() == null && chat.get() != null && chat.get().isDeleted();
+                Chat origin = !empty && entry != null && group.get() != null ? getCurrentChatFromEntry(entry) : null;
+                if (currentCard != null && !empty && currentCard.entry() == entry && cardInTrash == isChatDeleted
+                        && cardOrigin == origin) {
+                    setGraphic(currentCard);
+                    return;
+                }
 
-                // Dispose previous card to prevent memory leaks
+                /*  The card of another entry lets go of its listeners  */
                 if (currentCard != null) {
                     currentCard.dispose();
                     shownCards.remove(currentCard);
@@ -709,9 +709,8 @@ public class ChatViewController {
                     setGraphic(null);
                     setText(null);
                 } else {
-                    // Create new ChatEntryCard for this entry
-                    // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
-                    boolean isChatDeleted = group.get() == null && chat.get() != null && chat.get().isDeleted();
+                    cardInTrash = isChatDeleted;
+                    cardOrigin = origin;
                     currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory,
                             imageSources);
                     shownCards.add(currentCard);
@@ -755,7 +754,6 @@ public class ChatViewController {
                     currentCard.setOnImageMood(actions::useImageMood);
 
                     /*  The entries of a group name their chat and lead to it  */
-                    Chat origin = group.get() != null ? getCurrentChatFromEntry(entry) : null;
                     if (origin != null)
                         currentCard.showOrigin(origin.getName(), () -> actions.openChatOf(entry));
 

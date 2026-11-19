@@ -394,9 +394,6 @@ public class MainWindowController implements I18nChangeListener {
             @Override
             public void modelChanged() {
                 updateUIState();
-
-                /*  "Copy seed" at an image applies only while a model of BFL is chosen  */
-                chatViewController.refreshEntries();
             }
 
             @Override
@@ -818,6 +815,11 @@ public class MainWindowController implements I18nChangeListener {
     /** The group Generation, for the tests of the window. */
     GenerationPanelController generationPanel() {
         return generationPanelController;
+    }
+
+    /** The chat area, for the tests of the window. */
+    ChatViewController chatView() {
+        return chatViewController;
     }
 
     /**

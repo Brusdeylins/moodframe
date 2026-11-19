@@ -419,13 +419,7 @@ public class ChatEntryCard extends ManagedComponent {
         // Listen for downloadStatus changes to update the image card display
         addSubscription(Subscription.of(
                 image.downloadStatusProperty(),
-                (obs, oldStatus, newStatus) -> {
-                    Platform.runLater(() -> {
-                        // Rebuild the entire images display to reflect status change
-                        // This ensures loading indicators are replaced with error/success states
-                        updateImagesDisplay();
-                    });
-                }));
+                (obs, oldStatus, newStatus) -> Platform.runLater(() -> showImageChange(image))));
     }
 
     /**
@@ -640,6 +634,40 @@ public class ChatEntryCard extends ManagedComponent {
         return name;
     }
 
+
+    /** The entry the card shows. */
+    public ChatEntry entry() {
+        return chatEntry;
+    }
+
+    /**
+     * Shows what changed at the entry beside its status, prompt and images, which the card follows itself: its cost
+     * and its error message.
+     */
+    public void showChanges() {
+        updateStatusDisplay();
+        updateInfoDisplay();
+    }
+
+    /**
+     * Shows the change of an image of the entry, e.g. its download status or that it became a video: only its tile is
+     * built anew, the other tiles and the card stay.
+     *
+     * @param image the image
+     */
+    public void showImageChange(GeneratedImage image) {
+        List<GeneratedImage> images = ChatLibrary.imagesOf(chatEntry);
+        int index = images.indexOf(image);
+        if (index < 0)
+            return;
+
+        /*  A change of the list, still on its way to the JavaFX thread, builds all tiles  */
+        if (images.size() != imagesContainer.getChildren().size()) {
+            updateImagesDisplay();
+            return;
+        }
+        imagesContainer.getChildren().set(index, createImageTile(image, index));
+    }
 
     /**
      * Updates the images display: one row of tiles of the same width.

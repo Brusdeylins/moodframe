@@ -252,7 +252,10 @@ favorites, locks and dialogs) and `FrameGroupPart` (frame, aspect ratio, resolut
 `GenerationPanelController` likewise hands the attached images to `GenerationAttachments` and the fields of BFL and
 Gemini to `ProviderParameters`; `ChatViewController` its full view with the steps from entry to entry to
 `EntryFullView`; `ChatEntryCard` loads the pictures of its tiles with `EntryTilePictures` and builds its context
-menus with `EntryMenus`; the full view (`ImagePreviewOverlay`) plays a video with `VideoPlayback`.
+menus with `EntryMenus`; the full view (`ImagePreviewOverlay`) plays a video with `VideoPlayback`. A cell of the chat
+keeps its card while it shows the same entry: the card follows status, prompt and images of its entry itself, and a
+change a generation reports reaches only the card of its entry (its cost, the tile of a changed image), so no other
+card is built anew and an open context menu stays.
 
 ## Settings dialog
 
