@@ -12,7 +12,6 @@ import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.LibraryEvents;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
-import art.moodframe.ui.cell.FrameListCell;
 import art.moodframe.ui.cell.MoodListCell;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
@@ -222,16 +221,14 @@ public class MoodFramePanelController {
     private FrameService frameService;
     private art.moodframe.service.brainstorm.MoodAnalysisService moodAnalysis;
     private art.moodframe.ui.dialog.TrashWindow.Opener trash;
-    private boolean frameChanged;
-    private boolean updatingFrame;
+
+    /*  the group Frame  */
+    private FrameGroup frames;
 
     @FXML
     private void initialize() {
-        /*  the targets of all models, of which the chosen model takes its closest one  */
-        aspectRatioComboBox.getItems().addAll(art.moodframe.model.AspectRatios.ALL);
-        aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> updateAspectRatioHint());
-        resolutionChoiceBox.getItems().addAll(art.moodframe.model.ModelFamilies.RESOLUTIONS);
-        resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> updateResolutionHint());
+        frames = new FrameGroup(new FrameGroup.Nodes(frameComboBox, aspectRatioComboBox, aspectRatioHintLabel,
+                resolutionChoiceBox, resolutionHintLabel, saveFrameButton, saveFrameAsButton), this::modelItem);
     }
 
     /**
@@ -242,10 +239,7 @@ public class MoodFramePanelController {
      */
     public void followModel(ObservableValue<String> model) {
         this.model = model;
-        model.addListener((obs, oldVal, newVal) -> {
-            updateAspectRatioHint();
-            updateResolutionHint();
-        });
+        model.addListener((obs, oldVal, newVal) -> frames.updateHints());
     }
 
     /*  the item of the chosen model, null without  */
@@ -276,7 +270,9 @@ public class MoodFramePanelController {
         loadSelections();
         setupPersistenceListeners();
         setupMoods();
-        setupFrames();
+        frames.setUp(config, frameService, favoriteService, trash, status, this::window,
+                favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId),
+                (String id) -> isFavorite(FavoriteService.Kind.FRAME, id));
         this.listener = listener;
         for (ObservableValue<?> value : List.<ObservableValue<?>>of(atmosphereComboBox.valueProperty(),
                 stylePresetsComboBox.valueProperty(), colorStyleComboBox.valueProperty(), lightComboBox.valueProperty(),
@@ -320,7 +316,7 @@ public class MoodFramePanelController {
     /** What the panel shows as chosen. */
     public Selection selection() {
         return new Selection(chosenMood(), isMoodChanged(), currentMoodFields(), lockedMoodFields(), chosenFrame(),
-                frameChanged, aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue());
+                frames.isFrameChanged(), aspectRatioComboBox.getValue(), resolutionChoiceBox.getValue());
     }
 
     /**
@@ -398,7 +394,7 @@ public class MoodFramePanelController {
     public void onLibraryChanged(LibraryEvents.Kind kind) {
         switch (kind) {
             case MOOD -> refreshMoods();
-            case FRAME -> refreshFrames();
+            case FRAME -> frames.refreshFrames();
             case ATMOSPHERE, STYLE, LIGHT, CAMERA, COLOR -> {
                 refreshBlockChoices();
                 refreshMoods();
@@ -423,7 +419,7 @@ public class MoodFramePanelController {
         frameComboBox.setDisable(!enableInput);
         saveFrameAsButton.setDisable(!enableInput);
         manageFramesButton.setDisable(!enableInput);
-        saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
+        frames.updateSaveLock();
 
         boolean moodApplies = enableInput && (!reference || moodApplyCheckBox.isSelected());
         art.moodframe.model.StylePresetItem styleItem = stylePresetsComboBox.getValue();
@@ -459,7 +455,7 @@ public class MoodFramePanelController {
         saveFrameButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.save.tooltip")));
         saveFrameAsButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.save.as.tooltip")));
         manageFramesButton.setTooltip(new Tooltip(I18nManager.getText("params.frame.manage.tooltip")));
-        refreshFrames();
+        frames.refreshFrames();
 
         styleLabel.setText(I18nManager.getText("params.style"));
         lightLabel.setText(I18nManager.getText("params.light"));
@@ -476,7 +472,7 @@ public class MoodFramePanelController {
             colorChoice.updateTexts();
         aspectRatioLabel.setText(I18nManager.getText("params.aspect.ratio"));
         resolutionLabel.setText(I18nManager.getText("params.resolution"));
-        updateResolutionHint();
+        frames.updateResolutionHint();
     }
 
     /**
@@ -785,10 +781,7 @@ public class MoodFramePanelController {
                 reloadMoods(chosen != null ? chosen.getId() : "");
             });
         if (frameService != null)
-            reloads.put(frameComboBox, () -> {
-                Frame chosen = chosenFrame();
-                reloadFrames(chosen != null ? chosen.getId() : "");
-            });
+            reloads.put(frameComboBox, frames::reloadKeepingChoice);
         blockChoices.keySet().forEach((type) -> reloads.put(blockComboBox(type), () -> {
             ComboBox<art.moodframe.model.StylePresetItem> comboBox = blockComboBox(type);
             updatingMood = true;
@@ -1300,16 +1293,7 @@ public class MoodFramePanelController {
         String resolution = copy != null ? copy.resolution() : model != null ? model.getResolutionLabel() : null;
         Frame frame = copy != null ? frameService.find(copy.frameId() != null ? copy.frameId() : copy.baseId()) : null;
 
-        updatingFrame = true;
-        if (aspectRatio != null && aspectRatioComboBox.getItems().contains(aspectRatio))
-            aspectRatioComboBox.setValue(aspectRatio);
-        if (resolution != null && resolutionChoiceBox.getItems().contains(resolution))
-            resolutionChoiceBox.setValue(resolution);
-        frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
-                : item.frame() != null && item.frame().getId().equals(frame.getId()))
-                .findFirst().ifPresent(frameComboBox::setValue);
-        updatingFrame = false;
-        updateFrameState();
+        frames.takeTargets(frame, aspectRatio, resolution);
         status.status(I18nManager.getText("status.entry.frame"));
     }
 
@@ -1323,21 +1307,8 @@ public class MoodFramePanelController {
         EntryFrame copy = entry.getFrame();
         if (frameService == null || copy == null)
             return;
-        String name = copy.frameName() != null ? copy.frameName() : copy.baseName();
-        name = art.moodframe.ui.dialog.FrameManageDialog.askName(window(), frameService,
-                I18nManager.getText("frame.name.new"), name != null ? frameService.freeName(name) : "", null);
-        if (name == null)
-            return;
-        Frame frame = new Frame(null, name);
-        frame.setAspectRatio(copy.aspectRatio());
-        frame.setResolution(copy.resolution());
-        if (!frameService.add(frame)) {
-            status.failure(I18nManager.getText("error.frame.save"));
-            return;
-        }
-        reloadFrames(frame.getId());
-        chooseFrame(frame);
-        status.status(I18nManager.getText("status.frame.saved", frame.getName()));
+        frames.saveAsNew(copy.frameName() != null ? copy.frameName() : copy.baseName(), copy.aspectRatio(),
+                copy.resolution());
     }
 
     /** Takes over the mood of a chat entry; an entry without building blocks sets "No mood". */
@@ -1566,74 +1537,9 @@ public class MoodFramePanelController {
         }
     }
 
-    /**
-     * Sets up the frame selection: "No frame" and the frames; the actions sit as icons in the header of the group.
-     * Choosing a frame sets its target aspect ratio and resolution, of which the model takes the closest ones it can
-     * do; either changed afterwards shows the frame as changed until it is saved or chosen again.
-     */
-    private void setupFrames() {
-        if (frameService == null || frameComboBox == null) {
-            logger.warn("FrameService not available, no frame selection");
-            return;
-        }
-
-        FavoriteStar.Favorites<Frame> favorites = favorites(frameComboBox, FavoriteService.Kind.FRAME, Frame::getId);
-        frameComboBox.setCellFactory((listView) -> new FrameListCell(favorites));
-        frameComboBox.setButtonCell(new FrameListCell(() -> frameChanged));
-        frameComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onFrameChoice(newVal));
-        aspectRatioComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (!updatingFrame)
-                updateFrameState();
-        });
-        resolutionChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (!updatingFrame)
-                updateFrameState();
-        });
-
-        reloadFrames(config != null ? config.ui().getSelectedFrame() : "");
-        updateFrameState();
-    }
-
     /** The frame shown as chosen, null for "No frame". */
     public Frame chosenFrame() {
-        FrameChoice choice = frameComboBox != null ? frameComboBox.getValue() : null;
-        return choice != null ? choice.frame() : null;
-    }
-
-    /** "Save" is not available for a standard frame, which can only be saved as a new one. */
-    private boolean isFrameSaveLocked() {
-        Frame frame = chosenFrame();
-        return frame != null && frame.isDefault();
-    }
-
-    /**
-     * Lists "No frame" and the frames, the favorites first, each part alphabetically, and shows the frame with this id
-     * as chosen, without applying it.
-     */
-    private void reloadFrames(String selectId) {
-        List<FrameChoice> items = FrameChoice.listOf(FavoriteService.order(frameService.getAll(),
-                (frame) -> isFavorite(FavoriteService.Kind.FRAME, frame.getId()), (frame) -> 0, Frame::getName));
-
-        updatingFrame = true;
-        frameComboBox.getItems().setAll(items);
-        frameComboBox.setValue(items.stream().filter((item) -> item.frame() != null
-                && item.frame().getId().equals(selectId)).findFirst().orElse(items.get(0)));
-        updatingFrame = false;
-    }
-
-    /** Lists the frames again, keeping the choice, for example once a frame left the trash or was renamed. */
-    private void refreshFrames() {
-        if (frameService == null)
-            return;
-        Frame chosen = chosenFrame();
-        reloadFrames(chosen != null ? chosen.getId() : "");
-        updateFrameState();
-    }
-
-    /** Applies a chosen frame. */
-    private void onFrameChoice(FrameChoice newVal) {
-        if (!updatingFrame && newVal != null)
-            chooseFrame(newVal.frame());
+        return frames.chosenFrame();
     }
 
     /**
@@ -1641,85 +1547,22 @@ public class MoodFramePanelController {
      * leaves the resolution, "No frame" (null) both as they are.
      */
     public void chooseFrame(Frame frame) {
-        updatingFrame = true;
-        if (frame != null) {
-            aspectRatioComboBox.setValue(frame.getAspectRatio());
-            if (frame.getResolution() != null)
-                resolutionChoiceBox.setValue(frame.getResolution());
-        }
-        frameComboBox.getItems().stream().filter((item) -> frame == null ? item.kind() == FrameChoice.Kind.NONE
-                : item.frame() != null && item.frame().getId().equals(frame.getId()))
-                .findFirst().ifPresent(frameComboBox::setValue);
-        updatingFrame = false;
-        updateFrameState();
-    }
-
-    /**
-     * Marks the chosen frame as changed while aspect ratio or resolution differ from it, also by keeping the action
-     * shown which saves it, remembers the choice and locks "Save" for a standard frame.
-     */
-    private void updateFrameState() {
-        if (frameService == null)
-            return;
-        Frame frame = chosenFrame();
-        frameChanged = frame != null && (!frame.getAspectRatio().equals(aspectRatioComboBox.getValue())
-                || frame.getResolution() != null && !frame.getResolution().equals(resolutionChoiceBox.getValue()));
-        String id = frame != null ? frame.getId() : "";
-        if (config != null && !id.equals(config.ui().getSelectedFrame()))
-            config.ui().setSelectedFrame(id);
-        saveFrameButton.setDisable(frameComboBox.isDisable() || isFrameSaveLocked());
-        saveFrameButton.pseudoClassStateChanged(UNSAVED, frameChanged && !isFrameSaveLocked());
-        saveFrameAsButton.pseudoClassStateChanged(UNSAVED, frameChanged && isFrameSaveLocked());
-        ((FrameListCell) frameComboBox.getButtonCell()).refresh();
-    }
-
-    /** Saves aspect ratio and resolution over the chosen frame of the user, or as a new frame under a name entered. */
-    private void saveFrame(boolean asNew) {
-        Frame chosen = chosenFrame();
-        Frame frame;
-        if (!asNew && chosen != null && !chosen.isDefault())
-            frame = chosen;
-        else {
-            String name = art.moodframe.ui.dialog.FrameManageDialog.askName(window(),
-                    frameService, I18nManager.getText("frame.name.new"),
-                    chosen != null ? frameService.freeName(chosen.getName()) : "", null);
-            if (name == null)
-                return;
-            frame = new Frame(null, name);
-        }
-        frame.setAspectRatio(aspectRatioComboBox.getValue());
-        frame.setResolution(resolutionChoiceBox.getValue());
-
-        if (!(frame.getId() == null ? frameService.add(frame) : frameService.update(frame))) {
-            status.failure(I18nManager.getText("error.frame.save"));
-            return;
-        }
-        reloadFrames(frame.getId());
-        updateFrameState();
-        status.status(I18nManager.getText("status.frame.saved", frame.getName()));
-    }
-
-    /** Opens the window for the frames of the user; the list follows its changes. */
-    private void manageFrames() {
-        new art.moodframe.ui.dialog.FrameManageDialog(window(), frameService, favoriteService, trash).showAndWait();
+        frames.chooseFrame(frame);
     }
 
     @FXML
     private void onSaveFrameClicked() {
-        if (frameService != null)
-            saveFrame(false);
+        frames.saveFrame(false);
     }
 
     @FXML
     private void onSaveFrameAsClicked() {
-        if (frameService != null)
-            saveFrame(true);
+        frames.saveFrame(true);
     }
 
     @FXML
     private void onManageFramesClicked() {
-        if (frameService != null)
-            manageFrames();
+        frames.manageFrames();
     }
 
     /**
@@ -1809,29 +1652,6 @@ public class MoodFramePanelController {
         cameraHint.setManaged(!hints.isEmpty());
     }
 
-    /*  the hint below aspect ratio or resolution while the chosen model cannot do the target  */
-    private static final javafx.css.PseudoClass TARGET_CHANGED = javafx.css.PseudoClass.getPseudoClass("changed");
-
-    /**
-     * Shows below the aspect ratio what the chosen model makes of the target, for example "FLUX.2 [pro] → 5:4", but
-     * only, highlighted, while it differs from the target.
-     */
-    private void updateAspectRatioHint() {
-        String item = modelItem();
-        String ratio = modelAspectRatio();
-        if (aspectRatioHintLabel == null || item == null || ratio == null)
-            return;
-        aspectRatioHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → " + ratio);
-        showTargetHint(aspectRatioHintLabel, !ratio.equals(aspectRatioComboBox.getValue()));
-    }
-
-    /*  shows a hint below aspect ratio or resolution, highlighted, only while the model does not do the target  */
-    private static void showTargetHint(Label hint, boolean changed) {
-        hint.pseudoClassStateChanged(TARGET_CHANGED, changed);
-        hint.setVisible(changed);
-        hint.setManaged(changed);
-    }
-
     /**
      * The aspect ratio the chosen model makes of the target: the target itself if the model can do it, else its
      * closest one.
@@ -1839,22 +1659,7 @@ public class MoodFramePanelController {
      * @return the aspect ratio, null without target
      */
     public String modelAspectRatio() {
-        String target = aspectRatioComboBox.getValue();
-        return target != null ? art.moodframe.model.AspectRatios.nearestForItem(target, modelItem()) : null;
-    }
-
-    /**
-     * Shows below the resolution what the chosen model makes of the target, for example "Nano Banana 2 Lite → 1K", but
-     * only, highlighted, while it differs from the target; a model without resolution choice keeps its fixed size.
-     */
-    private void updateResolutionHint() {
-        String item = modelItem();
-        if (resolutionHintLabel == null || item == null)
-            return;
-        String resolution = modelResolution();
-        resolutionHintLabel.setText(art.moodframe.model.ModelFamilies.familyOf(item) + " → "
-                + (resolution != null ? resolution : I18nManager.getText("params.resolution.fixed")));
-        showTargetHint(resolutionHintLabel, resolution == null || !resolution.equals(resolutionChoiceBox.getValue()));
+        return frames.modelAspectRatio();
     }
 
     /**
@@ -1864,10 +1669,7 @@ public class MoodFramePanelController {
      * @return the resolution, null for a model with a fixed size
      */
     public String modelResolution() {
-        String item = modelItem();
-        java.util.List<String> free = art.moodframe.model.ModelFamilies.freeResolutions(item);
-        return free != null ? art.moodframe.model.ModelFamilies.nearest(resolutionChoiceBox.getValue(), free)
-                : item != null ? art.moodframe.model.ModelFamilies.resolutionOf(item) : null;
+        return frames.modelResolution();
     }
 
     /**
@@ -1875,73 +1677,7 @@ public class MoodFramePanelController {
      * available option from the currently available ratios in the combo box.
      */
     public void matchAspectRatio(File imageFile) {
-        if (imageFile == null || aspectRatioComboBox == null) {
-            return;
-        }
-
-        try {
-            // Read the dimensions from the header of the file, without decoding the image on the FX thread
-            art.moodframe.util.ImageSize size = art.moodframe.util.ImageSize.read(imageFile.toPath());
-            if (size == null) {
-                logger.warn("Could not read image dimensions from: {}", imageFile.getName());
-                return;
-            }
-
-            int width = size.width();
-            int height = size.height();
-            double imageRatio = (double) width / height;
-
-            // Use the aspect ratios of the combo box, the targets of all models
-            // (the chosen model takes the closest one it can do)
-            var availableItems = aspectRatioComboBox.getItems();
-            if (availableItems.isEmpty()) {
-                return;
-            }
-
-            // Find closest matching aspect ratio
-            String closestRatio = "1:1"; // Default fallback
-            double smallestDifference = Double.MAX_VALUE;
-
-            for (String ratioStr : availableItems) {
-                double ratioValue = parseRatioToDouble(ratioStr);
-                double difference = Math.abs(imageRatio - ratioValue);
-                if (difference < smallestDifference) {
-                    smallestDifference = difference;
-                    closestRatio = ratioStr;
-                }
-            }
-
-            // Set the closest aspect ratio
-            String currentRatio = aspectRatioComboBox.getValue();
-            if (!closestRatio.equals(currentRatio)) {
-                aspectRatioComboBox.setValue(closestRatio);
-                status.status(java.text.MessageFormat.format(
-                        I18nManager.getText("status.aspect.ratio.detected"), closestRatio));
-            }
-
-        } catch (Exception e) {
-            logger.error("Failed to detect aspect ratio from image: {}", imageFile.getName(), e);
-        }
-    }
-
-    /**
-     * Parses an aspect ratio string (e.g., "16:9") to its numeric value.
-     *
-     * @param ratioStr the ratio string in format "W:H"
-     * @return the numeric ratio value (width / height)
-     */
-    private double parseRatioToDouble(String ratioStr) {
-        if (ratioStr == null || !ratioStr.contains(":")) {
-            return 1.0;
-        }
-        try {
-            String[] parts = ratioStr.split(":");
-            double w = Double.parseDouble(parts[0]);
-            double h = Double.parseDouble(parts[1]);
-            return w / h;
-        } catch (Exception e) {
-            return 1.0;
-        }
+        frames.matchAspectRatio(imageFile);
     }
 
     /** One line of the current state for the brainstorm: a building block field, its entry and its lock. */
