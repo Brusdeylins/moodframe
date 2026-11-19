@@ -71,7 +71,7 @@ public class BrainstormReply {
             }
 
             JSONObject draftJson = json.optJSONObject("draft");
-            BrainstormDraft draft = draftJson != null ? BrainstormDraft.fromJson(draftJson) : new BrainstormDraft();
+            BrainstormDraft draft = draftJson != null ? BrainstormJson.draft(draftJson) : new BrainstormDraft();
             if ("video".equals(json.optString("media_type"))) {
                 draft.setMediaType("video");
             }

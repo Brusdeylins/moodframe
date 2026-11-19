@@ -169,6 +169,31 @@ class ArchitectureTest {
         assertEquals(FX_MODELS, javaFx.getOrDefault("model", Set.of()), "model, besides the known deviation");
     }
 
+    /*  The model classes that carry their own stored JSON form (org.json) or the names of the palette file and of a
+        request (Jackson); none of them carries what a language model exchanges  */
+    private static final Set<String> JSON_MODELS = Set.of("EntryMood", "EntryFrame", "CameraSettings");
+    private static final Set<String> JACKSON_MODELS = Set.of("ColorStyle", "ImageGenerationRequest");
+
+    @Test
+    void onlyTheStoredValueTypesOfTheModelUseJson() throws IOException {
+        Set<String> json = new TreeSet<>();
+        Set<String> jackson = new TreeSet<>();
+        try (Stream<Path> walk = Files.list(SOURCES.resolve("art/moodframe/model"))) {
+            for (Path file : walk.filter((Path path) -> path.toString().endsWith(".java")).toList()) {
+                String code = COMMENTS.matcher(Files.readString(file)).replaceAll("");
+                String name = file.getFileName().toString().replace(".java", "");
+                if (code.contains("org.json."))
+                    json.add(name);
+                if (code.contains("com.fasterxml.jackson."))
+                    jackson.add(name);
+            }
+        }
+        json.removeAll(JSON_MODELS);
+        jackson.removeAll(JACKSON_MODELS);
+        assertEquals(Set.of(), json, "the JSON of the brainstorm lives in service.brainstorm.BrainstormJson");
+        assertEquals(Set.of(), jackson, "the model classes with Jackson names");
+    }
+
     @Test
     void theServicesAndTheMcpServerGetTheirDependenciesInjected() {
         List<String> lookups = new ArrayList<>();

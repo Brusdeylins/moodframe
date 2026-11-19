@@ -5,6 +5,8 @@ import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.library.RepositoryAccess;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,12 +90,20 @@ public class BrainstormSessions {
     }
 
     void addDraft(String sessionId, BrainstormDraft draft) {
-        access.run(() -> repository.addDraft(sessionId, draft),
+        String json = BrainstormJson.toJson(draft).toString();
+        access.run(() -> repository.addDraft(sessionId, json),
                 "Failed to store brainstorm draft for session: " + sessionId);
     }
 
     Optional<BrainstormDraft> latestDraft(String sessionId) {
-        return access.call(() -> repository.findLatestDraft(sessionId), Optional.empty(),
+        Optional<String> json = access.call(() -> repository.findLatestDraft(sessionId), Optional.empty(),
                 "Failed to load latest brainstorm draft for session: " + sessionId);
+        try {
+            return json.map((String text) -> BrainstormJson.draft(new JSONObject(text)));
+        }
+        catch (JSONException e) {
+            logger.error("Unreadable latest brainstorm draft for session: {}", sessionId, e);
+            return Optional.empty();
+        }
     }
 }

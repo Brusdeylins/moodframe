@@ -141,7 +141,7 @@ class BrainstormServiceTest {
         assertEquals(List.of(BrainstormMessage.ROLE_USER, BrainstormMessage.ROLE_ASSISTANT),
                 stored.stream().map(BrainstormMessage::getRole).toList());
         verify(repository).updateTitle("s1", "Ein Logo");
-        verify(repository).addDraft(eq("s1"), any(BrainstormDraft.class));
+        verify(repository).addDraft(eq("s1"), anyString());
     }
 
     @Test
@@ -235,7 +235,7 @@ class BrainstormServiceTest {
 
         assertInstanceOf(IllegalStateException.class, error.getCause());
         assertEquals(1, stored.size(), "only the user message is stored");
-        verify(repository, never()).addDraft(anyString(), any(BrainstormDraft.class));
+        verify(repository, never()).addDraft(anyString(), anyString());
     }
 
     @Test
@@ -450,7 +450,7 @@ class BrainstormServiceTest {
         ArgumentCaptor<List<ChatTurn>> contents = turns();
         verify(gemini).chatTurn(anyString(), contents.capture(), anyList(), anyBoolean());
         String videoTurn = ((ChatTurn.User) contents.getValue().get(1)).text();
-        assertTrue(videoTurn.contains(ResearchNote.EVENT) && videoTurn.contains("42 % Wachstum"),
+        assertTrue(videoTurn.contains(BrainstormJson.RESEARCH_EVENT) && videoTurn.contains("42 % Wachstum"),
                 "the result follows the message in the same turn");
         assertTrue(stored.stream().anyMatch((BrainstormMessage event) -> event.getContent().contains("42 % Wachstum")),
                 "the result is stored for the later turns");
@@ -531,8 +531,8 @@ class BrainstormServiceTest {
         assertTrue(facts.get(0).isVerified(), "researched source, www. is ignored");
         assertFalse(facts.get(1).isVerified(), "source that was never researched");
         assertTrue(facts.get(2).isVerified(), "a fact of the user has no source");
-        verify(repository).addDraft(eq("s1"), org.mockito.ArgumentMatchers.argThat(
-                (BrainstormDraft draft) -> !draft.getFacts().get(1).isVerified()));
+        verify(repository).addDraft(eq("s1"), org.mockito.ArgumentMatchers.argThat((String json) ->
+                !BrainstormJson.draft(new JSONObject(json)).getFacts().get(1).isVerified()));
     }
 
     @Test
@@ -670,7 +670,7 @@ class BrainstormServiceTest {
     @Test
     void knowsTheSourcesOfEarlierResearchEventsOfTheSession() {
         stored.add(new BrainstormMessage(BrainstormMessage.ROLE_EVENT, "[APP EVENT] "
-                + new ResearchNote("q", "r", List.of(SOURCE)).toEventJson(100)));
+                + BrainstormJson.researchEvent(new ResearchNote("q", "r", List.of(SOURCE)), 100)));
         String withFact = "{\"step\": 5, \"message\": \"m\", \"draft\": {\"prompt\": \"p\", \"facts\": ["
                 + "{\"text\": \"A\", \"domain\": \"ai.google.dev\", \"url\": \"u\", \"origin\": \"source\"}]}}";
         answers(text(withFact));
@@ -748,7 +748,7 @@ class BrainstormServiceTest {
 
         assertThrows(java.util.concurrent.CancellationException.class, () -> running.get(5, TimeUnit.SECONDS));
         Thread.sleep(300);
-        verify(repository, never()).addDraft(anyString(), any(BrainstormDraft.class));
+        verify(repository, never()).addDraft(anyString(), anyString());
         verify(gemini, never()).suggestTitle(anyString(), anyString());
         assertEquals(1, stored.size(), "only the user message from before the delete");
         assertTrue(titled.isEmpty());

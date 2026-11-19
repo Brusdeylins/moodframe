@@ -1,7 +1,6 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.TestDatabase;
-import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import org.json.JSONObject;
@@ -46,13 +45,10 @@ class BrainstormRepositoryTest {
         assertEquals("Hallo", repository.findAllSessions().stream()
                 .filter(s -> s.getId().equals(session.getId())).findFirst().orElseThrow().getTitle());
 
-        BrainstormDraft first = BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"v1\"}"));
-        BrainstormDraft second = BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"v2\", \"style\": \"Pixel Art\"}"));
-        assertEquals(1, repository.addDraft(session.getId(), first));
-        assertEquals(2, repository.addDraft(session.getId(), second));
-        assertEquals("v2", repository.findLatestDraft(session.getId()).orElseThrow().getPrompt());
-        assertEquals("Pixel Art", repository.findLatestDraft(session.getId()).orElseThrow()
-                .getBlock(art.moodframe.model.Mood.Field.STYLE).name());
+        assertEquals(1, repository.addDraft(session.getId(), "{\"prompt\": \"v1\"}"));
+        assertEquals(2, repository.addDraft(session.getId(), "{\"prompt\": \"v2\", \"style\": \"Pixel Art\"}"));
+        assertEquals("v2", new JSONObject(repository.findLatestDraft(session.getId()).orElseThrow())
+                .getString("prompt"));
     }
 
     @Test
@@ -108,7 +104,7 @@ class BrainstormRepositoryTest {
     void deletesSessionWithMessagesAndDrafts() throws Exception {
         BrainstormSession session = repository.createSession("Weg");
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "x"));
-        repository.addDraft(session.getId(), new BrainstormDraft());
+        repository.addDraft(session.getId(), "{}");
 
         assertTrue(repository.deleteSession(session.getId()));
 

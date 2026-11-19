@@ -26,7 +26,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Paint;
-import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -200,12 +199,12 @@ class BrainstormDialogTest {
         BrainstormRepository repository = mock(BrainstormRepository.class);
         when(repository.findAllSessions()).thenReturn(List.of(new BrainstormSession("s1", "Leuchtturm",
                 LocalDateTime.now(), LocalDateTime.now())));
-        when(repository.findLatestDraft("s1")).thenReturn(Optional.of(BrainstormDraft.fromJson(new JSONObject("""
+        when(repository.findLatestDraft("s1")).thenReturn(Optional.of("""
             {"prompt": "A lighthouse", "mood": "Quiet Morning",
              "style": {"name": "Ink Wash", "text": "ink wash on rice paper", "is_new": true},
              "color": {"name": "Sea", "colors": ["#112233"], "is_new": true},
              "camera": {"name": "Harbor Tele", "settings": {"body": "FULL_FRAME", "lens": "MM_135"}, "is_new": true}}
-            """))));
+            """));
         CameraSettings tele = new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_135,
                 null, null, null, null, null);
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
@@ -268,7 +267,7 @@ class BrainstormDialogTest {
         });
         when(repository.findLatestDraft("s1")).thenAnswer((invocation) -> {
             onFxThread.add(Platform.isFxApplicationThread());
-            return Optional.of(BrainstormDraft.fromJson(new JSONObject("{\"prompt\": \"A lighthouse at dusk\"}")));
+            return Optional.of("{\"prompt\": \"A lighthouse at dusk\"}");
         });
         BrainstormService service = new BrainstormService(repository, mock(GeminiApiService.class));
         BrainstormContext context = new BrainstormContext(List.of(), List.of(), List.of(GenerationModel.FLUX2_PRO),

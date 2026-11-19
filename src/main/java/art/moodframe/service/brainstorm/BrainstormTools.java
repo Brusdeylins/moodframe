@@ -209,7 +209,7 @@ public class BrainstormTools {
             try {
                 ResearchNote note = runs.get(i).join();
                 notes.add(note);
-                turns.add(BrainstormSessions.EVENT_PREFIX + note.toEventJson(TOOL_RESULT_MAX_LENGTH));
+                turns.add(BrainstormSessions.EVENT_PREFIX + BrainstormJson.researchEvent(note, TOOL_RESULT_MAX_LENGTH));
             }
             catch (CompletionException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;

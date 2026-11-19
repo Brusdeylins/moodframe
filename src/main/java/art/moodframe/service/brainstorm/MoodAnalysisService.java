@@ -272,7 +272,7 @@ public class MoodAnalysisService {
 
         Map<Mood.Field, BrainstormDraft.Block> blocks = new EnumMap<>(Mood.Field.class);
         for (Mood.Field field : MODEL_FIELDS) {
-            BrainstormDraft.Block block = BrainstormDraft.Block.fromJson(json.opt(field.name().toLowerCase(Locale.ROOT)));
+            BrainstormDraft.Block block = BrainstormJson.block(json.opt(field.name().toLowerCase(Locale.ROOT)));
             if (block == null)
                 continue;
             if (block.isNew() && field == Mood.Field.CAMERA && block.settings() != null)

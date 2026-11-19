@@ -1,6 +1,5 @@
 package art.moodframe.database;
 
-import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.repository.BrainstormRepository;
@@ -81,7 +80,7 @@ class DatabaseManagerTest {
         BrainstormRepository repository = new BrainstormRepository(database);
         BrainstormSession session = repository.createSession("Weg");
         repository.addMessage(session.getId(), new BrainstormMessage(BrainstormMessage.ROLE_USER, "x"));
-        assertEquals(1, repository.addDraft(session.getId(), new BrainstormDraft()));
+        assertEquals(1, repository.addDraft(session.getId(), "{}"));
 
         assertTrue(repository.deleteSession(session.getId()));
 
@@ -97,7 +96,7 @@ class DatabaseManagerTest {
 
         assertThrows(SQLException.class, () -> repository.addMessage("deleted-session",
                 new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, "late")));
-        assertThrows(SQLException.class, () -> repository.addDraft("deleted-session", new BrainstormDraft()));
+        assertThrows(SQLException.class, () -> repository.addDraft("deleted-session", "{}"));
 
         try (Connection connection = database.getConnection(); Statement stmt = connection.createStatement()) {
             assertEquals(0, count(stmt, "SELECT COUNT(*) FROM brainstorm_messages"));

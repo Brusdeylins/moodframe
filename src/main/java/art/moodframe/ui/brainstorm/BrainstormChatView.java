@@ -3,6 +3,7 @@ package art.moodframe.ui.brainstorm;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.ResearchNote;
+import art.moodframe.service.brainstorm.BrainstormJson;
 import art.moodframe.service.brainstorm.BrainstormReply;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.YouTubeClip;
@@ -540,8 +541,8 @@ final class BrainstormChatView extends VBox {
     void addStoredEvent(BrainstormChat target, String stored) {
         try {
             JSONObject event = new JSONObject(stored.substring(stored.indexOf('{')));
-            if (ResearchNote.EVENT.equals(event.optString("event"))) {
-                addResearch(target, ResearchNote.fromEventJson(event));
+            if (BrainstormJson.RESEARCH_EVENT.equals(event.optString("event"))) {
+                addResearch(target, BrainstormJson.researchNote(event));
                 return;
             }
 

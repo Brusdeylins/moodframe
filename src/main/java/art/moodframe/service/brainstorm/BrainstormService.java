@@ -341,7 +341,7 @@ public class BrainstormService {
             sessions.updateTitle(sessionId, session.getTitle());
         }
         String currentDraft = sessions.latestDraft(sessionId)
-                .map((BrainstormDraft draft) -> draft.toJson().toString()).orElse("");
+                .map((BrainstormDraft draft) -> BrainstormJson.toJson(draft).toString()).orElse("");
         BrainstormConversation.Answer answer = conversation.answer(session, message, history, currentDraft, context,
                 (String status) -> onToolStatus.accept(sessionId, status), () -> ensureNotDeleted(sessionId));
         BrainstormReply reply = answer.reply();
@@ -350,7 +350,7 @@ public class BrainstormService {
         ensureNotDeleted(sessionId);
         for (ResearchNote note : reply.getResearch()) {
             sessions.addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_EVENT,
-                    BrainstormSessions.EVENT_PREFIX + note.toEventJson(STORED_RESULT_MAX_LENGTH)));
+                    BrainstormSessions.EVENT_PREFIX + BrainstormJson.researchEvent(note, STORED_RESULT_MAX_LENGTH)));
         }
         sessions.addMessage(sessionId, new BrainstormMessage(BrainstormMessage.ROLE_ASSISTANT, answer.raw()));
         sessions.addDraft(sessionId, reply.getDraft());

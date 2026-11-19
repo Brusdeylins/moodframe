@@ -53,7 +53,10 @@ Allowed dependency directions:
   services. `service` reaches `database` only through `repository`.
 - `ui` → `mcp` only for the lifecycle of the server: the settings dialog starts, stops and restarts
   `mcp.McpService` and shows its command line. No view uses the tools of the server.
-- `model` depends on nothing of the application. `GenerationModel` names only the i18n key of a localized display
+- `model` depends on nothing of the application. A value type stored as JSON carries that form itself (`EntryMood`,
+  `EntryFrame`, `CameraSettings`, read by several layers), `ColorStyle` the Jackson names of the palette file; what
+  a language model exchanges (the brainstorm draft, the research events) is `service.brainstorm.BrainstormJson`, as
+  `model/package-info.java` states and `ArchitectureTest` checks. `GenerationModel` names only the i18n key of a localized display
   name (`displayNameKey`); `service.generation.ModelLabels` gives the dropdown items in the current language. An item
   in any language leads back to its model with `GenerationModel.fromLocalizedDisplayName`, since a localized name
   differs from the display name only after the family name.
