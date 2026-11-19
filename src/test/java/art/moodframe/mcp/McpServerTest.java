@@ -28,6 +28,7 @@ import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.MoodTrashGroup;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.util.I18nManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javafx.application.Platform;
@@ -41,6 +42,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -368,6 +370,19 @@ class McpServerTest {
         assertTrue(capabilities.path("camera").path("body").toString().contains("DRONE"));
         assertTrue(capabilities.path("camera").path("lens").toString().contains("\"SHIFT\""));
         assertFalse(capabilities.path("camera").has("models"), "the camera type carries the look, no model");
+    }
+
+    @Test
+    void theModelsAreNamedInEnglishWhateverTheLanguageOfTheWindow() throws Exception {
+        Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(Locale.GERMAN);
+        try {
+            JsonNode pro = find(call("get_capabilities", "{}").path("models"), "id", "FLUX2_PRO");
+            assertEquals(GenerationModel.FLUX2_PRO.getDisplayName(), pro.path("name").asText());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 
     @Test

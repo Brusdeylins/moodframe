@@ -880,6 +880,18 @@ public enum GenerationModel {
     }
 
     /**
+     * Gets the English name of the model of a fixed id, as the MCP server tells it, whatever the language of the user
+     * interface.
+     *
+     * @param id the fixed id (see {@link #idOf(String)}, may be null)
+     * @return the display name of a constant, {@link #OPENAI_PREFIX} + id for a model of the gateway, null without id
+     * @since 2.1.3
+     */
+    public static String displayNameOf(String id) {
+        return entryDisplayName(entryModelOf(id));
+    }
+
+    /**
      * Gets the constant of a fixed id, unlike {@link #fromId(String)} without the placeholder of the models a provider
      * lists beyond the constants.
      *

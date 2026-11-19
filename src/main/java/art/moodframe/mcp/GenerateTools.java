@@ -17,7 +17,6 @@ import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationOrder;
 import art.moodframe.service.generation.GenerationService;
-import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
@@ -236,7 +235,7 @@ class GenerateTools {
 
     /*  the model and the format it makes of the target  */
     private static void format(ObjectNode node, GenerationOrder order, GenerationService.Preview preview) {
-        node.put("model", order.modelId()).put("name", ModelLabels.itemOf(order.modelId()))
+        node.put("model", order.modelId()).put("name", GenerationModel.displayNameOf(order.modelId()))
                 .put("aspectRatio", preview.aspectRatio()).put("resolution", preview.resolution())
                 .put("count", order.imageCount());
     }
