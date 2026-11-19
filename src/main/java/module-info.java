@@ -55,5 +55,7 @@ module art.moodframe {
     opens art.moodframe.ui.dialog to javafx.fxml;
     opens art.moodframe.ui.panel to javafx.fxml;
     opens art.moodframe.model to com.fasterxml.jackson.databind;
+
+    // The job answers of BFL (GenerationJobInfo, GenerationJobResult); the clients in its subpackages map no class
     opens art.moodframe.service.provider to com.fasterxml.jackson.databind;
 }

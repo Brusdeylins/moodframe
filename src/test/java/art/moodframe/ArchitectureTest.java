@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -25,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * checks which package uses which (a top-level package without rules fails), that no packages depend on each other
  * in a cycle, that model, util and service.chat need no JavaFX, that no layer below the user interface looks up the
  * services it uses in the locator, that in the user interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
- * uses, that no class imports a package of the application with a wildcard, that the chat clients of Gemini and
- * OpenAI do not use each other and that the generation and the image clients render no message themselves.
+ * uses, that no class imports a package of the application with a wildcard, that the clients of the providers do
+ * not use each other and that the generation and the image clients render no message themselves.
  */
 class ArchitectureTest {
 
@@ -52,9 +51,16 @@ class ArchitectureTest {
             "mcp", Set.of("service", "config", "model", "util"),
             "ui", Set.of("service", "mcp", "net", "config", "model", "util"));
 
-    /*  The subpackages of service, each using only those before it; service itself comes last  */
-    private static final List<String> SERVICES = List.of("service.provider", "service.prompt", "service.trash",
-            "service.library", "service.chat", "service.generation", "service.brainstorm", "service");
+    /*  The subpackages of service, each using only those before it; service itself comes last. The clients of the
+        providers sit on the SPI at the bottom, the check of their accounts above them  */
+    private static final List<String> SERVICES = List.of("service.provider", "service.provider.bfl",
+            "service.provider.gemini", "service.provider.openai", "service.provider.validation", "service.prompt",
+            "service.trash", "service.library", "service.chat", "service.generation", "service.brainstorm",
+            "service");
+
+    /*  The clients of the providers, which use the SPI of service.provider and none of each other  */
+    private static final Set<String> VENDORS = Set.of("service.provider.bfl", "service.provider.gemini",
+            "service.provider.openai");
 
     /*  Known deviation: the chat entry and its images, whose few properties and the list of images the views observe  */
     private static final Set<String> FX_MODELS = Set.of("ChatEntry", "GeneratedImage");
@@ -285,8 +291,8 @@ class ArchitectureTest {
     }
 
     /*  The image and video clients, whose failures reach the entries of the window and of the MCP server  */
-    private static final List<String> IMAGE_CLIENTS = List.of("BflApiServiceImpl", "GeminiImageClient",
-            "GeminiOmniClient", "OpenAiImageClient");
+    private static final List<String> IMAGE_CLIENTS = List.of("bfl/BflApiServiceImpl", "gemini/GeminiImageClient",
+            "gemini/GeminiOmniClient", "openai/OpenAiImageClient");
 
     @Test
     void theGenerationAndTheImageClientsRenderNoMessageThemselves() throws IOException {
@@ -330,18 +336,17 @@ class ArchitectureTest {
         assertEquals(new TreeSet<>(FX_SERVICES), classes, "the classes of service that use JavaFX");
     }
 
-    /*  The chat clients translate the conversation of no provider (ChatTurn, ChatTool) into their own format, so
-        neither uses a class of the other provider  */
+    /*  The clients of the providers build on the SPI and the conversation of no provider (ChatTurn, ChatTool), which
+        each chat client translates into its own format, so no client uses a class of another provider  */
     @Test
-    void theChatClientsOfGeminiAndOpenAiDoNotUseEachOther() throws IOException {
-        Path provider = SOURCES.resolve("art/moodframe/service/provider");
-        Pattern gemini = Pattern.compile("\\bGemini[A-Z]\\w*");
-        Pattern openAi = Pattern.compile("\\bOpenAi[A-Z]\\w*");
-        String openAiClient = COMMENTS.matcher(Files.readString(provider.resolve("OpenAiChatClient.java")))
-                .replaceAll("");
-        String geminiClient = COMMENTS.matcher(Files.readString(provider.resolve("GeminiChatClient.java")))
-                .replaceAll("");
-        assertFalse(gemini.matcher(openAiClient).find(), "OpenAiChatClient uses a class of Gemini");
-        assertFalse(openAi.matcher(geminiClient).find(), "GeminiChatClient uses a class of OpenAI");
+    void theClientsOfTheProvidersDoNotUseEachOther() {
+        List<String> violations = new ArrayList<>();
+        for (String vendor : VENDORS) {
+            for (String target : uses.getOrDefault(vendor, Set.of())) {
+                if (VENDORS.contains(target))
+                    violations.add(vendor + " -> " + target);
+            }
+        }
+        assertEquals(List.of(), violations);
     }
 }

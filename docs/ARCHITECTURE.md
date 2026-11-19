@@ -73,8 +73,8 @@ Allowed dependency directions:
   `service` that uses JavaFX, that no class outside `ui` and the root uses the `ServiceFactory` (besides itself) and
   in `ui` only `MainWindowController` and `SettingsController` do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
   `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
-  that the chat clients of Gemini and OpenAI use no class of each other (D6), from the imports and fully qualified
-  names of `src/main/java`.
+  that the clients of the providers (`service.provider.bfl`, `.gemini`, `.openai`) use no class of each other (D4,
+  D6), from the imports and fully qualified names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
   `ui.entry`, `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`),
   `ui.controller.settings` and `ui.controller` on top, so no view uses a controller and the entry cards build on the
@@ -83,17 +83,25 @@ Allowed dependency directions:
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
-| Package              | Role                                                                                 |
-|----------------------|--------------------------------------------------------------------------------------|
-| `service.provider`   | provider SPI and registry, the clients of BFL, Gemini and OpenAI, account checks     |
-| `service.prompt`     | the prompt text: `PromptComposer`, `CameraPromptBuilder`                             |
-| `service.trash`      | the central trash (`TrashCenter`, `TrashGroup`), its cleanup, the trash directory    |
-| `service.library`    | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
-| `service.chat`       | the chats with their entries, files, thumbnail files, attachments, their trash       |
-|                      | groups; no JavaFX                                                                    |
-| `service.generation` | carries out a generation order: entry, request, job polling, image files             |
-| `service.brainstorm` | the brainstorm chat and the analysis of an image into a mood                         |
-| `service`            | `ConfigurationExporter` (settings and library backup), `UpdateCheckService`          |
+| Package                       | Role                                                                                 |
+|-------------------------------|--------------------------------------------------------------------------------------|
+| `service.provider`            | the provider SPI and registry, the types the providers share (errors, jobs, chat     |
+|                               | turns, request options)                                                              |
+| `service.provider.bfl`        | the client of BFL (FLUX), whose images are jobs to poll                              |
+| `service.provider.gemini`     | the client of Gemini: images, Omni videos, the brainstorm chat                       |
+| `service.provider.openai`     | the client of OpenAI or an OpenAI-compatible gateway                                 |
+| `service.provider.validation` | the check of the accounts of all providers (`ApiProviderValidator`)                  |
+| `service.prompt`              | the prompt text: `PromptComposer`, `CameraPromptBuilder`                             |
+| `service.trash`               | the central trash (`TrashCenter`, `TrashGroup`), its cleanup, the trash directory    |
+| `service.library`             | moods, frames, building blocks, palettes, favorites, `LibraryEvents`, trash groups   |
+| `service.chat`                | the chats with their entries, files, thumbnail files, attachments, their trash       |
+|                               | groups; no JavaFX                                                                    |
+| `service.generation`          | carries out a generation order: entry, request, job polling, image files             |
+| `service.brainstorm`          | the brainstorm chat and the analysis of an image into a mood                         |
+| `service`                     | `ConfigurationExporter` (settings and library backup), `UpdateCheckService`          |
+
+The clients of the providers use of the services only `service.provider`, and none of them uses another, so a
+client can change or go without touching the others (D4).
 
 `service.trash` owns the interface `TrashGroup`; the groups of chats, images, moods, frames and blocks live with their
 items in `service.chat` and `service.library`, so the trash depends on none of them.
@@ -531,9 +539,10 @@ there are. A new provider is, in this order:
 1. its constant in `model.ApiProvider` (display name, prefix of its account settings in `ProviderAccounts`, largest
    attachment) and its key in `config.Secret`, mapped in `ProviderAccounts.secret` (and `isBrainstormAvailable`,
    false without a language model);
-2. its client in `service.provider`: an interface extending `ImageProvider` with its implementation (prompt limit,
-   `prepare`, the flow it answers with, seeds, costs, download headers), created in
-   `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
+2. its client in a subpackage of its own, `service.provider.<name>` like `bfl`, `gemini` and `openai`, which uses
+   `service.provider` and no other client (add it to `SERVICES` and `VENDORS` of `ArchitectureTest`): an interface
+   extending `ImageProvider` with its implementation (prompt limit, `prepare`, the flow it answers with, seeds, costs,
+   download headers), created in `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
 3. its models as constants of `model.GenerationModel`, which decides several things by provider: the branch of the
    constructor for their resolution (`maxMegapixels`, `maxResolution`; `supportsImageAttachment` is true for every
    provider but BFL), `supportsMultiImage` and `getMaxInputImages` for their reference images (false and 0 for a new
@@ -567,8 +576,10 @@ The brainstorm and the analysis of an image talk to Gemini or to an OpenAI langu
 user (text and images), an answer of the model (text, or tool calls with their ids) and the results of the tools; the
 tools are `ChatTool`s (name, description, JSON Schema of the arguments), which the brainstorm declares and runs. Each
 chat client translates the turns into its own request (`GeminiChatClient.buildChatBody`,
-`OpenAiChatClient.buildChatBody`) and its answer back, so neither client knows the other. Gemini requires the thought
+`OpenAiChatClient.buildChatBody`) and its answer back, so neither client knows the other (`service.provider.gemini`
+and `service.provider.openai` use no class of each other, `ArchitectureTest`). Gemini requires the thought
 signatures of its tool calls back unchanged: its answer keeps its parts as `replay`, which only Gemini reads; the
-answer of another model is built from its text and calls. The types live in `service.provider`, which lies below
-`service.brainstorm`. The stored messages of a session stay role and text (`brainstorm_messages`); the tool rounds of
-a turn exist only while it runs, so the database kept its format.
+answer of another model is built from its text and calls. The types, and the question of the web search check
+(`ChatTurn.SEARCH_CHECK_QUESTION`), live in `service.provider`, which lies below the clients and `service.brainstorm`.
+The stored messages of a session stay role and text (`brainstorm_messages`); the tool rounds of a turn exist only
+while it runs, so the database kept its format.
