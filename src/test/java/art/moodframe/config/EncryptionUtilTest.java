@@ -11,9 +11,15 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
@@ -80,6 +86,29 @@ class EncryptionUtilTest {
         }
 
         assertEquals(List.of(), List.copyOf(exposed));
+    }
+
+    @Test
+    void instancesStartingAtOnceShareOneKey() throws Exception {
+        for (int round = 0; round < 20; round++) {
+            Path keyFile = tempDir.resolve("round-" + round).resolve("secret.key");
+            String secret = "key " + round;
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<String>> encrypted = new ArrayList<>();
+            try (ExecutorService threads = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (int i = 0; i < 8; i++) {
+                    EncryptionUtil encryption = new EncryptionUtil(keyFile);
+                    encrypted.add(threads.submit(() -> {
+                        start.await();
+                        return encryption.encrypt(secret);
+                    }));
+                }
+                start.countDown();
+                EncryptionUtil later = new EncryptionUtil(keyFile);
+                for (Future<String> each : encrypted)
+                    assertEquals(secret, later.decrypt(each.get(10, TimeUnit.SECONDS)), "one key for all instances");
+            }
+        }
     }
 
     private void assumePosix() throws IOException {
