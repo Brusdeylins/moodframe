@@ -5,7 +5,6 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormFact;
 import art.moodframe.model.BrainstormMessage;
-import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.Mood;

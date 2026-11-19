@@ -1,5 +1,7 @@
-package art.moodframe.model;
+package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.ResearchNote;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;

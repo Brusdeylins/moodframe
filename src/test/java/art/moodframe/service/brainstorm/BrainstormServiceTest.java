@@ -4,7 +4,6 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
-import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
 import art.moodframe.model.BrainstormTurn;
 import art.moodframe.model.Mood;

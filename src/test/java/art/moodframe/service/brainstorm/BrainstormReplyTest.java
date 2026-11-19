@@ -1,5 +1,8 @@
-package art.moodframe.model;
+package art.moodframe.service.brainstorm;
 
+import art.moodframe.model.BrainstormDraft;
+import art.moodframe.model.CameraSettings;
+import art.moodframe.model.Mood;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 
