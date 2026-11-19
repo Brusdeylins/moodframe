@@ -386,7 +386,8 @@ form is the place where the groups of `ui.panel` can replace the fields of the m
 - **Files of the trash**: `ChatTrashRepository` is the one owner of the files of a deleted, restored or removed
   chat, entry or image: it hands exactly the rows its transaction changed to `repository.ChatFiles` after the
   commit, so an image another caller deleted before is not moved twice and a row that was not deleted keeps its
-  file. The services never move these files themselves.
+  file. Its writes run one after the other, each with the moves of its files, so a deletion and an immediate
+  restore from another thread move the files in the order of their commits. The services never move these files themselves.
 - **Time columns** of the chats, entries and images (`created_at`, `deleted_at`, `chats.updated_at`), of the
   brainstorm sessions (`created_at`, `updated_at`; a session has no trash and is deleted for good) and the
   `deleted_at` of moods, frames, blocks and palettes hold epoch milliseconds of the local time (`setTimestamp`);
