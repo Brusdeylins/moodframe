@@ -24,9 +24,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -164,24 +161,6 @@ public class GenerationPanelController {
     // Attachment
     @FXML
     private VBox multiImageAttachmentContainer;
-    @FXML
-    private Label imageAttachmentLabel;
-    @FXML
-    private StackPane imagePreviewContainer;
-    @FXML
-    private VBox noImagePlaceholder;
-    @FXML
-    private Label noImageLabel;
-    @FXML
-    private ImageView attachmentPreviewImage;
-    @FXML
-    private Button uploadImageButton;
-    @FXML
-    private Tooltip uploadImageTooltip;
-    @FXML
-    private Button removeImageButton;
-    @FXML
-    private Tooltip removeImageTooltip;
 
     private ApplicationConfig config;
     private GenerationService generationService;
@@ -206,9 +185,7 @@ public class GenerationPanelController {
 
     @FXML
     private void initialize() {
-        attachments = new GenerationAttachments(new GenerationAttachments.Nodes(multiImageAttachmentContainer,
-                imagePreviewContainer, noImagePlaceholder, attachmentPreviewImage, uploadImageButton,
-                removeImageButton), () -> currentSelectedModel);
+        attachments = new GenerationAttachments(multiImageAttachmentContainer, () -> currentSelectedModel);
         parameters = new ProviderParameters(new ProviderParameters.Nodes(geminiAdvancedFeaturesContainer,
                 geminiThinkingLevelContainer, bflParametersContainer, flux2GroundingSearchContainer,
                 bflPromptUpsamplingCheckBox, flux1SafetyContainer, safetyToleranceLabel, flux2ParametersContainer,
@@ -496,9 +473,7 @@ public class GenerationPanelController {
         imageCountSlider.setDisable(!enableInput);
         imageCountLabel.setDisable(!enableInput);
         seedLabel.setDisable(!enableInput);
-        imageAttachmentLabel.setDisable(!enableInput);
         attachments.setDisable(!enableInput);
-        noImageLabel.setDisable(!enableInput);
         geminiAdvancedFeaturesContainer.setDisable(!enableInput);
 
         // The video parameters (duration) and the FLUX.2 parameters, with the web search of [max]
@@ -518,16 +493,11 @@ public class GenerationPanelController {
         updateImageCountLabel((int) imageCountSlider.getValue());
         if (seedTextField.getPromptText() != null)
             seedTextField.setPromptText(I18nManager.getText("params.seed.placeholder"));
-        uploadImageButton.setText(I18nManager.getText("params.image.attach"));
         generationTitleLabel.setText(I18nManager.getText("params.generation.title"));
         modelLabel.setText(I18nManager.getText("params.model"));
         updateGenerationSummary();
         seedLabel.setText(I18nManager.getText("params.seed"));
-        imageAttachmentLabel.setText(I18nManager.getText("params.image.attachment"));
-        noImageLabel.setText(I18nManager.getText("params.image.none"));
         clearSeedTooltip.setText(I18nManager.getText("params.seed.clear.tooltip"));
-        uploadImageTooltip.setText(I18nManager.getText("params.image.attach.tooltip"));
-        removeImageTooltip.setText(I18nManager.getText("params.image.remove.tooltip"));
         updateModelNames();
         parameters.updateSafetyToleranceLabel((int) safetyToleranceSlider.getValue());
         updateCostDisplay();
@@ -1023,22 +993,6 @@ public class GenerationPanelController {
                 parameters.googleSearch(),
                 flux2GuidanceSlider != null ? flux2GuidanceSlider.getValue() : null,
                 flux2StepsSlider != null ? (int) flux2StepsSlider.getValue() : null, selectedVideoSeconds());
-    }
-
-    /**
-     * Handles the attach image button click event.
-     */
-    @FXML
-    private void onAttachImageClicked() {
-        attachments.choose();
-    }
-
-    /**
-     * Handles the remove image button click event.
-     */
-    @FXML
-    private void onRemoveImageClicked() {
-        attachments.remove();
     }
 
     /**

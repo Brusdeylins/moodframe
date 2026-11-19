@@ -64,8 +64,8 @@ class MainWindowPanelTest {
         assertTrue(inside(byId("modelLabel"), details.get(0)) && inside(byId("modelFamilyChoiceBox"), details.get(0))
                 && inside(byId("modelComboBox"), details.get(0)), "the model comes first");
         assertEquals(List.of("geminiAdvancedFeaturesContainer", "geminiThinkingLevelContainer", "bflParametersContainer",
-                "seedContainer", "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer",
-                "imageAttachmentSection"), ids(details.subList(1, details.size())),
+                "seedContainer", "imageCountContainer", "videoParametersContainer", "multiImageAttachmentContainer"),
+                ids(details.subList(1, details.size())),
                 "the fields of the model, then count or duration, then the attachment");
 
         /*  the fields of FLUX: web search first like grounding, then enhancement, safety, guidance, steps; then the
