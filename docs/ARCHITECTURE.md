@@ -24,7 +24,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 |--------------|----------------------------------------------------------------------------------------|
 | `ui`         | JavaFX views: FXML controllers, dialogs, list cells, components, drag and drop          |
 |              | (`ui.brainstorm` holds the brainstorm window as one feature package; `ui.panel` the     |
-|              | groups Mood and Frame, which several windows show; `ui.support` the helpers that need   |
+|              | groups Mood and Frame, which other windows can show; `ui.support` the helpers that need |
 |              | JavaFX or the desktop: themes, videos, opening files and web pages, listener cleanup,   |
 |              | `FxI18n`, `CoalescedLoad`, the decoded thumbnails in `ImageCache`, `ListReorder`,       |
 |              | `BoxInset`, `StatusSink`; the root holds only `SplashScreen`, shown before the window)  |
@@ -69,7 +69,8 @@ Allowed dependency directions:
   from the imports and fully qualified names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
   `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
-  `ui.controller` on top, so no view uses a controller and the brainstorm dialog may show the groups of `ui.panel`.
+  `ui.controller` on top, so no view uses a controller; the order allows the brainstorm dialog to show the groups of
+  `ui.panel`, which it does not do yet (planned with ticket 136).
 
 The subpackages of `service`, each using only those above it in the table (no cycles):
 
@@ -239,8 +240,9 @@ the language (its own, the full view's and the cards'), of the theme, the genera
 and the account checks, the timelines of the memory display and the clipboard watch, and its worker; a closed window
 stays reachable from nowhere.
 
-`ui.panel.MoodFramePanelController` is self-contained, so that another window (the brainstorm dialog, which
-`ui.panel` lies below) can show the same fields: it takes its services as `MoodFramePanelController.Services` (with
+`ui.panel.MoodFramePanelController` is self-contained, so that another window can show the same fields; the
+brainstorm dialog, which `ui.panel` lies below, may reuse it in its result form, which is planned (ticket 136) and not
+done yet. It takes its services as `MoodFramePanelController.Services` (with
 the trash), follows the chosen model with
 `followModel`, tells its choice with `selection()` and `promptBlocks()`, takes a choice with `chooseMood`,
 `chooseFrame`, `setAspectRatio`, `setResolution` or from a chat entry, and reports every change of a field with
