@@ -9,7 +9,10 @@ import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.service.prompt.PromptComposer;
+import art.moodframe.service.trash.MemoryTrashGroup;
+import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashEntry;
+import art.moodframe.service.trash.TrashGroup;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -265,7 +268,15 @@ class MoodServiceTest {
         assertTrue(moods.add(rich));
         assertTrue(moods.add(blank));
 
-        moods.blocksDeleted(List.of("atmosphere-gone"));
+        /*  the trash tells the moods of blocks deleted for good there, restored ones change nothing  */
+        TrashCenter trash = new TrashCenter();
+        trash.register(new MemoryTrashGroup(TrashGroup.Kind.BLOCKS).put("atmosphere-gone", 3));
+        moods.followTrash(trash);
+        assertTrue(trash.restore(TrashGroup.Kind.BLOCKS, "atmosphere-gone"));
+        assertTrue(moods.takeEmptied().isEmpty());
+        trash.register(new MemoryTrashGroup(TrashGroup.Kind.BLOCKS).put("atmosphere-gone", 3));
+        assertEquals(List.of("atmosphere-gone"), trash.deletePermanently(TrashGroup.Kind.BLOCKS,
+                List.of("atmosphere-gone")));
         List<Mood> emptied = moods.takeEmptied();
         assertEquals(List.of("Only Fog"), emptied.stream().map(Mood::getName).toList(),
                 "only a mood that lost its last block is reported, not one saved empty");

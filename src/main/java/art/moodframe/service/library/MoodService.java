@@ -6,6 +6,8 @@ import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.service.prompt.PromptComposer;
+import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashGroup;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -597,6 +599,26 @@ public class MoodService implements BlockUsage {
                 emptied.add(after);
         }
         changed(!affected.isEmpty(), null);
+    }
+
+    /**
+     * Follows the trash: the moods lose the references to blocks deleted for good there, also by the automatic
+     * cleanup ({@link #blocksDeleted}).
+     *
+     * @param trash the central trash
+     */
+    public void followTrash(TrashCenter trash) {
+        trash.addListener(new TrashCenter.Listener() {
+            @Override
+            public void restored(TrashGroup.Kind kind, String id) {
+            }
+
+            @Override
+            public void deleted(TrashGroup.Kind kind, List<String> ids) {
+                if (kind == TrashGroup.Kind.BLOCKS)
+                    blocksDeleted(ids);
+            }
+        });
     }
 
     /**
