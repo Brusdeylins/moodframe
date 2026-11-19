@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -24,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
  * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
  * interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
- * uses and that no class imports a package of the application with a wildcard.
+ * uses, that no class imports a package of the application with a wildcard and that the chat clients of Gemini and
+ * OpenAI do not use each other.
  */
 class ArchitectureTest {
 
@@ -258,5 +260,20 @@ class ArchitectureTest {
                 names.forEach((String name) -> classes.add(pkg + "." + name));
         });
         assertEquals(new TreeSet<>(FX_SERVICES), classes, "the classes of service that use JavaFX");
+    }
+
+    /*  The chat clients translate the conversation of no provider (ChatTurn, ChatTool) into their own format, so
+        neither uses a class of the other provider  */
+    @Test
+    void theChatClientsOfGeminiAndOpenAiDoNotUseEachOther() throws IOException {
+        Path provider = SOURCES.resolve("art/moodframe/service/provider");
+        Pattern gemini = Pattern.compile("\\bGemini[A-Z]\\w*");
+        Pattern openAi = Pattern.compile("\\bOpenAi[A-Z]\\w*");
+        String openAiClient = COMMENTS.matcher(Files.readString(provider.resolve("OpenAiChatClient.java")))
+                .replaceAll("");
+        String geminiClient = COMMENTS.matcher(Files.readString(provider.resolve("GeminiChatClient.java")))
+                .replaceAll("");
+        assertFalse(gemini.matcher(openAiClient).find(), "OpenAiChatClient uses a class of Gemini");
+        assertFalse(openAi.matcher(geminiClient).find(), "GeminiChatClient uses a class of OpenAI");
     }
 }

@@ -65,8 +65,9 @@ Allowed dependency directions:
   JavaFX, that `service.generation.FxModel` is the only class of `service` that uses JavaFX, that no class of
   `service` or `mcp` uses the `ServiceFactory` and in `ui` only `MainWindowController` and `SettingsController`
   do, the order of the parts of `ui` (below), that `ui` uses of `mcp` only `McpService` and of `net` only
-  `HttpClients` and `CertificateStore`, and that no class imports a package of the application with a wildcard,
-  from the imports and fully qualified names of `src/main/java`.
+  `HttpClients` and `CertificateStore`, that no class imports a package of the application with a wildcard and
+  that the chat clients of Gemini and OpenAI use no class of each other (D6), from the imports and fully qualified
+  names of `src/main/java`.
 - The parts of `ui` use only those below them: `ui.support` at the bottom, then `ui.dnd`, `ui.component`,
   `ui.cell`, `ui.dialog`, `ui.panel`, `ui.brainstorm`, the root (`SplashScreen`), `ui.controller.settings` and
   `ui.controller` on top, so no view uses a controller; the order allows the brainstorm dialog to show the groups of
