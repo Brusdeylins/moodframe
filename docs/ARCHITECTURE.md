@@ -303,8 +303,11 @@ boxes and file choosers, so `SettingsDialogTest` clicks through the dialog off-s
   startup and tracked in a migration table; a data migration that needs Java (`FluxCostBackfill`,
   `DeletedCostCorrection`) runs in the same sequence and carries the prices and formulas it books with (frozen at
   2.1.3), so a later version books the same. A migration runs only when it is listed in `MigrationRunner.MIGRATIONS`;
-  it is applied and recorded in one transaction. A real failure always surfaces: on the legacy path and in the
-  repair of a V011 that was recorded without its columns, which adds only what is missing, in one transaction.
+  it is applied and recorded in one transaction. A legacy library (tables, but no records) gets each migration
+  statement by statement: a statement whose table, index, trigger or column is already there is skipped, the others
+  are applied, and the migration is recorded once all are applied or skipped. A real failure always surfaces: on the
+  legacy path and in the repair of a V011 that was recorded without its columns, which adds only what is missing, in
+  one transaction.
 - **Triggers**: only the favorites cleanup of V027. V031 dropped V001's triggers on `chats.updated_at`, which never
   ran in older libraries; `ChatLibrary` sets `updated_at` itself and the chat list is ordered by `sort_order`.
 - **Soft delete**: chats, moods, frames, building blocks and palettes get `deleted_at`; the central trash

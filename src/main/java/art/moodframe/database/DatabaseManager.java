@@ -110,23 +110,38 @@ public class DatabaseManager {
      */
     public <T> T inTransaction(Transaction<T> work) throws SQLException {
         try (Connection connection = getConnection()) {
-            connection.setAutoCommit(false);
-            T result;
-            try {
-                result = work.run(connection);
-            } catch (SQLException | RuntimeException e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollback) {
-                    e.addSuppressed(rollback);
-                }
-                throw e;
-            }
-            /*  commits without commit(), which would begin the next transaction and take the write lock again;
-                if it fails, closing the connection rolls back  */
-            connection.setAutoCommit(true);
-            return result;
+            return inTransaction(connection, work);
         }
+    }
+
+    /**
+     * Runs a write transaction on a connection the caller holds, as {@link #inTransaction(Transaction)} does; the
+     * connection is in auto-commit mode again afterwards.
+     *
+     * @param connection the connection, in auto-commit mode
+     * @param work       the reads and writes of the transaction
+     * @param <T>        the result of the work
+     * @return what the work returned
+     * @throws SQLException if the work or the commit fails; nothing of the work is stored then
+     */
+    static <T> T inTransaction(Connection connection, Transaction<T> work) throws SQLException {
+        connection.setAutoCommit(false);
+        T result;
+        try {
+            result = work.run(connection);
+        } catch (SQLException | RuntimeException e) {
+            try {
+                connection.rollback();
+                connection.setAutoCommit(true);
+            } catch (SQLException rollback) {
+                e.addSuppressed(rollback);
+            }
+            throw e;
+        }
+        /*  commits without commit(), which would begin the next transaction and take the write lock again;
+            if it fails, closing the connection rolls back  */
+        connection.setAutoCommit(true);
+        return result;
     }
 
     /**
