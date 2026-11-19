@@ -176,6 +176,17 @@ class ArchitectureTest {
     }
 
     @Test
+    void inTheUserInterfaceOnlyTheCoordinatorsUseTheLocator() {
+        List<String> lookups = new ArrayList<>();
+        locator.forEach((String pkg, Set<String> classes) -> {
+            if (layerOf(pkg).equals("ui"))
+                classes.forEach((String name) -> lookups.add(pkg + "." + name));
+        });
+        assertEquals(List.of("ui.controller.MainWindowController", "ui.controller.SettingsController"), lookups,
+                "the coordinators look up the services once and hand them to the views");
+    }
+
+    @Test
     void theChatsNeedNoJavaFx() {
         assertEquals(Set.of(), javaFx.getOrDefault("service.chat", Set.of()), "service.chat");
     }

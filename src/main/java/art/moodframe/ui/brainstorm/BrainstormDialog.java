@@ -123,6 +123,7 @@ public class BrainstormDialog extends Stage {
     }
 
     private final BrainstormService service;
+    private final ApplicationConfig appConfig;
     private final BrainstormContext context;
     private final Consumer<Result> onAdopt;
 
@@ -179,13 +180,15 @@ public class BrainstormDialog extends Stage {
      * Creates the dialog.
      *
      * @param owner the owner window
+     * @param config the accounts and the remembered resolutions (may be null: none)
      * @param service the brainstorm service
      * @param context the selectable values and the current main window state
      * @param currentModel localized display name of the model currently selected in the main window
      * @param onAdopt called with the adopted values when the user clicks "Adopt"
      */
-    public BrainstormDialog(Stage owner, BrainstormService service, BrainstormContext context,
-                            String currentModel, Consumer<Result> onAdopt) {
+    public BrainstormDialog(Stage owner, ApplicationConfig config, BrainstormService service,
+                            BrainstormContext context, String currentModel, Consumer<Result> onAdopt) {
+        this.appConfig = config;
         this.service = service;
         this.context = context;
         this.onAdopt = onAdopt;
@@ -1132,7 +1135,7 @@ public class BrainstormDialog extends Stage {
     }
 
     private ApplicationConfig config() {
-        return art.moodframe.config.ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        return appConfig;
     }
 
     /** The resolution remembered for a family, or null. */

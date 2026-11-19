@@ -207,6 +207,18 @@ public class ChatViewController {
                 chatHeader.getPadding().getBottom(), BoxInset.LEFT - 1.0));
     }
 
+    /*  the thumbnails and the size check of the images, handed by the main window before init  */
+    private art.moodframe.ui.component.ImageSources imageSources = art.moodframe.ui.component.ImageSources.NONE;
+
+    /**
+     * Sets where the cards and the images view get the pictures of the images; call it before {@link #init}.
+     *
+     * @param sources the thumbnails and the size check
+     */
+    public void useImageSources(art.moodframe.ui.component.ImageSources sources) {
+        this.imageSources = sources;
+    }
+
     /**
      * Connects the chat area to the library and the selection of the sidebar.
      *
@@ -663,7 +675,8 @@ public class ChatViewController {
                     // Create new ChatEntryCard for this entry
                     // Pass isFluxModelSelected supplier to constructor so it's available during image card creation
                     boolean isChatDeleted = group.get() == null && chat.get() != null && chat.get().isDeleted();
-                    currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory);
+                    currentCard = new ChatEntryCard(entry, isChatDeleted, actions::seedApplies, chatHistory,
+                            imageSources);
                     shownCards.add(currentCard);
 
                     // CRITICAL: Card must also fill width
@@ -727,7 +740,7 @@ public class ChatViewController {
      * of the images both views share; view and size are remembered for all chats and groups.
      */
     private void setupImagesView() {
-        imageGrid = new ImageGrid(this::shownImagePath);
+        imageGrid = new ImageGrid(this::shownImagePath, imageSources);
         imageGrid.setVisible(false);
         chatAreaStackPane.getChildren().add(chatAreaStackPane.getChildren().indexOf(chatEntriesListView) + 1,
                 imageGrid);
@@ -1006,7 +1019,7 @@ public class ChatViewController {
     private void setupImagePreviewOverlay(StackPane overlayHost) {
         try {
             // Create and configure the image preview overlay
-            imagePreviewOverlay = new art.moodframe.ui.component.ImagePreviewOverlay();
+            imagePreviewOverlay = new art.moodframe.ui.component.ImagePreviewOverlay(config);
 
             // Add overlay to the main stack pane (covers entire window except header)
             overlayHost.getChildren().add(imagePreviewOverlay);

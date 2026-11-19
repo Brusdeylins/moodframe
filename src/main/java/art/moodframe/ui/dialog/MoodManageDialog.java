@@ -1,11 +1,8 @@
 package art.moodframe.ui.dialog;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.Mood;
 import art.moodframe.service.library.FavoriteService;
 import art.moodframe.service.library.MoodService;
-import art.moodframe.service.trash.TrashCenter;
-import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.FavoriteStar;
@@ -49,6 +46,7 @@ public class MoodManageDialog extends Stage {
     private static final double WINDOW_HEIGHT = 420;
 
     private final MoodService moodService;
+    private final TrashWindow.Opener trash;
     private final ListView<Mood> list = new ListView<>();
 
     /**
@@ -56,16 +54,19 @@ public class MoodManageDialog extends Stage {
      *
      * @param owner the owner window
      * @param moodService where the moods are kept
+     * @param favorites the favorites, which the star of a row toggles
+     * @param trash opens the trash on the moods
      */
-    public MoodManageDialog(Window owner, MoodService moodService) {
+    public MoodManageDialog(Window owner, MoodService moodService, FavoriteService favorites,
+            TrashWindow.Opener trash) {
         this.moodService = moodService;
+        this.trash = trash;
 
         initOwner(owner);
         initModality(Modality.WINDOW_MODAL);
         setTitle(I18nManager.getText("mood.manage.title"));
 
         list.setPlaceholder(new Label(I18nManager.getText("mood.manage.placeholder")));
-        FavoriteService favorites = ServiceFactory.getInstance().getService(FavoriteService.class);
         FavoriteStar.Favorites<Mood> starred = new FavoriteStar.Favorites<>(null, (mood) -> favorites != null
                 && favorites.isFavorite(FavoriteService.Kind.MOOD, mood.getId()), (mood) -> {
                     if (favorites != null)
@@ -248,9 +249,7 @@ public class MoodManageDialog extends Stage {
 
     /** Opens the moods in the trash; a restored mood shows up here once the trash is closed. */
     private void openTrash() {
-        TrashWindow window = new TrashWindow(this, ServiceFactory.getInstance().getService(TrashCenter.class),
-                ServiceFactory.getInstance().getService(TrashCleanupService.class));
-        window.select(TrashGroup.Kind.MOODS, null);
+        TrashWindow window = trash.window(this, TrashGroup.Kind.MOODS, null);
         window.setOnHidden((event) -> refresh(null));
         window.show();
     }

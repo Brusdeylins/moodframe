@@ -14,7 +14,6 @@ import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.dnd.ImageDragExporter;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.SafetyTolerance;
@@ -115,6 +114,7 @@ public class ChatEntryCard extends ManagedComponent {
 
     /*  finds the files of the images, in the trash for a chat there; null where the card shows no stored chat  */
     private final ChatHistoryService history;
+    private final ImageSources sources;
     private final Label promptLabel;
     private final Button reuseButton;
     private final MenuButton moreButton;
@@ -192,8 +192,25 @@ public class ChatEntryCard extends ManagedComponent {
      */
     public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
                          java.util.function.Supplier<Boolean> isFluxModelSelected, ChatHistoryService history) {
+        this(chatEntry, isChatDeleted, isFluxModelSelected, history, ImageSources.NONE);
+    }
+
+    /**
+     * Creates a new ChatEntryCard for the given ChatEntry, which shows the thumbnails of its images.
+     *
+     * @param chatEntry            the ChatEntry to display
+     * @param isChatDeleted        whether the parent chat is deleted (in trash)
+     * @param isFluxModelSelected  supplier that returns true if a FLUX model, which takes a seed, is selected
+     * @param history              finds the files of the images, in the trash for a chat there (may be null: the
+     *                             files where they were generated)
+     * @param sources              the thumbnails and the size check of the images
+     */
+    public ChatEntryCard(ChatEntry chatEntry, boolean isChatDeleted,
+                         java.util.function.Supplier<Boolean> isFluxModelSelected, ChatHistoryService history,
+                         ImageSources sources) {
         super(); // Initialize ManagedComponent
         this.history = history;
+        this.sources = sources;
         this.isFluxModelSelected = isFluxModelSelected;
         this.chatEntry = chatEntry;
         this.isChatDeleted = isChatDeleted;
@@ -302,7 +319,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         availableWidth.bind(widthProperty());
         this.tileWidth = Bindings.createDoubleBinding(() -> {
-            int count = Math.max(1, images().size());
+            int count = Math.max(1, imagesOf(chatEntry).size());
             double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
                     - IMAGE_GAP * (count - 1);
             return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
@@ -343,9 +360,9 @@ public class ChatEntryCard extends ManagedComponent {
     }
 
     /*  the images of the entry, copied under the lock of the chat models, which a generation changes meanwhile; the
-        one place to switch to a snapshot helper of service.chat  */
-    private List<GeneratedImage> images() {
-        return ModelLock.read(() -> new ArrayList<>(chatEntry.getImages()));
+        one place to switch to ChatLibrary.imagesOf  */
+    private static List<GeneratedImage> imagesOf(ChatEntry entry) {
+        return ModelLock.read(() -> new ArrayList<>(entry.getImages()));
     }
 
     /**
@@ -391,7 +408,7 @@ public class ChatEntryCard extends ManagedComponent {
                 "ChatEntry images collection listener"));
 
         // Setup property listeners for existing images
-        for (GeneratedImage image : images()) {
+        for (GeneratedImage image : imagesOf(chatEntry)) {
             setupImagePropertyListeners(image);
         }
 
@@ -496,7 +513,7 @@ public class ChatEntryCard extends ManagedComponent {
         List<String> parts = new ArrayList<>();
         parts.add(chatEntry.getCreatedAt() != null ? chatEntry.getCreatedAt().format(TIME_FORMATTER)
                 : I18nManager.getText("chat.timestamp.none"));
-        int imageCount = images().size();
+        int imageCount = imagesOf(chatEntry).size();
         if (imageCount > 0)
             parts.add(I18nManager.getText("params.image.count", imageCount));
         if (chatEntry.getCost() > 0)
@@ -514,7 +531,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         /*  An entry from before 2.0 may carry its style at its first image only (BFL)  */
         String style = chatEntry.getStyle();
-        List<GeneratedImage> images = images();
+        List<GeneratedImage> images = imagesOf(chatEntry);
         if (style == null && !images.isEmpty())
             style = images.get(0).getStylePreset();
 
@@ -616,7 +633,7 @@ public class ChatEntryCard extends ManagedComponent {
     private String frameDetails() {
         EntryFrame frame = chatEntry.getFrame();
         String target = frame != null ? EntryBadge.join(frame.aspectRatio(), frame.resolution()) : chatEntry.getSize();
-        GeneratedImage sized = images().stream()
+        GeneratedImage sized = imagesOf(chatEntry).stream()
                 .filter((image) -> image.getWidth() > 0 && image.getHeight() > 0).findFirst().orElse(null);
         String result = EntryBadge.join(chatEntry.getSize(),
                 sized != null ? sized.getWidth() + " × " + sized.getHeight() : null);
@@ -641,7 +658,7 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.getChildren().clear();
         imageBars.clear();
 
-        List<GeneratedImage> images = images();
+        List<GeneratedImage> images = imagesOf(chatEntry);
         if (images.isEmpty()) {
             imagesContainer.setVisible(false);
             return;
@@ -915,7 +932,7 @@ public class ChatEntryCard extends ManagedComponent {
         ThumbnailManager thumbnailManager = getThumbnailManager();
 
         /*  The first display corrects a missing or wrong size from the file, the tile and tooltip follow it  */
-        ImageSizeCheck sizeCheck = ServiceFactory.getInstance().getService(ImageSizeCheck.class);
+        ImageSizeCheck sizeCheck = sources.sizeCheck();
         if (sizeCheck != null)
             sizeCheck.check(generatedImage, localPath);
 
@@ -995,9 +1012,9 @@ public class ChatEntryCard extends ManagedComponent {
         });
     }
 
-    /*  The ThumbnailManager of the application, looked up each time (a map lookup), so a replaced one is found  */
-    private static ThumbnailManager getThumbnailManager() {
-        return ServiceFactory.getInstance().getService(ThumbnailManager.class);
+    /*  The ThumbnailManager of the application, null without thumbnails  */
+    private ThumbnailManager getThumbnailManager() {
+        return sources.thumbnails();
     }
 
     /**
@@ -1119,7 +1136,7 @@ public class ChatEntryCard extends ManagedComponent {
         GeneratedImage.DownloadStatus status = generatedImage.getDownloadStatus();
 
         // Get the image index for click handler
-        int imageIndex = images().indexOf(generatedImage);
+        int imageIndex = imagesOf(chatEntry).indexOf(generatedImage);
 
         switch (status) {
             case PENDING, DOWNLOADING -> {

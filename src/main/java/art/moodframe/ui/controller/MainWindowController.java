@@ -14,6 +14,8 @@ import art.moodframe.model.PromptBlock;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
+import art.moodframe.service.chat.ImageSizeCheck;
+import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.generation.GenerationOrder;
 import art.moodframe.service.generation.GenerationService;
 import art.moodframe.service.generation.RequestResponseManager;
@@ -26,10 +28,13 @@ import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.prompt.PromptComposer;
 import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
+import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
 import art.moodframe.ui.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
+import art.moodframe.ui.component.ImageSources;
+import art.moodframe.ui.dialog.TrashWindow;
 import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;
@@ -196,9 +201,14 @@ public class MainWindowController implements I18nChangeListener {
                 appHeader.getPadding().getBottom(), 10.0 + BoxInset.LEFT + 1.0));
 
         inputBar = chatViewController.inputBar();
+        TrashWindow.Opener trash = new TrashWindow.Opener(services.getService(TrashCenter.class),
+                services.getService(TrashCleanupService.class));
+        chatViewController.useImageSources(new ImageSources(services.getService(ThumbnailManager.class),
+                services.getService(ImageSizeCheck.class)));
         chatViewController.init(config, chatLibrary, chatHistory, worker, (StackPane) mainBorderPane.getParent(),
                 librarySidebarController::currentChat, librarySidebarController::shownGroup, statusBarController,
                 chatActions());
+        librarySidebarController.useTrash(trash);
         librarySidebarController.init(chatLibrary, chatHistory, config, worker, statusBarController,
                 sidebarListener());
         setupSplitter();
@@ -209,7 +219,7 @@ public class MainWindowController implements I18nChangeListener {
                 moodFramePanelController.resolutionProperty(), statusBarController, generationListener());
         moodFramePanelController.init(new MoodFramePanelController.Services(config, blockService, colorService,
                 moodService, services.getService(FrameService.class), services.getService(FavoriteService.class),
-                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class)),
+                services.getService(art.moodframe.service.brainstorm.MoodAnalysisService.class), trash),
                 statusBarController, this::updateUIState);
         inputBar.init(generationPanelController.costTextProperty(), inputListener());
         statusBarController.ready();
@@ -697,8 +707,8 @@ public class MainWindowController implements I18nChangeListener {
             art.moodframe.service.brainstorm.BrainstormService brainstormService = brainstorms.create();
 
             Stage ownerStage = (Stage) mainBorderPane.getScene().getWindow();
-            new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, brainstormService, brainstormContext,
-                    generationPanelController.modelItem(), this::applyBrainstormResult).show();
+            new art.moodframe.ui.brainstorm.BrainstormDialog(ownerStage, config, brainstormService,
+                    brainstormContext, generationPanelController.modelItem(), this::applyBrainstormResult).show();
         } catch (Exception e) {
             logger.error("Failed to open brainstorm dialog", e);
         }

@@ -96,7 +96,7 @@ class DialogButtonsTest {
 
             CameraEditDialog dialog = onFxThread(() -> {
                 I18nManager.setLocale(Locale.ENGLISH);
-                return new CameraEditDialog(null);
+                return new CameraEditDialog(null, null);
             });
             assertEquals("Cancel", onFxThread(() -> cancelText(dialog)));
 

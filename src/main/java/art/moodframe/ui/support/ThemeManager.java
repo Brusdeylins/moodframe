@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import atlantafx.base.theme.*;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 
 /**
  * Utility class for managing AtlantaFX themes in the application.
@@ -36,6 +35,18 @@ import art.moodframe.config.ServiceFactory;
 public class ThemeManager {
     
     private static final Logger logger = LoggerFactory.getLogger(ThemeManager.class);
+
+    /*  remembers the chosen theme, handed by MoodframeApplication at the start (null: the default theme)  */
+    private static volatile ApplicationConfig config;
+
+    /**
+     * Sets the configuration that remembers the chosen theme; the application calls it once at the start.
+     *
+     * @param applicationConfig the configuration (may be null: nothing is remembered)
+     */
+    public static void useConfig(ApplicationConfig applicationConfig) {
+        config = applicationConfig;
+    }
 
     /*  notified with the theme name after a theme was applied (on the FX thread, once the styles are in place)  */
     private static final java.util.List<java.util.function.Consumer<String>> listeners =
@@ -151,15 +162,12 @@ public class ThemeManager {
      * @return true if theme was changed successfully
      */
     public static boolean changeTheme(String themeName) {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
         logger.debug("Changing theme to: {}", themeName);
         
         if (applyTheme(themeName)) {
             // Save theme preference
             try {
-                if (config == null) {
-                    config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
-                }
+                ApplicationConfig config = ThemeManager.config;
                 if (config != null) {
                     config.ui().setUiTheme(themeName);
                     logger.debug("Theme preference saved: {}", themeName);
@@ -180,7 +188,7 @@ public class ThemeManager {
      */
     public static String getCurrentTheme() {
         try {
-            ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+            ApplicationConfig config = ThemeManager.config;
             if (config != null) {
                 return config.ui().getUiTheme();
             }

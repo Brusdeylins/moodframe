@@ -2,7 +2,6 @@ package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.MediaSupport;
 import art.moodframe.ui.support.SystemOpen;
@@ -48,7 +47,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -530,7 +527,11 @@ class ImagePreviewOverlayTest {
     /*  The overlay at the size of the area it covers in the main window, with its buttons styled as in the app, as
         their size borders the safe area of the image, and laid out as by a pulse  */
     private static ImagePreviewOverlay overlayOfSize(double width, double height) {
-        ImagePreviewOverlay overlay = new ImagePreviewOverlay();
+        return overlayOfSize(width, height, null);
+    }
+
+    private static ImagePreviewOverlay overlayOfSize(double width, double height, ApplicationConfig config) {
+        ImagePreviewOverlay overlay = new ImagePreviewOverlay(config);
         Scene scene = new Scene(overlay, width, height);
         scene.getStylesheets().add(ImagePreviewOverlay.class.getResource("/css/icon-button.css").toExternalForm());
         overlay.applyCss();
@@ -681,8 +682,8 @@ class ImagePreviewOverlayTest {
     @Test
     void theColorsTurnWhileThePreviewIsShownOnly() throws Exception {
         Path image = image(dir, "image.png", 640, 480, 0x202020);
-        Object realConfig = useConfig(true);
-        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        ApplicationConfig config = config(true);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700, config));
         PreviewFrame frame = onFxThread(() -> frame(overlay));
         try {
             assertFalse(onFxThread(frame::isRunning));
@@ -712,7 +713,6 @@ class ImagePreviewOverlayTest {
             assertTrue(onFxThread(frame::isRunning));
         }
         finally {
-            restoreConfig(realConfig);
             onFxThread(() -> {
                 overlay.closeOverlay();
                 return I18nManager.removeChangeListener(overlay);
@@ -723,8 +723,8 @@ class ImagePreviewOverlayTest {
     @Test
     void switchedOffInTheSettingsTheFrameStandsStill() throws Exception {
         Path image = image(dir, "image.png", 640, 480, 0xffffff);
-        Object realConfig = useConfig(false);
-        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700));
+        ApplicationConfig config = config(false);
+        ImagePreviewOverlay overlay = onFxThread(() -> overlayOfSize(1000, 700, config));
         try {
             PreviewFrame frame = onFxThread(() -> {
                 overlay.showImage(image.toString());
@@ -737,7 +737,6 @@ class ImagePreviewOverlayTest {
             assertEquals(before, onFxThread(frame::getPhase));
         }
         finally {
-            restoreConfig(realConfig);
             onFxThread(() -> {
                 overlay.closeOverlay();
                 return I18nManager.removeChangeListener(overlay);
@@ -1410,27 +1409,10 @@ class ImagePreviewOverlayTest {
         assertTrue(uncaught.isEmpty(), () -> "uncaught: " + uncaught);
     }
 
-    /*  A configuration without file that lets the frame turn or not, instead of what another test left behind  */
-    private static Object useConfig(boolean animated) throws Exception {
-        Object realConfig = services().get(ApplicationConfig.class);
+    /*  A configuration without file that lets the frame turn or not  */
+    private static ApplicationConfig config(boolean animated) {
         ApplicationConfig config = ConfigMocks.config();
         when(config.ui().isPreviewFrameAnimated()).thenReturn(animated);
-        ServiceFactory.getInstance().registerService(ApplicationConfig.class, config);
-        return realConfig;
-    }
-
-    private static void restoreConfig(Object realConfig) throws Exception {
-        if (realConfig != null)
-            services().put(ApplicationConfig.class, realConfig);
-        else
-            services().remove(ApplicationConfig.class);
-    }
-
-    /*  the services the factory holds, of which this test takes out again what it put in  */
-    @SuppressWarnings("unchecked")
-    private static Map<Class<?>, Object> services() throws Exception {
-        Field services = ServiceFactory.class.getDeclaredField("services");
-        services.setAccessible(true);
-        return (Map<Class<?>, Object>) services.get(ServiceFactory.getInstance());
+        return config;
     }
 }

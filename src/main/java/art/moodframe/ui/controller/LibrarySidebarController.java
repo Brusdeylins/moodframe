@@ -127,6 +127,18 @@ public class LibrarySidebarController {
                 sidebarHeader.getPadding().getRight(), sidebarHeader.getPadding().getBottom(), BoxInset.LEFT));
     }
 
+    /*  opens the central trash, handed by the main window (null: no trash)  */
+    private art.moodframe.ui.dialog.TrashWindow.Opener trash;
+
+    /**
+     * Sets what opens the central trash of the button of the sidebar.
+     *
+     * @param trash opens the trash windows
+     */
+    public void useTrash(art.moodframe.ui.dialog.TrashWindow.Opener trash) {
+        this.trash = trash;
+    }
+
     /**
      * Connects the sidebar to the library, whose chats were loaded at the start. Later changes (what leaves the trash,
      * what other callers change) update the list of the sidebar instead of reloading it, so running requests keep
@@ -498,8 +510,9 @@ public class LibrarySidebarController {
     @FXML
     private void onTrashClicked() {
         try {
-            art.moodframe.ui.dialog.TrashWindow.open(chatListView.getScene().getWindow(),
-                    art.moodframe.service.trash.TrashGroup.Kind.CHATS, null);
+            if (trash != null)
+                trash.open(chatListView.getScene().getWindow(), art.moodframe.service.trash.TrashGroup.Kind.CHATS,
+                        null);
         } catch (Exception e) {
             logger.error("Failed to open trash window", e);
         }

@@ -19,7 +19,6 @@ import javafx.scene.shape.Line;
 import javafx.scene.text.TextAlignment;
 import org.kordamp.ikonli.javafx.FontIcon;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.CameraSettings;
 import art.moodframe.model.CameraSettings.Aperture;
 import art.moodframe.model.CameraSettings.Body;
@@ -147,10 +146,11 @@ public class CameraEditDialog extends Dialog<CameraEditDialog.Result> implements
      * Creates the dialog.
      *
      * @param block the camera to edit, null for a new one
+     * @param blockService checks that the name is free
      */
-    public CameraEditDialog(PromptBlock block) {
+    public CameraEditDialog(PromptBlock block, PromptBlockService blockService) {
         this.block = block;
-        this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
+        this.blockService = blockService;
         CameraSettings settings = (block != null ? CameraSettings.fromJson(block.getParams()) : CameraSettings.ANY)
                 .withoutConflicts();
 

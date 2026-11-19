@@ -1,6 +1,5 @@
 package art.moodframe.ui.component;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ImageSizeCheck;
@@ -106,6 +105,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     private final ListChangeListener<ChatEntry> onEntriesChange = (change) -> requestRebuild();
     private final ListChangeListener<GeneratedImage> onImagesChange = (change) -> requestRebuild();
     private ObservableList<ChatEntry> followed;
+    private final ImageSources sources;
     private int columns = 0;
     private boolean atEnd = true;
 
@@ -121,7 +121,18 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
      * @param pathOf the file of an image, in the trash for a chat there
      */
     public ImageGrid(Function<GeneratedImage, String> pathOf) {
+        this(pathOf, ImageSources.NONE);
+    }
+
+    /**
+     * Creates the view, which shows the thumbnails of the images.
+     *
+     * @param pathOf  the path of the file shown for an image
+     * @param sources the thumbnails and the size check of the images
+     */
+    public ImageGrid(Function<GeneratedImage, String> pathOf, ImageSources sources) {
         this.pathOf = pathOf;
+        this.sources = sources;
         getStyleClass().add("image-grid");
         getStylesheets().add(ImageGrid.class.getResource("/css/image-grid.css").toExternalForm());
         setFocusTraversable(false);
@@ -271,9 +282,15 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
     }
 
     /*  the images of an entry, copied under the lock of the chat models, which a generation changes meanwhile; the
-        one place to switch to a snapshot helper of service.chat  */
+        one place to switch to ChatLibrary.imagesOf  */
     private static List<GeneratedImage> imagesOf(ChatEntry entry) {
         return ModelLock.read(() -> new ArrayList<>(entry.getImages()));
+    }
+
+    /*  the entries followed, copied under the lock of the chat models; the counterpart of ChatLibrary.entriesOf for
+        the list of a chat or a group  */
+    private static List<ChatEntry> entriesOf(List<ChatEntry> entries) {
+        return ModelLock.read(() -> new ArrayList<>(entries));
     }
 
     /** Collects the images of the entries in the order of the chat, the oldest entry first. */
@@ -282,8 +299,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         watched.clear();
         images.clear();
         if (followed != null) {
-            List<ChatEntry> entries = ModelLock.read(() -> new ArrayList<>(followed));
-            for (ChatEntry entry : entries) {
+            for (ChatEntry entry : entriesOf(followed)) {
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
                 for (GeneratedImage image : imagesOf(entry))
@@ -474,11 +490,11 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
         }
 
         /*  The first display corrects a missing or wrong size from the file, the tooltip reads it when shown  */
-        ImageSizeCheck sizeCheck = ServiceFactory.getInstance().getService(ImageSizeCheck.class);
+        ImageSizeCheck sizeCheck = sources.sizeCheck();
         if (sizeCheck != null)
             sizeCheck.check(image, path);
 
-        ThumbnailManager thumbnails = ServiceFactory.getInstance().getService(ThumbnailManager.class);
+        ThumbnailManager thumbnails = sources.thumbnails();
         if (thumbnails == null) {
             view.setImage(new Image(new File(path).toURI().toString(), ThumbnailManager.MAX_THUMBNAIL_SIZE,
                     ThumbnailManager.MAX_THUMBNAIL_SIZE, true, true, true));

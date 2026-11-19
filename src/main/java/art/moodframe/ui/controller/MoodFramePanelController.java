@@ -73,10 +73,19 @@ public class MoodFramePanelController {
      * @param frames    the frames (may be null: no frame selection)
      * @param favorites the favorites, listed first (may be null)
      * @param analysis  finds the building blocks of an image for "Mood from image" (may be null: none)
+     * @param trash     opens the trash on the blocks, moods and frames (may be null: no trash)
      */
     public record Services(ApplicationConfig config, PromptBlockService blocks, ColorStyleService colors,
                            MoodService moods, FrameService frames, FavoriteService favorites,
-                           art.moodframe.service.brainstorm.MoodAnalysisService analysis) {
+                           art.moodframe.service.brainstorm.MoodAnalysisService analysis,
+                           art.moodframe.ui.dialog.TrashWindow.Opener trash) {
+
+        /** The services without a trash, e.g. for a window that offers none. */
+        public Services(ApplicationConfig config, PromptBlockService blocks, ColorStyleService colors,
+                        MoodService moods, FrameService frames, FavoriteService favorites,
+                        art.moodframe.service.brainstorm.MoodAnalysisService analysis) {
+            this(config, blocks, colors, moods, frames, favorites, analysis, null);
+        }
     }
 
     /** Learns of the changes of the fields. */
@@ -212,6 +221,7 @@ public class MoodFramePanelController {
         selection sets them  */
     private FrameService frameService;
     private art.moodframe.service.brainstorm.MoodAnalysisService moodAnalysis;
+    private art.moodframe.ui.dialog.TrashWindow.Opener trash;
     private boolean frameChanged;
     private boolean updatingFrame;
 
@@ -258,6 +268,7 @@ public class MoodFramePanelController {
         this.moodService = services.moods();
         this.frameService = services.frames();
         this.moodAnalysis = services.analysis();
+        this.trash = services.trash();
         this.status = status;
 
         setupBlockChoices();
@@ -831,7 +842,8 @@ public class MoodFramePanelController {
         if (type == art.moodframe.model.PromptBlock.Type.CAMERA)
             return editCamera(service, block);
 
-        art.moodframe.ui.dialog.BlockEditDialog dialog = new art.moodframe.ui.dialog.BlockEditDialog(type, block);
+        art.moodframe.ui.dialog.BlockEditDialog dialog = new art.moodframe.ui.dialog.BlockEditDialog(type, block,
+                blockService);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
@@ -865,7 +877,8 @@ public class MoodFramePanelController {
      */
     private String editCamera(art.moodframe.service.library.PromptBlockService service,
                               art.moodframe.model.PromptBlock block) {
-        art.moodframe.ui.dialog.CameraEditDialog dialog = new art.moodframe.ui.dialog.CameraEditDialog(block);
+        art.moodframe.ui.dialog.CameraEditDialog dialog = new art.moodframe.ui.dialog.CameraEditDialog(block,
+                blockService);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
@@ -903,7 +916,7 @@ public class MoodFramePanelController {
 
         art.moodframe.model.ColorStyle palette = item != null ? service.getStyleByName(item.getName()) : null;
         art.moodframe.ui.dialog.ColorStyleEditDialog dialog =
-                new art.moodframe.ui.dialog.ColorStyleEditDialog(palette);
+                new art.moodframe.ui.dialog.ColorStyleEditDialog(palette, colorService);
         dialog.initOwner(activeWindow());
         String[] storedId = { null };
         dialog.showAndWait().ifPresent((result) -> {
@@ -993,7 +1006,7 @@ public class MoodFramePanelController {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.cell.StylePresetListCell(null, favorites(null,
-                        FavoriteService.Kind.of(type), MoodFramePanelController::blockId)))
+                        FavoriteService.Kind.of(type), MoodFramePanelController::blockId)), moodService, trash)
                 .showAndWait();
     }
 
@@ -1061,7 +1074,7 @@ public class MoodFramePanelController {
                         return true;
                     }
                 }, (listView) -> new art.moodframe.ui.cell.ColorStyleListCell(favorites(null,
-                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId)))
+                        FavoriteService.Kind.COLOR, art.moodframe.model.ColorStyleItem::getId)), moodService, trash)
                 .showAndWait();
     }
 
@@ -1464,7 +1477,7 @@ public class MoodFramePanelController {
 
     /** Opens the window for the moods of the user; the list follows its changes. */
     private void manageMoods() {
-        new art.moodframe.ui.dialog.MoodManageDialog(window(), moodService).showAndWait();
+        new art.moodframe.ui.dialog.MoodManageDialog(window(), moodService, favoriteService, trash).showAndWait();
     }
 
     @FXML
@@ -1530,9 +1543,8 @@ public class MoodFramePanelController {
     private void onMoodIncompleteClicked() {
         Mood mood = chosenMood();
         List<String> trashed = mood != null ? moodService.trashedBlocks(mood) : List.of();
-        if (!trashed.isEmpty())
-            art.moodframe.ui.dialog.TrashWindow.open(window(),
-                    art.moodframe.service.trash.TrashGroup.Kind.BLOCKS, trashed.get(0));
+        if (!trashed.isEmpty() && trash != null)
+            trash.open(window(), art.moodframe.service.trash.TrashGroup.Kind.BLOCKS, trashed.get(0));
     }
 
     /** Asks for every mood that lost its last block whether to move it to the trash. */
@@ -1689,7 +1701,7 @@ public class MoodFramePanelController {
 
     /** Opens the window for the frames of the user; the list follows its changes. */
     private void manageFrames() {
-        new art.moodframe.ui.dialog.FrameManageDialog(window(), frameService).showAndWait();
+        new art.moodframe.ui.dialog.FrameManageDialog(window(), frameService, favoriteService, trash).showAndWait();
     }
 
     @FXML

@@ -97,7 +97,7 @@ class CameraEditDialogTest {
     /** Opens the dialog for a camera of the user, released after the test. */
     private static CameraEditDialog open(CameraSettings settings) throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
-                settings)));
+                settings), null));
         opened.add(dialog);
         return dialog;
     }
@@ -134,7 +134,7 @@ class CameraEditDialogTest {
                 CameraSettings.Perspective.DUTCH_ANGLE, CameraSettings.Shot.DETAIL);
         PromptBlock tabletop = PromptBlockService.camera("std:camera:product-tabletop", "Product Tabletop", settings);
 
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(tabletop));
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(tabletop, null));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         CameraEditDialog.Result result = onFxThread(() -> dialog.getResultConverter().call(buttons.get(0)));
 
@@ -147,7 +147,7 @@ class CameraEditDialogTest {
 
     @Test
     void startsANewCameraWithEverySettingAtAny() throws Exception {
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null, null));
         CameraEditDialog.Result result = onFxThread(() ->
                 dialog.getResultConverter().call(dialog.getDialogPane().getButtonTypes().get(0)));
 
@@ -163,7 +163,7 @@ class CameraEditDialogTest {
                     .entrySet()) {
                 CameraEditDialog dialog = onFxThread(() -> {
                     I18nManager.setLocale(stage.getKey());
-                    return new CameraEditDialog(null);
+                    return new CameraEditDialog(null, null);
                 });
 
                 assertEquals(1, labels(dialog, stage.getValue()), stage.getKey() + ": the heading of the lens stage");
@@ -180,7 +180,7 @@ class CameraEditDialogTest {
     void showsShutterAndIsoAsSlidersWithTheirExposureTimesAndNumbers() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
                 new CameraSettings(null, null, null, CameraSettings.Shutter.MOTION_BLUR, CameraSettings.Iso.ISO_3200,
-                        null, null))));
+                        null, null)), null));
         List<Slider> sliders = sliders(dialog);
         List<String> labels = dialog.getDialogPane().lookupAll(".label").stream().map(Label.class::cast)
                 .map(Label::getText).toList();
@@ -198,7 +198,7 @@ class CameraEditDialogTest {
     void fixesLensAndApertureOfTheActionCamReadOnlyAndReleasesThemForAnotherType() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
                 new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85,
-                        CameraSettings.Aperture.F_1_4, null, null, null, null))));
+                        CameraSettings.Aperture.F_1_4, null, null, null, null)), null));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         List<Slider> sliders = sliders(dialog);
         String fixed = I18nManager.getText("camera.dialog.fixed", I18nManager.getText("camera.body.action_cam"));
@@ -236,7 +236,7 @@ class CameraEditDialogTest {
     @Test
     void showsTheAutomaticOfTheInstantCameraAsAutoWithoutAny() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
-                new CameraSettings(null, null, null, CameraSettings.Shutter.FROZEN, null, null, null))));
+                new CameraSettings(null, null, null, CameraSettings.Shutter.FROZEN, null, null, null)), null));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         List<Slider> sliders = sliders(dialog);
 
@@ -258,7 +258,7 @@ class CameraEditDialogTest {
         CameraSettings settings = new CameraSettings(CameraSettings.Body.FULL_FRAME, CameraSettings.Lens.MM_85,
                 null, null, null, CameraSettings.Perspective.EYE_LEVEL, CameraSettings.Shot.CLOSE_UP);
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
-                settings)));
+                settings), null));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         assertEquals(ButtonBar.ButtonData.LEFT, buttons.get(0).getButtonData(), "next to \"Save\" it stands left");
 
@@ -285,7 +285,7 @@ class CameraEditDialogTest {
     void resetsAPerspectiveBlockedByTheShiftLensAndUpdatesThePrompt() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("mine", "Mine",
                 new CameraSettings(CameraSettings.Body.FULL_FRAME, null, null, null, null,
-                        CameraSettings.Perspective.LOW_ANGLE, null))));
+                        CameraSettings.Perspective.LOW_ANGLE, null)), null));
         List<ButtonType> buttons = dialog.getDialogPane().getButtonTypes();
         TextArea prompt = (TextArea) dialog.getDialogPane().lookup(".text-area");
         assertTrue(prompt.getText().contains("a low angle"));
@@ -310,7 +310,7 @@ class CameraEditDialogTest {
     @Test
     void skipsABlockedDetentOfASlider() throws Exception {
         CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(PromptBlockService.camera("phone", "Phone",
-                new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null, null))));
+                new CameraSettings(CameraSettings.Body.SMARTPHONE, null, null, null, null, null, null)), null));
         List<Slider> sliders = sliders(dialog);
 
         assertEquals(3.0, onFxThread(() -> {
@@ -605,7 +605,7 @@ class CameraEditDialogTest {
 
     @Test
     void drawsTheGroundLineOfTheSideViewAsWideAsTheExampleBelow() throws Exception {
-        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null));
+        CameraEditDialog dialog = onFxThread(() -> new CameraEditDialog(null, null));
         double[] edges = onFxThread(() -> {
             DialogPane pane = dialog.getDialogPane();
             pane.applyCss();

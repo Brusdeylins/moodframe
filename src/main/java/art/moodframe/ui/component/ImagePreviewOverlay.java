@@ -1,7 +1,6 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
@@ -167,10 +166,23 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     private Consumer<String> onDownloadRequested; // Download the current image path
     private Consumer<String> onStatusMessage; // Forward status messages to the main window footer
 
+    /*  tells whether the frame turns (may be null: it turns)  */
+    private final ApplicationConfig config;
+
     /**
-     * Creates a new image preview overlay.
+     * Creates a new image preview overlay whose frame turns.
      */
     public ImagePreviewOverlay() {
+        this(null);
+    }
+
+    /**
+     * Creates a new image preview overlay.
+     *
+     * @param config tells whether the frame turns, which the user decides in the settings (may be null: it turns)
+     */
+    public ImagePreviewOverlay(ApplicationConfig config) {
+        this.config = config;
         getStyleClass().add("image-preview-overlay");
 
         setVisible(false);
@@ -859,8 +871,7 @@ public class ImagePreviewOverlay extends StackPane implements I18nChangeListener
     }
 
     /*  JavaFX 23 does not tell whether the system reduces motion, so the user decides in the settings  */
-    private static boolean isFrameAnimated() {
-        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+    private boolean isFrameAnimated() {
         return config == null || config.ui().isPreviewFrameAnimated();
     }
 

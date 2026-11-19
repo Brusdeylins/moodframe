@@ -7,7 +7,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 
-import art.moodframe.config.ServiceFactory;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.ui.component.DialogButtons;
@@ -69,11 +68,12 @@ public class BlockEditDialog extends Dialog<BlockEditDialog.Result> implements I
      *
      * @param type  the block type
      * @param block the block to edit, null for a new one
+     * @param blockService checks that the name is free
      */
-    public BlockEditDialog(PromptBlock.Type type, PromptBlock block) {
+    public BlockEditDialog(PromptBlock.Type type, PromptBlock block, PromptBlockService blockService) {
         this.type = type;
         this.block = block;
-        this.blockService = ServiceFactory.getInstance().getService(PromptBlockService.class);
+        this.blockService = blockService;
 
         // Register for i18n updates until the dialog closes
         FxI18n.addChangeListener(this, this);
