@@ -205,8 +205,10 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   stored. Deleting an entry or moving a chat to the trash (`ChatLibrary.deleteEntry`, `moveToTrash`) first cancels
   the generations of its entries still running and waits until the writes of their generation are done
   (`ChatLibrary.Generations`, implemented by `GenerationService.settle` and handed in by the composition root), so the
-  trash books the cost the cancellation settled, for the window and the MCP server alike; the MCP tool
-  `delete_entry` still refuses a running entry. The generation stores the changes of its entry with
+  trash books the cost the cancellation settled, for the window and the MCP server alike; so does deleting an image
+  the generation still makes, or the last one it made (`ChatLibrary.deleteImage`), while a finished image deleted
+  beside running ones leaves the generation alone and books what it cost itself, which the entry keeps in its cost
+  (`ChatCost.imageShare`). The MCP tools `delete_entry` and `delete_image` still refuse a running entry. The generation stores the changes of its entry with
   `ChatRepository.updateChatEntry`, which leaves an entry in the trash (on its own or with its chat) as the trash
   booked it and never inserts one removed for good; an image it still delivers is dropped (see "Persistence").
 - **Library events**: services report every successful write to `LibraryEvents`; each listener runs on the

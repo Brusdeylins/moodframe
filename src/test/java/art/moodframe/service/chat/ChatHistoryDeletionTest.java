@@ -143,7 +143,8 @@ class ChatHistoryDeletionTest {
     }
 
     private ChatEntry entry(Chat chat, double cost, int images) throws Exception {
-        ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").cost(cost).build();
+        ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt("prompt").cost(cost)
+                .status(ChatEntry.Status.COMPLETED).build();
         repository.saveChatEntry(entry);
         for (int i = 0; i < images; i++)
             repository.saveGeneratedImage(new GeneratedImage.Builder().chatEntryId(entry.getId()).model("flux-pro")

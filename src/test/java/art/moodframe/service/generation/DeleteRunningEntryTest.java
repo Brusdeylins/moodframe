@@ -46,6 +46,7 @@ import java.util.function.Supplier;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -60,7 +61,9 @@ import static org.mockito.Mockito.when;
 /**
  * Deleting an entry, or its chat, while its generation runs: the library cancels the generation first and waits for
  * its writes, so the trash books the cost the cancellation settled, and nothing the provider still delivers changes
- * the entry in the trash or brings it back once it is removed for good. The window and the MCP server share this path.
+ * the entry in the trash or brings it back once it is removed for good. Deleting an image the generation still makes,
+ * or the last one it made, does the same; a finished image deleted beside running ones keeps its share in the cost of
+ * the entry. The window and the MCP server share this path.
  */
 class DeleteRunningEntryTest {
 
@@ -157,13 +160,17 @@ class DeleteRunningEntryTest {
 
     /*  orders images of Nano Banana 2 in a new chat and waits until the entry is stored  */
     private ChatEntry order(Chat chat, int imageCount) throws Exception {
+        return submit(chat, imageCount).entry();
+    }
+
+    private GenerationService.Submission submit(Chat chat, int imageCount) throws Exception {
         GenerationService.Submission submission = generation.submit(new GenerationOrder(chat, "a lighthouse", null,
                 null, false, new GenerationOrder.Target(null, false, "16:9", "1K"),
                 GenerationModel.NANO_BANANA2_1K.name(), imageCount,
                 new GenerationOrder.Parameters(null, 2, null, false, null, null, null, null, null), null, null,
                 ChatEntry.Source.UI));
         submission.stored().get(10, TimeUnit.SECONDS);
-        return submission.entry();
+        return submission;
     }
 
     /*  an answer of Gemini with a real picture  */
@@ -195,6 +202,13 @@ class DeleteRunningEntryTest {
         for (int i = 0; i < 3; i++)
             await(() -> true);
         generation.settle(entry).get(10, TimeUnit.SECONDS);
+    }
+
+    /*  waits until the JavaFX thread and the store thread ran what was asked for so far, cancelling nothing  */
+    private void flush() throws Exception {
+        for (int i = 0; i < 3; i++)
+            await(() -> true);
+        CompletableFuture.runAsync(() -> { }, workers.store()).get(10, TimeUnit.SECONDS);
     }
 
     private Chat chat() throws Exception {
@@ -294,5 +308,92 @@ class DeleteRunningEntryTest {
         assertEquals(0.0, stored.getCost());
         assertFalse(generation.cancel(entry).get(10, TimeUnit.SECONDS), "an entry cancelled before is not running");
         verify(gemini, never()).submitGenerationRequest(any());
+    }
+
+    @Test
+    void theRunningPlaceholderOfASingleImageDeletedCancelsTheGenerationFirst() throws Exception {
+        Chat chat = chat();
+        GenerationService.Submission submission = submit(chat, 1);
+        ChatEntry entry = submission.entry();
+        verify(gemini, timeout(10_000).times(1)).submitGenerationRequest(any());
+        GeneratedImage placeholder = ChatLibrary.imagesOf(entry).get(0);
+
+        assertTrue(chats.deleteImage(entry, placeholder), "the entry goes to the trash with its only image");
+
+        assertEquals(ChatEntry.Status.CANCELLED, submission.finished().get(10, TimeUnit.SECONDS),
+                "the order of the window and of the MCP server ends");
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertNotNull(stored.getDeletedAt());
+        assertEquals(ChatEntry.Status.CANCELLED, stored.getStatus());
+        assertEquals(stored.getCost(), deletedCostOf(chat), 1e-9, "the chat books what the cancellation settled");
+
+        /*  Gemini still answers: no placeholder takes the image, nothing is written or stored  */
+        answers.poll().complete(picture());
+        flush();
+        assertTrue(dropped.isEmpty());
+        assertTrue(repository.findGeneratedImagesByEntry(entry.getId()).isEmpty());
+        assertEquals(stored.getCost(), repository.findChatEntryById(entry.getId()).orElseThrow().getCost(), 1e-9);
+    }
+
+    @Test
+    void aFinishedImageDeletedBesideRunningOnesKeepsItsShareInTheEntryCost() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 3);
+        verify(gemini, timeout(10_000).times(3)).submitGenerationRequest(any());
+        answers.poll().complete(picture());
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count() == 2);
+        flush();
+        GeneratedImage made = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+        double price = made.getBaseCost();
+        assertEquals(3 * price, entry.getCost(), 1e-9, "the estimate of the order");
+
+        assertFalse(chats.deleteImage(entry, made));
+
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus(), "the other images still run");
+        assertEquals(price, entry.getDeletedCost(), 1e-9, "the deleted image books what it cost itself");
+        answers.poll().complete(picture());
+        await(() -> entry.getStatus() == ChatEntry.Status.COMPLETED);
+        flush();
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertEquals(3 * price, stored.getCost(), 1e-9, "the entry costs its three images, the deleted one included");
+        assertEquals(price, stored.getDeletedCost(), 1e-9);
+        assertEquals(3 * price, entry.getCost(), 1e-9);
+        assertEquals(3 * price, chat.getDeletedCost() + entry.getCost(), 1e-9, "the chat total stays");
+    }
+
+    @Test
+    void theLastImageMadeDeletedWhileOthersRunCancelsTheGenerationFirst() throws Exception {
+        Chat chat = chat();
+        GenerationService.Submission submission = submit(chat, 2);
+        ChatEntry entry = submission.entry();
+        verify(gemini, timeout(10_000).times(2)).submitGenerationRequest(any());
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().anyMatch((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED));
+        flush();
+        GeneratedImage made = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+        double price = made.getBaseCost();
+
+        assertFalse(chats.deleteImage(entry, made), "the entry keeps its cancelled image");
+
+        assertEquals(ChatEntry.Status.CANCELLED, submission.finished().get(10, TimeUnit.SECONDS));
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertNull(stored.getDeletedAt(), "the entry stays in its chat");
+        assertEquals(ChatEntry.Status.CANCELLED, stored.getStatus());
+        assertEquals(2 * price, stored.getCost(), 1e-9, "a cancelled entry keeps its estimate");
+        assertEquals(price, stored.getDeletedCost(), 1e-9, "the deleted image books what it cost itself");
+        assertEquals(1, repository.findGeneratedImagesByEntry(entry.getId()).size());
+
+        /*  the second image still arrives: the entry costs both images, the deleted one booked once  */
+        answers.poll().complete(picture());
+        await(() -> ChatLibrary.imagesOf(entry).get(0).getDownloadStatus()
+                == GeneratedImage.DownloadStatus.CACHED);
+        flush();
+        assertEquals(2 * price, repository.findChatEntryById(entry.getId()).orElseThrow().getCost(), 1e-9);
+        assertEquals(0.0, deletedCostOf(chat), 1e-9);
     }
 }

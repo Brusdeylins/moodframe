@@ -224,7 +224,8 @@ class ImageTrashGroupTest {
 
     /** Stores an entry with images that share its cost evenly when deleted, each with its file. */
     private ChatEntry entry(Chat chat, String prompt, double cost, int images) throws Exception {
-        ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt(prompt).cost(cost).build();
+        ChatEntry entry = new ChatEntry.Builder().chatId(chat.getId()).userPrompt(prompt).cost(cost)
+                .status(ChatEntry.Status.COMPLETED).build();
         repository.saveChatEntry(entry);
         Path directory = Files.createDirectories(tempDir.resolve(".moodframe").resolve("images").resolve(chat.getId()));
         for (int i = 0; i < images; i++) {

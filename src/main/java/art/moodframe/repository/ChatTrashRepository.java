@@ -263,7 +263,8 @@ public class ChatTrashRepository {
 
     /**
      * Soft deletes a single image and moves its file to the trash after the commit.
-     * The entry's deleted_cost grows by the image's share of the entry cost (see {@link ChatCost#imageShare});
+     * The entry's deleted_cost grows by the image's share of the entry cost (see
+     * {@link ChatCost#imageShare(ChatEntry, List, GeneratedImage)});
      * with its last image the entry is deleted, and its cost goes to the chat's deleted_cost. Reading the costs and
      * booking them is one transaction, so of two deletions at the same time (main window and agent) one books.
      *
@@ -284,7 +285,7 @@ public class ChatTrashRepository {
 
                 // The image's share of what its entry cost, less the images deleted before
                 ChatEntry entry = findChatEntryById(conn, image.getChatEntryId()).orElse(null);
-                double cost = entry != null ? ChatCost.imageShare(entry.getCost() - entry.getDeletedCost(),
+                double cost = entry != null ? ChatCost.imageShare(entry,
                         findGeneratedImagesByEntry(conn, entry.getId()), image) : 0.0;
 
                 // 1. Mark image as deleted
