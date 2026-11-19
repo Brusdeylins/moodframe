@@ -197,6 +197,9 @@ public class ChatViewController {
 
     private EventHandler<KeyEvent> reuseFilter;
 
+    /*  whether the header asks for a chat ("Select a chat") instead of naming a chat or a group  */
+    private boolean asksForChat = true;
+
     @FXML
     private void initialize() {
         /*  the title starts on the left edge of the cards and of the first column of images, 1 px further out for the
@@ -344,9 +347,8 @@ public class ChatViewController {
     public void updateTexts() {
         welcomeLabel.setText(I18nManager.getText("app.welcome"));
         Chat current = chat.get();
-        String title = chatTitleLabel.getText();
-        if ("Select a chat".equals(title) || "Chat auswählen".equals(title) || current == null || current.isDeleted())
-            chatTitleLabel.setText(I18nManager.getText("chat.select"));
+        if (asksForChat || current == null || current.isDeleted())
+            showTitle(null);
         chatViewTooltip.setText(I18nManager.getText("chat.view.chat"));
         imagesViewTooltip.setText(I18nManager.getText("chat.view.images"));
         imageSizeTooltip.setText(I18nManager.getText("chat.image.size.tooltip"));
@@ -940,16 +942,11 @@ public class ChatViewController {
             return;
         }
 
-        // Update header labels
-        if (shown != null) {
-            if (chatTitleLabel != null) {
-                chatTitleLabel.setText(shown.getName());
-            }
+        /*  The header names the chat or asks for one  */
+        showTitle(shown != null ? shown.getName() : null);
+        if (shown != null)
             updateChatTotalCost(shown);
-        } else {
-            if (chatTitleLabel != null) {
-                chatTitleLabel.setText(I18nManager.getText("chat.select"));
-            }
+        else {
             if (chatTotalCostLabel != null) {
                 chatTotalCostLabel.setText("");
             }
@@ -1004,11 +1001,7 @@ public class ChatViewController {
         if (group.get() != null)
             updateGroupHeader();
         else if (chat.get() != null) {
-            // Update title label if present
-            if (chatTitleLabel != null) {
-                chatTitleLabel.setText(chat.get().getName());
-            }
-            // Update cost
+            showTitle(chat.get().getName());
             updateChatTotalCost(chat.get());
         }
     }
@@ -1085,9 +1078,15 @@ public class ChatViewController {
             Platform.runLater(() -> chatEntriesListView.scrollTo(entries.size() - 1));
     }
 
+    /*  The header names a chat or a group, or asks for a chat without a name  */
+    private void showTitle(String name) {
+        asksForChat = name == null;
+        chatTitleLabel.setText(asksForChat ? I18nManager.getText("chat.select") : name);
+    }
+
     /** Shows the name of the open group above its entries and the chat that takes the new prompts. */
     private void updateGroupHeader() {
-        chatTitleLabel.setText(switch (group.get()) {
+        showTitle(switch (group.get()) {
             case MoodGroup group -> MoodGroupListCell.nameOf(group);
             case FrameGroup group -> FrameGroupListCell.nameOf(group);
         });

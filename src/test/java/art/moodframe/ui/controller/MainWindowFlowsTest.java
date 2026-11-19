@@ -813,6 +813,11 @@ class MainWindowFlowsTest {
                 "rename, move and trash ran on the worker");
         assertNull(chatList().getSelectionModel().getSelectedItem(), "the open chat closed");
         assertEquals(I18nManager.getText("chat.select"), header().getText());
+        Locale language = I18nManager.getCurrentLocale();
+        Locale other = "de".equals(language.getLanguage()) ? Locale.ENGLISH : Locale.GERMAN;
+        onFxThread(() -> I18nManager.setLocale(other));
+        assertEquals(I18nManager.getTextIn(other, "chat.select"), header().getText(), "it asks in the new language");
+        onFxThread(() -> I18nManager.setLocale(language));
         assertTrue(prompt().isDisabled(), "no chat takes the prompt");
         assertTrue(trash.list(TrashGroup.Kind.CHATS).stream().map(TrashEntry::id).toList().contains(full.getId()));
 

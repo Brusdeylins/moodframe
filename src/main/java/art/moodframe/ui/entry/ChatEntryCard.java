@@ -937,7 +937,7 @@ public class ChatEntryCard extends ManagedComponent {
                     }
                 } else {
                     // No local path available yet
-                    pictures.createPlaceholderImage(generatedImage, imageView, "No File Path", 0.5);
+                    pictures.createPlaceholderImage(generatedImage, imageView, EntryTilePictures.Placeholder.NO_PATH);
                     // Remove click handler and cursor for missing path
                     imageView.setOnMouseClicked(null);
                     imageView.setCursor(javafx.scene.Cursor.DEFAULT);

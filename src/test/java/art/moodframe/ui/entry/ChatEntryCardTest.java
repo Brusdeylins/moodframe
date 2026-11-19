@@ -34,6 +34,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -288,5 +289,16 @@ class ChatEntryCardTest {
 
     private static GeneratedImage image(String model, long seed) {
         return new GeneratedImage.Builder().model(model).seed(seed).build();
+    }
+
+    /** The placeholders of a picture that cannot show speak the language of the app. */
+    @Test
+    void thePlaceholdersOfAPictureHaveTheirTextInBothLanguages() {
+        for (EntryTilePictures.Placeholder placeholder : EntryTilePictures.Placeholder.values())
+            for (Locale locale : List.of(Locale.ENGLISH, Locale.GERMAN))
+                assertNotEquals(placeholder.key(), I18nManager.getTextIn(locale, placeholder.key()),
+                        placeholder + " in " + locale);
+        assertEquals("Datei nicht gefunden",
+                I18nManager.getTextIn(Locale.GERMAN, EntryTilePictures.Placeholder.MISSING.key()));
     }
 }

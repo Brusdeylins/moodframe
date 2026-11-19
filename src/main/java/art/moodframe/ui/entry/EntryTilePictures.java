@@ -6,6 +6,7 @@ import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.ui.support.DiskWorker;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
 import javafx.scene.control.ProgressIndicator;
@@ -28,6 +29,34 @@ import java.util.function.IntConsumer;
 final class EntryTilePictures {
 
     private static final Logger logger = LoggerFactory.getLogger(EntryTilePictures.class);
+
+    /** The placeholders of a picture that cannot show: their text, opacity and whether they tell an error. */
+    enum Placeholder {
+        NO_PATH("image.placeholder.nopath", 0.5, false),
+        MISSING("image.placeholder.missing", 0.3, false),
+        LOAD_ERROR("image.placeholder.error", 0.3, true),
+        VIDEO("image.placeholder.video", 0.3, false);
+
+        private final String key;
+        private final double opacity;
+        private final boolean error;
+
+        Placeholder(String key, double opacity, boolean error) {
+            this.key = key;
+            this.opacity = opacity;
+            this.error = error;
+        }
+
+        /** The text of the placeholder in the current language. */
+        String text() {
+            return I18nManager.getText(key);
+        }
+
+        /** The key of the text in the language bundles. */
+        String key() {
+            return key;
+        }
+    }
 
     private final ChatEntry chatEntry;
     private final boolean isChatDeleted;
@@ -206,7 +235,7 @@ final class EntryTilePictures {
                 File imageFile = new File(imagePath);
                 if (!imageFile.exists()) {
                     Platform.runLater(() -> {
-                        createPlaceholderImage(null, imageView, "File Not Found", 0.3);
+                        createPlaceholderImage(null, imageView, Placeholder.MISSING);
                         imageView.setOnMouseClicked(null);
                         imageView.setCursor(javafx.scene.Cursor.DEFAULT);
                     });
@@ -223,7 +252,7 @@ final class EntryTilePictures {
                     if (image != null) {
                         setImageWithHandlers(imageView, image, imageIndex);
                     } else {
-                        createPlaceholderImage(null, imageView, "Load Error", 0.3);
+                        createPlaceholderImage(null, imageView, Placeholder.LOAD_ERROR);
                         imageView.setOnMouseClicked(null);
                         imageView.setCursor(javafx.scene.Cursor.DEFAULT);
                     }
@@ -231,7 +260,7 @@ final class EntryTilePictures {
             }, DiskWorker.get());
         } catch (Exception e) {
             logger.error("Failed to load image from: {}", imagePath, e);
-            createPlaceholderImage(null, imageView, "Load Error", 0.3);
+            createPlaceholderImage(null, imageView, Placeholder.LOAD_ERROR);
             imageView.setOnMouseClicked(null);
             imageView.setCursor(javafx.scene.Cursor.DEFAULT);
         }
@@ -264,7 +293,7 @@ final class EntryTilePictures {
         // Use getActualImagePath to handle trash directory properly
         String localPath = getActualImagePath(generatedImage, false);
         if (localPath == null) {
-            createPlaceholderImage(generatedImage, imageView, "Image not found", 0.3);
+            createPlaceholderImage(generatedImage, imageView, Placeholder.MISSING);
             return;
         }
 
@@ -274,28 +303,26 @@ final class EntryTilePictures {
     }
 
     /**
-     * Creates a placeholder image with status text.
+     * Creates a placeholder image with its text in the current language.
      *
-     * @param generatedImage the generated image
+     * @param generatedImage the generated image, whose id tints the placeholder (may be null)
      * @param imageView      the image view to update
-     * @param statusText     the status text to display
-     * @param opacity        the opacity level (0.0 to 1.0)
+     * @param placeholder    the placeholder
      */
-    void createPlaceholderImage(GeneratedImage generatedImage, ImageView imageView,
-            String statusText, double opacity) {
-        // Ensure this runs on FX Application Thread
+    void createPlaceholderImage(GeneratedImage generatedImage, ImageView imageView, Placeholder placeholder) {
         if (!javafx.application.Platform.isFxApplicationThread()) {
-            javafx.application.Platform
-                    .runLater(() -> createPlaceholderImage(generatedImage, imageView, statusText, opacity));
+            javafx.application.Platform.runLater(() -> createPlaceholderImage(generatedImage, imageView, placeholder));
             return;
         }
+        String statusText = placeholder.text();
+        double opacity = placeholder.opacity;
 
         try {
             javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(400, 400);
             javafx.scene.canvas.GraphicsContext gc = canvas.getGraphicsContext2D();
 
-            // Set background color based on image ID hash for variety
-            int hash = generatedImage.getId().hashCode();
+            /*  The background is tinted by the id of the image, gray without one  */
+            int hash = generatedImage != null ? generatedImage.getId().hashCode() : 0;
             double hue = ((hash % 360) + 360) % 360; // Ensure positive
             javafx.scene.paint.Color baseColor = javafx.scene.paint.Color.hsb(hue, 0.3, 0.8);
             javafx.scene.paint.Color color = baseColor.deriveColor(0, 1.0, 1.0, opacity);
@@ -304,11 +331,8 @@ final class EntryTilePictures {
 
             // Add status text only if not empty
             if (statusText != null && !statusText.trim().isEmpty()) {
-                // Use darker color for error messages for better readability
-                boolean isError = statusText.toLowerCase().contains("error") ||
-                        statusText.toLowerCase().contains("failed") ||
-                        statusText.toLowerCase().contains("blocked");
-                gc.setFill(isError ? javafx.scene.paint.Color.DARKRED : javafx.scene.paint.Color.DARKGRAY);
+                /*  An error in dark red, readable on the tint  */
+                gc.setFill(placeholder.error ? javafx.scene.paint.Color.DARKRED : javafx.scene.paint.Color.DARKGRAY);
                 gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
                 gc.setFont(javafx.scene.text.Font.font("System", 14));
 
@@ -329,9 +353,9 @@ final class EntryTilePictures {
                 }
             }
 
-            javafx.scene.image.WritableImage placeholder = new javafx.scene.image.WritableImage(400, 400);
-            canvas.snapshot(null, placeholder);
-            imageView.setImage(placeholder);
+            javafx.scene.image.WritableImage picture = new javafx.scene.image.WritableImage(400, 400);
+            canvas.snapshot(null, picture);
+            imageView.setImage(picture);
 
         } catch (Exception e) {
             logger.warn("Failed to create image placeholder for status: {}", statusText, e);
@@ -399,7 +423,7 @@ final class EntryTilePictures {
 
         } catch (Exception e) {
             logger.warn("Failed to create video placeholder", e);
-            createPlaceholderImage(generatedImage, imageView, "Video", 0.3);
+            createPlaceholderImage(generatedImage, imageView, Placeholder.VIDEO);
         }
 
         // The poster (a frame of the video) replaces the drawn placeholder as soon as it exists
