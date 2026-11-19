@@ -4,11 +4,11 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
-import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.MockProviders;
-import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

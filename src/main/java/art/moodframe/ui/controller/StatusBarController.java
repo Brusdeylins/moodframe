@@ -2,7 +2,7 @@ package art.moodframe.ui.controller;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
-import art.moodframe.service.provider.ApiProviderValidator;
+import art.moodframe.service.provider.validation.ApiProviderValidator;
 import art.moodframe.ui.component.MemoryStatusComponent;
 import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.StatusSink;

@@ -5,12 +5,12 @@ import art.moodframe.mcp.McpService;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.service.ConfigurationExporter;
 import art.moodframe.service.library.PromptBlockService;
-import art.moodframe.service.provider.ApiProviderValidator;
-import art.moodframe.service.provider.BflApiService;
-import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.ImageProvider;
-import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderRegistry;
+import art.moodframe.service.provider.bfl.BflApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiService;
+import art.moodframe.service.provider.validation.ApiProviderValidator;
 
 /**
  * What the sections of the settings dialog work with, looked up once by the dialog and handed to every section.

@@ -4,6 +4,10 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ProviderAccounts;
 import art.moodframe.model.ApiProvider;
+import art.moodframe.service.provider.bfl.BflApiServiceImpl;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
+import art.moodframe.service.provider.openai.OpenAiApiService;
+import art.moodframe.service.provider.openai.OpenAiApiServiceImpl;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +69,7 @@ class StatelessConnectionTestTest {
     void geminiTestsTheTypedKeyAndKeepsTheSavedOne() {
         GeminiApiServiceImpl gemini = new GeminiApiServiceImpl(config) {
             @Override
-            String getApiBaseUrl() {
+            public String getApiBaseUrl() {
                 return baseUrl;
             }
         };

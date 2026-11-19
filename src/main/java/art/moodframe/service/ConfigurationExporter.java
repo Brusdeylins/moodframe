@@ -4,7 +4,7 @@ import art.moodframe.service.library.ColorStyleService;
 import art.moodframe.service.library.FrameService;
 import art.moodframe.service.library.MoodService;
 import art.moodframe.service.library.PromptBlockService;
-import art.moodframe.service.provider.BflApiService;
+import art.moodframe.service.provider.bfl.BflApiService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

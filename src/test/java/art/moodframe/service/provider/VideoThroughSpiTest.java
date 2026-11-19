@@ -4,6 +4,7 @@ import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
+import art.moodframe.service.provider.gemini.GeminiApiServiceImpl;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +55,7 @@ class VideoThroughSpiTest {
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
         ImageProvider gemini = new GeminiApiServiceImpl(config) {
             @Override
-            String getApiBaseUrl() {
+            public String getApiBaseUrl() {
                 return baseUrl;
             }
         };

@@ -4,7 +4,7 @@ import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.ResearchNote;
 import art.moodframe.service.provider.ChatTool;
 import art.moodframe.service.provider.ChatTurn;
-import art.moodframe.service.provider.GeminiApiService;
+import art.moodframe.service.provider.gemini.GeminiApiService;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
