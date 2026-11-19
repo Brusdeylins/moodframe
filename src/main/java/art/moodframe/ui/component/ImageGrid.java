@@ -2,6 +2,7 @@ package art.moodframe.ui.component;
 
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.chat.ThumbnailManager;
@@ -281,14 +282,8 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             Platform.runLater(this::rebuild);
     }
 
-    /*  the images of an entry, copied under the lock of the chat models, which a generation changes meanwhile; the
-        one place to switch to ChatLibrary.imagesOf  */
-    private static List<GeneratedImage> imagesOf(ChatEntry entry) {
-        return ModelLock.read(() -> new ArrayList<>(entry.getImages()));
-    }
-
-    /*  the entries followed, copied under the lock of the chat models; the counterpart of ChatLibrary.entriesOf for
-        the list of a chat or a group  */
+    /*  the entries followed, copied under the lock of the chat models, which a generation changes meanwhile; the
+        counterpart of ChatLibrary.entriesOf for the list of a chat or a group  */
     private static List<ChatEntry> entriesOf(List<ChatEntry> entries) {
         return ModelLock.read(() -> new ArrayList<>(entries));
     }
@@ -302,7 +297,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             for (ChatEntry entry : entriesOf(followed)) {
                 entry.getImages().addListener(onImagesChange);
                 watched.add(entry.getImages());
-                for (GeneratedImage image : imagesOf(entry))
+                for (GeneratedImage image : ChatLibrary.imagesOf(entry))
                     images.add(new Item(entry, image));
             }
         }
@@ -539,7 +534,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
 
     /** The style of an entry; one from before 2.0 may carry it at its first image only (BFL). */
     private static String styleOf(ChatEntry entry) {
-        List<GeneratedImage> images = imagesOf(entry);
+        List<GeneratedImage> images = ChatLibrary.imagesOf(entry);
         if (entry.getStyle() == null && !images.isEmpty())
             return images.get(0).getStylePreset();
         return entry.getStyle();

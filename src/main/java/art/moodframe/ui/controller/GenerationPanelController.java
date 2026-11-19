@@ -264,7 +264,7 @@ public class GenerationPanelController {
      * remembers every choice.
      *
      * @param config            the configuration with the accounts and the remembered choices
-     * @param generationService tells the prompt limit of a model (may be null: the limits known without it)
+     * @param generationService tells the prompt limit of a model
      * @param attachments       reads and encodes the attached images
      * @param resolution        the target resolution of the frame, which chooses the variant of a family
      * @param status            shows what the group did
@@ -438,8 +438,7 @@ public class GenerationPanelController {
      */
     public int promptLimit() {
         String modelId = selectedModelId();
-        return generationService != null ? generationService.promptLimit(modelId)
-                : GenerationService.maxPromptLength(modelId);
+        return generationService.promptLimit(modelId);
     }
 
     /**
@@ -811,6 +810,9 @@ public class GenerationPanelController {
      */
     private void setupFlux2Parameters() {
         try {
+            /*  Bounds and defaults of guidance and steps come from the one table of the model parameters  */
+            takeBounds(flux2GuidanceSlider, art.moodframe.model.ModelParameters.GUIDANCE);
+            takeBounds(flux2StepsSlider, art.moodframe.model.ModelParameters.STEPS);
 
             if (config == null) {
                 logger.warn("ApplicationConfig not available, FLUX.2 parameters will use defaults");
@@ -888,6 +890,15 @@ public class GenerationPanelController {
         } catch (Exception e) {
             logger.error("Failed to setup FLUX.2 parameters", e);
         }
+    }
+
+    /*  sets minimum, maximum and default of a slider from its model parameter  */
+    private static void takeBounds(Slider slider, art.moodframe.model.ModelParameter parameter) {
+        if (slider == null)
+            return;
+        slider.setMin(parameter.minimum().doubleValue());
+        slider.setMax(parameter.maximum().doubleValue());
+        slider.setValue(((Number) parameter.defaultValue()).doubleValue());
     }
 
     /**
@@ -1310,7 +1321,10 @@ public class GenerationPanelController {
     private void updateFlux2ParameterVisibility(art.moodframe.model.GenerationModel generationModel) {
         boolean isFlux2 = generationModel != null && (generationModel.isFlux2Model() || generationModel.isFlux3Model());
         boolean isFlux2Max = generationModel == art.moodframe.model.GenerationModel.FLUX2_MAX;
-        boolean isFlux2Flex = generationModel != null && generationModel.isFlux2Flex();
+        boolean takesGuidance = generationModel != null
+                && generationModel.parameter(art.moodframe.model.ModelParameters.GUIDANCE.name()) != null;
+        boolean takesSteps = generationModel != null
+                && generationModel.parameter(art.moodframe.model.ModelParameters.STEPS.name()) != null;
 
         // Show main FLUX.2 container for FLUX.2 and FLUX 3 models (FLUX 3 only uses the safety slider)
         flux2ParametersContainer.setVisible(isFlux2);
@@ -1322,16 +1336,14 @@ public class GenerationPanelController {
             flux2GroundingSearchContainer.setManaged(isFlux2Max);
         }
 
-        // FLUX.2 [flex] Guidance slider - only for FLUX2_FLEX
+        // Guidance and steps sliders - for the models that take them (FLUX.2 [flex])
         if (flux2GuidanceContainer != null) {
-            flux2GuidanceContainer.setVisible(isFlux2Flex);
-            flux2GuidanceContainer.setManaged(isFlux2Flex);
+            flux2GuidanceContainer.setVisible(takesGuidance);
+            flux2GuidanceContainer.setManaged(takesGuidance);
         }
-
-        // FLUX.2 [flex] Steps slider - only for FLUX2_FLEX
         if (flux2StepsContainer != null) {
-            flux2StepsContainer.setVisible(isFlux2Flex);
-            flux2StepsContainer.setManaged(isFlux2Flex);
+            flux2StepsContainer.setVisible(takesSteps);
+            flux2StepsContainer.setManaged(takesSteps);
         }
 
         // FLUX.2 Safety Tolerance - for ALL FLUX.2 models (0-5 scale)
@@ -1345,8 +1357,8 @@ public class GenerationPanelController {
             flux1SafetyContainer.setManaged(!isFlux2);
         }
 
-        logger.debug("FLUX.2 parameter visibility: isFlux2={}, isFlux2Max={}, isFlux2Flex={}",
-                     isFlux2, isFlux2Max, isFlux2Flex);
+        logger.debug("FLUX.2 parameter visibility: isFlux2={}, isFlux2Max={}, guidance={}, steps={}",
+                     isFlux2, isFlux2Max, takesGuidance, takesSteps);
     }
 
     /** The Base64 data of the attached images that are ready to be sent, in their order. */

@@ -11,7 +11,7 @@ import art.moodframe.model.Mood;
 import art.moodframe.service.chat.ThumbnailManager;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ImageSizeCheck;
-import art.moodframe.service.chat.ModelLock;
+import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.util.I18nManager;
@@ -319,7 +319,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         availableWidth.bind(widthProperty());
         this.tileWidth = Bindings.createDoubleBinding(() -> {
-            int count = Math.max(1, imagesOf(chatEntry).size());
+            int count = Math.max(1, ChatLibrary.imagesOf(chatEntry).size());
             double space = availableWidth.get() - getInsets().getLeft() - getInsets().getRight()
                     - IMAGE_GAP * (count - 1);
             return Math.max(MIN_TILE_WIDTH, Math.min(maxTileSize.get(), space / count));
@@ -357,12 +357,6 @@ public class ChatEntryCard extends ManagedComponent {
         item.setUserData(key);
         item.setOnAction((event) -> action.run());
         return item;
-    }
-
-    /*  the images of the entry, copied under the lock of the chat models, which a generation changes meanwhile; the
-        one place to switch to ChatLibrary.imagesOf  */
-    private static List<GeneratedImage> imagesOf(ChatEntry entry) {
-        return ModelLock.read(() -> new ArrayList<>(entry.getImages()));
     }
 
     /**
@@ -408,7 +402,7 @@ public class ChatEntryCard extends ManagedComponent {
                 "ChatEntry images collection listener"));
 
         // Setup property listeners for existing images
-        for (GeneratedImage image : imagesOf(chatEntry)) {
+        for (GeneratedImage image : ChatLibrary.imagesOf(chatEntry)) {
             setupImagePropertyListeners(image);
         }
 
@@ -513,7 +507,7 @@ public class ChatEntryCard extends ManagedComponent {
         List<String> parts = new ArrayList<>();
         parts.add(chatEntry.getCreatedAt() != null ? chatEntry.getCreatedAt().format(TIME_FORMATTER)
                 : I18nManager.getText("chat.timestamp.none"));
-        int imageCount = imagesOf(chatEntry).size();
+        int imageCount = ChatLibrary.imagesOf(chatEntry).size();
         if (imageCount > 0)
             parts.add(I18nManager.getText("params.image.count", imageCount));
         if (chatEntry.getCost() > 0)
@@ -531,7 +525,7 @@ public class ChatEntryCard extends ManagedComponent {
 
         /*  An entry from before 2.0 may carry its style at its first image only (BFL)  */
         String style = chatEntry.getStyle();
-        List<GeneratedImage> images = imagesOf(chatEntry);
+        List<GeneratedImage> images = ChatLibrary.imagesOf(chatEntry);
         if (style == null && !images.isEmpty())
             style = images.get(0).getStylePreset();
 
@@ -633,7 +627,7 @@ public class ChatEntryCard extends ManagedComponent {
     private String frameDetails() {
         EntryFrame frame = chatEntry.getFrame();
         String target = frame != null ? EntryBadge.join(frame.aspectRatio(), frame.resolution()) : chatEntry.getSize();
-        GeneratedImage sized = imagesOf(chatEntry).stream()
+        GeneratedImage sized = ChatLibrary.imagesOf(chatEntry).stream()
                 .filter((image) -> image.getWidth() > 0 && image.getHeight() > 0).findFirst().orElse(null);
         String result = EntryBadge.join(chatEntry.getSize(),
                 sized != null ? sized.getWidth() + " × " + sized.getHeight() : null);
@@ -658,7 +652,7 @@ public class ChatEntryCard extends ManagedComponent {
         imagesContainer.getChildren().clear();
         imageBars.clear();
 
-        List<GeneratedImage> images = imagesOf(chatEntry);
+        List<GeneratedImage> images = ChatLibrary.imagesOf(chatEntry);
         if (images.isEmpty()) {
             imagesContainer.setVisible(false);
             return;
@@ -1136,7 +1130,7 @@ public class ChatEntryCard extends ManagedComponent {
         GeneratedImage.DownloadStatus status = generatedImage.getDownloadStatus();
 
         // Get the image index for click handler
-        int imageIndex = imagesOf(chatEntry).indexOf(generatedImage);
+        int imageIndex = ChatLibrary.imagesOf(chatEntry).indexOf(generatedImage);
 
         switch (status) {
             case PENDING, DOWNLOADING -> {
