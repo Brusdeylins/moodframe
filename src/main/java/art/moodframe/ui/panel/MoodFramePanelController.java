@@ -217,6 +217,11 @@ public class MoodFramePanelController {
     private MoodService moodService;
     private boolean updatingMood;
 
+    /*  The ids of the moods with a block in the trash, found on the worker once per list load, and the favorites of
+        the rows, which are drawn anew once they are found  */
+    private Set<String> incompleteMoods = Set.of();
+    private FavoriteStar.Favorites<Mood> moodFavorites;
+
     /*  The frames: whether aspect ratio or resolution differ from the chosen frame, and a guard while the frame
         selection sets them  */
     private FrameService frameService;
@@ -659,8 +664,8 @@ public class MoodFramePanelController {
             return;
         }
 
-        FavoriteStar.Favorites<Mood> favorites = blocks.favorites(moodComboBox, FavoriteService.Kind.MOOD, Mood::getId);
-        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, favorites));
+        moodFavorites = blocks.favorites(moodComboBox, FavoriteService.Kind.MOOD, Mood::getId);
+        moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete, moodFavorites));
         moodComboBox.setButtonCell(new MoodListCell(this::isMoodChanged));
         moodComboBox.valueProperty().addListener((obs, oldVal, newVal) -> onMoodChoice(newVal));
         for (javafx.scene.control.ComboBox<?> field : List.of(atmosphereComboBox, stylePresetsComboBox,
@@ -689,8 +694,9 @@ public class MoodFramePanelController {
         return choice != null ? choice.mood() : null;
     }
 
+    /*  whether a block of the mood lies in the trash, as found for the list shown  */
     private boolean isMoodIncomplete(Mood mood) {
-        return !moodService.trashedBlocks(mood).isEmpty();
+        return incompleteMoods.contains(mood.getId());
     }
 
     /** "Save" is not available for a standard mood, which can only be saved as a new one. */
@@ -701,10 +707,11 @@ public class MoodFramePanelController {
 
     /**
      * Lists "No mood" and the moods, the favorites first, each part alphabetically, and shows the mood with this id as
-     * chosen, without applying it.
+     * chosen, without applying it. Which of them have a block in the trash, the worker finds afterwards.
      */
     private void reloadMoods(String selectId) {
-        List<MoodChoice> items = MoodChoice.listOf(FavoriteService.order(moodService.getAll(),
+        List<Mood> moods = moodService.getAll();
+        List<MoodChoice> items = MoodChoice.listOf(FavoriteService.order(moods,
                 (mood) -> blocks.isFavorite(FavoriteService.Kind.MOOD, mood.getId()), (mood) -> 0, Mood::getName));
 
         updatingMood = true;
@@ -712,6 +719,33 @@ public class MoodFramePanelController {
         moodComboBox.setValue(items.stream().filter((item) -> item.mood() != null && item.mood().getId().equals(selectId))
                 .findFirst().orElse(items.get(0)));
         updatingMood = false;
+        findIncompleteMoods(moods);
+    }
+
+    /*  Finds the moods with a block in the trash on the worker, as each asks the trash for up to five blocks; then
+        the warning of the chosen mood and the rows of the list show them  */
+    private void findIncompleteMoods(List<Mood> moods) {
+        writes.call(() -> moods.stream().filter((mood) -> !moodService.trashedBlocks(mood).isEmpty())
+                .map(Mood::getId).collect(java.util.stream.Collectors.toUnmodifiableSet()))
+                .whenComplete((ids, failure) -> {
+                    if (failure != null) {
+                        logger.error("Failed to find the moods with a block in the trash", failure);
+                        return;
+                    }
+                    incompleteMoods = ids;
+                    showIncomplete();
+                    moodComboBox.setCellFactory((listView) -> new MoodListCell(this::isMoodIncomplete,
+                            moodFavorites));
+                });
+    }
+
+    /*  shows the warning next to the field while the chosen mood has a block in the trash  */
+    private void showIncomplete() {
+        Mood mood = chosenMood();
+        boolean incomplete = mood != null && isMoodIncomplete(mood);
+        moodIncompleteButton.setVisible(incomplete);
+        moodIncompleteButton.setManaged(incomplete);
+        moodIncompleteButton.setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete")) : null);
     }
 
     /** Lists the moods again, keeping the choice, for example once a block or a mood left the trash. */
@@ -986,10 +1020,7 @@ public class MoodFramePanelController {
         if (config != null)
             config.ui().setSelectedMood(mood != null ? mood.getId() : "", changed);
 
-        boolean incomplete = mood != null && isMoodIncomplete(mood);
-        moodIncompleteButton.setVisible(incomplete);
-        moodIncompleteButton.setManaged(incomplete);
-        moodIncompleteButton.setTooltip(incomplete ? new Tooltip(I18nManager.getText("params.mood.incomplete")) : null);
+        showIncomplete();
         saveMoodButton.setDisable(moodComboBox.isDisable() || isMoodSaveLocked());
         saveMoodButton.pseudoClassStateChanged(UNSAVED, changed && !isMoodSaveLocked());
         saveMoodAsButton.pseudoClassStateChanged(UNSAVED, changed && isMoodSaveLocked());

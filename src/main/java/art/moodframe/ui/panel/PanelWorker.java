@@ -14,7 +14,8 @@ import java.util.function.Supplier;
 /**
  * Runs the writes of the panel on the worker of its window, off the JavaFX thread, so a write that waits for the lock
  * of the database (an MCP write, for example) does not freeze the window; the panel shows the outcome on the JavaFX
- * thread afterwards. A write that throws is told by the status sink.
+ * thread afterwards. A write that throws is told by the status sink. The panel also asks the trash here which moods
+ * lack a block.
  */
 final class PanelWorker {
 

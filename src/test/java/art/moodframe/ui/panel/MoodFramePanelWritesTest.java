@@ -6,6 +6,7 @@ import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
+import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FrameRepository;
 import art.moodframe.repository.MoodRepository;
 import art.moodframe.service.generation.ModelLabels;
@@ -47,7 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The panel writes the library on the worker of its window, never on the JavaFX thread, and shows the outcome
  * afterwards: a saved mood or frame is chosen and unchanged. The worker waits on a gate until the JavaFX thread has
- * returned from the click, so a write on the JavaFX thread would not wait for the gate.
+ * returned from the click, so a write on the JavaFX thread would not wait for the gate. The worker also finds the
+ * moods with a block in the trash, once per list load.
  */
 class MoodFramePanelWritesTest {
 
@@ -56,8 +58,9 @@ class MoodFramePanelWritesTest {
     @TempDir
     static Path home;
 
-    /*  the threads the writes of moods and frames ran on  */
+    /*  the threads the writes of moods and frames ran on, and those that asked the trash for the blocks of a mood  */
     private final List<String> writes = new CopyOnWriteArrayList<>();
+    private final List<String> trashQueries = new CopyOnWriteArrayList<>();
 
     /*  the worker opens once the JavaFX thread returned from a click  */
     private final CountDownLatch gate = new CountDownLatch(1);
@@ -72,6 +75,7 @@ class MoodFramePanelWritesTest {
     }, WORKER));
 
     private final List<String> messages = new CopyOnWriteArrayList<>();
+    private PromptBlockService blocks;
     private MoodService moods;
     private FrameService frames;
     private Parent root;
@@ -95,7 +99,7 @@ class MoodFramePanelWritesTest {
     @BeforeEach
     void load() throws Exception {
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = TestLibraryServices.blocks(events);
+        blocks = TestLibraryServices.blocks(events);
         ColorStyleService colors = TestLibraryServices.palettes(events);
         moods = new MoodService(new MoodRepository(TestLibraryServices.database()), blocks, colors, events) {
             @Override
@@ -108,6 +112,12 @@ class MoodFramePanelWritesTest {
             public synchronized boolean update(Mood mood) {
                 writes.add(Thread.currentThread().getName());
                 return super.update(mood);
+            }
+
+            @Override
+            public List<String> trashedBlocks(Mood mood) {
+                trashQueries.add(Thread.currentThread().getName());
+                return super.trashedBlocks(mood);
             }
         };
         frames = new FrameService(new FrameRepository(TestLibraryServices.database()), events) {
@@ -197,9 +207,33 @@ class MoodFramePanelWritesTest {
         assertFalse(onFx(() -> panel.selection().frameChanged()));
     }
 
+    @Test
+    void theWorkerFindsTheMoodsWithABlockInTheTrashOncePerListLoad() throws Exception {
+        PromptBlock block = new PromptBlock(null, PromptBlock.Type.ATMOSPHERE, "Gone " + System.nanoTime(), "fog",
+                null, false);
+        assertTrue(blocks.addCustom(block));
+        Mood mood = new Mood(null, "Incomplete " + System.nanoTime());
+        mood.setReference(Mood.Field.ATMOSPHERE, block.getId());
+        assertTrue(moods.add(mood));
+        assertTrue(blocks.deleteCustom(block.getId()));
+
+        assertFalse(onFx(() -> {
+            panel.onLibraryChanged(LibraryEvents.Kind.MOOD);
+            panel.chooseMood(mood);
+            return node("moodIncompleteButton").isVisible();
+        }), "the worker has not looked yet");
+        gate.countDown();
+        waitFor(() -> node("moodIncompleteButton").isVisible(), "the warning of the chosen mood");
+        assertFalse(trashQueries.isEmpty());
+        assertEquals(List.of(WORKER), trashQueries.stream().distinct().toList(), "no query on the JavaFX thread");
+        int queries = trashQueries.size();
+        int moodCount = moods.getAll().size();
+        assertTrue(queries <= 2 * moodCount, queries + " queries for two loads of " + moodCount + " moods");
+    }
+
     /*  the node of an id in the panel  */
     @SuppressWarnings("unchecked")
-    private <T> T node(String id) {
+    private <T extends javafx.scene.Node> T node(String id) {
         return (T) root.lookup("#" + id);
     }
 

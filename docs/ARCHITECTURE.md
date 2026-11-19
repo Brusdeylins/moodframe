@@ -140,7 +140,8 @@ itself needs no JavaFX: the `ChatLibrary` changes these models on the calling th
   panel shows the outcome afterwards, a saved mood or frame as chosen. Still on the JavaFX thread: the writes of the
   "Manage…" windows of moods and frames and the renaming and deleting of brainstorm sessions. Reads that feed what is
   shown at once (the lists of the panel, the fields of a chosen mood) stay on the JavaFX thread: they are short, and
-  SQLite in WAL mode lets them read beside a running write.
+  SQLite in WAL mode lets them read beside a running write. Which moods have a block in the trash (up to five queries
+  per mood) the worker finds once per load of the list; the rows and the warning of the chosen mood follow.
 - **Network I/O**: blocking provider calls and downloads run on `net.IoExecutor`, a bounded pool of daemon threads,
   never on `ForkJoinPool.commonPool()`. The futures of a provider complete on such a worker (see
   `service.provider.ImageProvider`); `MoodframeApplication` shuts the pool down on exit. No task of the pool waits
