@@ -2,6 +2,8 @@ package art.moodframe.service.generation;
 
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
+import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.I18nManager;
 
 import java.util.List;
@@ -59,17 +61,22 @@ public final class ModelLabels {
     }
 
     /**
-     * Gets the dropdown items of the models to choose from: the selectable models of the usable providers, then the
-     * models of the OpenAI-compatible gateway.
+     * Gets the dropdown items of the models to choose from: the selectable constants of the usable providers of the
+     * registry, then the models these providers list beyond the constants ({@link ImageProvider#listedModels()},
+     * today those of the OpenAI-compatible gateway).
      *
-     * @param usable     whether a provider is enabled and has a key
-     * @param gatewayIds the model ids of the gateway, empty while it is disabled or has no key
+     * @param usable    whether a provider is enabled and has a key
+     * @param providers the registered providers
      * @return the items, in the order of the dropdown
      */
-    public static List<String> availableItems(Predicate<ApiProvider> usable, List<String> gatewayIds) {
+    public static List<String> availableItems(Predicate<ApiProvider> usable, ProviderRegistry providers) {
+        Predicate<ApiProvider> offered = (ApiProvider provider) -> providers.ids().contains(provider)
+                && usable.test(provider);
         return Stream.concat(GenerationModel.selectable().stream()
-                .filter((GenerationModel model) -> usable.test(model.getProvider()))
+                .filter((GenerationModel model) -> offered.test(model.getProvider()))
                 .map(ModelLabels::displayName),
-                gatewayIds.stream().map((String id) -> GenerationModel.OPENAI_PREFIX + id)).toList();
+                providers.all().stream().filter((ImageProvider provider) -> offered.test(provider.getProvider()))
+                        .flatMap((ImageProvider provider) -> provider.listedModels().stream())
+                        .map(ModelLabels::itemOf)).toList();
     }
 }

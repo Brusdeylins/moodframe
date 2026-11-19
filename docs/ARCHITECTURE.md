@@ -485,7 +485,8 @@ are one table, `model.ModelParameters`, which the MCP schema, the MCP validation
 
 Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
 OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
-`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). `GenerationModel.constantOf` tells a constant from
+`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). The dropdown and the MCP tools offer them from the
+registry (`GenerationService.availableItems`), the same source `ProviderRegistry.isOrderable` accepts them from. `GenerationModel.constantOf` tells a constant from
 such an id, `ProviderRegistry.isOrderable` and `ProviderRegistry.apiModelId` decide for the generation, so no class
 of `service` but the OpenAI client names the placeholder (`ArchitectureTest`). A second provider with listed models
 would need an item prefix of its own.
@@ -503,7 +504,8 @@ the generation renders a message with `I18nManager.getText` itself (`Architectur
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `GenerationService`, `ApiProviderValidator`); every constant of `GenerationModel` names
 its `ApiProvider`. What needs no change for a new provider: the dispatch and the flows of the generation, the
-dropdown (`ModelLabels.availableItems` lists the selectable constants of every usable provider), the startup check
+dropdown and the models of the MCP tools (`ModelLabels.availableItems` lists the selectable constants and the listed
+models of every registered provider the user can use), the startup check
 of the accounts (`ApiProviderValidator` tests the connection of every registered provider; only Gemini and OpenAI add
 the checks of their brainstorm language model) and the MCP tools, as long as its models take only the request options
 there are. A new provider is, in this order:

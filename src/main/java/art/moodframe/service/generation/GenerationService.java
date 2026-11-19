@@ -146,7 +146,7 @@ public class GenerationService {
     /**
      * Creates the service.
      *
-     * @param config      the application configuration (keys, OpenAI models, FLUX.2 safety tolerance)
+     * @param config      the application configuration (keys, FLUX.2 safety tolerance)
      * @param chats       adds the entries to their chats and stores them
      * @param moodService copies the mood into the entry, null for none
      * @param requests    sends the requests and reports the progress of the entries
@@ -176,28 +176,43 @@ public class GenerationService {
     }
 
     /**
-     * Gets the dropdown items of the models to choose from: those of the enabled providers with a key, the chosen
-     * models of the OpenAI-compatible gateway (kept in its settings) among them.
+     * Gets the providers this service orders from.
      *
-     * @param config the application configuration
-     * @return the items, see {@link ModelLabels#availableItems(java.util.function.Predicate, List)}
+     * @return the registry
      */
-    public static List<String> availableItems(ApplicationConfig config) {
-        return ModelLabels.availableItems(config.accounts()::isUsable,
-                config.accounts().isUsable(ApiProvider.OPENAI) ? config.getOpenAiModels() : List.of());
+    public ProviderRegistry providers() {
+        return providers;
     }
 
     /**
-     * The items of the models to choose from that take this many attached images, in the order of the dropdown.
+     * The dropdown items of the models to choose from that take this many attached images, with the providers of this
+     * service, see {@link #availableItems(ApplicationConfig, ProviderRegistry, int)}.
      *
      * @param config     the configuration with the accounts
      * @param imageCount the number of attached images, 0 for all models to choose from
-     * @return the items of {@link #availableItems(ApplicationConfig)} whose model takes at least that many images
+     * @return the items in the order of the dropdown
      */
-    public static List<String> availableItems(ApplicationConfig config, int imageCount) {
+    public List<String> availableItems(ApplicationConfig config, int imageCount) {
+        return availableItems(config, providers, imageCount);
+    }
+
+    /**
+     * The dropdown items of the models to choose from that take this many attached images: the models of the
+     * registered providers the user enabled with a key, those a provider lists beyond the constants among them (see
+     * {@link ModelLabels#availableItems}), in the order of the dropdown. The window and the MCP tools take them from
+     * here, the listed models from the same source as {@link ProviderRegistry#isOrderable}.
+     *
+     * @param config     the configuration with the accounts
+     * @param providers  the registered providers
+     * @param imageCount the number of attached images, 0 for all models to choose from
+     * @return the items whose model takes at least that many images
+     */
+    public static List<String> availableItems(ApplicationConfig config, ProviderRegistry providers,
+            int imageCount) {
+        List<String> items = ModelLabels.availableItems(config.accounts()::isUsable, providers);
         if (imageCount <= 0)
-            return availableItems(config);
-        return availableItems(config).stream().filter((String item) -> {
+            return items;
+        return items.stream().filter((String item) -> {
             GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
             return model != null && model.getMaxInputImages() >= imageCount;
         }).toList();
@@ -211,7 +226,7 @@ public class GenerationService {
      * @return the fixed id of the model, null if no model of the family can be chosen
      */
     public String modelFor(String family, String resolution) {
-        return GenerationModel.idOf(ModelFamilies.variantForTarget(availableItems(config), family, resolution));
+        return GenerationModel.idOf(ModelFamilies.variantForTarget(availableItems(config, 0), family, resolution));
     }
 
     /**

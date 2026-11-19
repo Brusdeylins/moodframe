@@ -3,6 +3,11 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ModelFamilies;
+import art.moodframe.service.provider.BflApiService;
+import art.moodframe.service.provider.GeminiApiService;
+import art.moodframe.service.provider.MockProviders;
+import art.moodframe.service.provider.OpenAiApiService;
+import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 class ModelLabelsTest {
 
@@ -67,14 +75,31 @@ class ModelLabelsTest {
 
     @Test
     void listsTheModelsOfTheUsableProvidersThenTheGateway() {
-        List<String> items = ModelLabels.availableItems((ApiProvider provider) -> provider == ApiProvider.BFL,
-                List.of("qwen-image"));
+        OpenAiApiService openAi = mock(OpenAiApiService.class, CALLS_REAL_METHODS);
+        doReturn(List.of("qwen-image")).when(openAi).getImageModels();
+        ProviderRegistry providers = MockProviders.registry(mock(BflApiService.class, CALLS_REAL_METHODS),
+                mock(GeminiApiService.class, CALLS_REAL_METHODS), openAi);
+        List<String> items = ModelLabels.availableItems((ApiProvider provider) -> provider != ApiProvider.GOOGLE_GEMINI,
+                providers);
 
         assertTrue(items.contains(ModelLabels.displayName(GenerationModel.FLUX2_PRO)));
         assertFalse(items.contains(ModelLabels.displayName(GenerationModel.NANO_BANANA2_1K)));
         assertFalse(items.contains(ModelLabels.displayName(GenerationModel.GEMINI_FLASH_1K)), "deprecated");
         assertEquals(GenerationModel.OPENAI_PREFIX + "qwen-image", items.get(items.size() - 1));
         assertTrue(items.stream().limit(items.size() - 1).map(GenerationModel::fromLocalizedDisplayName)
+                .allMatch((GenerationModel model) -> model.getProvider() != ApiProvider.GOOGLE_GEMINI));
+        assertTrue(ModelLabels.availableItems((ApiProvider provider) -> provider == ApiProvider.BFL, providers)
+                .stream().noneMatch((String item) -> item.startsWith(GenerationModel.OPENAI_PREFIX)),
+                "the listed models of a provider that cannot be used are left out");
+    }
+
+    @Test
+    void offersNoModelOfAProviderThatIsNotRegistered() {
+        ProviderRegistry bflOnly = MockProviders.registry(mock(BflApiService.class, CALLS_REAL_METHODS));
+        List<String> items = ModelLabels.availableItems((ApiProvider provider) -> true, bflOnly);
+
+        assertFalse(items.isEmpty());
+        assertTrue(items.stream().map(GenerationModel::fromLocalizedDisplayName)
                 .allMatch((GenerationModel model) -> model.getProvider() == ApiProvider.BFL));
     }
 }

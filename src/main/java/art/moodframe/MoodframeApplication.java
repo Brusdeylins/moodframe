@@ -522,7 +522,7 @@ public class MoodframeApplication extends Application {
                     ? McpTools.all(config, chats, moods, blocks, colors, frames, favorites, trash, events, generation,
                             services.getService(MoodAnalysisService.class))
                     : McpTools.reading(config, chats, moods, blocks, colors, frames, favorites, trash, events,
-                            services.getService(ProviderRegistry.class)::promptLimit));
+                            services.getService(ProviderRegistry.class)));
         });
     }
 

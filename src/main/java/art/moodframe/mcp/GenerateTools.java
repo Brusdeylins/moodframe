@@ -263,7 +263,7 @@ class GenerateTools {
             throws McpTools.ToolException, IOException {
         String prompt = McpTools.text(arguments, "prompt");
         String modelId = McpTools.text(arguments, "model");
-        if (GenerationService.availableItems(config).stream()
+        if (generation.availableItems(config, 0).stream()
                 .noneMatch((String item) -> modelId.equals(GenerationModel.idOf(item))))
             throw new McpTools.ToolException("No model with the id '" + modelId + "' to generate with, see "
                     + "get_capabilities");
