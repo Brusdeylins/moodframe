@@ -511,20 +511,24 @@ public class JobPollingFlow {
     private void downloadImage(ImageProvider provider, GeneratedImage generatedImage, ChatEntry chatEntry) {
         Map<String, String> headers = provider.downloadHeaders(generatedImage.getImageUrl());
         CompletableFuture.runAsync(() -> {
-            ImageFileStore.StoredImage stored = null;
+            ImageFileStore.StoredImage stored;
             try {
                 stored = imageFiles.download(generatedImage, headers);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
+
+                /*  The image fails with the reason, is stored and costs nothing, as there is no file to show  */
                 logger.error("Failed to download image: {}", generatedImage.getId(), e);
+                String reason = e instanceof ImageFileStore.HttpStatusException status
+                        ? "HTTP " + status.getStatusCode() : e.getMessage();
+                tracker.failImage(chatEntry, generatedImage.getSortOrder(),
+                        ChatEntryTracker.errorText(chatEntry, e, "generation.error.download", reason));
+                return;
             }
 
             /*  The image is bound to the UI, so it is changed on the FX thread; the database write goes back to a worker  */
-            ImageFileStore.StoredImage result = stored;
             FxModel.change(() -> {
-                if (result != null)
-                    result.applyTo(generatedImage);
-                else
-                    generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
+                stored.applyTo(generatedImage);
                 tracker.saveImage(generatedImage);
 
                 tracker.notifyImageUpdated(generatedImage);
