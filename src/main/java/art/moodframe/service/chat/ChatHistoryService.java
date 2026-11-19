@@ -6,8 +6,9 @@ import art.moodframe.model.EntryGroup;
 import art.moodframe.model.FrameGroup;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.MoodGroup;
-import art.moodframe.repository.ChatFiles;
+import art.moodframe.repository.ChatGroupQueries;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,53 +53,58 @@ public class ChatHistoryService {
     }
 
     private final ChatRepository chatRepository;
+    private final ChatTrashRepository trash;
+    private final ChatGroupQueries groups;
     private final TrashManager trashManager;
-    private final ChatFiles chatFiles;
 
     /**
      * Creates the service.
      *
      * @param chatRepository where chats are stored
+     * @param trash          the trash of the chats, entries and images, which moves their files
+     * @param groups         the entries grouped by mood and by frame
      * @param trashManager   locates the files of deleted chats (may be null: then only the original place counts)
-     * @param chatFiles      moves the files of deleted entries and images to the trash
      */
-    public ChatHistoryService(ChatRepository chatRepository, TrashManager trashManager, ChatFiles chatFiles) {
+    public ChatHistoryService(ChatRepository chatRepository, ChatTrashRepository trash, ChatGroupQueries groups,
+            TrashManager trashManager) {
         this.chatRepository = chatRepository;
+        this.trash = trash;
+        this.groups = groups;
         this.trashManager = trashManager;
-        this.chatFiles = chatFiles != null ? chatFiles : ChatFiles.NONE;
     }
 
     /**
-     * Marks an entry as deleted and then moves its images to the trash; if it cannot be marked, the files stay.
+     * Moves an entry with its images to the trash; the files of the images it deleted follow after the commit. An
+     * entry already deleted (e.g. by an agent) or not stored is left alone.
      *
      * @param entryId the entry
-     * @param images  its images
+     * @return true if this call deleted it
      * @throws SQLException if the entry cannot be marked
      */
-    public void deleteEntry(String entryId, List<GeneratedImage> images) throws SQLException {
-        chatRepository.softDeleteChatEntry(entryId);
-        chatFiles.moveToTrash(entryId, images);
+    public boolean deleteEntry(String entryId) throws SQLException {
+        return trash.softDeleteChatEntry(entryId);
     }
 
     /**
-     * Marks an image as deleted and then moves it to the trash; the entry is deleted too when it was its last image.
+     * Moves an image to the trash, its file after the commit; the entry is deleted too when it was its last image.
+     * An image already deleted (e.g. by an agent) or not stored is left alone; the answer tells the state of its
+     * entry as stored, so the caller follows it.
      *
      * @param entryId the entry of the image
      * @param image   the image
-     * @return what was deleted and the deleted cost of the entry now
+     * @return whether the entry is deleted now and its deleted cost as stored
      * @throws SQLException if the database cannot be updated
      */
     public ImageDeletion deleteImage(String entryId, GeneratedImage image) throws SQLException {
-        chatRepository.softDeleteImage(image.getId());
-        chatFiles.moveToTrash(entryId, List.of(image));
+        if (!trash.softDeleteImage(image.getId()))
+            logger.info("Image {} was not deleted now: it is not stored or already in the trash", image.getId());
 
-        boolean lastImage = chatRepository.findGeneratedImagesByEntry(entryId).stream()
-                .allMatch(GeneratedImage::isInTrash);
-        if (lastImage) {
-            logger.info("All images deleted from entry {}, soft-deleting the entry", entryId);
-            chatRepository.softDeleteChatEntry(entryId);
-        }
-        return new ImageDeletion(lastImage, chatRepository.getDeletedCostForEntry(entryId));
+        /*  An entry that is not stored leaves its chat, as before  */
+        Optional<ChatEntry> entry = chatRepository.findChatEntryById(entryId);
+        boolean entryDeleted = entry.map((ChatEntry stored) -> stored.getDeletedAt() != null).orElse(true);
+        if (entryDeleted)
+            logger.info("Entry {} is deleted with its last image", entryId);
+        return new ImageDeletion(entryDeleted, entry.map(ChatEntry::getDeletedCost).orElse(0.0));
     }
 
     /**
@@ -425,7 +431,7 @@ public class ChatHistoryService {
 
     /** Moves a chat and its files to the trash. */
     public boolean softDeleteChat(String chatId) throws SQLException {
-        return chatRepository.softDeleteChat(chatId);
+        return trash.softDeleteChat(chatId);
     }
 
     /** Finds a chat without its entries, like an empty one that comes back from the trash. */
@@ -439,19 +445,19 @@ public class ChatHistoryService {
 
     /** Groups the entries of the active chats by their mood, for the left sidebar by mood. */
     public List<MoodGroup> findMoodGroups() throws SQLException {
-        return chatRepository.findMoodGroups();
+        return groups.findMoodGroups();
     }
 
     /** Groups the entries of the active chats by their frame, for the left sidebar by frame. */
     public List<FrameGroup> findFrameGroups() throws SQLException {
-        return chatRepository.findFrameGroups();
+        return groups.findFrameGroups();
     }
 
     /** Lists the ids of the entries of a group by mood or by frame, in the order of their creation. */
     public List<String> findChatEntryIds(EntryGroup group) throws SQLException {
         return switch (group) {
-            case MoodGroup mood -> chatRepository.findChatEntryIdsByMood(mood);
-            case FrameGroup frame -> chatRepository.findChatEntryIdsByFrame(frame);
+            case MoodGroup mood -> groups.findChatEntryIdsByMood(mood);
+            case FrameGroup frame -> groups.findChatEntryIdsByFrame(frame);
         };
     }
 
@@ -461,18 +467,6 @@ public class ChatHistoryService {
 
     public Optional<GeneratedImage> findGeneratedImageById(String imageId) throws SQLException {
         return chatRepository.findGeneratedImageById(imageId);
-    }
-
-    public boolean softDeleteChatEntry(String entryId) throws SQLException {
-        return chatRepository.softDeleteChatEntry(entryId);
-    }
-
-    public boolean softDeleteImage(String imageId) throws SQLException {
-        return chatRepository.softDeleteImage(imageId);
-    }
-
-    public double getDeletedCostForEntry(String entryId) throws SQLException {
-        return chatRepository.getDeletedCostForEntry(entryId);
     }
 
     /**

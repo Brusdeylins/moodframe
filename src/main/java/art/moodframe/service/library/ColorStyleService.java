@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.repository.ColorStyleRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -10,7 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -97,18 +95,27 @@ public class ColorStyleService {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates a new ColorStyleService on the given database.
+     * Creates a new ColorStyleService on the given repository; it reads and writes nothing until it is used.
      *
-     * @param database the database of the custom color styles
-     * @param events   where the writes are reported
+     * @param repository the custom color styles
+     * @param events     where the writes are reported
      */
-    public ColorStyleService(DatabaseManager database, LibraryEvents events) {
-        this.repository = new ColorStyleRepository(database);
+    public ColorStyleService(ColorStyleRepository repository, LibraryEvents events) {
+        this.repository = repository;
         this.objectMapper = new ObjectMapper();
         this.events = events;
         this.defaultStyles = initializeDefaultStyles();
+    }
+
+    /**
+     * Starts the service once at the program start, before the library is used: a palette of the user named like a
+     * standard palette, which a new version may have added, gets the next free name (see {@link #freeName}). Not in
+     * the constructor, so creating the service writes nothing.
+     */
+    public void start() {
         renameCustomPalettesNamedLikeDefaults();
     }
+
 
     /*  reports a successful write  */
     private boolean changed(boolean success, String id) {
@@ -122,7 +129,8 @@ public class ColorStyleService {
     }
 
     private ColorStyle findByName(String name) {
-        return access.call(() -> repository.findByName(name), null, "Failed to find color style by name: " + name);
+        return access.call(() -> repository.findByName(name).orElse(null), null,
+                "Failed to find color style by name: " + name);
     }
 
     private boolean update(ColorStyle style) {
@@ -133,9 +141,13 @@ public class ColorStyleService {
         return access.call(() -> repository.save(style), false, "Failed to save color style: " + style.getName());
     }
 
-    private boolean setDeletedAt(String id, LocalDateTime deletedAt) {
-        return access.call(() -> repository.setDeletedAt(id, deletedAt), false,
-                "Failed to change the trash state of color style with ID: " + id);
+    private boolean moveToTrash(String id) {
+        return access.call(() -> repository.moveToTrash(id), false,
+                "Failed to move color style to the trash, ID: " + id);
+    }
+
+    private boolean takeFromTrash(String id) {
+        return access.call(() -> repository.restore(id), false, "Failed to restore color style with ID: " + id);
     }
 
     private int deleteAllCustom() {
@@ -340,7 +352,8 @@ public class ColorStyleService {
             if (style.getId().equals(id))
                 return style;
         }
-        return access.call(() -> repository.findById(id), null, "Failed to find color style by ID: " + id);
+        return access.call(() -> repository.findById(id).orElse(null), null,
+                "Failed to find color style by ID: " + id);
     }
 
     /**
@@ -351,7 +364,8 @@ public class ColorStyleService {
      */
     public ColorStyle findInTrash(String id) {
         return id == null || id.startsWith("std:") ? null
-                : access.call(() -> repository.findInTrash(id), null, "Failed to find color style in the trash: " + id);
+                : access.call(() -> repository.findInTrash(id).orElse(null), null,
+                        "Failed to find color style in the trash: " + id);
     }
 
     /**
@@ -471,7 +485,7 @@ public class ColorStyleService {
             return false;
         }
 
-        boolean success = setDeletedAt(existing.getId(), LocalDateTime.now());
+        boolean success = moveToTrash(existing.getId());
 
         if (success) {
             logger.debug("Moved custom color style to the trash: {}", name);
@@ -493,7 +507,7 @@ public class ColorStyleService {
      */
     public synchronized boolean restoreStyle(String id) {
         return getDeletedStyles().stream().anyMatch((ColorStyle style) -> style.getId().equals(id))
-                && changed(setDeletedAt(id, null), id);
+                && changed(takeFromTrash(id), id);
     }
 
     /**

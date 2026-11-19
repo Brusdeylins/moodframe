@@ -2,12 +2,14 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.Mood;
 import art.moodframe.repository.ChatRepository;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
+import art.moodframe.service.chat.TestChatServices;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -81,7 +83,7 @@ class ParallelWritesTest {
 
     @Test
     void theConnectionsWaitForLocksAndTheDatabaseRunsInWalMode() throws Exception {
-        try (Connection connection = DatabaseConfig.getDatabase().getConnection();
+        try (Connection connection = TestDatabase.get().getConnection();
              Statement stmt = connection.createStatement()) {
             try (ResultSet rs = stmt.executeQuery("PRAGMA busy_timeout")) {
                 assertEquals(5000, rs.getInt(1));
@@ -138,8 +140,9 @@ class ParallelWritesTest {
 
     @Test
     void storesAndShowsEveryEntryOfAChat() throws Exception {
-        ChatRepository repository = new ChatRepository(new DatabaseManager(database));
-        ChatHistoryService history = new ChatHistoryService(repository, null, null);
+        DatabaseManager manager = new DatabaseManager(database);
+        ChatRepository repository = new ChatRepository(manager);
+        ChatHistoryService history = TestChatServices.history(repository, manager);
         ChatLibrary library = new ChatLibrary(history, new LibraryEvents());
         Chat chat = library.createChat("Parallel");
 

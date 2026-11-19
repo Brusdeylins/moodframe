@@ -97,36 +97,14 @@ public class ApplicationConfig {
     /*  ===== Folders =====  */
 
     /**
-     * Gets the folders of the library, with the images folder as configured.
+     * Gets the folders of the library, with the images folder as configured in {@code path.images} (a fresh
+     * configuration writes the default {@code ~/.moodframe/images} there). The database and the logs are always
+     * where {@link LibraryPaths} says.
      *
      * @return the paths
      */
     public LibraryPaths paths() {
-        return store.paths().withImages(Path.of(getImagesPath()));
-    }
-
-    /**
-     * Gets the path to the SQLite database file as configured in {@code path.database}.
-     *
-     * @return the absolute path to the database file
-     */
-    public String getDatabasePath() {
-        return store.get("path.database", store.paths().database().toString());
-    }
-
-    /** @return the folder of the log files as configured in {@code path.logs} */
-    public String getLogsPath() {
-        return store.get("path.logs", store.paths().logs().toString());
-    }
-
-    /**
-     * Gets the folder of the images as configured in {@code path.images}; a fresh configuration writes the default
-     * {@code ~/.moodframe/images} there.
-     *
-     * @return the images folder
-     */
-    public String getImagesPath() {
-        return store.get("path.images", store.paths().images().toString());
+        return store.paths().withImages(Path.of(store.get("path.images", store.paths().images().toString())));
     }
 
     /*  ===== Application =====  */
@@ -164,6 +142,27 @@ public class ApplicationConfig {
      */
     public void setUpdateDismissedVersion(String version) {
         store.set("update.dismissed.version", version);
+    }
+
+    /**
+     * Tells whether the settings file could not be read at the start: the defaults apply, and the unreadable file was
+     * copied beside it (see {@link #unreadableConfigCopy()}) before anything overwrote it.
+     *
+     * @return true if the file was unreadable
+     * @since 2.1.3
+     */
+    public boolean wasConfigUnreadable() {
+        return store.wasUnreadable();
+    }
+
+    /**
+     * Gets the copy of the settings file that could not be read at the start.
+     *
+     * @return the copy, null if the file was read or could not be copied
+     * @since 2.1.3
+     */
+    public Path unreadableConfigCopy() {
+        return store.unreadableCopy();
     }
 
     /*  ===== Raw properties, reset and writing =====  */

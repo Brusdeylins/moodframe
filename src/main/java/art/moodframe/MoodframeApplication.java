@@ -93,10 +93,23 @@ public class MoodframeApplication extends Application {
     private void prepare() {
         initializeApplication();
         ServiceFactory services = ServiceFactory.getInstance();
+        startLibrary(services);
         cleanUpAndLoad(createTrashCleanup(), services.getService(art.moodframe.service.chat.ChatLibrary.class));
         performRetroactiveThumbnailGeneration();
         validateApiProviders();
         createWindowServices();
+    }
+
+    /**
+     * Starts the services of the library once, before anything uses them: the blocks, palettes and moods of the
+     * user named like a standard one get a free name; the moods last, as they refer to blocks and palettes.
+     *
+     * @param services the registered services
+     */
+    private static void startLibrary(ServiceFactory services) {
+        services.getService(art.moodframe.service.library.PromptBlockService.class).start();
+        services.getService(art.moodframe.service.library.ColorStyleService.class).start();
+        services.getService(art.moodframe.service.library.MoodService.class).start();
     }
 
     /**
@@ -166,6 +179,9 @@ public class MoodframeApplication extends Application {
             /*  Start the MCP server if it is enabled  */
             startMcpServer();
 
+            /*  Tell once that the settings file could not be read and where its copy is  */
+            warnOfUnreadableConfig(primaryStage);
+
         } catch (Throwable e) {
             logger.error("Failed to start MoodFrame Application", e);
             // Show error dialog or fallback UI
@@ -187,7 +203,7 @@ public class MoodframeApplication extends Application {
             DetailedLogging.apply(config.getLoggingEnabled());
 
             /*  Earlier versions wrote the Gemini key into the log files  */
-            Secrets.redactLogs(java.nio.file.Paths.get(config.getLogsPath()));
+            Secrets.redactLogs(paths.logs());
 
             // Create the directory of the corporate certificates at the start
             new art.moodframe.net.CorporateProxyConfig(config);
@@ -198,7 +214,7 @@ public class MoodframeApplication extends Application {
             art.moodframe.util.I18nManager.setLocale(appLocale);
 
             /*  The one database of the library, every repository gets its connections here  */
-            art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
+            art.moodframe.database.DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
 
             /*  The services report every change of the library here, the main window shows what others changed  */
             art.moodframe.service.library.LibraryEvents events = new art.moodframe.service.library.LibraryEvents();
@@ -207,17 +223,20 @@ public class MoodframeApplication extends Application {
             // Initialize PromptBlockService for the prompt building blocks (style, atmosphere, light)
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.PromptBlockService.class,
-                    () -> new art.moodframe.service.library.PromptBlockService(database, events));
+                    () -> new art.moodframe.service.library.PromptBlockService(
+                            new art.moodframe.repository.PromptBlockRepository(database), events));
 
             // Initialize ColorStyleService for color palette management
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.ColorStyleService.class,
-                    () -> new art.moodframe.service.library.ColorStyleService(database, events));
+                    () -> new art.moodframe.service.library.ColorStyleService(
+                            new art.moodframe.repository.ColorStyleRepository(database), events));
 
             // Initialize MoodService for the moods, the saved combinations of building blocks
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.MoodService.class,
-                    () -> new art.moodframe.service.library.MoodService(database,
+                    () -> new art.moodframe.service.library.MoodService(
+                            new art.moodframe.repository.MoodRepository(database),
                             ServiceFactory.getInstance().getService(
                                     art.moodframe.service.library.PromptBlockService.class),
                             ServiceFactory.getInstance().getService(
@@ -227,12 +246,14 @@ public class MoodframeApplication extends Application {
             /*  The frames, the saved settings of model, aspect ratio and image count  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.FrameService.class,
-                    () -> new art.moodframe.service.library.FrameService(database, events));
+                    () -> new art.moodframe.service.library.FrameService(
+                            new art.moodframe.repository.FrameRepository(database), events));
 
             /*  The favorites among moods, frames and building blocks, shown first in their lists  */
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.service.library.FavoriteService.class,
-                    () -> new art.moodframe.service.library.FavoriteService(database, events));
+                    () -> new art.moodframe.service.library.FavoriteService(
+                            new art.moodframe.repository.FavoriteRepository(database), events));
 
             /*  Backup of the settings and the library; an import reaches the main window through the events  */
             ServiceFactory.getInstance().registerProvider(
@@ -300,7 +321,12 @@ public class MoodframeApplication extends Application {
             // The one ChatRepository: the request manager, the trash and the main window share it
             ServiceFactory.getInstance().registerProvider(
                     art.moodframe.repository.ChatRepository.class,
-                    () -> new art.moodframe.repository.ChatRepository(database,
+                    () -> new art.moodframe.repository.ChatRepository(database));
+
+            /*  The trash of the chats, entries and images; it moves their files after each commit  */
+            ServiceFactory.getInstance().registerProvider(
+                    art.moodframe.repository.ChatTrashRepository.class,
+                    () -> new art.moodframe.repository.ChatTrashRepository(database,
                             ServiceFactory.getInstance().getService(art.moodframe.service.chat.ChatFileService.class)));
 
             // The central trash: chats first, the other kinds of items dock in with their own group
@@ -312,10 +338,11 @@ public class MoodframeApplication extends Application {
                         ServiceFactory services = ServiceFactory.getInstance();
                         art.moodframe.repository.ChatRepository chatRepo = ServiceFactory.getInstance()
                                 .getService(art.moodframe.repository.ChatRepository.class);
+                        art.moodframe.repository.ChatTrashRepository chatTrash = services.getService(
+                                art.moodframe.repository.ChatTrashRepository.class);
                         if (chatRepo != null) {
-                            trashCenter.register(new art.moodframe.service.chat.ChatTrashGroup(chatRepo));
-                            trashCenter.register(new art.moodframe.service.chat.ImageTrashGroup(chatRepo,
-                                    services.getService(art.moodframe.service.chat.ChatFileService.class),
+                            trashCenter.register(new art.moodframe.service.chat.ChatTrashGroup(chatRepo, chatTrash));
+                            trashCenter.register(new art.moodframe.service.chat.ImageTrashGroup(chatRepo, chatTrash,
                                     services.getService(art.moodframe.service.trash.TrashManager.class),
                                     services.getService(art.moodframe.service.chat.ThumbnailManager.class)));
                         }
@@ -353,8 +380,9 @@ public class MoodframeApplication extends Application {
                                 .getService(art.moodframe.repository.ChatRepository.class);
                         ServiceFactory services = ServiceFactory.getInstance();
                         return chatRepo != null ? new art.moodframe.service.chat.ChatHistoryService(chatRepo,
-                                services.getService(art.moodframe.service.trash.TrashManager.class),
-                                services.getService(art.moodframe.service.chat.ChatFileService.class))
+                                services.getService(art.moodframe.repository.ChatTrashRepository.class),
+                                new art.moodframe.repository.ChatGroupQueries(database),
+                                services.getService(art.moodframe.service.trash.TrashManager.class))
                                 : null;
                     });
 
@@ -554,6 +582,26 @@ public class MoodframeApplication extends Application {
             // Don't let thumbnail generation failure prevent app startup
             logger.error("Failed to start retroactive thumbnail generation", e);
         }
+    }
+
+    /**
+     * Tells the user that the settings file could not be read, so the defaults apply, and where the copy of the
+     * unreadable file lies, with its stored keys.
+     *
+     * @param owner the main window
+     */
+    private void warnOfUnreadableConfig(Stage owner) {
+        ApplicationConfig config = ServiceFactory.getInstance().getService(ApplicationConfig.class);
+        if (config == null || !config.wasConfigUnreadable())
+            return;
+        java.nio.file.Path copy = config.unreadableConfigCopy();
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING,
+                copy != null ? art.moodframe.util.I18nManager.getText("config.unreadable.copied", copy)
+                        : art.moodframe.util.I18nManager.getText("config.unreadable.kept"));
+        alert.initOwner(owner);
+        alert.setTitle("MoodFrame");
+        alert.setHeaderText(art.moodframe.util.I18nManager.getText("config.unreadable.title"));
+        alert.show();
     }
 
     /**

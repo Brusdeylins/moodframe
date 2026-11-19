@@ -3,7 +3,9 @@ package art.moodframe.database;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -50,25 +52,26 @@ class DeletedCostCorrectionTest {
         DatabaseManager newDatabase = new DatabaseManager(tempDir.resolve("new").resolve("test.db"));
         newDatabase.initialize();
         ChatRepository newChats = new ChatRepository(newDatabase);
+        ChatTrashRepository newTrash = new ChatTrashRepository(newDatabase, ChatFiles.NONE);
         library(newDatabase, newChats);
 
         /*  the same deletions, up to 2.1.2 and now  */
         try (Connection connection = oldDatabase.getConnection()) {
             deleteAll(new OldDeletion(connection));
         }
-        oldChats.deleteImagePermanently("removed-a");
+        new ChatTrashRepository(oldDatabase, ChatFiles.NONE).deleteImagePermanently("removed-a");
         deleteAll(new Deletion() {
             @Override
             public void image(String imageId) throws SQLException {
-                assertTrue(newChats.softDeleteImage(imageId));
+                assertTrue(newTrash.softDeleteImage(imageId));
             }
 
             @Override
             public void entry(String entryId) throws SQLException {
-                assertTrue(newChats.softDeleteChatEntry(entryId));
+                assertTrue(newTrash.softDeleteChatEntry(entryId));
             }
         });
-        newChats.deleteImagePermanently("removed-a");
+        newTrash.deleteImagePermanently("removed-a");
 
         try (Connection connection = oldDatabase.getConnection(); Statement stmt = connection.createStatement()) {
             stmt.executeUpdate("DELETE FROM schema_migrations WHERE version = '030'");
@@ -118,7 +121,7 @@ class DeletedCostCorrectionTest {
         }
 
         /*  a restore takes back what the entry booked, not what other entries booked  */
-        assertTrue(oldChats.restoreChatEntry("together"));
+        assertTrue(new ChatTrashRepository(oldDatabase, ChatFiles.NONE).restoreChatEntry("together"));
         assertEquals(EARLIER, oldChats.findChatById("together").orElseThrow().getDeletedCost(), DELTA);
     }
 

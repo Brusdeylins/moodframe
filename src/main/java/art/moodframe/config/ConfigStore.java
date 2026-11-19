@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -39,13 +41,18 @@ class ConfigStore {
         thread.setDaemon(true);
         return thread;
     });
-    private static final Object PENDING_LOCK = new Object();
 
+    private final Object pendingLock = new Object();
     private final Properties properties = new Properties();
     private final LibraryPaths paths;
     private final Path configPath;
     private final EncryptionUtil encryption;
     private ScheduledFuture<?> pendingSave;
+
+    /*  The copy of a file that could not be read, null if it was read; without a copy nothing is written, so the
+        stored keys of the unreadable file are not overwritten  */
+    private Path unreadableCopy;
+    private boolean writable = true;
 
     /**
      * Reads the settings file of the library, or creates it with the defaults.
@@ -82,13 +89,46 @@ class ConfigStore {
         if (Files.exists(configPath)) {
             try (FileInputStream fis = new FileInputStream(configPath.toFile())) {
                 properties.load(fis);
-            } catch (IOException e) {
+            } catch (IOException | IllegalArgumentException e) {
+                logger.error("Failed to read the configuration {}, using the defaults", configPath, e);
+                properties.clear();
                 loadDefaults();
+                keepUnreadable();
             }
         } else {
             loadDefaults();
             save();
         }
+    }
+
+    /*  Copies the unreadable file before a save overwrites it, as it holds the encrypted keys; if the copy fails,
+        nothing is written in this session  */
+    private void keepUnreadable() {
+        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path copy = configPath.resolveSibling(configPath.getFileName() + ".unreadable-" + stamp);
+        try {
+            Files.copy(configPath, copy, StandardCopyOption.REPLACE_EXISTING);
+            unreadableCopy = copy;
+            logger.warn("The unreadable configuration was copied to {}", copy);
+        } catch (IOException e) {
+            writable = false;
+            logger.error("Failed to copy the unreadable configuration {}; it is not overwritten in this session",
+                    configPath, e);
+        }
+    }
+
+    /**
+     * Tells whether the settings file could not be read at the start, so the defaults apply.
+     *
+     * @return true if the file was unreadable
+     */
+    boolean wasUnreadable() {
+        return unreadableCopy != null || !writable;
+    }
+
+    /** @return the copy of the unreadable settings file, null if there is none */
+    Path unreadableCopy() {
+        return unreadableCopy;
     }
 
     /**
@@ -104,8 +144,8 @@ class ConfigStore {
         properties.setProperty("ui.window.width", "1200");
         properties.setProperty("ui.window.height", "800");
 
-        properties.setProperty("path.database", paths.database().toString());
-        properties.setProperty("path.logs", paths.logs().toString());
+        /*  The database and the logs are always where LibraryPaths says; former versions wrote path.database and
+            path.logs as well, which are ignored  */
         properties.setProperty("path.images", paths.images().toString());
 
         properties.setProperty("model.default", "flux.3-image");
@@ -125,9 +165,10 @@ class ConfigStore {
     }
 
     /**
-     * Resets every setting to its default, except the secrets.
+     * Resets every setting to its default, except the secrets. It holds the lock of {@link #save()}, so the writer
+     * thread never writes the file in the middle of it, without the secrets.
      */
-    void resetToDefaults() {
+    synchronized void resetToDefaults() {
         Map<String, String> secrets = new HashMap<>();
         for (Secret secret : Secret.values()) {
             String value = properties.getProperty(secret.key());
@@ -223,6 +264,11 @@ class ConfigStore {
      * Writes the file now, replacing it atomically; calls are serialized. A failure is logged, not thrown.
      */
     public synchronized void save() {
+        if (!writable) {
+            logger.warn("The configuration is not saved, as the unreadable file could not be copied");
+            return;
+        }
+
         /*  Write beside the file and move it over, so a crash never leaves a truncated configuration  */
         Path temp = configPath.resolveSibling(configPath.getFileName() + ".tmp");
         try (FileOutputStream fos = new FileOutputStream(temp.toFile())) {
@@ -241,7 +287,7 @@ class ConfigStore {
      * thread never waits for the disk.</p>
      */
     void saveSoon() {
-        synchronized (PENDING_LOCK) {
+        synchronized (pendingLock) {
             if (pendingSave != null)
                 pendingSave.cancel(false);
             pendingSave = WRITER.schedule(this::save, SAVE_DELAY_MILLIS, TimeUnit.MILLISECONDS);
@@ -253,7 +299,7 @@ class ConfigStore {
      */
     void flush() {
         ScheduledFuture<?> pending;
-        synchronized (PENDING_LOCK) {
+        synchronized (pendingLock) {
             pending = pendingSave;
             pendingSave = null;
         }

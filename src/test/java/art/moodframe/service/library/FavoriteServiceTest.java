@@ -2,6 +2,7 @@ package art.moodframe.service.library;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ColorStyle;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
@@ -91,10 +92,10 @@ class FavoriteServiceTest {
         frame.setAspectRatio("1:1");
         PromptBlock light = new PromptBlock(null, PromptBlock.Type.LIGHT, "Favorite Light", "soft light", null, true);
         ColorStyle palette = new ColorStyle("Favorite Palette", List.of("#000000"));
-        MoodRepository moods = new MoodRepository(DatabaseConfig.getDatabase());
-        FrameRepository frames = new FrameRepository(DatabaseConfig.getDatabase());
-        PromptBlockRepository blocks = new PromptBlockRepository(DatabaseConfig.getDatabase());
-        ColorStyleRepository palettes = new ColorStyleRepository(DatabaseConfig.getDatabase());
+        MoodRepository moods = new MoodRepository(TestDatabase.get());
+        FrameRepository frames = new FrameRepository(TestDatabase.get());
+        PromptBlockRepository blocks = new PromptBlockRepository(TestDatabase.get());
+        ColorStyleRepository palettes = new ColorStyleRepository(TestDatabase.get());
         assertTrue(moods.save(mood));
         assertTrue(frames.save(frame));
         assertTrue(blocks.save(light));
@@ -125,14 +126,15 @@ class FavoriteServiceTest {
     void answersADatabaseErrorWithNoFavoriteAndKeepsTheState() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("broken").resolve("test.db"));
         database.initialize();
-        assertTrue(new FavoriteService(database, new LibraryEvents()).toggle(FavoriteService.Kind.MOOD, "own-mood"));
+        assertTrue(new FavoriteService(new FavoriteRepository(database), new LibraryEvents())
+                .toggle(FavoriteService.Kind.MOOD, "own-mood"));
 
         try (Connection conn = database.getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE favorites");
         }
 
         assertThrows(SQLException.class, () -> new FavoriteRepository(database).findIds("MOOD"));
-        FavoriteService restarted = new FavoriteService(database, new LibraryEvents());
+        FavoriteService restarted = new FavoriteService(new FavoriteRepository(database), new LibraryEvents());
         assertFalse(restarted.isFavorite(FavoriteService.Kind.MOOD, "own-mood"));
         assertFalse(restarted.toggle(FavoriteService.Kind.STYLE, "own-style"), "the former state");
     }

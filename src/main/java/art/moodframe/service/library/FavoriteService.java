@@ -1,6 +1,5 @@
 package art.moodframe.service.library;
 
-import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.PromptBlock;
 import art.moodframe.repository.FavoriteRepository;
 import org.slf4j.Logger;
@@ -53,13 +52,13 @@ public class FavoriteService {
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
     /**
-     * Creates the service on the given database.
+     * Creates the service on the given repository.
      *
-     * @param database the database of the favorites
-     * @param events   where a switched favorite is reported
+     * @param repository the favorites
+     * @param events     where a switched favorite is reported
      */
-    public FavoriteService(DatabaseManager database, LibraryEvents events) {
-        this.repository = new FavoriteRepository(database);
+    public FavoriteService(FavoriteRepository repository, LibraryEvents events) {
+        this.repository = repository;
         this.events = events;
     }
 

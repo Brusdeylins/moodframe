@@ -2,6 +2,7 @@ package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class FrameRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final FrameRepository repository = new FrameRepository(DatabaseConfig.getDatabase());
+    private final FrameRepository repository = new FrameRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
@@ -51,7 +52,7 @@ class FrameRepositoryTest {
         assertTrue(repository.save(frame));
         assertNotNull(frame.getId());
 
-        Frame stored = repository.findByName("Instagram Story");
+        Frame stored = repository.findByName("Instagram Story").orElseThrow();
         assertEquals("9:16", stored.getAspectRatio());
         assertEquals("2K", stored.getResolution());
         assertEquals(1000, stored.getSortOrder());
@@ -63,7 +64,7 @@ class FrameRepositoryTest {
         frame.setSortOrder(1005);
         assertTrue(repository.update(frame));
 
-        stored = repository.findById(frame.getId());
+        stored = repository.findById(frame.getId()).orElseThrow();
         assertEquals("Druck A3", stored.getName());
         assertEquals("2:3", stored.getAspectRatio());
         assertEquals("4K", stored.getResolution());
@@ -71,11 +72,12 @@ class FrameRepositoryTest {
 
         frame.setResolution(null);
         assertTrue(repository.update(frame));
-        assertNull(repository.findById(frame.getId()).getResolution(), "a frame without resolution keeps it as is");
-        assertNull(repository.findByName("Instagram Story"));
+        assertNull(repository.findById(frame.getId()).orElseThrow().getResolution(),
+                "a frame without resolution keeps it as is");
+        assertTrue(repository.findByName("Instagram Story").isEmpty());
 
         assertTrue(repository.delete(frame.getId()));
-        assertNull(repository.findById(frame.getId()));
+        assertTrue(repository.findById(frame.getId()).isEmpty());
         assertFalse(repository.exists(frame.getId()));
     }
 
@@ -88,8 +90,8 @@ class FrameRepositoryTest {
 
         assertTrue(repository.moveToTrash(trashed.getId()));
         assertFalse(repository.moveToTrash(trashed.getId()), "a frame in the trash is not moved again");
-        assertNull(repository.findById(trashed.getId()));
-        assertNull(repository.findByName("Trashed Frame"));
+        assertTrue(repository.findById(trashed.getId()).isEmpty());
+        assertTrue(repository.findByName("Trashed Frame").isEmpty());
         assertTrue(repository.exists(trashed.getId()), "the id stays taken while the frame is in the trash");
         assertTrue(repository.findAll().stream().anyMatch((Frame frame) -> frame.getId().equals(kept.getId())));
 
@@ -99,7 +101,7 @@ class FrameRepositoryTest {
         assertNotNull(deleted.getDeletedAt());
 
         assertTrue(repository.restore(trashed.getId()));
-        assertNotNull(repository.findById(trashed.getId()));
+        assertTrue(repository.findById(trashed.getId()).isPresent());
         assertTrue(repository.findDeleted().stream().noneMatch((Frame frame) -> frame.getId().equals(trashed.getId())));
     }
 
@@ -107,12 +109,12 @@ class FrameRepositoryTest {
     void doesNotStoreAFrameWithoutAspectRatio() throws Exception {
         Frame frame = frame("No Ratio", null, 1004);
         assertThrows(SQLException.class, () -> repository.save(frame));
-        assertNull(repository.findByName("No Ratio"));
+        assertTrue(repository.findByName("No Ratio").isEmpty());
     }
 
     @Test
     void aFreshDatabaseHasNoModelColumnsButATargetResolution() throws Exception {
-        try (Connection conn = DatabaseConfig.getDatabase().getConnection()) {
+        try (Connection conn = TestDatabase.get().getConnection()) {
             assertEquals(COLUMNS, columns(conn));
         }
     }

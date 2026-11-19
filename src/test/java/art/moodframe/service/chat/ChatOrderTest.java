@@ -36,7 +36,7 @@ class ChatOrderTest {
         databaseManager = new DatabaseManager(databasePath);
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
-        history = new ChatHistoryService(repository, null, null);
+        history = TestChatServices.history(repository, databaseManager);
         chats = new ArrayList<>();
         for (String name : List.of("A", "B", "C", "D")) {
             Chat chat = new Chat.Builder().name(name).sortOrder(chats.size()).build();
@@ -77,7 +77,7 @@ class ChatOrderTest {
     @Test
     void loadsTheChatsInTheStoredOrderWithTheTrashedOnesInPlace() throws Exception {
         repository.saveChatEntry(new ChatEntry.Builder().chatId(chat("B").getId()).userPrompt("a harbor").build());
-        repository.softDeleteChat(chat("B").getId());
+        history.softDeleteChat(chat("B").getId());
         history.moveChat(chats, chat("D"), chat("B"));
 
         assertEquals("ADBC", names(history.load().chats()), "the chat in the trash keeps its place");

@@ -144,14 +144,14 @@ class MainWindowPanelLayoutTest {
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
         DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
-        blocks = new PromptBlockService(TestLibraryServices.database(), events);
-        ColorStyleService colors = new ColorStyleService(TestLibraryServices.database(), events);
+        blocks = TestLibraryServices.blocks(events);
+        ColorStyleService colors = TestLibraryServices.palettes(events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
-        register(MoodService.class, new MoodService(TestLibraryServices.database(), blocks, colors, events));
-        register(FrameService.class, new FrameService(TestLibraryServices.database(), events));
-        register(FavoriteService.class, new FavoriteService(TestLibraryServices.database(), events));
+        register(MoodService.class, TestLibraryServices.moods(blocks, colors, events));
+        register(FrameService.class, TestLibraryServices.frames(events));
+        register(FavoriteService.class, TestLibraryServices.favorites(events));
         ChatLibrary chats = new ChatLibrary(null, events);
         chats.load();
         register(ChatLibrary.class, chats);

@@ -17,7 +17,14 @@ import art.moodframe.model.GenerationModel;
 import art.moodframe.model.Mood;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.repository.BrainstormRepository;
+import art.moodframe.repository.ChatGroupQueries;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
+import art.moodframe.repository.ColorStyleRepository;
+import art.moodframe.repository.FavoriteRepository;
+import art.moodframe.repository.FrameRepository;
+import art.moodframe.repository.MoodRepository;
+import art.moodframe.repository.PromptBlockRepository;
 import art.moodframe.service.brainstorm.BrainstormService;
 import art.moodframe.service.brainstorm.MoodAnalysisService;
 import art.moodframe.service.chat.ChatFileService;
@@ -268,8 +275,8 @@ class MainWindowFlowsTest {
 
     /*  the chats in the database, whose writes of finished images by a generation take a while, as on a slow disk:
         what a generation stores must be done before the window queries it  */
-    private static ChatRepository slowImageWrites(DatabaseManager database, ChatFileService files) {
-        return new ChatRepository(database, files) {
+    private static ChatRepository slowImageWrites(DatabaseManager database) {
+        return new ChatRepository(database) {
             @Override
             public void saveGeneratedImage(GeneratedImage image) throws SQLException {
                 if (Thread.currentThread().getName().startsWith("generation-store")
@@ -305,30 +312,32 @@ class MainWindowFlowsTest {
         register(LibraryPaths.class, paths);
         if (!realServices.containsKey(DatabaseManager.class))
             realServices.put(DatabaseManager.class, services().get(DatabaseManager.class));
-        DatabaseManager database = DatabaseConfig.initialize(config.getDatabasePath());
+        DatabaseManager database = DatabaseConfig.initialize(paths.database().toString());
 
         LibraryEvents events = new LibraryEvents();
-        PromptBlockService blocks = new PromptBlockService(database, events);
-        ColorStyleService colors = new ColorStyleService(database, events);
-        moods = new MoodService(database, blocks, colors, events);
-        frames = new FrameService(database, events);
+        PromptBlockService blocks = new PromptBlockService(new PromptBlockRepository(database), events);
+        ColorStyleService colors = new ColorStyleService(new ColorStyleRepository(database), events);
+        moods = new MoodService(new MoodRepository(database), blocks, colors, events);
+        frames = new FrameService(new FrameRepository(database), events);
         register(LibraryEvents.class, events);
         register(PromptBlockService.class, blocks);
         register(ColorStyleService.class, colors);
         register(MoodService.class, moods);
         register(FrameService.class, frames);
-        register(FavoriteService.class, new FavoriteService(database, events));
+        register(FavoriteService.class, new FavoriteService(new FavoriteRepository(database), events));
 
         /*  chats, their files and the trash  */
         TrashManager trashManager = new TrashManager(paths, 60);
         thumbnails = new ThumbnailManager(paths);
         ChatFileService files = new ChatFileService(trashManager, thumbnails,
                 new FileManagerService(paths.images(), thumbnails));
-        repository = slowImageWrites(database, files);
+        repository = slowImageWrites(database);
+        ChatTrashRepository chatTrash = new ChatTrashRepository(database, files);
         trash = new TrashCenter();
-        trash.register(new ChatTrashGroup(repository));
-        trash.register(new ImageTrashGroup(repository, files, trashManager, thumbnails));
-        ChatHistoryService history = new ChatHistoryService(repository, trashManager, files);
+        trash.register(new ChatTrashGroup(repository, chatTrash));
+        trash.register(new ImageTrashGroup(repository, chatTrash, trashManager, thumbnails));
+        ChatHistoryService history = new ChatHistoryService(repository, chatTrash, new ChatGroupQueries(database),
+                trashManager);
         chats = recording(history, events, deletions, chatWrites, loads);
         trash.addListener(chats);
 

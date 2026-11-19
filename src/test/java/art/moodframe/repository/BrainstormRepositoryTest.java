@@ -1,6 +1,7 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
 import art.moodframe.model.BrainstormSession;
@@ -22,7 +23,7 @@ class BrainstormRepositoryTest {
     @TempDir
     static Path tempDir;
 
-    private final BrainstormRepository repository = new BrainstormRepository(DatabaseConfig.getDatabase());
+    private final BrainstormRepository repository = new BrainstormRepository(TestDatabase.get());
 
     @BeforeAll
     static void createDatabase() {
@@ -76,7 +77,7 @@ class BrainstormRepositoryTest {
 
         String sql = new String(getClass().getResourceAsStream("/db/migration/V015__Shift_brainstorm_steps.sql")
                 .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        try (java.sql.Connection conn = DatabaseConfig.getDatabase().getConnection();
+        try (java.sql.Connection conn = TestDatabase.get().getConnection();
                 java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         }

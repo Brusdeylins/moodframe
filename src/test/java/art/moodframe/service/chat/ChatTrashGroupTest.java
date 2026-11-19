@@ -4,7 +4,9 @@ import art.moodframe.database.DatabaseManager;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
+import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.trash.TrashEntry;
 import art.moodframe.util.I18nManager;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,14 +29,16 @@ class ChatTrashGroupTest {
     static Path tempDir;
 
     private static ChatRepository repository;
+    private static ChatTrashRepository trash;
 
-    private final ChatTrashGroup group = new ChatTrashGroup(repository);
+    private final ChatTrashGroup group = new ChatTrashGroup(repository, trash);
 
     @BeforeAll
     static void createDatabase() throws Exception {
         DatabaseManager databaseManager = new DatabaseManager(tempDir.resolve("db").resolve("test.db"));
         databaseManager.initialize();
         repository = new ChatRepository(databaseManager);
+        trash = new ChatTrashRepository(databaseManager, ChatFiles.NONE);
     }
 
     @Test
@@ -44,7 +48,7 @@ class ChatTrashGroupTest {
         Chat deleted = chat("Regen");
         entry(deleted, 0.08, 2);
         entry(deleted, 0.04, 1);
-        repository.softDeleteChat(deleted.getId());
+        trash.softDeleteChat(deleted.getId());
 
         assertTrue(trashed(active).isEmpty());
         TrashEntry entry = trashed(deleted).orElseThrow();
@@ -58,12 +62,12 @@ class ChatTrashGroupTest {
         Chat chat = chat("Kosten");
         ChatEntry first = entry(chat, 0.50, 2);
         ChatEntry second = entry(chat, 0.20, 1);
-        repository.softDeleteImage(repository.findGeneratedImagesByEntry(first.getId()).get(0).getId());
-        repository.softDeleteChatEntry(second.getId());
+        trash.softDeleteImage(repository.findGeneratedImagesByEntry(first.getId()).get(0).getId());
+        trash.softDeleteChatEntry(second.getId());
         double headerCost = headerCost(chat);
         assertEquals(0.70, headerCost, 0.0001);
 
-        repository.softDeleteChat(chat.getId());
+        trash.softDeleteChat(chat.getId());
         assertEquals(I18nManager.getText("trash.context.chat.singular", 1, String.format("%.2f", headerCost)),
                 trashed(chat).orElseThrow().context());
 
@@ -79,7 +83,7 @@ class ChatTrashGroupTest {
     void deletesAChatForGoodWithItsEntries() throws Exception {
         Chat chat = chat("Weg");
         entry(chat, 0.10, 1);
-        repository.softDeleteChat(chat.getId());
+        trash.softDeleteChat(chat.getId());
 
         assertTrue(group.deletePermanently(chat.getId()));
 
