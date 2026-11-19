@@ -276,6 +276,19 @@ public class ChatTrashRepository {
      * @throws SQLException if database operation fails
      */
     public boolean softDeleteImage(String imageId) throws SQLException {
+        return softDeleteImage(imageId, false);
+    }
+
+    /**
+     * Soft deletes a single image like {@link #softDeleteImage(String)}, optionally keeping its entry in use without
+     * stored images: the running generation of the entry still makes images whose placeholders are not stored yet.
+     *
+     * @param imageId   the image ID to delete
+     * @param keepEntry true to keep the entry in use, also without images left
+     * @return true if successfully deleted, false if it is not stored or already deleted
+     * @throws SQLException if database operation fails
+     */
+    public boolean softDeleteImage(String imageId, boolean keepEntry) throws SQLException {
         writes.lock();
         try {
             logger.info("Soft deleting image: {}", imageId);
@@ -316,6 +329,8 @@ public class ChatTrashRepository {
                 }
 
                 // 3. If no active images are left, mark the entry as deleted; its cost goes to the chat
+                if (keepEntry)
+                    return new Changed(entry != null ? entry.getChatId() : null, List.of(image));
                 String sqlCheck =
                         "SELECT COUNT(*) FROM generated_images WHERE chat_entry_id = ? AND deleted_at IS NULL";
                 try (PreparedStatement stmt = conn.prepareStatement(sqlCheck)) {

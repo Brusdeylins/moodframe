@@ -359,11 +359,12 @@ public class ChatLibrary implements TrashCenter.Listener {
 
     /**
      * Moves an image to the trash; with its last image the entry leaves its chat as well. While the generation of
-     * the entry runs, an image it still makes, or the last image it made (the entry would go to the trash with it),
-     * is deleted after the generation is cancelled and its writes are awaited, as {@link #deleteEntry} does, so the
-     * entry ends and the chat books the cost the cancellation settled. A finished image deleted beside images still
-     * running leaves the generation alone; its share stays in the cost of the entry (see {@link ChatCost}). It waits
-     * for the JavaFX thread then, so call it off that thread.
+     * the entry runs, an image it still makes, or its last image (the entry would go to the trash with it), is deleted
+     * after the generation is cancelled and its writes are awaited, as {@link #deleteEntry} does, so the entry ends and
+     * the chat books the cost the cancellation settled. A finished image deleted beside images or placeholders still
+     * running leaves the generation alone, and the entry stays, also while none of them is stored yet; the share of
+     * the image stays in the cost of the entry (see {@link ChatCost}). It waits for the JavaFX thread then, so call it
+     * off that thread.
      *
      * @param entry the entry of the image
      * @param image the image
@@ -373,8 +374,10 @@ public class ChatLibrary implements TrashCenter.Listener {
     public boolean deleteImage(ChatEntry entry, GeneratedImage image) throws SQLException {
         if (stopsGeneration(entry, image))
             settle(List.of(entry));
-        ChatHistoryService.ImageDeletion deletion = history != null ? history.deleteImage(entry.getId(), image)
-                : inMemory(entry, image);
+        boolean keepEntry = ModelLock.read(() -> running(entry)
+                && entry.getImages().stream().anyMatch((GeneratedImage other) -> other != image));
+        ChatHistoryService.ImageDeletion deletion = history != null
+                ? history.deleteImage(entry.getId(), image, keepEntry) : inMemory(entry, image);
         Optional<Double> deletedCost = deletedCost(entry.getChatId());
         ModelLock.change(() -> {
             entry.getImages().remove(image);
@@ -387,11 +390,15 @@ public class ChatLibrary implements TrashCenter.Listener {
     }
 
     /*  Tells whether deleting the image of a running entry cancels its generation: the image is not finished yet, or
-        no other image is, so the entry would go to the trash with it  */
+        it is the last image or placeholder of the entry, which would go to the trash with it  */
     private static boolean stopsGeneration(ChatEntry entry, GeneratedImage image) {
-        return ModelLock.read(() -> (entry.getStatus() == ChatEntry.Status.PENDING
-                || entry.getStatus() == ChatEntry.Status.PROCESSING) && (!finished(image)
-                || entry.getImages().stream().noneMatch((GeneratedImage other) -> other != image && finished(other))));
+        return ModelLock.read(() -> running(entry) && (!finished(image)
+                || entry.getImages().stream().noneMatch((GeneratedImage other) -> other != image)));
+    }
+
+    /*  an entry whose generation runs; under the lock  */
+    private static boolean running(ChatEntry entry) {
+        return entry.getStatus() == ChatEntry.Status.PENDING || entry.getStatus() == ChatEntry.Status.PROCESSING;
     }
 
     /*  an image cached or failed, as the generation stores it  */

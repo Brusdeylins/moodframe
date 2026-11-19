@@ -96,7 +96,21 @@ public class ChatHistoryService {
      * @throws SQLException if the database cannot be updated
      */
     public ImageDeletion deleteImage(String entryId, GeneratedImage image) throws SQLException {
-        if (!trash.softDeleteImage(image.getId()))
+        return deleteImage(entryId, image, false);
+    }
+
+    /**
+     * Moves an image to the trash like {@link #deleteImage(String, GeneratedImage)}, optionally keeping its entry in
+     * use: the running generation of the entry still makes images that are not stored yet.
+     *
+     * @param entryId   the entry of the image
+     * @param image     the image
+     * @param keepEntry true to keep the entry in use, also without stored images left
+     * @return whether the entry is deleted now and its deleted cost as stored
+     * @throws SQLException if the database cannot be updated
+     */
+    public ImageDeletion deleteImage(String entryId, GeneratedImage image, boolean keepEntry) throws SQLException {
+        if (!trash.softDeleteImage(image.getId(), keepEntry))
             logger.info("Image {} was not deleted now: it is not stored or already in the trash", image.getId());
 
         /*  An entry that is not stored leaves its chat, as before  */
