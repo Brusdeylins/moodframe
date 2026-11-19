@@ -181,7 +181,9 @@ dependencies in the constructor, which is also how tests pass mocks: the provide
 `ChatRepository`, `ChatTrashRepository` and `ChatGroupQueries`; `ConfigurationExporter`
 takes the registered library services, so an import reaches the main window; `ThumbnailManager`, `TrashManager`,
 `FileManagerService` (with the thumbnails it deletes) and the MCP `ChatTools` take their folders from `LibraryPaths`;
-`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window.
+`MoodAnalysisService` is registered once, `BrainstormService.Factory` creates a brainstorm service for each window on
+the shared `BrainstormSessions` (the stored sessions), `BrainstormModels` (the language model of a session) and
+`BrainstormTools` (the tools of the assistant, with the one `YouTubeInfoService`).
 No class of `service` or `mcp` uses the locator (`ArchitectureTest`). `MoodframeApplication.initializeApplication`
 registers them in a few wiring methods (`setUpConfiguration`, `registerLibrary`, `registerProviders`,
 `registerChats`, `registerGeneration`, `registerMcp`, `registerBrainstorm`); a rule of the domain lives in the
@@ -400,12 +402,12 @@ dialog and the configuration export read `getLoggingEnabled()`.
 ### D6: A conversation with a language model in the format of no provider
 
 The brainstorm and the analysis of an image talk to Gemini or to an OpenAI language model, as
-`service.brainstorm.ChatModel` chooses. They hold the conversation as `service.provider.ChatTurn`s: a turn of the user
-(text and images), an answer of the model (text, or tool calls with their ids) and the results of the tools; the tools
-are `ChatTool`s (name, description, JSON Schema of the arguments), which the brainstorm declares and runs. Each chat client translates the
-turns into its own request (`GeminiChatClient.buildChatBody`, `OpenAiChatClient.buildChatBody`) and its answer back,
-so neither client knows the other. Gemini requires the thought signatures of its tool calls back unchanged: its
-answer keeps its parts as `replay`, which only Gemini reads; the answer of another model is built from its text and
-calls. The types live in `service.provider`, which lies below `service.brainstorm`. The stored messages of a session
-stay role and text (`brainstorm_messages`); the tool rounds of a turn exist only while it runs, so the database kept
-its format.
+`service.brainstorm.ChatModel` chooses. They hold the conversation as `service.provider.ChatTurn`s: a turn of the
+user (text and images), an answer of the model (text, or tool calls with their ids) and the results of the tools; the
+tools are `ChatTool`s (name, description, JSON Schema of the arguments), which the brainstorm declares and runs. Each
+chat client translates the turns into its own request (`GeminiChatClient.buildChatBody`,
+`OpenAiChatClient.buildChatBody`) and its answer back, so neither client knows the other. Gemini requires the thought
+signatures of its tool calls back unchanged: its answer keeps its parts as `replay`, which only Gemini reads; the
+answer of another model is built from its text and calls. The types live in `service.provider`, which lies below
+`service.brainstorm`. The stored messages of a session stay role and text (`brainstorm_messages`); the tool rounds of
+a turn exist only while it runs, so the database kept its format.
