@@ -474,7 +474,7 @@ public class ImageGrid extends ListView<List<ImageGrid.Item>> {
             return;
         }
         if (image.isVideo()) {
-            VideoPoster.load(Path.of(path))
+            VideoPoster.load(Path.of(path), sources.cache())
                     .whenComplete((poster, error) -> Platform.runLater(() -> {
                         if (poster != null)
                             view.setImage(poster);

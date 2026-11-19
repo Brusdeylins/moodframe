@@ -94,6 +94,18 @@ public final class ImageCache {
      * @return the image, null if the file is missing or cannot be decoded
      */
     public Image get(String path) {
+        return get(path, decoder);
+    }
+
+    /**
+     * Gets the image of a file, decoding it with the given decoder if it is not in the cache, e.g. the poster of a
+     * video at its own size. Call it off the JavaFX thread.
+     *
+     * @param path    the path of the file
+     * @param decoder decodes the file, returns null if it is missing or cannot be decoded
+     * @return the image, null if the decoder gives none
+     */
+    public Image get(String path, Function<String, Image> decoder) {
         Image cached = getIfCached(path);
         if (cached != null || path == null || path.isEmpty())
             return cached;

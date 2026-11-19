@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -58,16 +59,51 @@ public final class VideoPoster {
 
     /**
      * Loads the poster of a video, and creates it from a frame of the video if it does not exist yet: with JavaFX
-     * Media, and if that fails or JavaFX Media is known to be unusable, with ffmpeg if it is in the PATH.
+     * Media, and if that fails or JavaFX Media is known to be unusable, with ffmpeg if it is in the PATH. A stored
+     * poster is read and decoded on the {@link DiskWorker}, never on the calling thread.
      *
      * @param video the video file
      * @return the poster, or a failed future if no frame could be taken
      */
     public static CompletableFuture<Image> load(Path video) {
+        return load(video, null);
+    }
+
+    /**
+     * Loads the poster of a video like {@link #load(Path)}, a stored one through a cache, so the rows that show the
+     * video again take it without reading the disk.
+     *
+     * @param video the video file
+     * @param cache the decoded images by path, null for none
+     * @return the poster, or a failed future if no frame could be taken
+     */
+    public static CompletableFuture<Image> load(Path video, ImageCache cache) {
+        return load(video, cache, DiskWorker.get());
+    }
+
+    /*  Loads the poster, a stored one read and decoded on the given executor  */
+    static CompletableFuture<Image> load(Path video, ImageCache cache, Executor disk) {
         Path poster = posterPath(video);
-        if (Files.isRegularFile(poster)) {
-            return CompletableFuture.completedFuture(new Image(poster.toUri().toString(), POSTER_WIDTH, 0, true, true));
-        }
+        Image cached = cache != null ? cache.getIfCached(poster.toString()) : null;
+        if (cached != null)
+            return CompletableFuture.completedFuture(cached);
+        return CompletableFuture.supplyAsync(() -> cache != null ? cache.get(poster.toString(), VideoPoster::decode)
+                        : decode(poster.toString()), disk)
+                .thenCompose((Image stored) -> stored != null ? CompletableFuture.completedFuture(stored)
+                        : create(video, poster));
+    }
+
+    /*  Decodes a stored poster completely, null if there is none yet  */
+    private static Image decode(String poster) {
+        Path file = Path.of(poster);
+        if (!Files.isRegularFile(file))
+            return null;
+        Image image = new Image(file.toUri().toString(), POSTER_WIDTH, 0, true, true);
+        return image.isError() ? null : image;
+    }
+
+    /*  Creates the poster from a frame of the video, one video after the other  */
+    private static CompletableFuture<Image> create(Path video, Path poster) {
         synchronized (VideoPoster.class) {
             CompletableFuture<Image> next = queue.handle((Object ignored, Throwable error) -> null)
                     .thenCompose((Object ignored) -> MediaSupport.isUsable()
