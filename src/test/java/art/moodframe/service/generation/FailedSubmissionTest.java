@@ -19,9 +19,12 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -32,7 +35,7 @@ import static org.mockito.Mockito.verify;
 
 /**
  * A submission that fails is stored as failed with the reason past its wrappers, before the listeners learn of it, so
- * a restart keeps the reason; an entry of the MCP server gets it in English.
+ * a restart keeps the reason; an entry of the MCP server gets it in English. The future of the submission fails too.
  */
 class FailedSubmissionTest {
 
@@ -74,8 +77,11 @@ class FailedSubmissionTest {
         ImageGenerationRequest request = new ImageGenerationRequest("a lighthouse",
                 GenerationModel.NANO_BANANA2_1K.getApiModelId());
         request.setImageCount(1);
-        requests.submitImageGeneration(request, entry, null).get(10, TimeUnit.SECONDS);
+        CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, null);
 
+        /*  the future fails with the reason, as the entry does  */
+        ExecutionException failure = assertThrows(ExecutionException.class, () -> submitted.get(10, TimeUnit.SECONDS));
+        assertInstanceOf(ProviderException.class, ProviderException.unwrap(failure));
         verify(repository, timeout(10_000)).saveChatEntry(entry);
         assertEquals(ChatEntry.Status.FAILED, told.get(10, TimeUnit.SECONDS));
         assertEquals(ChatEntry.Status.FAILED, entry.getStatus());

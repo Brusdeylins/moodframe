@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -120,6 +121,7 @@ public class RequestResponseManager implements RequestResponseService {
             catch (Exception e) {
                 logger.error("Failed to submit image generation request", e);
                 markFailed(chatEntry, e);
+                throw new CompletionException(e);
             }
         }, io);
     }

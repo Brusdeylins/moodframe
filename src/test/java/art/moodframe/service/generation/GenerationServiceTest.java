@@ -339,4 +339,16 @@ class GenerationServiceTest {
         assertEquals(ChatEntry.Status.COMPLETED, submission.finished().getNow(null));
         verify(requests).removeEntryListener(listener.getValue());
     }
+
+    @Test
+    void aFailedSubmissionFailsItsFutureAndIsMarkedFailedOnceByTheRequests() throws Exception {
+        IllegalArgumentException refused = new IllegalArgumentException("refused");
+        when(requests.submitImageGeneration(any(), any(), any())).thenReturn(CompletableFuture.failedFuture(refused));
+
+        GenerationService.Submission submission = service.submit(order("FLUX2_PRO", WIDE_2K));
+        java.util.concurrent.ExecutionException failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                () -> submission.submitted().get(10, TimeUnit.SECONDS));
+        assertSame(refused, failure.getCause());
+        verify(requests, never()).markFailed(any(), any());
+    }
 }

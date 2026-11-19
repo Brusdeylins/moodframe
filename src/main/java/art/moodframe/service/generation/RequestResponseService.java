@@ -61,17 +61,18 @@ public interface RequestResponseService {
     void setOnSafetyToleranceLowered(IntConsumer callback);
     
     /**
-     * Submits an image generation request with optional image attachment.
-     * 
+     * Submits an image generation request with optional image attachment: on a worker, it encodes the attachment,
+     * checks the request and hands one request per image to the flow of the provider, whose answers arrive later
+     * through the listeners. A submission that fails (an attachment that cannot be read or that the model does not
+     * take, an invalid request, a prompt too long for the provider, a provider that refuses at once) marks the entry
+     * failed, like {@link #markFailed}, and the future fails with the reason.
+     *
      * @param request the generation request containing parameters
      * @param chatEntry the chat entry to update with results
      * @param attachedImageFile optional image file for image-to-image generation (can be null)
-     * @return CompletableFuture that completes when the request is submitted
-     * @throws IllegalArgumentException if request or chatEntry is null
-     * @throws IOException if the attached image file cannot be read
-     * @throws RuntimeException if the API service is not configured
+     * @return completes once the requests are handed to the provider, exceptionally if the submission failed
      */
-    CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry, 
+    CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
             java.io.File attachedImageFile);
 
     /**

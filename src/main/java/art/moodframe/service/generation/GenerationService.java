@@ -98,7 +98,8 @@ public class GenerationService {
      * An accepted order.
      *
      * @param entry the stored chat entry
-     * @param submitted completes once the request is handed to the provider, exceptionally if that failed
+     * @param submitted completes once the request is handed to the provider, exceptionally if that failed (the entry
+     *                  is marked failed then)
      * @param finished completes with the state the entry ends in: COMPLETED, FAILED or CANCELLED
      */
     public record Submission(ChatEntry entry, CompletableFuture<Void> submitted,
@@ -332,17 +333,13 @@ public class GenerationService {
         requests.addEntryListener(watch);
         finished.whenComplete((ChatEntry.Status status, Throwable throwable) -> requests.removeEntryListener(watch));
 
+        /*  A failed submission is stored as failed with the reason by the requests, whose listeners finish the entry  */
         CompletableFuture<Void> submitted = requests.submitImageGeneration(request, entry, order.attachment())
                 .whenComplete((Void done, Throwable throwable) -> {
-                    if (throwable == null) {
-                        logger.debug("Real API request submitted to {} for prompt: {}",
-                                provider.getDisplayName(), prompt);
-                        return;
-                    }
-                    logger.error("Failed to submit API request", throwable);
-
-                    /*  stored as failed with the reason, then told to the listeners, which finish the entry  */
-                    requests.markFailed(entry, throwable);
+                    if (throwable == null)
+                        logger.debug("Request submitted to {} for prompt: {}", provider.getDisplayName(), prompt);
+                    else
+                        logger.error("Failed to submit API request", throwable);
                 });
         return new Submission(entry, submitted, finished);
     }
