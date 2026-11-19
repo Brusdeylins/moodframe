@@ -1,5 +1,6 @@
 package art.moodframe.ui.support;
 
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 
 /**
@@ -25,11 +26,12 @@ public interface StatusSink {
     void error(String message);
 
     /**
-     * Shows "Error: " and the detail as error, later on the JavaFX thread, so any thread may report a failure.
+     * Shows the detail behind "Error:" of the current language as error, later on the JavaFX thread, so any thread
+     * may report a failure.
      *
      * @param detail what failed
      */
     default void failure(String detail) {
-        Platform.runLater(() -> error("Error: " + detail));
+        Platform.runLater(() -> error(I18nManager.getText("status.error.failure", detail)));
     }
 }
