@@ -12,7 +12,6 @@ import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.service.provider.ProviderPolicy;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.PaletteExtractor;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;

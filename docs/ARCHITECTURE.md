@@ -35,7 +35,7 @@ the persistence and the main decisions. The `package-info.java` of each package 
 | `repository` | data access with plain JDBC, one repository per aggregate                              |
 | `database`   | SQLite connections, WAL mode, schema migrations                                         |
 | `model`      | domain data classes, records and enums                                                  |
-| `util`       | general helpers without JavaFX: i18n, images, secrets, the version, YouTube links       |
+| `util`       | general helpers without JavaFX: i18n, images, secrets, the version, the downloads      |
 | `config`     | folders of the library (`LibraryPaths`), settings (`ApplicationConfig` and its          |
 |              | sections), key encryption, the service locator (`ServiceFactory`)                       |
 

@@ -13,7 +13,6 @@ import art.moodframe.net.IoExecutor;
 import art.moodframe.repository.BrainstormRepository;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
-import art.moodframe.util.YouTubeClip;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;

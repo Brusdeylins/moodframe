@@ -14,7 +14,6 @@ import art.moodframe.service.library.RepositoryAccess;
 import art.moodframe.service.provider.GeminiApiService;
 import art.moodframe.service.provider.OpenAiApiService;
 import art.moodframe.util.I18nManager;
-import art.moodframe.util.YouTubeClip;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
