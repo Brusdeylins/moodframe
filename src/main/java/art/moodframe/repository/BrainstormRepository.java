@@ -188,30 +188,32 @@ public class BrainstormRepository {
     }
 
     /**
-     * Appends a message to a session and marks the session as changed now.
+     * Appends a message to a session and marks the session as changed now, in one transaction.
      *
      * @param sessionId the session id
      * @param message the message to store
-     * @throws SQLException if the database fails
+     * @throws SQLException if the database fails; then neither is stored
      */
     public void addMessage(String sessionId, BrainstormMessage message) throws SQLException {
         String insert = "INSERT INTO brainstorm_messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)";
         String touch = "UPDATE brainstorm_sessions SET updated_at = ? WHERE id = ?";
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-        try (Connection conn = database.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(insert);
-             PreparedStatement touchStmt = conn.prepareStatement(touch)) {
-            stmt.setString(1, sessionId);
-            stmt.setString(2, message.getRole());
-            stmt.setString(3, message.getContent());
-            stmt.setTimestamp(4, now);
-            stmt.executeUpdate();
+        database.inTransaction((Connection conn) -> {
+            try (PreparedStatement stmt = conn.prepareStatement(insert);
+                 PreparedStatement touchStmt = conn.prepareStatement(touch)) {
+                stmt.setString(1, sessionId);
+                stmt.setString(2, message.getRole());
+                stmt.setString(3, message.getContent());
+                stmt.setTimestamp(4, now);
+                stmt.executeUpdate();
 
-            touchStmt.setTimestamp(1, now);
-            touchStmt.setString(2, sessionId);
-            touchStmt.executeUpdate();
-        }
+                touchStmt.setTimestamp(1, now);
+                touchStmt.setString(2, sessionId);
+                touchStmt.executeUpdate();
+            }
+            return null;
+        });
     }
 
     /**
