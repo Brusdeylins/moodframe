@@ -140,13 +140,4 @@ public class ColorBox extends StackPane {
         crossLine2.setVisible(true);
         Tooltip.install(this, new Tooltip("-"));
     }
-
-    /**
-     * Gets the size of the color box.
-     *
-     * @return the box size in pixels
-     */
-    public double getBoxSize() {
-        return boxSize;
-    }
 }

@@ -170,13 +170,4 @@ public class PreviewFrame extends Group {
     public double getPhase() {
         return phase.get();
     }
-
-    /**
-     * The bounds the frame surrounds.
-     *
-     * @return the framed bounds, or null if there is no frame
-     */
-    public Bounds getFramed() {
-        return framed;
-    }
 }

@@ -716,15 +716,6 @@ public class MoodframeApplication extends Application {
     }
 
     /**
-     * Changes the application theme at runtime.
-     * 
-     * @param themeName the name of the theme to apply
-     */
-    public void changeTheme(String themeName) {
-        ThemeManager.changeTheme(themeName);
-    }
-
-    /**
      * Configures the primary stage properties.
      * 
      * @param stage the primary stage

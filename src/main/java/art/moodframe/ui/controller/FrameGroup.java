@@ -137,10 +137,6 @@ final class FrameGroup {
         updateFrameState();
     }
 
-    /** @return whether the group has frames to choose from */
-    boolean hasFrames() {
-        return frameService != null;
-    }
 
     /** The frame shown as chosen, null for "No frame". */
     Frame chosenFrame() {
