@@ -1,8 +1,8 @@
 package art.moodframe.ui.brainstorm;
 
 import art.moodframe.model.BrainstormSession;
-import art.moodframe.ui.BoxInset;
-import art.moodframe.ui.cell.ListReorder;
+import art.moodframe.ui.support.BoxInset;
+import art.moodframe.ui.support.ListReorder;
 import art.moodframe.util.I18nManager;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.value.ChangeListener;

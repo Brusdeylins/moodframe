@@ -1,7 +1,11 @@
 package art.moodframe.service.provider;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.model.*;
+import art.moodframe.model.ApiProvider;
+import art.moodframe.model.GenerationJobInfo;
+import art.moodframe.model.GenerationJobResult;
+import art.moodframe.model.GenerationModel;
+import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;

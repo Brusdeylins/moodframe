@@ -30,7 +30,7 @@ import art.moodframe.service.provider.ApiProviderValidator;
 import art.moodframe.service.trash.TrashCenter;
 import art.moodframe.service.trash.TrashCleanupService;
 import art.moodframe.service.trash.TrashGroup;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.ImageSources;

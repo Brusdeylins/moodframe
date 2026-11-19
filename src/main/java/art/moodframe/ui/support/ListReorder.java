@@ -1,6 +1,5 @@
-package art.moodframe.ui.cell;
+package art.moodframe.ui.support;
 
-import art.moodframe.ui.BoxInset;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;

@@ -5,7 +5,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.service.chat.ImageSizeCheck;
 import art.moodframe.service.chat.ModelLock;
 import art.moodframe.service.chat.ThumbnailManager;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.util.I18nManager;
 import art.moodframe.ui.support.ImageCache;
 import art.moodframe.ui.support.VideoPoster;

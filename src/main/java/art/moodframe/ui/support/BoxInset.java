@@ -1,4 +1,4 @@
-package art.moodframe.ui;
+package art.moodframe.ui.support;
 
 /**
  * The one inset of the boxes of the main window and the brainstorm dialog: from the left edge of a box to the line

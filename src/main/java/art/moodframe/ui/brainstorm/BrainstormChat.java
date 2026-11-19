@@ -3,7 +3,7 @@ package art.moodframe.ui.brainstorm;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormReply;
 import art.moodframe.model.BrainstormSession;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;

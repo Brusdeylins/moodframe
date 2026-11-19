@@ -9,7 +9,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.MoodGroup;
 import art.moodframe.service.chat.ChatHistoryService;
 import art.moodframe.service.chat.ChatLibrary;
-import art.moodframe.ui.BoxInset;
+import art.moodframe.ui.support.BoxInset;
 import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.component.ChatEntryCard;

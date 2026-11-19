@@ -1,6 +1,7 @@
 /**
  * Helpers of the user interface that need JavaFX or the desktop: themes, videos, opening files and web pages,
- * listener cleanup, loading on a worker, the decoded images.
+ * listener cleanup, loading on a worker, the decoded images, the reordering of list items, the common inset and the
+ * texts shared by several views.
  *
  * <p>Main classes:</p>
  * <ul>
@@ -10,6 +11,10 @@
  * <li>{@link Subscription}: removable listeners, collected in {@link CompositeDisposable}</li>
  * <li>{@link CoalescedLoad}: loads data for the JavaFX thread on a worker, one query per burst of requests</li>
  * <li>{@link ImageCache}: the decoded JavaFX images of the thumbnails, loaded once per file without a global lock</li>
+ * <li>{@link FxI18n}: registers views for the change of the language, a dialog or window until it closes</li>
+ * <li>{@link ListReorder}: reorders the items of a list by dragging, in the main window and the brainstorm</li>
+ * <li>{@link BoxInset}: the common inset of the boxes of the main window and the brainstorm dialog</li>
+ * <li>{@link SafetyTolerance}: the text of a BFL safety tolerance, in the generation panel and on an entry</li>
  * </ul>
  */
 package art.moodframe.ui.support;
