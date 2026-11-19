@@ -369,18 +369,6 @@ public class ColorStyleService {
     }
 
     /**
-     * Gets the palette text of the prompt for a style (see {@link ColorStyle#toPromptString()}).
-     */
-    public String getColorPromptText(String styleName) {
-        if (styleName == null || styleName.isEmpty() || "None".equals(styleName)) {
-            return "";
-        }
-
-        ColorStyle style = getStyleByName(styleName);
-        return style != null ? style.toPromptString() : "";
-    }
-
-    /**
      * Adds a new custom color style.
      */
     public synchronized boolean addCustomStyle(ColorStyle style) {
