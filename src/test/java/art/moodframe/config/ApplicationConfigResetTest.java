@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** A reset of the settings keeps every stored secret and forgets the rest. */
@@ -55,13 +56,25 @@ class ApplicationConfigResetTest {
     }
 
     @Test
+    void turnsThePromptUpsamplingOfBflOffAgain() {
+        ConfigStore store = new ConfigStore(LibraryPaths.under(home));
+        ApplicationConfig config = new ApplicationConfig(store);
+        config.generation().setDefaultBflPromptUpsampling(true);
+
+        config.resetToDefaults();
+
+        assertFalse(config.generation().getDefaultBflPromptUpsampling());
+        assertEquals("false", store.get("generation.bfl_prompt_upsampling"));
+    }
+
+    @Test
     void aReaderNeverSeesTheSettingsEmptyDuringAReset() throws Exception {
         ConfigStore store = new ConfigStore(LibraryPaths.under(home));
         AtomicBoolean done = new AtomicBoolean();
         AtomicInteger missing = new AtomicInteger();
         Thread reader = new Thread(() -> {
             while (!done.get())
-                if (store.get("ui.theme") == null || store.get("api.base_url") == null)
+                if (store.get("ui.theme") == null || store.get("api.timeout_seconds") == null)
                     missing.incrementAndGet();
         });
         reader.start();

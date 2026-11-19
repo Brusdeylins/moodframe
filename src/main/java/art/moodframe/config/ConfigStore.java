@@ -133,10 +133,9 @@ class ConfigStore {
         return unreadableCopy;
     }
 
-    /*  Sets the values a fresh configuration writes: the BFL connection, theme, language and window size, the folders
-        of the library, the model defaults and the environment  */
+    /*  Sets the values a fresh configuration writes: the timeout of the requests, theme, language and window size, the
+        folder of the images and the model defaults  */
     private void putDefaults(Properties target) {
-        target.setProperty("api.base_url", "https://api.bfl.ai");
         target.setProperty("api.timeout_seconds", "600");
 
         target.setProperty("ui.theme", "primer-dark");
@@ -152,16 +151,6 @@ class ConfigStore {
         target.setProperty("model.default_aspect_ratio", "16:9");
         target.setProperty("model.default_image_count", "1");
         target.setProperty("model.default_safety_tolerance", "2");
-
-        target.setProperty("dev.environment", detectEnvironment());
-    }
-
-    /*  "dev" in the IDE or with Gradle (or as the system property moodframe.env says), else "prod"  */
-    private static String detectEnvironment() {
-        String env = System.getProperty("moodframe.env");
-        if (env != null)
-            return env;
-        return System.getProperty("java.class.path").contains("gradle") ? "dev" : "prod";
     }
 
     /**
@@ -173,7 +162,7 @@ class ConfigStore {
         Properties fresh = new Properties();
         putDefaults(fresh);
         fresh.setProperty("api.region", "Global");
-        fresh.setProperty("generation.default_prompt_upsampling", "false");
+        fresh.setProperty("generation.bfl_prompt_upsampling", "false");
         for (Secret secret : Secret.values()) {
             String value = properties.getProperty(secret.key());
             if (value != null && !value.isBlank())
