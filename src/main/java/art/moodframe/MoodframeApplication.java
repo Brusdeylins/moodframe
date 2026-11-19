@@ -3,6 +3,7 @@ package art.moodframe;
 import java.io.IOException;
 import java.net.URL;
 import java.net.http.HttpClient;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -29,7 +30,7 @@ import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
 import art.moodframe.mcp.McpService;
 import art.moodframe.mcp.McpTools;
-import art.moodframe.net.CorporateProxyConfig;
+import art.moodframe.net.CertificateStore;
 import art.moodframe.net.HttpClients;
 import art.moodframe.net.IoExecutor;
 import art.moodframe.repository.BrainstormRepository;
@@ -296,10 +297,15 @@ public class MoodframeApplication extends Application {
         /*  Earlier versions wrote the Gemini key into the log files  */
         Secrets.redactLogs(paths.logs());
 
-        // Create the directory of the corporate certificates at the start
-        new CorporateProxyConfig(config);
+        /*  The folder of the corporate certificates exists from the start, so the user finds it  */
+        try {
+            new CertificateStore(Path.of(config.proxy().getCertificatePath().trim())).createDirectory();
+        }
+        catch (IOException | RuntimeException e) {
+            logger.warn("Failed to create the folder of the certificates", e);
+        }
 
-        /*  The HTTP clients with proxy and certificates of the services built here  */
+        /*  The HTTP clients with proxy and certificates of the services built here, which read them on first use  */
         ServiceFactory.getInstance().registerService(HttpClients.class, new HttpClients(config));
 
         // Initialize I18n with user's preferred language
