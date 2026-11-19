@@ -203,7 +203,7 @@ public class MainWindowController implements I18nChangeListener {
 
         inputBar = chatViewController.inputBar();
         TrashWindow.Opener trash = new TrashWindow.Opener(services.getService(TrashCenter.class),
-                services.getService(TrashCleanupService.class));
+                services.getService(TrashCleanupService.class), worker);
         chatViewController.useImageSources(new ImageSources(services.getService(ThumbnailManager.class),
                 services.getService(ImageSizeCheck.class)));
         chatViewController.init(config, chatLibrary, chatHistory, worker, (StackPane) mainBorderPane.getParent(),
