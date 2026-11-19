@@ -21,6 +21,7 @@ import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.service.provider.bfl.BflApiService;
 import art.moodframe.service.provider.gemini.GeminiApiService;
 import art.moodframe.service.provider.openai.OpenAiApiService;
+import art.moodframe.service.trash.TrashGroup;
 import javafx.application.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -362,6 +363,47 @@ class DeleteRunningEntryTest {
         assertEquals(price, stored.getDeletedCost(), 1e-9);
         assertEquals(3 * price, entry.getCost(), 1e-9);
         assertEquals(3 * price, chat.getDeletedCost() + entry.getCost(), 1e-9, "the chat total stays");
+    }
+
+    @Test
+    void aFinishedImageRestoredWhileOthersRunLeavesTheGenerationItsPlaceholders() throws Exception {
+        Chat chat = chat();
+        ChatEntry entry = order(chat, 3);
+        verify(gemini, timeout(10_000).times(3)).submitGenerationRequest(any());
+        answers.poll().complete(picture());
+        answers.poll().complete(picture());
+        await(() -> entry.getImages().stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).count() == 2);
+        flush();
+        GeneratedImage made = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() == GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+        double price = made.getBaseCost();
+        GeneratedImage running = ChatLibrary.imagesOf(entry).stream().filter((GeneratedImage image) ->
+                image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED).findFirst().orElseThrow();
+        assertFalse(chats.deleteImage(entry, made));
+
+        /*  The trash gives the image back while the third image still runs: its placeholder stays in the entry  */
+        assertTrue(trash.restoreImage(made.getId()));
+        chats.restored(TrashGroup.Kind.IMAGES, made.getId());
+
+        List<GeneratedImage> shown = ChatLibrary.imagesOf(entry);
+        assertEquals(3, shown.size());
+        assertTrue(shown.contains(running), "the placeholder of the running request keeps its object");
+        assertEquals(List.of(0, 1, 2), shown.stream().map(GeneratedImage::getSortOrder).toList());
+        assertEquals(0.0, entry.getDeletedCost(), 1e-9);
+        assertEquals(ChatEntry.Status.PROCESSING, entry.getStatus());
+
+        answers.poll().complete(picture());
+        await(() -> entry.getStatus() == ChatEntry.Status.COMPLETED);
+        flush();
+        assertEquals(GeneratedImage.DownloadStatus.CACHED, running.getDownloadStatus(), "the third image arrives");
+        ChatEntry stored = repository.findChatEntryById(entry.getId()).orElseThrow();
+        assertEquals(ChatEntry.Status.COMPLETED, stored.getStatus());
+        assertEquals(3, repository.findGeneratedImagesByEntry(entry.getId()).size());
+        assertEquals(3 * price, stored.getCost(), 1e-9, "the entry costs its three images");
+        assertEquals(0.0, stored.getDeletedCost(), 1e-9);
+        assertEquals(3 * price, entry.getCost(), 1e-9);
+        assertEquals(0.0, deletedCostOf(chat), 1e-9);
     }
 
     @Test

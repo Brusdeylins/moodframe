@@ -35,23 +35,16 @@ module art.moodframe {
     requires org.kordamp.ikonli.materialdesign2;
     
     // AtlantaFX Modern Theme Framework
-    requires transitive atlantafx.base;
-    
-    /*  Exported: the root for the JavaFX launcher, which creates the application class, and the packages whose
-        public types other modules use; the reflection of FXML and Jackson on fields needs the opens below  */
+    requires atlantafx.base;
+
+    /*  Exported: only the root, for the JavaFX launcher, which creates the application class; no other module uses a
+        type of the application, the reflection of FXML and Jackson on its fields needs the opens below  */
     exports art.moodframe;
-    exports art.moodframe.ui.controller;
-    exports art.moodframe.ui.component;
-    exports art.moodframe.ui.dialog;
-    exports art.moodframe.ui.brainstorm;
-    exports art.moodframe.ui.panel;
-    exports art.moodframe.model;
 
     // Open for reflection (required for FXML, Jackson); the root holds no controller and nothing Jackson maps
     opens art.moodframe.ui.controller to javafx.fxml;
     opens art.moodframe.ui.controller.settings to javafx.fxml;
     opens art.moodframe.ui.component to javafx.fxml;
-    opens art.moodframe.ui.dialog to javafx.fxml;
     opens art.moodframe.ui.panel to javafx.fxml;
     opens art.moodframe.model to com.fasterxml.jackson.databind;
 

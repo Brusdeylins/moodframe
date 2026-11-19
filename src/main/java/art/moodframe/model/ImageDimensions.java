@@ -2,20 +2,21 @@ package art.moodframe.model;
 
 /**
  * The pixel size of an image request: the largest size of the aspect ratio that the model allows, in the
- * alignment the BFL API needs.
+ * alignment the BFL API needs. FLUX.2 has sides of its own; FLUX 3 and an unknown model (null) take the sides of the
+ * former FLUX models.
  *
  * @since 1.9.1
  */
 public final class ImageDimensions {
 
-    /*  the largest side of the former FLUX models  */
+    /*  the largest side of the former FLUX models, for an unknown model  */
     private static final int FORMER_FLUX_MAX = 2048;
 
     private ImageDimensions() {
     }
 
     /**
-     * Gets the alignment of the dimensions: FLUX.2 uses multiples of 16, FLUX.1 (and the default) of 32.
+     * Gets the alignment of the dimensions: FLUX.2 uses multiples of 16, the other models of 32.
      *
      * @param model the model (may be null)
      * @return 16 or 32
@@ -25,8 +26,7 @@ public final class ImageDimensions {
     }
 
     /**
-     * Gets the smallest width or height a model sized by width and height takes: FLUX.2 64, FLUX.1 (and the default)
-     * 256.
+     * Gets the smallest width or height a model sized by width and height takes: FLUX.2 64, the other models 256.
      *
      * @param model the model (may be null)
      * @return 64 or 256
@@ -47,16 +47,17 @@ public final class ImageDimensions {
     }
 
     /**
-     * Gets the dimensions of an aspect ratio.
+     * Gets the dimensions of an aspect ratio for a model: within its {@link #minimumFor smallest} and
+     * {@link #maximumFor largest} side, in its {@link #multipleFor alignment}.
      *
      * @param aspectRatio the ratio like {@code 16:9}; anything unreadable counts as square
-     * @param maxValue    the largest allowed width or height
-     * @param multiple    the alignment (16 for FLUX.2, 32 for FLUX.1)
+     * @param model       the model (may be null)
      * @return {@code [width, height]}
      */
-    public static int[] forAspectRatio(String aspectRatio, int maxValue, int multiple) {
+    public static int[] forAspectRatio(String aspectRatio, GenerationModel model) {
         int[] ratio = parse(aspectRatio);
-        return ratio == null ? optimal(1, 1, maxValue, multiple) : optimal(ratio[0], ratio[1], maxValue, multiple);
+        int[] sides = ratio != null ? ratio : new int[] { 1, 1 };
+        return optimal(sides[0], sides[1], maximumFor(model), multipleFor(model), minimumFor(model));
     }
 
     /**
@@ -88,21 +89,21 @@ public final class ImageDimensions {
      *
      * @param aspectWidth  width component of aspect ratio
      * @param aspectHeight height component of aspect ratio
-     * @param maxValue     maximum allowed width or height (1440 for standard, 2048 for Ultra/FLUX.2)
-     * @param multiple     dimension alignment (16 for FLUX.2, 32 for FLUX.1)
+     * @param maxValue     maximum allowed width or height (see {@link #maximumFor})
+     * @param multiple     dimension alignment (see {@link #multipleFor})
+     * @param minDimension minimum allowed width or height (see {@link #minimumFor})
      * @return [width, height] as multiples of the alignment
      */
-    static int[] optimal(int aspectWidth, int aspectHeight, int maxValue, int multiple) {
+    static int[] optimal(int aspectWidth, int aspectHeight, int maxValue, int multiple, int minDimension) {
         // SIMPLE AND CORRECT APPROACH:
         // 1. Start with the maximum allowed dimension
         // 2. Calculate the other dimension based on aspect ratio
         // 3. If either exceeds maxValue, scale down
-        // 4. Round to multiples of 16 (FLUX.2) or 32 (FLUX.1)
-        // 5. Ensure minimum 64px (FLUX.2) or 256px (FLUX.1)
+        // 4. Round to multiples of the alignment
+        // 5. Ensure the minimum side
 
         double aspectRatio = (double) aspectWidth / aspectHeight;
         int width, height;
-        int minDimension = (multiple == 16) ? 64 : 256; // FLUX.2: min 64, FLUX.1: min 256
 
         if (aspectRatio >= 1.0) {
             // Landscape or square - start with max width
@@ -126,7 +127,7 @@ public final class ImageDimensions {
             }
         }
 
-        // Round down to multiples of the alignment (16 for FLUX.2, 32 for FLUX.1)
+        // Round down to multiples of the alignment
         width = (width / multiple) * multiple;
         height = (height / multiple) * multiple;
 
@@ -141,7 +142,6 @@ public final class ImageDimensions {
             width = ((maxValue / multiple) * multiple);
         if (height > maxValue)
             height = ((maxValue / multiple) * multiple);
-
 
         return new int[] { width, height };
     }

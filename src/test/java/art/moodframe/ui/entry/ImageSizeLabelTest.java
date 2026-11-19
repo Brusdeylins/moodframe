@@ -187,6 +187,26 @@ class ImageSizeLabelTest {
     }
 
     @Test
+    void theSeedAndTheSoundOfAVideoAreNamedInTheLanguageOfTheUserInterface() {
+        GeneratedImage video = new GeneratedImage.Builder().videoResolution("1080p").videoDurationSeconds(8)
+                .hasAudio(true).build();
+        Locale locale = I18nManager.getCurrentLocale();
+        try {
+            I18nManager.setLocale(Locale.ENGLISH);
+            assertEquals("MP4 • 1080p • 8s • Audio", ImageDetails.videoLine(video));
+            I18nManager.setLocale(Locale.GERMAN);
+            assertEquals("MP4 • 1080p • 8s • Ton", ImageDetails.videoLine(video));
+            assertEquals("Seed: 1234567", ImageDetails.text(image(2752, 1536, 1234567), false),
+                    "a seed has no grouping");
+            video.setHasAudio(false);
+            assertEquals("MP4 • 1080p • 8s", ImageDetails.videoLine(video));
+        }
+        finally {
+            I18nManager.setLocale(locale);
+        }
+    }
+
+    @Test
     void anImageWithoutDetailsBesideTheLineHasNoTooltip() throws Exception {
         Object[] tooltips = onFxThread(() -> {
             Object[] found = new Object[2];

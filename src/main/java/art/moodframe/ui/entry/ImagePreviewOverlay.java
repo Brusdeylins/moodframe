@@ -1,7 +1,6 @@
 package art.moodframe.ui.entry;
 
 import art.moodframe.config.ApplicationConfig;
-import art.moodframe.ui.dnd.ImageDragExporter;
 import art.moodframe.ui.support.FxI18n;
 import art.moodframe.util.I18nChangeListener;
 import art.moodframe.util.I18nManager;

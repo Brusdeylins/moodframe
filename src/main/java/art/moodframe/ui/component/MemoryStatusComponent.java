@@ -179,17 +179,8 @@ public class MemoryStatusComponent extends HBox {
         }
         
         // Update tooltip with memory information
-        String tooltipText = String.format(I18nManager.getCurrentLocale(),
-            "Memory: %dMB used / %dMB max (%.1f%%)\n" +
-            "Allocated: %dMB / Free: %dMB",
-            usedMemory / 1024 / 1024, 
-            maxMemory / 1024 / 1024, 
-            usagePercentage,
-            totalMemory / 1024 / 1024,
-            freeMemory / 1024 / 1024
-        );
-
-        memoryTooltip.setText(tooltipText);
+        memoryTooltip.setText(I18nManager.getText("memory.status.tooltip", usedMemory / 1024 / 1024,
+                maxMemory / 1024 / 1024, usagePercentage, totalMemory / 1024 / 1024, freeMemory / 1024 / 1024));
     }
 
     /**
@@ -199,7 +190,7 @@ public class MemoryStatusComponent extends HBox {
     private void updateTasksStatus() {
         int loadedImages = images != null ? images.size() : 0;
 
-        tasksLabel.setText(String.format("%d imgs", loadedImages));
+        tasksLabel.setText(I18nManager.getText("memory.status.images", loadedImages));
 
         // Update icon color based on loaded images count
         if (loadedImages > 500) {

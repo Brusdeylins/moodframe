@@ -143,7 +143,8 @@ public class MoodAnalysisService {
      *
      * @param image the image
      * @param context the lists of the building blocks the language model chooses from
-     * @param english true to name a new palette without a name in English, as for the MCP clients
+     * @param english true to ask for the names of new blocks and of the palette in English and to name a new palette
+     *                without a name in English, as for the MCP clients
      * @return the found blocks
      */
     public CompletableFuture<Analysis> analyze(BufferedImage image, BrainstormContext context, boolean english) {
@@ -152,7 +153,7 @@ public class MoodAnalysisService {
 
         /*  The colors and the encoded image on a worker; the answer of the language model is composed, so the worker
             never waits for another task of the IoExecutor  */
-        return CompletableFuture.supplyAsync(() -> prepare(image, context), IoExecutor.get())
+        return CompletableFuture.supplyAsync(() -> prepare(image, context, english), IoExecutor.get())
                 .thenCompose((Prepared prepared) -> {
                     if (!prepared.asks())
                         return CompletableFuture.completedFuture(new Analysis(
@@ -189,12 +190,12 @@ public class MoodAnalysisService {
     }
 
     /*  the colors, and the request if a language model is configured, on a worker  */
-    private Prepared prepare(BufferedImage image, BrainstormContext context) {
+    private Prepared prepare(BufferedImage image, BrainstormContext context, boolean english) {
         List<String> colors = PaletteExtractor.extract(image);
         if (!hasLanguageModel())
             return new Prepared(colors, false, null, null, null);
         try {
-            return new Prepared(colors, true, prompt(template, context), contents(encodeScaled(image)), null);
+            return new Prepared(colors, true, prompt(template, context, english), contents(encodeScaled(image)), null);
         }
         catch (IOException | RuntimeException e) {
             return new Prepared(colors, true, null, null, e);
@@ -212,16 +213,17 @@ public class MoodAnalysisService {
     }
 
     /**
-     * Fills the template with the language of the user interface, the lists of atmospheres, styles, lights and cameras
-     * and the camera settings.
+     * Fills the template with the language of the names, the lists of atmospheres, styles, lights and cameras and the
+     * camera settings.
      *
      * @param template the template with {@code {{...}}} placeholders
      * @param context the lists
+     * @param english true for names in English, as for the MCP clients, else in the language of the user interface
      * @return the system prompt
      */
-    static String prompt(String template, BrainstormContext context) {
+    static String prompt(String template, BrainstormContext context, boolean english) {
         return template
-                .replace("{{UI_LANGUAGE}}", BrainstormService.language())
+                .replace("{{UI_LANGUAGE}}", english ? "English" : BrainstormService.language())
                 .replace("{{ATMOSPHERES}}", BrainstormPromptBuilder.blocks(context.atmospheres()))
                 .replace("{{STYLES}}", BrainstormPromptBuilder.styles(context))
                 .replace("{{LIGHTS}}", BrainstormPromptBuilder.blocks(context.lights()))

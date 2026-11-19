@@ -11,26 +11,28 @@ public enum ApiProvider {
     /**
      * BFL (Blackforest Labs) - Provider for FLUX models.
      */
-    BFL("BFL (Blackforest Labs)", "provider.bfl", 10),
+    BFL("BFL (Blackforest Labs)", "provider.bfl", 10, false),
 
     /**
      * Google Gemini - Provider for Gemini image generation models.
      */
-    GOOGLE_GEMINI("Google Gemini", "provider.gemini", 20),
+    GOOGLE_GEMINI("Google Gemini", "provider.gemini", 20, true),
 
     /**
      * OpenAI (or an OpenAI-compatible gateway) - Provider for the image models of the OpenAI Images API.
      */
-    OPENAI("OpenAI", "provider.openai", 50);
+    OPENAI("OpenAI", "provider.openai", 50, true);
 
     private final String displayName;
     private final String providerConfigPrefix;
     private final int maxFileSizeMegabytes;
+    private final boolean languageModel;
 
-    ApiProvider(String displayName, String providerConfigPrefix, int maxFileSizeMegabytes) {
+    ApiProvider(String displayName, String providerConfigPrefix, int maxFileSizeMegabytes, boolean languageModel) {
         this.displayName = displayName;
         this.providerConfigPrefix = providerConfigPrefix;
         this.maxFileSizeMegabytes = maxFileSizeMegabytes;
+        this.languageModel = languageModel;
     }
 
     /**
@@ -58,5 +60,15 @@ public enum ApiProvider {
      */
     public long getMaxFileSize() {
         return maxFileSizeMegabytes * 1024L * 1024;
+    }
+
+    /**
+     * Tells whether the provider has a language model, which the brainstorm and the analysis of an image talk to:
+     * Google Gemini and OpenAI, not BFL.
+     *
+     * @return true with a language model
+     */
+    public boolean hasLanguageModel() {
+        return languageModel;
     }
 }

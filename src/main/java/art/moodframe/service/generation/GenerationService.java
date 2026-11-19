@@ -455,22 +455,17 @@ public class GenerationService {
         return request;
     }
 
-    /*  Width and height of an aspect ratio within the resolution limit of the model, multiples of 16 (FLUX.2) or 32  */
+    /*  Width and height of an aspect ratio within the sides of the model, in its alignment (see ImageDimensions)  */
     private void setDimensionsFromAspectRatio(ImageGenerationRequest request, String aspectRatio,
             GenerationModel model) {
-        int maxResolution = model.getMaxResolution();
-        int dimensionMultiple = ImageDimensions.multipleFor(model);
-        logger.debug("Setting dimensions for aspect ratio: {} with maxResolution: {} (multiple of {}) for model: {}",
-                aspectRatio, maxResolution, dimensionMultiple, model.getApiModelId());
-
-        int[] dimensions = ImageDimensions.forAspectRatio(aspectRatio, maxResolution, dimensionMultiple);
+        int[] dimensions = ImageDimensions.forAspectRatio(aspectRatio, model);
         logger.debug("Final dimensions: {}x{} for aspect ratio: {}", dimensions[0], dimensions[1], aspectRatio);
 
         request.setWidth(dimensions[0]);
         request.setHeight(dimensions[1]);
     }
 
-    /*  Rounds to the nearest multiple of 32 (FLUX.1 API requirement)  */
+    /*  Rounds to the nearest multiple of 32, an alignment every BFL model takes (see ImageDimensions#multipleFor)  */
     private static int roundToMultipleOf32(int value) {
         return ((value + 16) / 32) * 32;
     }
