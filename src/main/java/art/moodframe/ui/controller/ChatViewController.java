@@ -1151,6 +1151,7 @@ public class ChatViewController {
         boolean confirmed = true;
         if (hasAnySuccessfulImage) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.initOwner(chatEntriesListView.getScene().getWindow());
             ButtonType ok = DialogButtons.ok();
             alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
             alert.setTitle(I18nManager.getText("delete.entry.title"));
@@ -1200,6 +1201,7 @@ public class ChatViewController {
         boolean confirmed = true;
         if (imageExists) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.initOwner(chatEntriesListView.getScene().getWindow());
             ButtonType ok = DialogButtons.ok();
             alert.getButtonTypes().setAll(ok, DialogButtons.cancel());
             alert.setTitle(I18nManager.getText("delete.image.title"));
