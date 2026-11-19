@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -96,40 +95,56 @@ public class RequestResponseManager implements RequestResponseService {
     @Override
     public CompletableFuture<Void> submitImageGeneration(ImageGenerationRequest request, ChatEntry chatEntry,
             File attachedImageFile) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                if (attachedImageFile != null)
-                    attachImage(request, attachedImageFile);
-
-                /*  The request and its prompt against the limit of the provider, which decides seeds and flow  */
-                request.validate();
-                ImageProvider provider = providers.forModel(request.getModel());
-                provider.checkPromptLength(request);
-                int imageCount = request.getImageCount() != null ? request.getImageCount() : 1;
-
-                FxModel.change(() -> addPlaceholders(chatEntry, imageCount, provider, request.getSeed()));
-
-                GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
-                if (model != null && model.isVideoModel())
-                    videoFlow.submit(provider, request, chatEntry, 0);
-                else if (provider.answersWithImage())
-                    for (int i = 0; i < imageCount; i++)
-                        imageFlow.submit(provider, request, chatEntry, i);
-                else
-                    for (int i = 0; i < imageCount; i++)
-                        pollingFlow.submit(provider, request, chatEntry, i);
-            }
-            catch (Exception e) {
-                logger.error("Failed to submit image generation request", e);
-                markFailed(chatEntry, e);
-                throw new CompletionException(e);
-            }
-        }, io);
+        int imageCount = request.getImageCount() != null ? request.getImageCount() : 1;
+        return CompletableFuture.supplyAsync(() -> prepare(request, attachedImageFile), io)
+                .thenCompose((ImageProvider provider) -> FxModel.changeAndGet(
+                        () -> addPlaceholders(chatEntry, imageCount, provider, request.getSeed()) ? provider : null))
+                .thenAcceptAsync((ImageProvider provider) -> {
+                    if (provider == null)
+                        logger.info("Entry {} was cancelled before its request was sent", chatEntry.getId());
+                    else
+                        dispatch(provider, request, chatEntry, imageCount);
+                }, io)
+                .whenComplete((Void done, Throwable failure) -> {
+                    if (failure == null)
+                        return;
+                    logger.error("Failed to submit image generation request", failure);
+                    markFailed(chatEntry, failure);
+                });
     }
 
-    /*  The entry is processing with a placeholder per image for the UI, with the seed of a provider with seeds: that
-        of the user plus the index, else a random one. Call on the FX thread  */
-    private void addPlaceholders(ChatEntry chatEntry, int imageCount, ImageProvider provider, Long seed) {
+    /*  Encodes an attachment and checks the request and its prompt against the limit of the provider, which decides
+        seeds and flow  */
+    private ImageProvider prepare(ImageGenerationRequest request, File attachedImageFile) {
+        if (attachedImageFile != null)
+            attachImage(request, attachedImageFile);
+        request.validate();
+        ImageProvider provider = providers.forModel(request.getModel());
+        provider.checkPromptLength(request);
+        return provider;
+    }
+
+    /*  Hands one request per image to the flow of the provider  */
+    private void dispatch(ImageProvider provider, ImageGenerationRequest request, ChatEntry chatEntry,
+            int imageCount) {
+        GenerationModel model = GenerationModel.fromApiModelId(request.getModel());
+        if (model != null && model.isVideoModel())
+            videoFlow.submit(provider, request, chatEntry, 0);
+        else if (provider.answersWithImage())
+            for (int i = 0; i < imageCount; i++)
+                imageFlow.submit(provider, request, chatEntry, i);
+        else
+            for (int i = 0; i < imageCount; i++)
+                pollingFlow.submit(provider, request, chatEntry, i);
+    }
+
+    /*  Claims a pending entry for its dispatch: it is processing with a placeholder per image for the UI, with the
+        seed of a provider with seeds: that of the user plus the index, else a random one. An entry cancelled before
+        stays as it is, nothing is sent. Call on the FX thread, where a cancellation runs too, so the entry is either
+        cancelled before its dispatch or processing  */
+    private boolean addPlaceholders(ChatEntry chatEntry, int imageCount, ImageProvider provider, Long seed) {
+        if (chatEntry.getStatus() != ChatEntry.Status.PENDING)
+            return false;
         chatEntry.setStatus(ChatEntry.Status.PROCESSING);
         for (int i = 0; i < imageCount; i++) {
             GeneratedImage.Builder builder = new GeneratedImage.Builder()
@@ -141,6 +156,7 @@ public class RequestResponseManager implements RequestResponseService {
             chatEntry.getImages().add(builder.build());
         }
         tracker.notifyEntryUpdated(chatEntry);
+        return true;
     }
 
     @Override

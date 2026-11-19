@@ -257,7 +257,9 @@ public class ChatEntryTracker {
 
     /**
      * Cancels a running entry on the FX thread: its images not finished yet fail, the entry ends as cancelled and is
-     * stored, then shown. It keeps its estimated cost, as the provider may have started already.
+     * stored, then shown. A processing entry keeps its estimated cost, as the provider may have started already; a
+     * pending one costs nothing, as its request is never sent (the dispatch claims only a pending entry, on the FX
+     * thread as well).
      *
      * @param chatEntry the entry
      * @return true if it was pending or processing
@@ -265,6 +267,8 @@ public class ChatEntryTracker {
     public boolean cancel(ChatEntry chatEntry) {
         if (chatEntry.getStatus() != ChatEntry.Status.PENDING && chatEntry.getStatus() != ChatEntry.Status.PROCESSING)
             return false;
+        if (chatEntry.getStatus() == ChatEntry.Status.PENDING)
+            chatEntry.setCost(0.0);
         List<GeneratedImage> stopped = unfinished(chatEntry);
         String cancelled = errorText(chatEntry, null, "generation.error.cancelled");
         stopped.forEach((GeneratedImage image) -> {
