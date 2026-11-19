@@ -1,7 +1,6 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.model.PromptBlock;
-import art.moodframe.model.StylePresetItem;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.control.Button;

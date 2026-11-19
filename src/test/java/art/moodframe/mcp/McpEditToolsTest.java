@@ -6,8 +6,8 @@ import art.moodframe.service.generation.ModelLabels;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.AspectRatios;
 import art.moodframe.model.ChatEntry;
@@ -111,7 +111,7 @@ class McpEditToolsTest {
         Platform.setImplicitExit(false);
 
         Path database = tempDir.resolve("db").resolve("edit.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
         LibraryEvents events = new LibraryEvents();
         events.addListener((LibraryEvents.Kind kind, String id) -> reported.add(kind + ":" + id), Platform::runLater);
         DatabaseManager manager = new DatabaseManager(database);

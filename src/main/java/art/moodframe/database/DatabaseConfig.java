@@ -1,13 +1,12 @@
 package art.moodframe.database;
 
-import art.moodframe.config.ServiceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 
 /**
- * Opens the database of the application at startup and makes it known in the {@link ServiceFactory}.
+ * Opens the database of the application at startup.
  *
  * <p>The application hands the {@link DatabaseManager} to the repositories it creates; nothing looks it up.</p>
  *
@@ -21,7 +20,7 @@ public final class DatabaseConfig {
     }
 
     /**
-     * Opens the database, brings its schema up to date and registers it as the database of the application.
+     * Opens the database and brings its schema up to date.
      *
      * @param databasePath the absolute path to the SQLite database file
      * @return the database
@@ -32,7 +31,6 @@ public final class DatabaseConfig {
         try {
             DatabaseManager database = new DatabaseManager(Path.of(databasePath));
             database.initialize();
-            ServiceFactory.getInstance().registerService(DatabaseManager.class, database);
 
             logger.debug("Database initialized: {}", databasePath);
             return database;

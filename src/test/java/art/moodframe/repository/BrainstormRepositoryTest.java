@@ -1,6 +1,5 @@
 package art.moodframe.repository;
 
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.TestDatabase;
 import art.moodframe.model.BrainstormDraft;
 import art.moodframe.model.BrainstormMessage;
@@ -27,7 +26,7 @@ class BrainstormRepositoryTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test

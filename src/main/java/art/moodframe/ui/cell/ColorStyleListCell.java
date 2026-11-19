@@ -10,8 +10,8 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 
-import art.moodframe.model.ColorStyleItem;
 import art.moodframe.ui.component.ColorBox;
+import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.DropdownBounds;
 import art.moodframe.ui.component.FavoriteStar;
 

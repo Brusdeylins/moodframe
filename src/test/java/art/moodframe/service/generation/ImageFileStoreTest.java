@@ -187,7 +187,7 @@ class ImageFileStoreTest {
             assertEquals(java.util.List.of("the-key"), keys);
             assertEquals("moodframe_20261026_143005_nano-banana-2-1k_01234567.mp4", stored.filename());
             assertTrue(java.util.Arrays.equals(video, Files.readAllBytes(dir.resolve(stored.filename()))));
-            assertEquals("mp4", image.formatProperty().get());
+            assertEquals("MP4", image.getFormat(), "the format of the video, upper case");
             assertEquals("video/mp4", image.getMimeType());
             assertEquals(video.length, image.getFileSizeBytes());
             assertEquals(GeneratedImage.DownloadStatus.CACHED, image.getDownloadStatus());

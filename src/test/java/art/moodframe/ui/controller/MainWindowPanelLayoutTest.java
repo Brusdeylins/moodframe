@@ -3,10 +3,9 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.PromptBlock;
-import art.moodframe.model.StylePresetItem;
 import art.moodframe.service.chat.ChatLibrary;
 import art.moodframe.service.chat.ImageAttachmentService;
 import art.moodframe.service.generation.GenerationService;
@@ -19,6 +18,7 @@ import art.moodframe.service.library.PromptBlockService;
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.service.provider.MockProviders;
 import art.moodframe.ui.component.MultiImageAttachmentPanel;
+import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.ui.support.ThemeManager;
 import art.moodframe.util.I18nManager;
 import javafx.application.Application;
@@ -142,7 +142,7 @@ class MainWindowPanelLayoutTest {
         locale = I18nManager.getCurrentLocale();
 
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
-        DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
+        TestDatabase.open(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
         blocks = TestLibraryServices.blocks(events);
         ColorStyleService colors = TestLibraryServices.palettes(events);

@@ -1,7 +1,6 @@
 package art.moodframe.ui.component;
 
 import art.moodframe.model.PromptBlock;
-import art.moodframe.model.StylePresetItem;
 import art.moodframe.ui.cell.StylePresetListCell;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;

@@ -3,8 +3,8 @@ package art.moodframe.service.library;
 import art.moodframe.repository.ChatFiles;
 import art.moodframe.repository.ChatTrashRepository;
 import art.moodframe.service.ConfigurationExporter;
-import art.moodframe.database.DatabaseConfig;
 import art.moodframe.database.DatabaseManager;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Chat;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.ColorStyle;
@@ -66,7 +66,7 @@ class LibraryEventsTest {
         Platform.setImplicitExit(false);
 
         Path database = tempDir.resolve("db").resolve("test.db");
-        DatabaseConfig.initialize(database.toString());
+        TestDatabase.open(database.toString());
         history = TestChatServices.history(new DatabaseManager(database));
     }
 

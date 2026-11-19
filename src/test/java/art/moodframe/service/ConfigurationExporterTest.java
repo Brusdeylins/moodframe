@@ -2,7 +2,7 @@ package art.moodframe.service;
 
 import art.moodframe.service.library.TestLibraryServices;
 import art.moodframe.config.ConfigMocks;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.Frame;
 import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
@@ -32,7 +32,7 @@ class ConfigurationExporterTest {
 
     @BeforeAll
     static void createDatabase() {
-        DatabaseConfig.initialize(tempDir.resolve("db").resolve("test.db").toString());
+        TestDatabase.open(tempDir.resolve("db").resolve("test.db").toString());
     }
 
     @Test

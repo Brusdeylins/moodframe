@@ -11,26 +11,24 @@ public enum ApiProvider {
     /**
      * BFL (Blackforest Labs) - Provider for FLUX models.
      */
-    BFL("BFL (Blackforest Labs)", "bfl.api.key", "provider.bfl", 10),
+    BFL("BFL (Blackforest Labs)", "provider.bfl", 10),
 
     /**
      * Google Gemini - Provider for Gemini image generation models.
      */
-    GOOGLE_GEMINI("Google Gemini", "gemini.api.key", "provider.gemini", 20),
+    GOOGLE_GEMINI("Google Gemini", "provider.gemini", 20),
 
     /**
      * OpenAI (or an OpenAI-compatible gateway) - Provider for the image models of the OpenAI Images API.
      */
-    OPENAI("OpenAI", "openai.api.key", "provider.openai", 50);
+    OPENAI("OpenAI", "provider.openai", 50);
 
     private final String displayName;
-    private final String apiKeyConfigKey;
     private final String providerConfigPrefix;
     private final int maxFileSizeMegabytes;
 
-    ApiProvider(String displayName, String apiKeyConfigKey, String providerConfigPrefix, int maxFileSizeMegabytes) {
+    ApiProvider(String displayName, String providerConfigPrefix, int maxFileSizeMegabytes) {
         this.displayName = displayName;
-        this.apiKeyConfigKey = apiKeyConfigKey;
         this.providerConfigPrefix = providerConfigPrefix;
         this.maxFileSizeMegabytes = maxFileSizeMegabytes;
     }
@@ -42,15 +40,6 @@ public enum ApiProvider {
      */
     public String getDisplayName() {
         return displayName;
-    }
-
-    /**
-     * Gets the configuration key for the API key of this provider.
-     *
-     * @return the API key configuration key
-     */
-    public String getApiKeyConfigKey() {
-        return apiKeyConfigKey;
     }
 
     /**

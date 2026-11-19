@@ -3,7 +3,7 @@ package art.moodframe.ui.controller;
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.config.ConfigMocks;
 import art.moodframe.config.ServiceFactory;
-import art.moodframe.database.DatabaseConfig;
+import art.moodframe.database.TestDatabase;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.EntryFrame;
 import art.moodframe.model.GenerationModel;
@@ -80,7 +80,7 @@ class MainWindowModelResolutionTest {
         locale = I18nManager.getCurrentLocale();
 
         /*  the standard library in the throwaway home, with the services of the panel as the application has them  */
-        DatabaseConfig.initialize(home.resolve("db").resolve("moodframe.db").toString());
+        TestDatabase.open(home.resolve("db").resolve("moodframe.db").toString());
         LibraryEvents events = new LibraryEvents();
         PromptBlockService blocks = TestLibraryServices.blocks(events);
         ColorStyleService colors = TestLibraryServices.palettes(events);

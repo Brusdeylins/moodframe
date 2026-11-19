@@ -11,6 +11,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +22,9 @@ import java.util.regex.Pattern;
  * {@code schema_migrations}, each in its own transaction together with its record. A new migration must be listed in
  * {@link #MIGRATIONS}, a file alone is not applied.
  *
- * <p>The SQL files lie in {@code /db/migration}, a migration with data from the model runs as code. An applied
- * migration is never changed, a new one gets the next version.</p>
+ * <p>The SQL files lie in {@code /db/migration}; a data migration that needs Java runs as code and carries the
+ * prices and formulas it books with, frozen, instead of using the model of the application, so a later version books
+ * the same. An applied migration is never changed, a new one gets the next version.</p>
  *
  * @since 2.1.3
  */
@@ -83,23 +85,12 @@ final class MigrationRunner {
 
         // Check if this is a legacy database (has tables but no migration records)
         if (appliedMigrations.isEmpty() && hasExistingTables(connection)) {
-            logger.info("Detected legacy database - applying all migrations with duplicate detection");
-            // Early migrations may fail because the schema already exists (expected for legacy databases),
-            // newer ones are applied
+            logger.info("Detected legacy database - applying all migrations, skipping what the schema already has");
+            /*  The schema may have any part of a migration, also only its first statements: each statement whose
+                object is already there is skipped, the others are applied  */
             for (Migration migration : MIGRATIONS) {
-                try {
-                    applyMigration(connection, migration);
-                    logger.info("Migration {} applied to legacy database", migration.version());
-                } catch (SQLException e) {
-                    // Only "already there" errors count as applied, a real failure (disk full, lock) must surface
-                    if (!isAlreadyReflected(e))
-                        throw e;
-
-                    logger.info("Migration {} already reflected in schema (legacy): {}",
-                            migration.version(), e.getMessage());
-                    /*  its transaction was rolled back with its record, the schema has it anyway  */
-                    recordMigration(connection, migration);
-                }
+                applyMigration(connection, migration, true);
+                logger.info("Migration {} applied to legacy database", migration.version());
             }
             return;
         }
@@ -114,7 +105,7 @@ final class MigrationRunner {
         for (Migration migration : MIGRATIONS) {
             if (!appliedMigrations.contains(migration.version())) {
                 logger.info("Applying migration: {}", migration.fileName());
-                applyMigration(connection, migration);
+                applyMigration(connection, migration, false);
                 logger.info("Migration {} applied successfully", migration.version());
             }
         }
@@ -132,11 +123,11 @@ final class MigrationRunner {
         }
     }
 
-    /** True if SQLite refused a statement because its change is already in the schema. */
+    /*  True if SQLite refused a statement because the table, index, trigger or column it creates is already in the
+        schema; a failed constraint is no such case, the rows may differ from those of the migration  */
     private static boolean isAlreadyReflected(SQLException e) {
         String message = e.getMessage() == null ? "" : e.getMessage();
-        return message.contains("already exists") || message.contains("duplicate column name")
-                || message.contains("UNIQUE constraint failed");
+        return message.contains("already exists") || message.contains("duplicate column name");
     }
 
     /*  The columns of V011, video support, with their definitions as V011 adds them  */
@@ -167,22 +158,18 @@ final class MigrationRunner {
             return;
 
         logger.warn("Schema inconsistency: V011 columns {} missing – repairing them", missing);
-        connection.setAutoCommit(false);
-        try (Statement stmt = connection.createStatement()) {
-            for (String[] column : V011_COLUMNS)
-                if (missing.contains(column[0]))
-                    stmt.execute("ALTER TABLE generated_images ADD COLUMN " + column[0] + " " + column[1]);
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_generated_images_is_video ON generated_images(is_video)");
-            if (!getAppliedMigrations(connection).contains("011"))
-                recordMigration(connection, MIGRATIONS.stream()
+        DatabaseManager.inTransaction(connection, (Connection transaction) -> {
+            try (Statement stmt = transaction.createStatement()) {
+                for (String[] column : V011_COLUMNS)
+                    if (missing.contains(column[0]))
+                        stmt.execute("ALTER TABLE generated_images ADD COLUMN " + column[0] + " " + column[1]);
+                stmt.execute("CREATE INDEX IF NOT EXISTS idx_generated_images_is_video ON generated_images(is_video)");
+            }
+            if (!getAppliedMigrations(transaction).contains("011"))
+                recordMigration(transaction, MIGRATIONS.stream()
                         .filter((Migration m) -> "011".equals(m.version())).findFirst().orElseThrow());
-            connection.commit();
-        } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
-        }
+            return null;
+        });
         logger.info("V011 repair complete – video support schema restored");
     }
 
@@ -264,29 +251,52 @@ final class MigrationRunner {
      * Applies a single migration and records it in the same transaction, so a migration is never applied without its
      * record or recorded without its changes.
      *
+     * <p>On a legacy database, a statement whose table, index, trigger or column is already in the schema is
+     * skipped and the others are applied; the migration is recorded once each statement is applied or skipped so.
+     * Any other failure rolls back the whole migration and surfaces.</p>
+     *
      * @param connection the database connection
      * @param migration  the migration to apply
+     * @param legacy     whether the database is a legacy one, whose schema may already have parts of the migration
      * @throws SQLException if migration fails
      */
-    private static void applyMigration(Connection connection, Migration migration) throws SQLException {
+    private static void applyMigration(Connection connection, Migration migration, boolean legacy)
+            throws SQLException {
         /*  A migration in code has no SQL file, it runs in the same transaction  */
-        String migrationSql = migration.step() == null ? loadMigrationSql(migration.fileName()) : "";
+        List<String> statements = parseSqlStatements(
+                migration.step() == null ? loadMigrationSql(migration.fileName()) : "");
 
-        connection.setAutoCommit(false);
-        try (Statement stmt = connection.createStatement()) {
-            for (String statement : parseSqlStatements(migrationSql)) {
-                stmt.execute(statement);
+        DatabaseManager.inTransaction(connection, (Connection transaction) -> {
+            try (Statement stmt = transaction.createStatement()) {
+                for (String statement : statements) {
+                    if (legacy)
+                        executeUnlessReflected(transaction, stmt, migration, statement);
+                    else
+                        stmt.execute(statement);
+                }
             }
             if (migration.step() != null)
-                migration.step().apply(connection);
-            recordMigration(connection, migration);
-            connection.commit();
+                migration.step().apply(transaction);
+            recordMigration(transaction, migration);
+            return null;
+        });
+    }
+
+    /*  Runs a statement of a migration on a legacy database, or skips it if its object is already in the schema; it
+        runs in a savepoint, so a skipped statement leaves nothing behind  */
+    private static void executeUnlessReflected(Connection connection, Statement stmt, Migration migration,
+            String statement) throws SQLException {
+        Savepoint savepoint = connection.setSavepoint();
+        try {
+            stmt.execute(statement);
         } catch (SQLException e) {
-            connection.rollback();
-            throw e;
-        } finally {
-            connection.setAutoCommit(true);
+            if (!isAlreadyReflected(e))
+                throw e;
+            connection.rollback(savepoint);
+            logger.info("Migration {}: statement already reflected in schema (legacy): {}", migration.version(),
+                    e.getMessage());
         }
+        connection.releaseSavepoint(savepoint);
     }
 
     /**
@@ -415,7 +425,8 @@ final class MigrationRunner {
     }
 
     /**
-     * A migration done in code instead of an SQL file, for data that needs the model (prices, names).
+     * A migration done in code instead of an SQL file, for data that needs Java (prices, formulas); it carries what it
+     * needs itself and uses no model of the application.
      */
     @FunctionalInterface
     private interface Step {

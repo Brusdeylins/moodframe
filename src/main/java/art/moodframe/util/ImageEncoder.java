@@ -189,40 +189,4 @@ public class ImageEncoder {
             return "jpeg"; // Default for JPG files
         }
     }
-    
-    /**
-     * Validates that a Base64 string represents a valid image.
-     * 
-     * @param base64Image the Base64 encoded image
-     * @return true if valid, false otherwise
-     */
-    public static boolean isValidBase64Image(String base64Image) {
-        if (base64Image == null || base64Image.trim().isEmpty()) {
-            return false;
-        }
-        
-        try {
-            byte[] decodedBytes = Base64.getDecoder().decode(base64Image);
-            return decodedBytes.length > 0;
-        } catch (IllegalArgumentException e) {
-            logger.warn("Invalid Base64 image data: {}", e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Gets the estimated file size of a Base64 encoded image.
-     * 
-     * @param base64Image the Base64 encoded image
-     * @return estimated size in bytes
-     */
-    public static long getEstimatedSize(String base64Image) {
-        if (base64Image == null) {
-            return 0;
-        }
-        
-        // Base64 encoding increases size by ~33%
-        // Remove any padding characters and calculate original size
-        return (long) (base64Image.length() * 0.75);
-    }
 }

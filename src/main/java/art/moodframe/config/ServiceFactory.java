@@ -43,8 +43,8 @@ public class ServiceFactory {
     /**
      * Returns the singleton instance of the ServiceFactory.
      * 
-     * <p>This method implements lazy initialization with double-checked locking
-     * to ensure thread safety while minimizing synchronization overhead.</p>
+     * <p>The instance is created on the first call; the method is synchronized, so every thread gets the same
+     * one.</p>
      * 
      * @return the singleton ServiceFactory instance
      * @since 1.0.0
@@ -139,9 +139,8 @@ public class ServiceFactory {
     /**
      * Clears all registered services and providers.
      * 
-     * <p><strong>Warning:</strong> This method is intended for testing purposes only.
-     * It removes all registered services and providers from the factory, which may
-     * cause application failures if called in production code.</p>
+     * <p>The application calls it on shutdown, after it stopped the services; tests call it to start from an empty
+     * factory. A service looked up afterwards is not found, so nothing that still needs one may run then.</p>
      * 
      * @since 1.0.0
      */
