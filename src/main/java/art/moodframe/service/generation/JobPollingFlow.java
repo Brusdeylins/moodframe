@@ -222,10 +222,13 @@ public class JobPollingFlow {
                         .build();
 
                 /*  The image replaces its placeholder on the FX thread, unless the entry was cancelled meanwhile:
-                    then the job is left alone, so no image arrives in a cancelled entry  */
+                    then the job is left alone, so no image arrives in a cancelled entry. The job is registered in
+                    the same change, as a cancellation runs on the FX thread too: it finds the job or no job runs  */
+                PendingRequest pendingRequest = new PendingRequest(provider, jobInfo, chatEntry, generatedImage);
                 FxModel.changeAndGet(() -> {
                     if (chatEntry.getStatus() == ChatEntry.Status.CANCELLED)
                         return false;
+                    activeRequests.put(jobId, pendingRequest);
 
                     // Find and replace the placeholder with sortOrder matching imageIndex
                     boolean replacedPlaceholder = false;
@@ -258,8 +261,6 @@ public class JobPollingFlow {
                         logger.info("Job {} of a cancelled entry is not polled", jobId);
                         return;
                     }
-                    PendingRequest pendingRequest = new PendingRequest(provider, jobInfo, chatEntry, generatedImage);
-                    activeRequests.put(jobId, pendingRequest);
                     startPolling(jobId, pendingRequest);
                 });
 
