@@ -100,13 +100,16 @@ class BflPollingErrorsTest {
 
     @Test
     void aFailedSslTestIsATypedFailureThatNamesSslInEveryLanguage() throws Exception {
-        /*  a server that answers the handshake with plain text  */
-        java.net.ServerSocket plain = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress());
+        /*  a server that answers every handshake with plain text, until the test closes it (the client may retry)  */
+        java.net.ServerSocket plain = new java.net.ServerSocket(0, 10, java.net.InetAddress.getLoopbackAddress());
         Thread.ofVirtual().start(() -> {
-            try (plain; java.net.Socket socket = plain.accept()) {
-                socket.getOutputStream().write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-                socket.getOutputStream().flush();
-            } catch (java.io.IOException ignored) {
+            while (!plain.isClosed()) {
+                try (java.net.Socket socket = plain.accept()) {
+                    socket.getOutputStream().write("HTTP/1.1 400 Bad Request\r\n\r\n"
+                            .getBytes(StandardCharsets.US_ASCII));
+                    socket.getOutputStream().flush();
+                } catch (java.io.IOException ignored) {
+                }
             }
         });
         String plainServer = "https://127.0.0.1:" + plain.getLocalPort();
@@ -117,8 +120,11 @@ class BflPollingErrorsTest {
             }
         };
 
-        ExecutionException failure = assertThrows(ExecutionException.class,
-                () -> service.testSslConnection().get(20, TimeUnit.SECONDS));
+        ExecutionException failure;
+        try (plain) {
+            failure = assertThrows(ExecutionException.class,
+                    () -> service.testSslConnection().get(20, TimeUnit.SECONDS));
+        }
         ProviderException cause = assertInstanceOf(ProviderException.class, ProviderException.unwrap(failure));
         assertInstanceOf(javax.net.ssl.SSLException.class, cause.getCause());
 
