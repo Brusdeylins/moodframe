@@ -41,8 +41,8 @@
         <Label fx:id="versionLabel" text="%settings.about.version" />
         <Label fx:id="configPathTitleLabel" text="%settings.about.config.path" />
         <HBox alignment="CENTER_LEFT" spacing="10.0">
-            <Label fx:id="configPathLabel" HBox.hgrow="ALWAYS" />
-            <Button fx:id="openConfigDirectoryButton" onAction="#onOpenConfigDirectory" text="%settings.about.config.open">
+            <Label fx:id="configPathLabel" minWidth="0" textOverrun="CENTER_ELLIPSIS" HBox.hgrow="ALWAYS" />
+            <Button fx:id="openConfigDirectoryButton" minWidth="-Infinity" onAction="#onOpenConfigDirectory" text="%settings.about.config.open">
                 <graphic>
                     <FontIcon iconLiteral="mdi2f-folder-open" iconSize="16" styleClass="ikonli-font-icon" />
                 </graphic>
