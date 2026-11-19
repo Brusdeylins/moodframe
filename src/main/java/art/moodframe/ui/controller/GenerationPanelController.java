@@ -100,6 +100,10 @@ public class GenerationPanelController {
     @FXML
     private VBox flux2GroundingSearchContainer;
     @FXML
+    private Label flux2GroundingSearchLabel;
+    @FXML
+    private Tooltip flux2GroundingSearchTooltip;
+    @FXML
     private CheckBox bflPromptUpsamplingCheckBox;
     @FXML
     private Tooltip bflPromptUpsamplingTooltip;
@@ -490,6 +494,8 @@ public class GenerationPanelController {
         bflPromptUpsamplingTooltip.setText(I18nManager.getText("input.bfl.prompt.enhancement.hint"));
         geminiThinkingLevelLabel.setText(I18nManager.getText("input.gemini.thinking.level"));
         geminiThinkingLevelTooltip.setText(I18nManager.getText("input.gemini.thinking.level.hint"));
+        flux2GroundingSearchLabel.setText(I18nManager.getText("params.grounding.search"));
+        flux2GroundingSearchTooltip.setText(I18nManager.getText("params.grounding.search.hint"));
         updateImageCountLabel((int) imageCountSlider.getValue());
         if (seedTextField.getPromptText() != null)
             seedTextField.setPromptText(I18nManager.getText("params.seed.placeholder"));
