@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.panel;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.Mood;
@@ -10,6 +10,7 @@ import art.moodframe.ui.component.ColorStyleItem;
 import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.StylePresetItem;
 import art.moodframe.ui.dialog.TrashWindow;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ToggleButton;

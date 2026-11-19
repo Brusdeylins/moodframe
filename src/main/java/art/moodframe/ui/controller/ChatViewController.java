@@ -16,6 +16,7 @@ import art.moodframe.ui.component.ChatEntryCard;
 import art.moodframe.ui.component.DialogButtons;
 import art.moodframe.ui.component.ImageGrid;
 import art.moodframe.ui.support.BoxInset;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;

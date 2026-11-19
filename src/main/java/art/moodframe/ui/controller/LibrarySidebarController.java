@@ -14,6 +14,7 @@ import art.moodframe.ui.cell.FrameGroupListCell;
 import art.moodframe.ui.support.ListReorder;
 import art.moodframe.ui.cell.MoodGroupListCell;
 import art.moodframe.ui.support.CoalescedLoad;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;

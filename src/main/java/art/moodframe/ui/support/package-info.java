@@ -15,6 +15,7 @@
  * <li>{@link ListReorder}: reorders the items of a list by dragging, in the main window and the brainstorm</li>
  * <li>{@link BoxInset}: the common inset of the boxes of the main window and the brainstorm dialog</li>
  * <li>{@link SafetyTolerance}: the text of a BFL safety tolerance, in the generation panel and on an entry</li>
+ * <li>{@link StatusSink}: where a part of the main window reports a status message or an error</li>
  * </ul>
  */
 package art.moodframe.ui.support;

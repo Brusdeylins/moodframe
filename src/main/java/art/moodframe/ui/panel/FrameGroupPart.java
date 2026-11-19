@@ -1,4 +1,4 @@
-package art.moodframe.ui.controller;
+package art.moodframe.ui.panel;
 
 import art.moodframe.config.ApplicationConfig;
 import art.moodframe.model.AspectRatios;
@@ -11,6 +11,7 @@ import art.moodframe.ui.component.FavoriteStar;
 import art.moodframe.ui.component.FrameChoice;
 import art.moodframe.ui.dialog.FrameManageDialog;
 import art.moodframe.ui.dialog.TrashWindow;
+import art.moodframe.ui.support.StatusSink;
 import art.moodframe.util.I18nManager;
 import art.moodframe.util.ImageSize;
 import javafx.css.PseudoClass;
@@ -32,9 +33,9 @@ import java.util.function.Supplier;
  * and the hints of what the chosen model makes of them. Choosing a frame sets its targets; either changed afterwards
  * shows the frame as changed until it is saved or chosen again.
  */
-final class FrameGroup {
+final class FrameGroupPart {
 
-    private static final Logger logger = LoggerFactory.getLogger(FrameGroup.class);
+    private static final Logger logger = LoggerFactory.getLogger(FrameGroupPart.class);
 
     /*  an action that would save a change, highlighted while there is one  */
     private static final PseudoClass UNSAVED = PseudoClass.getPseudoClass("unsaved");
@@ -78,7 +79,7 @@ final class FrameGroup {
      * @param nodes     the nodes of the group
      * @param modelItem the item of the chosen model, which the hints name (may give null)
      */
-    FrameGroup(Nodes nodes, Supplier<String> modelItem) {
+    FrameGroupPart(Nodes nodes, Supplier<String> modelItem) {
         this.frameComboBox = nodes.frameComboBox();
         this.aspectRatioComboBox = nodes.aspectRatioComboBox();
         this.aspectRatioHintLabel = nodes.aspectRatioHintLabel();

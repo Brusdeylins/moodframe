@@ -45,6 +45,7 @@ module art.moodframe {
     exports art.moodframe.ui.component;
     exports art.moodframe.ui.dialog;
     exports art.moodframe.ui.brainstorm;
+    exports art.moodframe.ui.panel;
     exports art.moodframe.model;
 
     // Open for reflection (required for FXML, Jackson)
@@ -53,5 +54,6 @@ module art.moodframe {
     opens art.moodframe.ui.controller.settings to javafx.fxml;
     opens art.moodframe.ui.component to javafx.fxml;
     opens art.moodframe.ui.dialog to javafx.fxml;
+    opens art.moodframe.ui.panel to javafx.fxml;
     opens art.moodframe.model to com.fasterxml.jackson.databind;
 }

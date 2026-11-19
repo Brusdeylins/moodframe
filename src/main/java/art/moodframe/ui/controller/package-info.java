@@ -12,13 +12,16 @@
  * <li>{@link LibrarySidebarController}: the chats and the groups by mood or frame ({@code LibrarySidebar.fxml})</li>
  * <li>{@link ChatViewController}: the entries of the chat or group ({@code ChatView.fxml})</li>
  * <li>{@link InputBarController}: the prompt and the send button ({@code InputBar.fxml})</li>
- * <li>{@link MoodFramePanelController}: the groups Mood and Frame ({@code MoodFramePanel.fxml}), also for other
- * windows, with its parts {@link BlockChoices} (the building block fields) and {@link FrameGroup}</li>
+ * <li>{@link ChatViewController} shows its full view with {@link EntryFullView}</li>
  * <li>{@link GenerationPanelController}: the group Generation ({@code GenerationPanel.fxml}), with its parts
  * {@link GenerationAttachments} and {@link ProviderParameters}</li>
- * <li>{@link StatusBarController}: the status bar ({@code StatusBar.fxml})</li>
+ * <li>{@link StatusBarController}: the status bar ({@code StatusBar.fxml}), where the parts report through
+ * {@code ui.support.StatusSink}</li>
  * <li>{@link SettingsController}: the settings dialog ({@code SettingsDialog.fxml}), coordinator of its sections in
  * {@code ui.controller.settings}</li>
  * </ul>
+ *
+ * <p>The groups Mood and Frame ({@code ui.panel.MoodFramePanelController}) lie in {@code ui.panel}, below the
+ * brainstorm dialog, which may show them as well.</p>
  */
 package art.moodframe.ui.controller;
