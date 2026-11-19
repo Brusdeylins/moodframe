@@ -230,9 +230,11 @@ final class GenerationAttachments {
             return false;
         }
 
-        /*  The count goes to 1 for image-to-image, the model, the aspect ratio and the style follow the attachment  */
+        /*  The count goes to 1 for image-to-image, the model, the aspect ratio and the style follow the attachment;
+            for the first image the panel tells it itself (onFirstImageAttached)  */
+        boolean first = !multiImagePanel.hasAttachments();
         multiImagePanel.attachImageToSlot(targetSlot, imageFile).thenAccept((Boolean attached) -> {
-            if (!attached)
+            if (!attached || first)
                 return;
             host.imageAttached();
             updateAttachmentState();
