@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -65,7 +66,7 @@ public class ThumbnailManager {
     // Platform-spezifische Thread-Anzahl:
     // - M1/ARM: 6 Threads (unified memory, effiziente GPU)
     // - Intel/AMD: 2 Threads (verhindert GPU-Überlastung bei OpenGL)
-    private static final int THUMBNAIL_THREAD_POOL_SIZE = getOptimalThreadCount();
+    static final int THUMBNAIL_THREAD_POOL_SIZE = getOptimalThreadCount();
 
     /**
      * Determines optimal thread count based on CPU architecture.
@@ -77,6 +78,10 @@ public class ThumbnailManager {
         boolean isAppleSilicon = arch.contains("aarch64") || arch.contains("arm64");
         return isAppleSilicon ? 6 : 2;
     }
+
+    /*  numbers the threads of all managers, so every thread name is unique  */
+    private static final AtomicInteger THREADS = new AtomicInteger();
+
     private final ExecutorService thumbnailExecutor;
 
     // Thumbnail cache with LRU eviction (caches File paths)
@@ -105,7 +110,7 @@ public class ThumbnailManager {
     public ThumbnailManager(LibraryPaths paths) throws IOException {
         this.thumbnailExecutor = Executors.newFixedThreadPool(THUMBNAIL_THREAD_POOL_SIZE,
                 r -> {
-                    Thread t = new Thread(r, "ThumbnailGenerator-" + System.currentTimeMillis());
+                    Thread t = new Thread(r, "ThumbnailGenerator-" + THREADS.incrementAndGet());
                     t.setDaemon(true); // Don't prevent JVM shutdown
                     return t;
                 });
@@ -457,66 +462,63 @@ public class ThumbnailManager {
      * Generates thumbnails for all existing images that don't have thumbnails yet.
      * This method is useful for retroactive thumbnail generation when the system
      * is introduced to existing image collections.
-     * 
+     *
+     * <p>The images are done one after the other, which keeps the load low; no thread of the pool waits for the
+     * thumbnail of another, each next image is a task of its own once the one before is done.</p>
+     *
      * @return CompletableFuture that resolves when all thumbnails are generated
      */
     public CompletableFuture<Integer> generateThumbnailsForExistingImages() {
         return CompletableFuture.supplyAsync(() -> {
-
-            int thumbnailsGenerated = 0;
-
-            try {
-                // Scan the original images directory for all image files
-                File imagesDir = originalImagesDirectory.toFile();
-                if (!imagesDir.exists()) {
-                    return 0;
-                }
-
-                File[] imageFiles = imagesDir.listFiles((dir, name) -> {
-                    String lowerName = name.toLowerCase();
-                    return lowerName.endsWith(".png") ||
-                            lowerName.endsWith(".jpg") ||
-                            lowerName.endsWith(".jpeg") ||
-                            lowerName.endsWith(".webp") ||
-                            lowerName.endsWith(".bmp") ||
-                            lowerName.endsWith(".gif");
-                });
-
-                if (imageFiles == null || imageFiles.length == 0) {
-                    return 0;
-                }
-
-                // Process each image file
-                for (File imageFile : imageFiles) {
-                    try {
-                        String imagePath = imageFile.getAbsolutePath();
-
-                        // Skip if thumbnail already exists and is up-to-date
-                        if (thumbnailExists(imagePath)) {
-                            continue;
-                        }
-
-                        // Generate thumbnail (this will be queued in the thread pool)
-                        CompletableFuture<File> thumbnailFuture = getThumbnail(imagePath);
-
-                        // Wait for completion to avoid overwhelming the system
-                        thumbnailFuture.get(); // This blocks but provides backpressure
-                        thumbnailsGenerated++;
-
-                    } catch (Exception e) {
-                        logger.warn("Failed to generate thumbnail for existing image: {}",
-                                imageFile.getName(), e);
-                        // Continue with next image
-                    }
-                }
-
-            } catch (Exception e) {
-                logger.error("Error during retroactive thumbnail generation", e);
+            // Scan the original images directory for all image files
+            File imagesDir = originalImagesDirectory.toFile();
+            if (!imagesDir.exists()) {
+                return new File[0];
             }
+            File[] imageFiles = imagesDir.listFiles((dir, name) -> {
+                String lowerName = name.toLowerCase();
+                return lowerName.endsWith(".png") ||
+                        lowerName.endsWith(".jpg") ||
+                        lowerName.endsWith(".jpeg") ||
+                        lowerName.endsWith(".webp") ||
+                        lowerName.endsWith(".bmp") ||
+                        lowerName.endsWith(".gif");
+            });
+            return imageFiles != null ? imageFiles : new File[0];
+        }, thumbnailExecutor).thenCompose((File[] imageFiles) -> generateFrom(imageFiles, 0, 0))
+                .exceptionally((Throwable e) -> {
+                    logger.error("Error during retroactive thumbnail generation", e);
+                    return 0;
+                });
+    }
 
-            return thumbnailsGenerated;
+    /*  The thumbnails of the images from an index on, after the given count of those generated: skips the images
+        that have one, then waits for the next thumbnail without blocking a thread and goes on in a new task  */
+    private CompletableFuture<Integer> generateFrom(File[] imageFiles, int start, int generated) {
+        for (int index = start; index < imageFiles.length; index++) {
+            File imageFile = imageFiles[index];
+            CompletableFuture<File> thumbnailFuture;
+            try {
+                String imagePath = imageFile.getAbsolutePath();
 
-        }, thumbnailExecutor);
+                // Skip if thumbnail already exists and is up-to-date
+                if (thumbnailExists(imagePath)) {
+                    continue;
+                }
+                thumbnailFuture = getThumbnail(imagePath);
+            } catch (Exception e) {
+                logger.warn("Failed to generate thumbnail for existing image: {}", imageFile.getName(), e);
+                continue;
+            }
+            int next = index + 1;
+            return thumbnailFuture.handle((File thumbnail, Throwable error) -> {
+                if (error == null)
+                    return generated + 1;
+                logger.warn("Failed to generate thumbnail for existing image: {}", imageFile.getName(), error);
+                return generated;
+            }).thenComposeAsync((Integer count) -> generateFrom(imageFiles, next, count), thumbnailExecutor);
+        }
+        return CompletableFuture.completedFuture(generated);
     }
 
     /**
