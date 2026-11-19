@@ -75,7 +75,7 @@ public class VideoFlow {
         provider.submitGenerationRequest(request)
                 .thenAccept((GenerationJobInfo jobInfo) -> {
                     if (jobInfo.isFailed()) {
-                        failVideo(chatEntry, imageIndex, jobInfo.getErrorMessage());
+                        failVideo(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry));
                         return;
                     }
                     FxModel.change(() -> {
@@ -149,15 +149,16 @@ public class VideoFlow {
                 });
             }
             catch (Exception e) {
-                String error;
+                String reason;
                 if (e instanceof ImageFileStore.HttpStatusException status) {
                     logger.error("Failed to download video: HTTP {}", status.getStatusCode());
-                    error = e.getMessage();
+                    reason = "HTTP " + status.getStatusCode();
                 }
                 else {
                     logger.error("Failed to download video", e);
-                    error = "Video download error: " + e.getMessage();
+                    reason = e.getMessage();
                 }
+                String error = ChatEntryTracker.errorText(chatEntry, e, "generation.error.video.download", reason);
                 FxModel.change(() -> {
                     generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
                     generatedImage.setErrorMessage(error);

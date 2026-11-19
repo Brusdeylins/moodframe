@@ -24,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * checks which package uses which, that no packages depend on each other in a cycle, that model, util and
  * service.chat need no JavaFX, that no service looks up the services it uses in the locator, that in the user
  * interface only the coordinators do, the order of the parts of the user interface, which classes of mcp and net it
- * uses and that no class imports a package of the application with a wildcard.
+ * uses, that no class imports a package of the application with a wildcard and that the generation and the image
+ * clients render no message themselves.
  */
 class ArchitectureTest {
 
@@ -244,6 +245,26 @@ class ArchitectureTest {
     @Test
     void theChatsNeedNoJavaFx() {
         assertEquals(Set.of(), javaFx.getOrDefault("service.chat", Set.of()), "service.chat");
+    }
+
+    /*  The image and video clients, whose failures reach the entries of the window and of the MCP server  */
+    private static final List<String> IMAGE_CLIENTS = List.of("BflApiServiceImpl", "GeminiImageClient",
+            "GeminiOmniClient", "OpenAiImageClient");
+
+    @Test
+    void theGenerationAndTheImageClientsRenderNoMessageThemselves() throws IOException {
+        List<Path> files = new ArrayList<>();
+        try (Stream<Path> walk = Files.list(SOURCES.resolve("art/moodframe/service/generation"))) {
+            walk.filter((Path file) -> !file.getFileName().toString().equals("ModelLabels.java")).forEach(files::add);
+        }
+        for (String client : IMAGE_CLIENTS)
+            files.add(SOURCES.resolve("art/moodframe/service/provider/" + client + ".java"));
+        List<String> rendering = new ArrayList<>();
+        for (Path file : files) {
+            if (COMMENTS.matcher(Files.readString(file)).replaceAll("").contains("I18nManager.getText"))
+                rendering.add(file.getFileName().toString());
+        }
+        assertEquals(List.of(), rendering, "a failure is a ProviderException, rendered in the language of its entry");
     }
 
     /*  The only class of the services that uses JavaFX: it changes the models a generation shares with the user

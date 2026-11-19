@@ -11,6 +11,7 @@ import art.moodframe.service.provider.ApiHttpException;
 import art.moodframe.service.provider.BflApiService;
 import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.GenerationJobResult;
+import art.moodframe.util.I18nManager;
 import javafx.application.Platform;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -196,5 +197,33 @@ class JobPollingTest {
         assertEquals(0, scheduled.size());
         assertEquals(1, entry.getImages().size(), "no image is added to a cancelled entry");
         assertEquals(ChatEntry.Status.CANCELLED, entry.getStatus());
+    }
+
+    @Test
+    void aModeratedJobTellsItsReasonInTheLanguageOfTheUserInterfaceAndInEnglishForTheMcpServer() throws Exception {
+        java.util.Locale before = I18nManager.getCurrentLocale();
+        I18nManager.setLocale(java.util.Locale.GERMAN);
+        try {
+            submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-5", "Pending")));
+            runPoll();
+            polls.poll().complete(answer("Content Moderated"));
+            drainFxThread();
+            assertEquals(I18nManager.getText("generation.error.moderated"), image().getErrorMessage());
+            assertTrue(image().getErrorMessage().contains("Sicherheitsfiltern"), image().getErrorMessage());
+            assertEquals("Content Moderated", image().getApiStatus());
+
+            entry = new ChatEntry.Builder().status(ChatEntry.Status.PROCESSING).source(ChatEntry.Source.MCP).build();
+            entry.getImages().add(new GeneratedImage.Builder().chatEntryId(entry.getId())
+                    .downloadStatus(GeneratedImage.DownloadStatus.PENDING).sortOrder(0).build());
+            submit(CompletableFuture.completedFuture(new GenerationJobInfo("job-6", "Pending")));
+            runPoll();
+            polls.poll().complete(answer("Content Moderated"));
+            drainFxThread();
+            assertEquals(I18nManager.getTextIn(java.util.Locale.ENGLISH, "generation.error.moderated"),
+                    image().getErrorMessage());
+        }
+        finally {
+            I18nManager.setLocale(before);
+        }
     }
 }

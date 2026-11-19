@@ -108,7 +108,7 @@ class OpenAiApiServiceTest {
 
         ImageGenerationRequest dalle = new ImageGenerationRequest("x".repeat(5000), "dall-e-3");
         OpenAiApiService openAi = MockProviders.preparing().get(ApiProvider.OPENAI, OpenAiApiService.class);
-        assertThrows(IllegalArgumentException.class, () -> openAi.checkPromptLength(dalle));
+        assertThrows(ProviderException.class, () -> openAi.checkPromptLength(dalle));
         assertDoesNotThrow(() -> openAi.checkPromptLength(request));
         assertEquals(32000, OpenAiApiService.promptLimitOf("gpt-image-1"));
         assertEquals(4000, OpenAiApiService.promptLimitOf("dall-e-3"));

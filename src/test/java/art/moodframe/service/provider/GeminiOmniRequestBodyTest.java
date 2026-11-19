@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -123,13 +124,18 @@ class GeminiOmniRequestBodyTest {
         assertNull(extractUri.invoke(service, new JSONObject("{\"status\":\"failed\"}")));
     }
 
+    /*  why an interaction has no video, in English  */
+    private static String error(String interaction) throws Exception {
+        return ((ProviderException) extractError.invoke(service, new JSONObject(interaction)))
+                .getMessage(Locale.ENGLISH);
+    }
+
     @Test
     void noVideoIsExplainedByTheErrorsThenTheModelTextThenTheStatus() throws Exception {
-        assertEquals("blocked by safety", extractError.invoke(service, new JSONObject(
-                "{\"status\":\"failed\",\"errors\":[{\"message\":\"blocked by safety\"}]}")));
-        assertEquals("I cannot make that.", extractError.invoke(service, new JSONObject(
-                "{\"steps\":[{\"type\":\"model_output\",\"content\":[{\"type\":\"text\",\"text\":\"I cannot make that.\"}]}]}")));
-        assertEquals("No video in response (status: incomplete)", extractError.invoke(service, new JSONObject(
-                "{\"status\":\"incomplete\"}")));
+        assertEquals("blocked by safety", error(
+                "{\"status\":\"failed\",\"errors\":[{\"message\":\"blocked by safety\"}]}"));
+        assertEquals("I cannot make that.", error("{\"steps\":[{\"type\":\"model_output\",\"content\":"
+                + "[{\"type\":\"text\",\"text\":\"I cannot make that.\"}]}]}"));
+        assertEquals("No video in response (status: incomplete)", error("{\"status\":\"incomplete\"}"));
     }
 }

@@ -3,6 +3,7 @@ package art.moodframe.service.generation;
 import art.moodframe.model.ChatEntry;
 import art.moodframe.model.GeneratedImage;
 import art.moodframe.repository.ChatRepository;
+import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.ProviderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -160,6 +161,30 @@ public class ChatEntryTracker {
     }
 
     /**
+     * Gets the message of a failed job for an entry, like {@link #errorText(Throwable, ChatEntry)}.
+     *
+     * @param job       the failed job
+     * @param chatEntry the entry
+     * @return the message of its reason, else its error message as the provider gave it
+     */
+    static String errorText(GenerationJobInfo job, ChatEntry chatEntry) {
+        return job.getFailure() != null ? errorText(job.getFailure(), chatEntry) : job.getErrorMessage();
+    }
+
+    /**
+     * Gets a message of the i18n resources for an entry, like {@link #errorText(Throwable, ChatEntry)}.
+     *
+     * @param chatEntry the entry
+     * @param cause     the cause (may be null)
+     * @param key       the key of the message
+     * @param arguments the arguments of the message
+     * @return the message
+     */
+    static String errorText(ChatEntry chatEntry, Throwable cause, String key, Object... arguments) {
+        return errorText(ProviderException.localized(cause, key, arguments), chatEntry);
+    }
+
+    /**
      * Marks a chat entry as failed with the given message, stores it and then shows it.
      */
     public void markFailed(ChatEntry chatEntry, String errorMessage) {
@@ -191,9 +216,10 @@ public class ChatEntryTracker {
         List<GeneratedImage> stopped = chatEntry.getImages().stream()
                 .filter((GeneratedImage image) -> image.getDownloadStatus() != GeneratedImage.DownloadStatus.CACHED
                         && image.getDownloadStatus() != GeneratedImage.DownloadStatus.FAILED).toList();
+        String cancelled = errorText(chatEntry, null, "generation.error.cancelled");
         stopped.forEach((GeneratedImage image) -> {
             image.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED);
-            image.setErrorMessage("Cancelled");
+            image.setErrorMessage(cancelled);
         });
         chatEntry.setStatus(ChatEntry.Status.CANCELLED);
         chatEntry.setCompletedAt(LocalDateTime.now());

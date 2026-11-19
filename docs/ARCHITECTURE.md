@@ -389,9 +389,17 @@ statuses `pollJob` answers are those of BFL (named in its Javadoc), a 404 means 
 safety tolerance is stored as the FLUX.2 setting. A model id that is neither a constant nor served by a provider
 goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX models are no constants any more. The prompt limit of a
 model comes from its provider (`ProviderRegistry.promptLimit`), for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step) are one table,
-`model.ModelParameters`, which the MCP schema, the MCP validation and the providers read. Errors are
-`ProviderException`s with a message from the i18n resources (`ApiHttpException` with the HTTP status), which the MCP
-clients get in English.
+`model.ModelParameters`, which the MCP schema, the MCP validation and the providers read.
+
+Errors follow one rule: every failure of a provider or a generation the user reads is a `ProviderException` with an
+i18n key and its arguments (`ApiHttpException` with the HTTP status), or carries one: a job a provider answers as
+failed (a blocked image, a video without file) holds it as `GenerationJobInfo.getFailure()`, and the generation
+wraps its own failures (timeout, moderated or failed job, download, file, attachment, cancel) the same way. A text of
+the provider (e.g. the refusal of Omni) is a `ProviderException` with that fixed text. The entry and its images
+store the message once, rendered by `ChatEntryTracker.errorText` in the language of whoever placed the order: the
+language of the user interface for the window, English for the MCP server. No image or video client and no class of
+the generation renders a message with `I18nManager.getText` itself (`ArchitectureTest`, besides the dropdown items of
+`ModelLabels`).
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
 (`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
 provider is a client, its entry in the registry, its models, its constant in `ApiProvider` (whose prefix names its

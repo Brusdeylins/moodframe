@@ -3,7 +3,6 @@ package art.moodframe.service.provider;
 import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
-import art.moodframe.util.I18nManager;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -14,6 +13,7 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -99,14 +99,13 @@ final class GeminiImageClient {
                             logResponseStructure(responseBody);
 
                         // Check for content blocking before extracting image
-                        String blockingReason = checkForContentBlocking(responseBody, request.hasInputImage(),
-                                request.hasVideoSource());
+                        ProviderException blockingReason = checkForContentBlocking(responseBody,
+                                request.hasInputImage(), request.hasVideoSource());
                         if (blockingReason != null) {
-                            logger.info("Gemini content blocked: {}", blockingReason);
+                            logger.info("Gemini content blocked: {}", blockingReason.getMessage(Locale.ENGLISH));
                             return new GenerationJobInfo.Builder()
                                 .jobId(java.util.UUID.randomUUID().toString())
-                                .status("failed")
-                                .errorMessage(blockingReason)
+                                .failure(blockingReason)
                                 .isSynchronous(true)
                                 .provider(ApiProvider.GOOGLE_GEMINI)
                                 .build();
@@ -248,13 +247,14 @@ final class GeminiImageClient {
 
     /**
      * Checks if content was blocked by Gemini safety filters.
-     * Returns the user-friendly blocking message, or null if content was not blocked.
+     * Returns the reason with a localizable message, or null if content was not blocked.
      *
      * @param responseBody the JSON response from Gemini API
      * @param hasInputImage whether an input image was attached to the request
-     * @return blocking message if blocked, null if not blocked
+     * @return the reason if blocked, null if not blocked
      */
-    static String checkForContentBlocking(String responseBody, boolean hasInputImage, boolean hasVideoSource) {
+    static ProviderException checkForContentBlocking(String responseBody, boolean hasInputImage,
+            boolean hasVideoSource) {
         try {
             JSONObject json = new JSONObject(responseBody);
 
@@ -266,21 +266,18 @@ final class GeminiImageClient {
                     String blockReason = promptFeedback.getString("blockReason");
                     logger.warn("Prompt blocked at input level - blockReason={}", blockReason);
 
-                    // Return localized user-friendly message with solution hints
-                    return switch (blockReason) {
-                        case "SAFETY" ->
-                            I18nManager.getText(hasInputImage ? "gemini.error.safety.with.image" : "gemini.error.safety");
-                        case "PROHIBITED_CONTENT" ->
-                            I18nManager.getText(hasInputImage ? "gemini.error.prohibited.with.image" : "gemini.error.prohibited");
-                        case "BLOCKLIST" ->
-                            I18nManager.getText(hasInputImage ? "gemini.error.blocklist.with.image" : "gemini.error.blocklist");
-                        case "SPII" ->
-                            I18nManager.getText(hasInputImage ? "gemini.error.spii.with.image" : "gemini.error.spii");
-                        case "OTHER" ->
-                            I18nManager.getText(hasInputImage ? "gemini.error.other.with.image" : "gemini.error.other");
-                        default ->
-                            I18nManager.getText("gemini.error.default", blockReason);
+                    /*  A localizable message with solution hints, naming the attached image if there is one  */
+                    String key = switch (blockReason) {
+                        case "SAFETY" -> "gemini.error.safety";
+                        case "PROHIBITED_CONTENT" -> "gemini.error.prohibited";
+                        case "BLOCKLIST" -> "gemini.error.blocklist";
+                        case "SPII" -> "gemini.error.spii";
+                        case "OTHER" -> "gemini.error.other";
+                        default -> null;
                     };
+                    if (key == null)
+                        return ProviderException.localized("gemini.error.default", blockReason);
+                    return ProviderException.localized(hasInputImage ? key + ".with.image" : key);
                 }
             }
 
@@ -331,32 +328,32 @@ final class GeminiImageClient {
                                 logger.info("Gemini finishMessage: {}", finishMessage);
                             }
 
-                            // Return localized user-friendly message with solution hints
+                            /*  A localizable message with solution hints  */
                             return switch (finishReason) {
                                 case "SAFETY", "IMAGE_SAFETY" ->
-                                    I18nManager.getText("gemini.error.safety");
+                                    ProviderException.localized("gemini.error.safety");
                                 case "PROHIBITED_CONTENT", "IMAGE_PROHIBITED_CONTENT" ->
-                                    I18nManager.getText("gemini.error.prohibited");
+                                    ProviderException.localized("gemini.error.prohibited");
                                 case "IMAGE_OTHER" ->
-                                    I18nManager.getText("gemini.error.image.other");
-                                case "NO_IMAGE" ->
-                                    I18nManager.getText(hasVideoSource ? "gemini.error.no.image.video" : "gemini.error.no.image");
+                                    ProviderException.localized("gemini.error.image.other");
+                                case "NO_IMAGE" -> ProviderException.localized(hasVideoSource
+                                        ? "gemini.error.no.image.video" : "gemini.error.no.image");
                                 case "RECITATION", "IMAGE_RECITATION" ->
-                                    I18nManager.getText("gemini.error.recitation");
+                                    ProviderException.localized("gemini.error.recitation");
                                 case "OTHER" ->
-                                    I18nManager.getText("gemini.error.other");
+                                    ProviderException.localized("gemini.error.other");
                                 case "BLOCKLIST" ->
-                                    I18nManager.getText("gemini.error.blocklist");
+                                    ProviderException.localized("gemini.error.blocklist");
                                 case "SPII" ->
-                                    I18nManager.getText("gemini.error.spii");
+                                    ProviderException.localized("gemini.error.spii");
                                 case "MAX_TOKENS" ->
-                                    I18nManager.getText("gemini.error.max.tokens");
+                                    ProviderException.localized("gemini.error.max.tokens");
                                 case "LANGUAGE" ->
-                                    I18nManager.getText("gemini.error.language");
+                                    ProviderException.localized("gemini.error.language");
                                 case "MALFORMED_FUNCTION_CALL" ->
-                                    I18nManager.getText("gemini.error.malformed.function");
+                                    ProviderException.localized("gemini.error.malformed.function");
                                 default ->
-                                    I18nManager.getText("gemini.error.default", finishReason);
+                                    ProviderException.localized("gemini.error.default", finishReason);
                             };
                         }
                     }

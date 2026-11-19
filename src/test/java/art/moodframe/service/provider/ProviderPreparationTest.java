@@ -35,9 +35,10 @@ class ProviderPreparationTest {
     @Test
     void theProviderChecksThePromptAgainstItsLimit() {
         ImageGenerationRequest flux = new ImageGenerationRequest("x".repeat(2001), "flux.2-pro");
-        IllegalArgumentException tooLong = assertThrows(IllegalArgumentException.class,
+        ProviderException tooLong = assertThrows(ProviderException.class,
                 () -> providers.forModel("flux.2-pro").checkPromptLength(flux));
-        assertEquals("Prompt cannot exceed 2000 characters (BFL (Blackforest Labs) limit)", tooLong.getMessage());
+        assertEquals("The prompt cannot exceed 2000 characters (BFL (Blackforest Labs) limit).",
+                tooLong.getMessage(java.util.Locale.ENGLISH));
         ImageGenerationRequest gemini = new ImageGenerationRequest("x".repeat(2001), "gemini-3-pro-image");
         providers.forModel("gemini-3-pro-image").checkPromptLength(gemini);
     }

@@ -5,6 +5,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.service.provider.GenerationJobInfo;
 import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.ProviderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +58,7 @@ public class SynchronousImageFlow {
 
                         /*  Blocked content: the placeholder fails with the reason, a blocked image costs nothing  */
                         logger.info("{} image {} blocked, stored with its error message", name, imageIndex);
-                        failImage(chatEntry, imageIndex, jobInfo.getErrorMessage(), true);
+                        failImage(chatEntry, imageIndex, ChatEntryTracker.errorText(jobInfo, chatEntry), true);
                     }
                     else if (jobInfo.isSynchronous() && jobInfo.getBase64Image() != null)
                         storeImage(provider, jobInfo, request, chatEntry, imageIndex);
@@ -122,7 +123,7 @@ public class SynchronousImageFlow {
             }
             catch (Exception e) {
                 logger.error("Failed to save the {} image", provider.getProvider().getDisplayName(), e);
-                error = "Failed to save image: " + e.getMessage();
+                error = ChatEntryTracker.errorText(chatEntry, e, "generation.error.save", e.getMessage());
             }
 
             ImageFileStore.StoredImage result = stored;
@@ -166,9 +167,10 @@ public class SynchronousImageFlow {
                     String.format("%.4f", extra.search()), String.format("%.4f", extra.reasoning()));
 
         tracker.saveImage(generatedImage).exceptionally((Throwable failure) -> {
-            Throwable cause = failure.getCause() != null ? failure.getCause() : failure;
+            Throwable cause = ProviderException.unwrap(failure);
             FxModel.change(() -> generatedImage.setDownloadStatus(GeneratedImage.DownloadStatus.FAILED));
-            tracker.markFailed(chatEntry, "Failed to save image: " + cause.getMessage());
+            tracker.markFailed(chatEntry, ChatEntryTracker.errorText(chatEntry, cause, "generation.error.save",
+                    cause.getMessage()));
             return null;
         });
 

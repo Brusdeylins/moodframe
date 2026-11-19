@@ -7,6 +7,7 @@ import art.moodframe.model.GeneratedImage;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 import art.moodframe.service.provider.ImageProvider;
+import art.moodframe.service.provider.ProviderException;
 import art.moodframe.service.provider.ProviderRegistry;
 import art.moodframe.util.ImageEncoder;
 import org.slf4j.Logger;
@@ -168,7 +169,7 @@ public class RequestResponseManager implements RequestResponseService {
     /**
      * Encodes an attached image into the request, for a model that takes one.
      *
-     * @throws IllegalArgumentException if the model takes no image or the file cannot be encoded
+     * @throws ProviderException if the model takes no image or the file cannot be encoded
      */
     private void attachImage(ImageGenerationRequest request, File attachedImageFile) {
         try {
@@ -182,7 +183,7 @@ public class RequestResponseManager implements RequestResponseService {
         }
         catch (Exception e) {
             logger.error("Failed to process attached image: {}", attachedImageFile.getName(), e);
-            throw new IllegalArgumentException("Failed to process image attachment: " + e.getMessage(), e);
+            throw ProviderException.localized(e, "generation.error.attachment", e.getMessage());
         }
     }
 }

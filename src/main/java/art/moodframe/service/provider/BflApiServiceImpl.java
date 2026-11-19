@@ -254,7 +254,7 @@ public class BflApiServiceImpl implements BflApiService {
         try {
             request.validate();
             checkPromptLength(request);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | ProviderException e) {
             return CompletableFuture.failedFuture(e);
         }
         
