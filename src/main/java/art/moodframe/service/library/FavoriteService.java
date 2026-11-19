@@ -23,7 +23,11 @@ import java.util.function.ToIntFunction;
  * kept by kind and id ({@link FavoriteRepository}). The lists of the right panel show them first ({@link #order}).
  *
  * <p>A switched favorite is reported as {@link LibraryEvents.Kind#FAVORITE}. The service may be called from several
- * threads.</p>
+ * threads. Its lock guards the favorites in memory only, so {@link #isFavorite} never waits for the database: a
+ * {@link #toggle} switches the favorite in memory at once and stores it afterwards, outside that lock. The writes run
+ * one after the other, each storing the state in memory as it is then, so the database ends with the last switch
+ * whatever order concurrent toggles reach it in; a write that fails sets the favorite in memory back to the state
+ * of the database, unless a later toggle is still to store it.</p>
  *
  * @since 2.0.0
  */
@@ -48,6 +52,8 @@ public class FavoriteService {
 
     private final FavoriteRepository repository;
     private final Map<Kind, Set<String>> favorites = new EnumMap<>(Kind.class);
+    private final Map<Kind, Set<String>> stored = new EnumMap<>(Kind.class);
+    private final Object writing = new Object();
     private final LibraryEvents events;
     private final RepositoryAccess access = new RepositoryAccess(logger);
 
@@ -62,10 +68,29 @@ public class FavoriteService {
         this.events = events;
     }
 
-    /*  the ids of the favorites of a kind, loaded once; only under the lock of the service  */
+    /*  The ids of the favorites of a kind as shown, loaded once, and as stored in the database; only under the lock
+        of the service  */
     private Set<String> ids(Kind kind) {
-        return favorites.computeIfAbsent(kind, (key) -> access.call(() -> repository.findIds(key.name()),
-                new HashSet<>(), "Failed to load the favorites of " + key.name()));
+        return favorites.computeIfAbsent(kind, (key) -> {
+            Set<String> loaded = access.call(() -> repository.findIds(key.name()), new HashSet<>(),
+                    "Failed to load the favorites of " + key.name());
+            stored.put(key, new HashSet<>(loaded));
+            return loaded;
+        });
+    }
+
+    /*  the ids of the favorites of a kind as stored in the database; only under the lock of the service  */
+    private Set<String> storedIds(Kind kind) {
+        ids(kind);
+        return stored.get(kind);
+    }
+
+    /*  adds an id to the ids, or removes it  */
+    private static void set(Set<String> ids, String id, boolean favorite) {
+        if (favorite)
+            ids.add(id);
+        else
+            ids.remove(id);
     }
 
     /**
@@ -80,23 +105,39 @@ public class FavoriteService {
     }
 
     /**
-     * Makes an entry a favorite, or takes its favorite away.
+     * Makes an entry a favorite, or takes its favorite away: at once in memory, then in the database, outside the
+     * lock that {@link #isFavorite} takes.
      *
      * @param kind the kind of the entry
      * @param id   the entry id
      * @return true if it is a favorite now, the former state if it cannot be stored
      */
-    public synchronized boolean toggle(Kind kind, String id) {
-        boolean favorite = !isFavorite(kind, id);
-        String failure = "Failed to change the favorite " + id + " of " + kind;
-        boolean stored = favorite ? access.call(() -> repository.add(kind.name(), id), false, failure)
-                : access.call(() -> repository.remove(kind.name(), id), false, failure);
-        if (stored) {
-            if (favorite)
-                ids(kind).add(id);
-            else
-                ids(kind).remove(id);
-            events.changed(LibraryEvents.Kind.FAVORITE, id);
+    public boolean toggle(Kind kind, String id) {
+        synchronized (this) {
+            Set<String> ids = ids(kind);
+            set(ids, id, !ids.contains(id));
+        }
+
+        /*  The latest state in memory is written, so a toggle that comes later never loses against an earlier one  */
+        synchronized (writing) {
+            boolean wanted;
+            boolean held;
+            synchronized (this) {
+                wanted = ids(kind).contains(id);
+                held = storedIds(kind).contains(id);
+            }
+            String failure = "Failed to change the favorite " + id + " of " + kind;
+            boolean written = wanted == held || (wanted
+                    ? access.call(() -> repository.add(kind.name(), id), false, failure)
+                    : access.call(() -> repository.remove(kind.name(), id), false, failure));
+            synchronized (this) {
+                if (written)
+                    set(storedIds(kind), id, wanted);
+                else if (ids(kind).contains(id) == wanted)
+                    set(ids(kind), id, held);
+            }
+            if (written)
+                events.changed(LibraryEvents.Kind.FAVORITE, id);
         }
         return isFavorite(kind, id);
     }
