@@ -1,7 +1,6 @@
 package art.moodframe.repository;
 
 import art.moodframe.database.DatabaseManager;
-import art.moodframe.model.Mood;
 import art.moodframe.model.PromptBlock;
 
 import java.sql.Connection;
@@ -177,14 +176,7 @@ public class PromptBlockRepository {
      */
     public int deleteAll(PromptBlock.Type type) throws SQLException {
         return database.inTransaction((Connection conn) -> {
-            for (Mood.Field field : Mood.Field.values()) {
-                try (PreparedStatement stmt = conn.prepareStatement("UPDATE moods SET " + field.column()
-                        + " = NULL, updated_at = CURRENT_TIMESTAMP WHERE " + field.column()
-                        + " IN (SELECT id FROM prompt_blocks WHERE type = ?)")) {
-                    stmt.setString(1, type.name());
-                    stmt.executeUpdate();
-                }
-            }
+            MoodRepository.dropReferences(conn, "IN (SELECT id FROM prompt_blocks WHERE type = ?)", type.name());
             try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM prompt_blocks WHERE type = ?")) {
                 stmt.setString(1, type.name());
                 return stmt.executeUpdate();
