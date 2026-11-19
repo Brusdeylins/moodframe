@@ -3,6 +3,7 @@ package art.moodframe.database;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,6 +23,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -137,6 +141,28 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection()) {
             assertEquals(TRIGGERS, triggers(connection));
             assertTrue(versions(connection).contains("031"));
+        }
+    }
+
+    @Test
+    void everyMigrationFileIsListedAndApplied() throws Exception {
+        List<String> files;
+        Path folder = Path.of(MigrationRunnerTest.class.getResource("/db/migration").toURI());
+        try (Stream<Path> listed = Files.list(folder)) {
+            files = listed.map((Path file) -> file.getFileName().toString()).sorted().toList();
+        }
+        Pattern name = Pattern.compile("V(\\d{3})__\\w+\\.sql");
+        assertTrue(files.size() >= 28, files.toString());
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("new.db"));
+        database.initialize();
+
+        try (Connection connection = database.getConnection()) {
+            List<String> applied = versions(connection);
+            for (String file : files) {
+                Matcher version = name.matcher(file);
+                assertTrue(version.matches(), "named V###__description.sql: " + file);
+                assertTrue(applied.contains(version.group(1)), "listed in MigrationRunner.MIGRATIONS: " + file);
+            }
         }
     }
 
