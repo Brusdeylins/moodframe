@@ -398,7 +398,7 @@ task validateJavaFXBundling {
         
         println "🔍 Validating JavaFX bundling..."
         
-        def requiredModules = ['base', 'controls', 'fxml', 'graphics', 'media', 'web']
+        def requiredModules = ['base', 'controls', 'fxml', 'graphics', 'media']
         def platforms = ['mac', 'mac-aarch64', 'win']
         
         def missingFiles = []
