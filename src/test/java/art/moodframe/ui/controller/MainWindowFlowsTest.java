@@ -787,9 +787,10 @@ class MainWindowFlowsTest {
             find(name, TextField.class).setText("Renamed chat");
             name.confirmEdit();
         });
-        assertEquals("Renamed chat", full.getName());
         waitUntil("the rename is stored", () -> java.text.MessageFormat.format(
                 I18nManager.getText("status.chat.renamed"), "Renamed chat").equals(status().getText()));
+        assertEquals("Renamed chat", full.getName());
+        assertEquals("Renamed chat", onFx(() -> find(chatCell(full), InPlaceEditableLabel.class).getText()));
         assertEquals("Renamed chat", header().getText());
         assertEquals("Renamed chat", repository.findChatById(full.getId()).orElseThrow().getName());
 
