@@ -54,13 +54,12 @@ configurations.all {
         force "org.openjfx:javafx-fxml:${javafxVersion}"
         force "org.openjfx:javafx-graphics:${javafxVersion}"
         force "org.openjfx:javafx-media:${javafxVersion}"
-        force "org.openjfx:javafx-web:${javafxVersion}"
     }
 }
 
 javafx {
     version = javafxVersion
-    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.web', 'javafx.media']
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.media']
 }
 
 dependencies {
@@ -77,8 +76,6 @@ dependencies {
     runtimeOnly "org.openjfx:javafx-graphics:${javafxVersion}:mac-aarch64"
     runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:mac"
     runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:mac-aarch64"
-    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:mac"
-    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:mac-aarch64"
 
     // Windows platform dependencies for cross-platform packaging
     runtimeOnly "org.openjfx:javafx-base:${javafxVersion}:win"
@@ -86,7 +83,6 @@ dependencies {
     runtimeOnly "org.openjfx:javafx-fxml:${javafxVersion}:win"
     runtimeOnly "org.openjfx:javafx-graphics:${javafxVersion}:win"
     runtimeOnly "org.openjfx:javafx-media:${javafxVersion}:win"
-    runtimeOnly "org.openjfx:javafx-web:${javafxVersion}:win"
     
     // JSON handling
     implementation 'com.fasterxml.jackson.core:jackson-core:2.16.1'
