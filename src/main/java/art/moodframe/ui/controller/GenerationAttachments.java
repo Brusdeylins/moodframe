@@ -364,31 +364,26 @@ final class GenerationAttachments {
      * 2) If there's an empty slot: fill it with the new image
      * 3) If 2+ images and no empty slot: create new slot and attach (if under max limit)
      *
-     * @return whether the image was attached, false if the maximum number of images is reached
+     * <p>The panel reads and shrinks the image in the background; the first attached image, the count and the models
+     * follow once the panel holds it, so the panel is the one source of what is attached.</p>
+     *
+     * @return whether the image goes into a slot, false if the maximum number of images is reached
      */
     boolean attach(File imageFile) {
-        // Use the MultiImageAttachmentPanel for image attachment (it shrinks images above the size limit)
-        if (multiImagePanel != null) {
-            int targetSlot = multiImagePanel.findTargetSlotForNewImage();
-            if (targetSlot >= 0) {
-                multiImagePanel.attachImageToSlot(targetSlot, imageFile);
-            } else {
-                // Max images reached - show warning
-                logger.warn("Cannot attach image: maximum number of images reached");
-                status.status(I18nManager.getText("attachment.max.reached",
-                    multiImagePanel.getAttachmentCount()));
-                return false;
-            }
+        int targetSlot = multiImagePanel.findTargetSlotForNewImage();
+        if (targetSlot < 0) {
+            logger.warn("Cannot attach image: maximum number of images reached");
+            status.status(I18nManager.getText("attachment.max.reached", multiImagePanel.getAttachmentCount()));
+            return false;
         }
 
-        // Store the file reference for API use (legacy support)
-        attachedImageFile = imageFile;
-
-        // Auto-set image count to 1 for image-to-image generation
-        host.imageAttached();
-
-        // Update UI to reflect attachment (auto-adjusts model, aspect ratio, style)
-        updateAttachmentState();
+        /*  The count goes to 1 for image-to-image, the model, the aspect ratio and the style follow the attachment  */
+        multiImagePanel.attachImageToSlot(targetSlot, imageFile).thenAccept((Boolean attached) -> {
+            if (!attached)
+                return;
+            host.imageAttached();
+            updateAttachmentState();
+        });
         return true;
     }
 }

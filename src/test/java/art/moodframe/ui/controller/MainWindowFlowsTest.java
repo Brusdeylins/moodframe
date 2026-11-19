@@ -1198,6 +1198,33 @@ class MainWindowFlowsTest {
                 .filter(test).map(ModelLabels::displayName).toList();
     }
 
+    /**
+     * The edit pencil attaches through the panel of the attachments: a file the panel cannot read leaves nothing
+     * attached, a readable one is the attached image once the panel holds it.
+     */
+    @Test
+    void anEditedImageIsAttachedOnlyOnceThePanelHoldsIt() throws Exception {
+        Chat chat = createChat("Edit");
+        open(chat);
+        MultiImageAttachmentPanel panel = controller.generationPanel().attachmentPanel();
+        Path broken = home.resolve("broken.png");
+        Files.writeString(broken, "no image");
+        String editing = I18nManager.getText("status.image.edit.attached");
+
+        onFxThread(() -> controller.editImage(broken.toString()));
+        assertNull(controller.generationPanel().attachedImage(), "nothing is attached before the panel holds it");
+        waitUntil("the failure shows", () -> !editing.equals(status().getText()));
+        assertEquals(0, panel.getAttachmentCount());
+        assertFalse(controller.generationPanel().hasAttachment(), "the unreadable file is not attached");
+
+        File image = image("edited.png");
+        onFxThread(() -> controller.editImage(image.getPath()));
+        waitUntil("the image is attached", () -> panel.getAttachmentCount() == 1
+                && controller.generationPanel().hasAttachment());
+        assertEquals(image, controller.generationPanel().attachedImage());
+        onFxThread(panel::clearAllAttachments);
+    }
+
     private File image(String name) throws Exception {
         Path file = home.resolve(name);
         Files.write(file, Base64.getDecoder().decode(testImage));
