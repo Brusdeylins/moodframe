@@ -24,7 +24,6 @@ module art.moodframe {
 
     // Database
     requires org.xerial.sqlitejdbc;
-    // JDBI is not modularized - handled via classpath
     
     // Logging
     requires org.slf4j;
@@ -48,8 +47,7 @@ module art.moodframe {
     exports art.moodframe.ui.panel;
     exports art.moodframe.model;
 
-    // Open for reflection (required for FXML, Jackson)
-    opens art.moodframe to javafx.fxml, com.fasterxml.jackson.databind;
+    // Open for reflection (required for FXML, Jackson); the root holds no controller and nothing Jackson maps
     opens art.moodframe.ui.controller to javafx.fxml;
     opens art.moodframe.ui.controller.settings to javafx.fxml;
     opens art.moodframe.ui.component to javafx.fxml;
