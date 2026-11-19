@@ -845,6 +845,19 @@ public enum GenerationModel {
     }
 
     /**
+     * Gets the constant of a fixed id, unlike {@link #fromId(String)} without the placeholder of the models a provider
+     * lists beyond the constants.
+     *
+     * @param id the id (may be null)
+     * @return the constant of that name, null for any other id, the name of the placeholder and null
+     * @since 2.1.3
+     */
+    public static GenerationModel constantOf(String id) {
+        GenerationModel model = fromId(id);
+        return model != null && model != OPENAI_IMAGE && model.name().equals(id) ? model : null;
+    }
+
+    /**
      * Checks if a model id is an image model of the OpenAI Images API: {@code dall-e-*}, {@code gpt-image-*},
      * {@code chatgpt-image-*}.
      *

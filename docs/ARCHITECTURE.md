@@ -384,12 +384,22 @@ its client; a video model is submitted like an image model, and images and video
 through `service.generation.JobPollingFlow`: one job per image, whose request the provider limits (`prepareJob`, e.g.
 the range of the seed), one retry with the safety tolerance the account is approved for
 (`approvedSafetyTolerance`), polled with `pollJob` one answer at a time and priced with `reportedCost`. A provider
-with seeds (`usesSeeds()`) gets random ones from `service.generation.Seeds`. Remaining assumptions of the flow: the
-statuses `pollJob` answers are those of BFL (named in its Javadoc), a 404 means "not visible yet", and an approved
-safety tolerance is stored as the FLUX.2 setting. A model id that is neither a constant nor served by a provider
-goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX models are no constants any more. The prompt limit of a
-model comes from its provider (`ProviderRegistry.promptLimit`), for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step) are one table,
-`model.ModelParameters`, which the MCP schema, the MCP validation and the providers read.
+that answers with the image goes through `SynchronousImageFlow`, which adds the costs the provider names beyond the
+price per image (`extraCosts`, Gemini: Google Search and thinking tokens); a video model through `VideoFlow`. A
+provider with seeds (`usesSeeds()`) gets random ones from `service.generation.Seeds`, the images of one without seeds
+store none. Remaining assumptions of the polled flow: the statuses `pollJob` answers are those of BFL (named in its
+Javadoc), a 404 means "not visible yet", and an approved safety tolerance is stored as the FLUX.2 setting. A model id
+that is neither a constant nor served by a provider goes to BFL (`ProviderRegistry.providerOf`), whose former FLUX
+models are no constants any more. The prompt limit of a model comes from its provider (`ProviderRegistry.promptLimit`),
+for the generation and the MCP tools alike. The parameters of the models (name, kind, limits, default, slider step)
+are one table, `model.ModelParameters`, which the MCP schema, the MCP validation and the providers read.
+
+Models beyond the constants are those a provider lists (`listedModels()`, today the models the user chose of the
+OpenAI-compatible gateway); they share the placeholder constant `GenerationModel.OPENAI_IMAGE` and are named
+`OpenAI · <id>` in the dropdown (`GenerationModel.OPENAI_PREFIX`). `GenerationModel.constantOf` tells a constant from
+such an id, `ProviderRegistry.isOrderable` and `ProviderRegistry.apiModelId` decide for the generation, so no class
+of `service` but the OpenAI client names the placeholder (`ArchitectureTest`). A second provider with listed models
+would need an item prefix of its own.
 
 Errors follow one rule: every failure of a provider or a generation the user reads is a `ProviderException` with an
 i18n key and its arguments (`ApiHttpException` with the HTTP status), or carries one: a job a provider answers as
@@ -400,10 +410,30 @@ store the message once, rendered by `ChatEntryTracker.errorText` in the language
 language of the user interface for the window, English for the MCP server. No image or video client and no class of
 the generation renders a message with `I18nManager.getText` itself (`ArchitectureTest`, besides the dropdown items of
 `ModelLabels`).
+
 `MoodframeApplication` builds one `ProviderRegistry` and passes it to the services that dispatch by provider
-(`RequestResponseManager`, `ApiProviderValidator`); every constant of `GenerationModel` names its `ApiProvider`. A new
-provider is a client, its entry in the registry, its models, its constant in `ApiProvider` (whose prefix names its
-account settings in `ProviderAccounts`) and its key in `config.Secret`.
+(`RequestResponseManager`, `GenerationService`, `ApiProviderValidator`); every constant of `GenerationModel` names
+its `ApiProvider`. What needs no change for a new provider: the dispatch and the flows of the generation, the
+dropdown (`ModelLabels.availableItems` lists the selectable constants of every usable provider), the startup check
+of the accounts (`ApiProviderValidator` tests the connection of every registered provider; only Gemini and OpenAI add
+the checks of their brainstorm language model) and the MCP tools. A new provider is, in this order:
+
+1. its constant in `model.ApiProvider` (display name, prefix of its account settings in `ProviderAccounts`, largest
+   attachment) and its key in `config.Secret`, mapped in `ProviderAccounts.secret` (and `isBrainstormAvailable`,
+   false without a language model);
+2. its client in `service.provider`: an interface extending `ImageProvider` with its implementation (prompt limit,
+   `prepare`, the flow it answers with, seeds, costs, download headers), created in
+   `MoodframeApplication.registerProviders` and added to the `ProviderRegistry` there;
+3. its models as constants of `model.GenerationModel` (with the branch of the constructor for their resolution and
+   attachment limits, `getFamilyName` and `getResolutionLabel` for variants), their parameters in
+   `model.ModelParameters`, their prices in `model.GenerationCost`, their aspect ratios in `AspectRatios.forModel` and
+   the multiple of their sizes in `ImageDimensions.multipleFor`;
+4. a request option its models take beyond the general ones: a field of `GenerationOrder.Parameters` and of
+   `service.provider.RequestOptions` (filled in `GenerationService.createRequest`), and its field in
+   `ui.controller.ProviderParameters`;
+5. the user interface of the account: a settings tab (FXML in `fxml/settings`, a `SettingsSection` in
+   `ui.controller.settings`, its client in `SettingsServices`), its line in `StatusBarController` and its texts in
+   the i18n resources (`status.request.submitted.<last part of the prefix>`, falling back to a generic one).
 
 ### D5: Detailed logging as a log level
 

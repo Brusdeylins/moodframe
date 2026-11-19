@@ -4,6 +4,7 @@ import art.moodframe.model.ApiProvider;
 import art.moodframe.model.GenerationModel;
 import art.moodframe.model.ImageGenerationRequest;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -225,6 +226,16 @@ public interface ImageProvider {
      */
     default boolean servesModel(String modelId) {
         return false;
+    }
+
+    /**
+     * Gets the models of this provider that are no constant of {@link art.moodframe.model.GenerationModel} and can be
+     * ordered, e.g. those the user chose of an OpenAI-compatible gateway; each is also {@link #servesModel served}.
+     *
+     * @return the API model ids, empty for a provider with constants only
+     */
+    default List<String> listedModels() {
+        return List.of();
     }
 
     /**

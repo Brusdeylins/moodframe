@@ -267,6 +267,18 @@ class ArchitectureTest {
         assertEquals(List.of(), rendering, "a failure is a ProviderException, rendered in the language of its entry");
     }
 
+    @Test
+    void noServiceButTheOpenAiClientNamesThePlaceholderOfTheGatewayModels() throws IOException {
+        List<String> naming = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(SOURCES.resolve("art/moodframe/service"))) {
+            for (Path file : walk.filter((Path path) -> path.toString().endsWith(".java")).toList()) {
+                if (COMMENTS.matcher(Files.readString(file)).replaceAll("").contains("OPENAI_IMAGE"))
+                    naming.add(file.getFileName().toString());
+            }
+        }
+        assertEquals(List.of("OpenAiApiService.java"), naming, "a provider decides by servesModel and listedModels");
+    }
+
     /*  The only class of the services that uses JavaFX: it changes the models a generation shares with the user
         interface on the JavaFX thread and hands the notifications of a generation there  */
     private static final Set<String> FX_SERVICES = Set.of("service.generation.FxModel");

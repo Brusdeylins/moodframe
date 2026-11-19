@@ -173,20 +173,15 @@ public class GenerationService {
         return providers.promptLimit(modelId);
     }
 
-    /*  the API id of a model: that of its constant, the id itself for a model of an OpenAI-compatible gateway  */
-    private static String apiModelId(GenerationModel model, String modelId) {
-        return model == GenerationModel.OPENAI_IMAGE ? modelId : model.getApiModelId();
-    }
-
     /**
-     * Gets the dropdown items of the models to choose from: those of the enabled providers with a key.
+     * Gets the dropdown items of the models to choose from: those of the enabled providers with a key, the chosen
+     * models of the OpenAI-compatible gateway (kept in its settings) among them.
      *
      * @param config the application configuration
-     * @return the items, see {@link ModelLabels#availableItems(boolean, boolean, List)}
+     * @return the items, see {@link ModelLabels#availableItems(java.util.function.Predicate, List)}
      */
     public static List<String> availableItems(ApplicationConfig config) {
-        return ModelLabels.availableItems(config.accounts().isUsable(ApiProvider.BFL),
-                config.accounts().isUsable(ApiProvider.GOOGLE_GEMINI),
+        return ModelLabels.availableItems(config.accounts()::isUsable,
                 config.accounts().isUsable(ApiProvider.OPENAI) ? config.getOpenAiModels() : List.of());
     }
 
@@ -200,13 +195,10 @@ public class GenerationService {
     public static List<String> availableItems(ApplicationConfig config, int imageCount) {
         if (imageCount <= 0)
             return availableItems(config);
-        Set<String> taking = GenerationModel.selectable().stream()
-                .filter((GenerationModel model) -> model.getMaxInputImages() >= imageCount)
-                .map(ModelLabels::displayName).collect(java.util.stream.Collectors.toSet());
-        boolean openAi = GenerationModel.OPENAI_IMAGE.getMaxInputImages() >= imageCount;
-        return availableItems(config).stream()
-                .filter((String item) -> GenerationModel.openAiModelId(item) != null ? openAi : taking.contains(item))
-                .toList();
+        return availableItems(config).stream().filter((String item) -> {
+            GenerationModel model = GenerationModel.fromLocalizedDisplayName(item);
+            return model != null && model.getMaxInputImages() >= imageCount;
+        }).toList();
     }
 
     /**
@@ -293,10 +285,10 @@ public class GenerationService {
             throw new GenerationException(Failure.NO_CHAT, "No chat selected for sending message");
         }
 
-        /*  A constant of the enum, else a model of the gateway  */
+        /*  A constant of the enum, else a model its provider lists  */
         String modelId = order.modelId();
         GenerationModel model = GenerationModel.fromId(modelId);
-        if (model == null || (model == GenerationModel.OPENAI_IMAGE && !config.getOpenAiModels().contains(modelId)))
+        if (model == null || !providers.isOrderable(modelId))
             throw new GenerationException(Failure.UNKNOWN_MODEL, "Unknown model: " + modelId);
         String item = ModelLabels.itemOf(modelId);
 
@@ -322,7 +314,7 @@ public class GenerationService {
                         ? "Enhanced: " + prompt + ", professional quality, highly detailed"
                         : prompt)
                 .status(ChatEntry.Status.PENDING)
-                .model(model == GenerationModel.OPENAI_IMAGE ? item : model.getDisplayName())
+                .model(GenerationModel.constantOf(modelId) != null ? model.getDisplayName() : item)
                 .size(Objects.requireNonNullElse(aspectRatio, "16:9"))
                 .style(blocks.style() != null ? blocks.style().getName() : "None")
                 .mood(moodService != null ? moodService.snapshot(order.mood(), order.moodChanged(), blocks) : null)
@@ -375,7 +367,7 @@ public class GenerationService {
             String aspectRatio, GenerationOrder order) {
         GenerationOrder.Parameters parameters = order.parameters();
         List<String> referenceImages = order.referenceImages() != null ? order.referenceImages() : List.of();
-        String apiModelId = apiModelId(model, order.modelId());
+        String apiModelId = ProviderRegistry.apiModelId(order.modelId());
         logger.debug("Creating request with model id: '{}' -> API ID: '{}'", order.modelId(), apiModelId);
 
         ImageGenerationRequest request = new ImageGenerationRequest(prompt, apiModelId);

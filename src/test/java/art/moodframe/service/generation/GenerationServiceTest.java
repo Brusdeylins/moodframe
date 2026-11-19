@@ -66,7 +66,7 @@ class GenerationServiceTest {
     private final ChatLibrary chats = new ChatLibrary(chatHistory, new LibraryEvents());
     private final RequestResponseService requests = mock(RequestResponseService.class);
     private final GenerationService service = new GenerationService(config, chats, null, requests,
-            MockProviders.preparing(), Runnable::run);
+            MockProviders.preparing(config), Runnable::run);
     private final Chat chat = new Chat.Builder().id("chat-1").name("Test").build();
 
     @BeforeAll
@@ -308,7 +308,7 @@ class GenerationServiceTest {
         EntryMood copy = new EntryMood("mood-1", "Calm", Map.of());
         when(moods.snapshot(eq(mood), eq(true), any())).thenReturn(copy);
         GenerationService withMoods = new GenerationService(config, chats, moods, requests,
-                MockProviders.preparing(), Runnable::run);
+                MockProviders.preparing(config), Runnable::run);
         File attachment = new File("attached.png");
 
         ChatEntry entry = withMoods.submit(new GenerationOrder(chat, "an apple", null, mood, true, WIDE_2K,
@@ -355,8 +355,8 @@ class GenerationServiceTest {
     @Test
     void storesTheEntryOffTheCallingThreadAndDispatchesItOnlyOnceItIsStored() throws Exception {
         List<Runnable> storing = new java.util.ArrayList<>();
-        GenerationService queued = new GenerationService(config, chats, null, requests, MockProviders.preparing(),
-                storing::add);
+        GenerationService queued = new GenerationService(config, chats, null, requests,
+                MockProviders.preparing(config), storing::add);
 
         GenerationService.Submission submission = queued.submit(order("FLUX2_PRO", WIDE_2K));
         assertEquals(ChatEntry.Status.PENDING, submission.entry().getStatus(), "the entry to show at once");
@@ -374,7 +374,8 @@ class GenerationServiceTest {
 
     @Test
     void anEntryThatCannotBeAddedFailsWithoutDispatch() {
-        GenerationService rejecting = new GenerationService(config, chats, null, requests, MockProviders.preparing(),
+        GenerationService rejecting = new GenerationService(config, chats, null, requests,
+                MockProviders.preparing(config),
                 (Runnable task) -> {
                     throw new java.util.concurrent.RejectedExecutionException("closed");
                 });

@@ -666,17 +666,16 @@ public class MainWindowController implements I18nChangeListener {
         chatViewController.addEntry(submission.entry());
         inputBar.clearPrompt();
 
-        /*  Provider-specific status message once the request is submitted  */
-        GenerationModel model = GenerationModel.fromId(modelId);
-        String providerName = model.getProvider() == ApiProvider.GOOGLE_GEMINI ? "Gemini"
-                : model.getProvider() == ApiProvider.OPENAI ? "OpenAI" : "BFL";
+        /*  The status message of the provider once the request is submitted, named by its settings prefix
+            (provider.gemini: status.request.submitted.gemini)  */
+        String prefix = GenerationModel.fromId(modelId).getProvider().getProviderConfigPrefix();
+        String statusKey = "status.request.submitted" + prefix.substring(prefix.lastIndexOf('.'));
         submission.submitted().whenComplete((Void done, Throwable throwable) -> Platform.runLater(() -> {
             if (throwable != null) {
                 statusBarController.status(I18nManager.getText("status.request.failed"));
                 chatViewController.showSelection();
                 return;
             }
-            String statusKey = "status.request.submitted." + providerName.toLowerCase();
             String statusMessage = I18nManager.getText(statusKey);
 
             // Fallback to generic message if provider-specific key doesn't exist

@@ -34,6 +34,12 @@ public interface OpenAiApiService extends ImageProvider {
         return GenerationModel.isOpenAiImageModelId(modelId) || getImageModels().contains(modelId);
     }
 
+    /** The image models the user chose, see {@link #getImageModels()}. */
+    @Override
+    default List<String> listedModels() {
+        return getImageModels();
+    }
+
     /**
      * Tests the connection by listing the models ({@code GET /models}). A successful test stores the models of the
      * API and the image models, see {@link #getImageModels()}; a client of {@link #withCredentials(String, String)}

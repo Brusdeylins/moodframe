@@ -295,7 +295,8 @@ public class ImageFileStore {
      */
     private static String modelName(String model) {
         GenerationModel known = GenerationModel.fromApiModelId(model);
-        String name = known != null && known != GenerationModel.OPENAI_IMAGE ? known.getFamilyName() : model;
+        String name = known != null && GenerationModel.constantOf(known.name()) != null ? known.getFamilyName()
+                : model;
         return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 

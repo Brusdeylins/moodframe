@@ -6,6 +6,7 @@ import art.moodframe.util.I18nManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,23 +97,32 @@ public class ApiProviderValidator {
 
     private final ApplicationConfig config;
     private final ProviderRegistry providers;
-    private final GeminiApiService geminiApiService;
-    private final OpenAiApiService openAiApiService;
     private final Map<Key, Reason> reasons = new ConcurrentHashMap<>();
     private final List<Runnable> completionListeners = new CopyOnWriteArrayList<>();
     private final Map<String, ModelCheck> lastOpenAiChecks = new HashMap<>();
+
+    /*  The checks after a decided connection test of the providers with a brainstorm language model, given the result
+        of the test; every other provider has its connection tested only  */
+    private final Map<ApiProvider, Function<Boolean, CompletableFuture<Boolean>>> extras =
+            new EnumMap<>(ApiProvider.class);
+
+    /*  What depends on the account of a provider with extras, cleared if it has no key  */
+    private final Map<ApiProvider, Runnable> noKey = new EnumMap<>(ApiProvider.class);
 
     /**
      * Creates a new API provider validator.
      *
      * @param config    the application configuration
-     * @param providers tests the connections; Gemini and OpenAI also check their brainstorm language models
+     * @param providers tests the connections of all providers; Gemini and OpenAI also check their brainstorm language
+     *                  models
      */
     public ApiProviderValidator(ApplicationConfig config, ProviderRegistry providers) {
         this.config = config;
         this.providers = providers;
-        this.geminiApiService = providers.get(ApiProvider.GOOGLE_GEMINI, GeminiApiService.class);
-        this.openAiApiService = providers.get(ApiProvider.OPENAI, OpenAiApiService.class);
+        extras.put(ApiProvider.GOOGLE_GEMINI, this::checkGeminiAfterConnection);
+        extras.put(ApiProvider.OPENAI, this::checkOpenAiAfterConnection);
+        noKey.put(ApiProvider.GOOGLE_GEMINI, () -> clearModelChecks(ApiProvider.GOOGLE_GEMINI));
+        noKey.put(ApiProvider.OPENAI, () -> clearModelChecks(ApiProvider.OPENAI));
     }
 
     /**
@@ -140,82 +150,67 @@ public class ApiProviderValidator {
 
         /*  OpenAI first: only its fresh result tells if OpenAI is the only provider in use, whose
             other providers are not contacted and keep their stored status  */
-        CompletableFuture<Boolean> openAiValidation = validateOpenAiProvider();
+        Map<ApiProvider, CompletableFuture<Boolean>> validations = new EnumMap<>(ApiProvider.class);
+        CompletableFuture<Boolean> openAiValidation = validate(ApiProvider.OPENAI);
+        validations.put(ApiProvider.OPENAI, openAiValidation);
         CompletableFuture<Boolean> openAiOnly = openAiValidation.handle((valid, error) -> {
             boolean only = ProviderPolicy.isOpenAiOnly(config);
-            if (only) {
-                logger.info("OpenAI is the only provider in use, BFL and Gemini are not validated");
-                Reason skipped = new Reason("status.api.check.skipped", null);
-                reasons.put(new Key(ApiProvider.BFL, Check.CONNECTION), skipped);
-                reasons.put(new Key(ApiProvider.GOOGLE_GEMINI, Check.CONNECTION), skipped);
-            }
+            if (only)
+                logger.info("OpenAI is the only provider in use, the others are not validated");
             return only;
         });
-        CompletableFuture<Boolean> bflValidation = openAiOnly.thenCompose((only) -> only
-                ? CompletableFuture.completedFuture(config.accounts().isValidated(ApiProvider.BFL))
-                : validateBflProvider());
-        CompletableFuture<Boolean> geminiValidation = openAiOnly.thenCompose((only) -> only
-                ? CompletableFuture.completedFuture(config.accounts().isValidated(ApiProvider.GOOGLE_GEMINI))
-                : validateGeminiProvider());
+        for (ApiProvider id : providers.ids()) {
+            if (id == ApiProvider.OPENAI)
+                continue;
+            validations.put(id, openAiOnly.thenCompose((only) -> {
+                if (!only)
+                    return validate(id);
+                reasons.put(new Key(id, Check.CONNECTION), new Reason("status.api.check.skipped", null));
+                return CompletableFuture.completedFuture(config.accounts().isValidated(id));
+            }));
+        }
 
-        return CompletableFuture.allOf(bflValidation, geminiValidation, openAiValidation)
+        return CompletableFuture.allOf(validations.values().toArray(CompletableFuture[]::new))
                 .whenComplete((v, error) -> completionListeners.forEach(Runnable::run))
                 .thenApply(v -> {
-                    Map<ApiProvider, Boolean> results = new HashMap<>();
-                    results.put(ApiProvider.BFL, bflValidation.join());
-                    results.put(ApiProvider.GOOGLE_GEMINI, geminiValidation.join());
-                    results.put(ApiProvider.OPENAI, openAiValidation.join());
-
-                    logger.info("API provider validation completed: BFL={}, Gemini={}, OpenAI={}",
-                            results.get(ApiProvider.BFL),
-                            results.get(ApiProvider.GOOGLE_GEMINI),
-                            results.get(ApiProvider.OPENAI));
-
+                    Map<ApiProvider, Boolean> results = new EnumMap<>(ApiProvider.class);
+                    validations.forEach((ApiProvider id, CompletableFuture<Boolean> valid) ->
+                            results.put(id, valid.join()));
+                    logger.info("API provider validation completed: {}", results);
                     return results;
                 });
     }
 
     /**
-     * Validates the BFL API provider.
+     * Validates a provider: tests its connection and, for Gemini and OpenAI, checks the brainstorm language model.
      *
-     * <p>Note: This method only updates the validation status. The enabled status is
-     * only auto-set on first successful validation (when no user preference exists).
-     * After initial setup, the enabled status is controlled by user preference and
-     * will not be overridden by automatic validation.</p>
+     * <p>Note: This method only updates the validation status. The enabled status is only auto-set on first
+     * successful validation (when no user preference exists). After initial setup, the enabled status is controlled
+     * by user preference and will not be overridden by automatic validation.</p>
      *
+     * @param provider the provider, one of the registry
      * @return a CompletableFuture that resolves to true if validation succeeded
      */
-    public CompletableFuture<Boolean> validateBflProvider() {
-        return validateConnection(ApiProvider.BFL, () -> { }, CompletableFuture::completedFuture);
+    public CompletableFuture<Boolean> validate(ApiProvider provider) {
+        return validateConnection(provider, noKey.getOrDefault(provider, () -> { }),
+                extras.getOrDefault(provider, CompletableFuture::completedFuture));
     }
 
-    /**
-     * Validates the Google Gemini API provider.
-     *
-     * <p>Note: This method only updates the validation status. The enabled status is
-     * only auto-set on first successful validation (when no user preference exists).
-     * After initial setup, the enabled status is controlled by user preference and
-     * will not be overridden by automatic validation.</p>
-     *
-     * @return a CompletableFuture that resolves to true if validation succeeded
-     */
-    public CompletableFuture<Boolean> validateGeminiProvider() {
-        return validateConnection(ApiProvider.GOOGLE_GEMINI,
-                () -> clearModelChecks(ApiProvider.GOOGLE_GEMINI),
-                (isValid) -> {
-                    if (isValid && !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)
-                            && !config.accounts().isEnabled(ApiProvider.BFL)) {
-                        /*  No provider usable (e.g. after migration to a new machine): enable Gemini  */
-                        config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, true);
-                        logger.info("Gemini API validation successful - no provider enabled, Gemini auto-enabled");
-                    }
+    /*  Gemini after a decided connection test: enabled if no provider is, then its brainstorm language model  */
+    private CompletableFuture<Boolean> checkGeminiAfterConnection(boolean isValid) {
+        if (isValid && !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI)
+                && !config.accounts().isEnabled(ApiProvider.BFL)) {
 
-                    /*  Without a connection, language model and search stay as last decided: no brainstorm anyway;
-                        a disabled provider keeps them too, so no paid check runs for an account switched off  */
-                    if (!isValid || !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI))
-                        return CompletableFuture.completedFuture(isValid);
-                    return checkGeminiModel().thenApply((check) -> true);
-                });
+            /*  No provider usable (e.g. after migration to a new machine): enable Gemini  */
+            config.accounts().setEnabled(ApiProvider.GOOGLE_GEMINI, true);
+            logger.info("Gemini API validation successful - no provider enabled, Gemini auto-enabled");
+        }
+
+        /*  Without a connection, language model and search stay as last decided: no brainstorm anyway; a disabled
+            provider keeps them too, so no paid check runs for an account switched off  */
+        if (!isValid || !config.accounts().isEnabled(ApiProvider.GOOGLE_GEMINI))
+            return CompletableFuture.completedFuture(isValid);
+        return checkGeminiModel().thenApply((check) -> true);
     }
 
     /**
@@ -238,7 +233,8 @@ public class ApiProviderValidator {
      * @since 2.1.3
      */
     public CompletableFuture<ModelCheck> checkGeminiModel(String apiKey) {
-        GeminiApiService gemini = apiKey != null ? geminiApiService.withCredentials(apiKey, null) : geminiApiService;
+        GeminiApiService saved = providers.get(ApiProvider.GOOGLE_GEMINI, GeminiApiService.class);
+        GeminiApiService gemini = apiKey != null ? saved.withCredentials(apiKey, null) : saved;
         return gemini.checkChatModel().handle(Outcome::of)
                 .thenCombine(gemini.checkWebSearch().handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
@@ -248,27 +244,18 @@ public class ApiProviderValidator {
                 });
     }
 
-    /**
-     * Validates the OpenAI API provider by listing its models; a successful check also refreshes the model list.
-     * Like for BFL, the enabled status is only auto-set on the first successful validation.
-     *
-     * @return a CompletableFuture that resolves to true if validation succeeded
-     */
-    public CompletableFuture<Boolean> validateOpenAiProvider() {
-        return validateConnection(ApiProvider.OPENAI,
-                () -> clearModelChecks(ApiProvider.OPENAI),
-                (isValid) -> {
-                    /*  Without a connection, or for a disabled provider, the last decided results stay  */
-                    String model = config.getOpenAiChatModel();
-                    if (!isValid || !config.accounts().isEnabled(ApiProvider.OPENAI))
-                        return CompletableFuture.completedFuture(isValid);
-                    if (!model.isBlank())
-                        return checkOpenAiModel(model).thenApply((check) -> true);
+    /*  OpenAI after a decided connection test, which listed its models and so refreshed the model list: the chosen
+        brainstorm language model; without a connection, or for a disabled provider, the last decided results stay  */
+    private CompletableFuture<Boolean> checkOpenAiAfterConnection(boolean isValid) {
+        String model = config.getOpenAiChatModel();
+        if (!isValid || !config.accounts().isEnabled(ApiProvider.OPENAI))
+            return CompletableFuture.completedFuture(isValid);
+        if (!model.isBlank())
+            return checkOpenAiModel(model).thenApply((check) -> true);
 
-                    /*  No chosen model: no brainstorm  */
-                    clearModelChecks(ApiProvider.OPENAI);
-                    return CompletableFuture.completedFuture(true);
-                });
+        /*  No chosen model: no brainstorm  */
+        clearModelChecks(ApiProvider.OPENAI);
+        return CompletableFuture.completedFuture(true);
     }
 
     /**
@@ -341,8 +328,8 @@ public class ApiProviderValidator {
      * @since 2.1.3
      */
     public CompletableFuture<ModelCheck> checkOpenAiModel(String model, String apiKey, String baseUrl) {
-        OpenAiApiService openAi = apiKey != null ? openAiApiService.withCredentials(apiKey, baseUrl)
-                : openAiApiService;
+        OpenAiApiService saved = providers.get(ApiProvider.OPENAI, OpenAiApiService.class);
+        OpenAiApiService openAi = apiKey != null ? saved.withCredentials(apiKey, baseUrl) : saved;
         return openAi.checkChatModel(model).handle(Outcome::of)
                 .thenCombine(openAi.checkWebSearch(model).handle(Outcome::of), ModelCheck::new)
                 .thenApply((ModelCheck check) -> {
