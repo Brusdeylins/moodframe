@@ -1,6 +1,6 @@
 pkgbase = moodframe-bin
 	pkgdesc = Desktop studio for AI images: FLUX, Nano Banana, OpenAI and any compatible image API in one app
-	pkgver = 2.1.2
+	pkgver = 2.1.3
 	pkgrel = 1
 	url = https://moodframe.art
 	arch = x86_64
@@ -29,10 +29,10 @@ pkgbase = moodframe-bin
 	conflicts = moodframe
 	options = !strip
 	options = !debug
-	source = https://moodframe.art/download/moodframe-2.1.2-linux-amd64.tar.gz
+	source = https://moodframe.art/download/moodframe-2.1.3-linux-amd64.tar.gz
 	source = moodframe.desktop
 	source = LICENSE
-	sha256sums = d5b05129b0d8ff715d25d08c2c3cb50ee5fce81d2665e9102905a58a4083948b
+	sha256sums = df8da56cd0797946cf32cdef4242a26b1394ad49aa87008b18c21b6adae9f759
 	sha256sums = cb52ddf8c995bd19dbeef69d2c8f26d57a943633529013dcb9d349db7662e0f2
 	sha256sums = ac0a22782f6fb9934adc1327e08b410d298b0229f947ae0d70b5422c2d9fc6f1
 

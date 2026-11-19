@@ -10,7 +10,18 @@ plugins {
 def getConveyorCommand() {
     def os = System.getProperty('os.name').toLowerCase()
     if (os.contains('mac')) {
-        return '/Applications/Conveyor.app/Contents/MacOS/conveyor'
+
+        /*  installed for all users or only for the current one, else the one on the PATH  */
+        def macPaths = [
+            '/Applications/Conveyor.app/Contents/MacOS/conveyor',
+            System.getProperty('user.home') + '/Applications/Conveyor.app/Contents/MacOS/conveyor'
+        ]
+        for (path in macPaths) {
+            if (new File(path).exists()) {
+                return path
+            }
+        }
+        return 'conveyor'
     } else if (os.contains('win')) {
         // On Windows, conveyor is typically installed to PATH or specific locations
         def windowsPaths = [
@@ -31,7 +42,7 @@ def getConveyorCommand() {
 }
 
 group = 'art.moodframe'
-version = '2.1.2'
+version = '2.1.3'
 description = 'MoodFrame - desktop studio for AI image generation'
 
 java {

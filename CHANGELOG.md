@@ -2,9 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2.1.3 (unreleased)
+## 2.1.3 (2026-11-19)
+
+### IMPROVEMENT
+- Architecture: the code is restructured into clear layers (user interface, services, repositories, database), one
+  package per image provider, documented decisions in `docs/ARCHITECTURE.md` and rules that the tests enforce; the
+  database is written off the UI thread, so the window stays responsive while an AI agent works through MCP
+- The whole window follows a change of the language (provider switches, "None" choices, brainstorm window, tooltips)
+  and shows amounts in the format of the chosen language
+- MCP: every answer is English (model names, the trash list, the names `mood_from_image` gives)
+- Smaller download: the unused web engine of JavaFX is no longer bundled
 
 ### BUGFIX
+- Generation: an image that fails (refused or timed-out request, failed download or file write, failed video) costs
+  nothing and the entry settles instead of keeping its estimated cost
+- Generation: a cancel right after sending sends nothing to the provider; deleting a running entry, image or chat
+  cancels or settles its generation first, books the real cost and the entry no longer comes back; restoring an image
+  while its entry still generates keeps the images still to come
+- Trash: an image that arrives after its chat went to the trash leaves no file behind; the cleanup never removes an
+  item that was restored in the meantime; the trash counts only real images
+- The app follows the theme of the system until a theme is chosen in the settings
+- With OpenAI as the only provider the status bar no longer reports a missing API key; the hints name the provider
+  whose key is missing; the seed field follows the chosen model
+- The start no longer switches Google Gemini on against the choice of the user
+- Settings: the reset turns prompt upsampling off; a settings file without model defaults gets those of a fresh
+  installation (1 image, safety tolerance 2)
+- New chats are named in the chosen language with the next free number
+- Brainstorm: closing and reopening the window during an answer no longer runs two answers of one session at once;
+  the automatic name no longer overwrites a rename
+- A generation updates only the card of its entry instead of rebuilding all visible cards
+- Quitting saves the window layout even if a service failed to start
 - Right panel: the model follows the resolution of the frame, also when it was set elsewhere (reused entry,
   attachments, saved choice); Nano Banana Pro makes 4K for a 4K frame instead of 2K, and reusing an entry from before
   the frames were stored takes the resolution of its model
